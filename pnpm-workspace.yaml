@@ -27,6 +27,16 @@ catalog:
   # 不能用最新的 vitest 5.x。
   vitest: 4.1.12
   '@cloudflare/vitest-pool-workers': 0.23.0
+  # React 组件测试（HUB-044 验收）。
+  # @testing-library/react@16.3.3 的 peer：react ^18||^19、@testing-library/dom ^10。
+  '@testing-library/react': 16.3.3
+  '@testing-library/dom': 10.4.2
+  '@testing-library/user-event': 14.6.8
+  # jsdom 固定在 28.1.0：engines 为 ^20.19.0 || ^22.12.0 || >=24.0.0，
+  # 与本仓库 engines 的最低版本（22.12.0）一致；更新版本要求 ^22.22.2，会窄于本仓库声明。
+  jsdom: 28.1.0
+  # 真实浏览器验收链（HUB-044 验收要求）。
+  '@playwright/test': 1.64.1
 
   # --- Worker / Cloudflare -------------------------------------------------
   # wrangler 4.151.1 要求 node >=22.0.0（本仓库 engines 为 >=22.12.0）。

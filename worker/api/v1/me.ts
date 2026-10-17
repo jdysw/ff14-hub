@@ -1,5 +1,5 @@
 /**
- * `/api/v1/me/*`（私有端点，HUB-006 已实现）。
+ * `/api/v1/me/*`（私有端点）。
  *
  * 安全前提：
  * - 整棵子树先经过 `deviceAuth()`；未授权一律 401（由认证中间件保证）。
@@ -8,6 +8,7 @@
  * - 列表响应只包含 `deviceSummarySchema` 的字段，绝不返回 `token_hash` 或恢复密钥摘要。
  * - 撤销立即生效：认证中间件每个请求都查库，没有进程内令牌缓存，
  *   所以被撤销设备的下一次请求就会 401，无需等待缓存过期。
+ * - 阶段 02 新增模块子树（HUB-050），见 `./me-modules.ts`；它同样挂在本中间件之后。
  */
 import { ApiError, DEFAULT_ERROR_MESSAGE } from '@ff14-hub/shared';
 import { Hono } from 'hono';
@@ -15,6 +16,7 @@ import { getWorkspaceProfile, listDevices, revokeDevice } from '../../modules/id
 import { deviceAuth } from '../../middleware/auth';
 import { methodNotAllowed } from '../../middleware/error-handler';
 import { noContent, noStoreJson } from '../../lib/response';
+import { registerMeModuleRoutes } from './me-modules';
 import type { AppBindings } from '../../types';
 
 export const meRoutes = new Hono<AppBindings>();
@@ -52,5 +54,9 @@ meRoutes.delete('/devices/:id', async (c) => {
   return noContent(c);
 });
 
+// 阶段 02 / HUB-050：模块状态与生命周期变更（同样在 deviceAuth 之后）。
+registerMeModuleRoutes(meRoutes);
+
 // 其他方法：结构化 405（同样先经过认证）。
-meRoutes.all('*', methodNotAllowed(['GET', 'DELETE']));
+// 这里列出 /me 子树实际提供过的方法；具体路径仍按注册的处理器优先匹配。
+meRoutes.all('*', methodNotAllowed(['GET', 'PATCH', 'POST', 'DELETE']));

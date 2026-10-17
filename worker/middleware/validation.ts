@@ -9,44 +9,16 @@
  * - 校验失败消息只由**字段路径 + 问题类别**构成，绝不回显提交的值。
  *   Zod 的若干默认文案会把「收到的值」拼进 message，直接透传会把凭证写进响应体与日志。
  * - 细节只写服务端行为的结果：客户端拿到统一的 `validation_failed` + 可读的字段提示。
+ * - 安全文本化实现已抽到 `worker/lib/zod-issues.ts`，模块注册表的设置校验复用同一份，
+ *   避免两处各写一份而漂移。
  */
 import { ApiError, DEFAULT_ERROR_MESSAGE } from '@ff14-hub/shared';
 import type { ZodType } from 'zod';
+import { describeIssues } from '../lib/zod-issues';
 import type { AppMiddleware } from '../types';
 
-/** 每个请求最多列出的问题条目数，避免超长消息。 */
-const MAX_REPORTED_ISSUES = 5;
-
-/** zod issue code → 简短中文说明。刻意不含任何「收到值」的信息。 */
-const ISSUE_TEXT: Readonly<Record<string, string>> = {
-  invalid_type: '类型不正确',
-  too_small: '长度或数值过小',
-  too_big: '长度或数值过大',
-  invalid_format: '格式不正确',
-  invalid_value: '取值不在允许范围内',
-  invalid_union: '不匹配任何允许的形式',
-  unrecognized_keys: '包含未允许的字段',
-  invalid_key: '字段名不合法',
-  not_multiple_of: '不是允许的倍数',
-  custom: '不满足额外约束',
-};
-
-interface ZodIssueLike {
-  readonly path: readonly PropertyKey[];
-  readonly code: string;
-}
-
-/** 把 zod 问题列表转成安全的可读文本：只有路径与类别，没有值。 */
-export function describeIssues(issues: readonly ZodIssueLike[]): string {
-  const parts = issues.slice(0, MAX_REPORTED_ISSUES).map((issue) => {
-    const path = issue.path.length > 0 ? issue.path.map((segment) => String(segment)).join('.') : '<root>';
-    return `${path}: ${ISSUE_TEXT[issue.code] ?? '不合法'}`;
-  });
-  if (issues.length > MAX_REPORTED_ISSUES) {
-    parts.push(`…等共 ${issues.length} 项`);
-  }
-  return parts.join('；');
-}
+// 保持既有导入路径可用（注册表与测试都从这里取；实现只有一份）。
+export { describeIssues, MAX_REPORTED_ISSUES } from '../lib/zod-issues';
 
 /** 取出已被 `validateJsonBody` 校验过的请求体，并保持静态类型。 */
 export function parsedJsonBody<T>(c: { get: (key: 'jsonBody') => unknown }, schema: ZodType<T>): T {

@@ -56,3 +56,33 @@ export function isForeignKeyConstraintError(error: unknown): boolean {
   return /FOREIGN KEY constraint failed/i.test(error.message) || /SQLITE_CONSTRAINT_FOREIGNKEY/i.test(error.message);
 }
 
+/**
+ * 稳定的 JSON 序列化：对象键排序后输出。
+ *
+ * 用途：比较「设置是否真的变化了」。直接比较 `JSON.stringify` 会因键顺序不同而误判为变化，
+ * 从而把幂等的重复 PATCH 错误地当成修改（并多 bump 一次 revision）。
+ * 只支持 JSON 可表示的值；遇到循环引用会退化为 `undefined`（调用方按「无法比较」处理）。
+ */
+export function stableStringify(value: unknown): string {
+  const seen = new WeakSet<object>();
+  const normalize = (input: unknown): unknown => {
+    if (input === null || typeof input !== 'object') {
+      return input;
+    }
+    if (seen.has(input)) {
+      return undefined;
+    }
+    seen.add(input);
+    if (Array.isArray(input)) {
+      return input.map((item) => normalize(item));
+    }
+    const source = input as Record<string, unknown>;
+    const result: Record<string, unknown> = {};
+    for (const key of Object.keys(source).sort()) {
+      result[key] = normalize(source[key]);
+    }
+    return result;
+  };
+  return JSON.stringify(normalize(value)) ?? 'null';
+}
+

@@ -34,12 +34,42 @@ export const URLS = {
   recover: `${TEST_BASE_URL}/api/v1/identity/recover`,
   profile: `${TEST_BASE_URL}/api/v1/me/profile`,
   devices: `${TEST_BASE_URL}/api/v1/me/devices`,
+  moduleCatalog: `${TEST_BASE_URL}/api/v1/modules/catalog`,
+  meModules: `${TEST_BASE_URL}/api/v1/me/modules`,
 } as const;
+
+/** 单个模块状态端点。 */
+export function moduleUrl(moduleId: string): string {
+  return `${URLS.meModules}/${moduleId}`;
+}
+
+/** 清数据端点（本阶段恒 501）。 */
+export function modulePurgeUrl(moduleId: string): string {
+  return `${URLS.meModules}/${moduleId}/purge`;
+}
 
 /** 构造 JSON POST 请求。 */
 export function jsonPost(body: unknown, headers: Record<string, string> = {}): RequestInit {
   return {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify(body),
+  };
+}
+
+/** 构造 JSON PATCH 请求（模块生命周期变更用）。 */
+export function jsonPatch(body: unknown, headers: Record<string, string> = {}): RequestInit {
+  return {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify(body),
+  };
+}
+
+/** 构造带 JSON 体的 DELETE 请求（用于验证方法/校验边界）。 */
+export function jsonDelete(body: unknown, headers: Record<string, string> = {}): RequestInit {
+  return {
+    method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(body),
   };
@@ -92,12 +122,13 @@ export async function createPairingViaApi(
   return await response.json<{ pairingCode: string; expiresAt: number }>();
 }
 
-/** 清空全部身份相关表（顺序满足外键约束）。 */
+/** 清空全部身份与模块相关表（顺序满足外键约束）。 */
 export async function resetIdentityState(): Promise<void> {
   await env.DB.batch([
     env.DB.prepare('DELETE FROM identity_audit'),
     env.DB.prepare('DELETE FROM pairing_claims'),
     env.DB.prepare('DELETE FROM device_pairings'),
+    env.DB.prepare('DELETE FROM workspace_modules'),
     env.DB.prepare('DELETE FROM devices'),
     env.DB.prepare('DELETE FROM workspace_bootstrap_guard'),
     env.DB.prepare('DELETE FROM workspaces'),
@@ -113,6 +144,7 @@ const COUNTABLE_TABLES = [
   'workspace_bootstrap_guard',
   'auth_rate_limits',
   'pairing_claims',
+  'workspace_modules',
 ] as const;
 
 export type CountableTable = (typeof COUNTABLE_TABLES)[number];
@@ -218,4 +250,50 @@ export async function readLastSeenAt(deviceId: string): Promise<number | null> {
     .bind(deviceId)
     .first<{ last_seen_at: number | null }>();
   return row?.last_seen_at ?? null;
+}
+
+/**
+ * 直接读取 `workspace_modules` 的一行，用于断言「卸载/停用没有删数据」这类
+ * **数据库事实**，而不是只看响应体自述。
+ */
+export interface ModuleRowSnapshot {
+  readonly status: string;
+  readonly settings_json: string;
+  readonly settings_version: number;
+  readonly revision: number;
+  readonly installed_at: number;
+  readonly enabled_at: number | null;
+  readonly disabled_at: number | null;
+  readonly uninstalled_at: number | null;
+}
+
+export async function readModuleRow(workspaceId: string, moduleId: string): Promise<ModuleRowSnapshot | null> {
+  return await env.DB.prepare(
+    `SELECT status, settings_json, settings_version, revision, installed_at, enabled_at, disabled_at, uninstalled_at
+       FROM workspace_modules WHERE workspace_id = ? AND module_id = ?`,
+  )
+    .bind(workspaceId, moduleId)
+    .first<ModuleRowSnapshot>();
+}
+
+/** 发起一次模块生命周期 PATCH（避免每个测试重复拼请求）。 */
+export async function patchModule(
+  authorization: string,
+  moduleId: string,
+  body: unknown,
+): Promise<Response> {
+  return await SELF.fetch(moduleUrl(moduleId), jsonPatch(body, { Authorization: authorization }));
+}
+
+/** 读取 `workspace_modules` 中某个模块的设置对象。 */
+export async function readModuleSettings(
+  workspaceId: string,
+  moduleId: string,
+): Promise<Record<string, unknown> | null> {
+  const row = await readModuleRow(workspaceId, moduleId);
+  if (row === null) {
+    return null;
+  }
+  const parsed: unknown = JSON.parse(row.settings_json);
+  return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : null;
 }

@@ -9,7 +9,7 @@
  * - D1 的 FK 约束由运行时强制（`PRAGMA foreign_keys` 默认开启），
  *   不依赖 ORM 层的 `references()`。
  */
-import type { IdentityAuditEvent, Region } from '@ff14-hub/shared';
+import type { IdentityAuditEvent, ModulePersistedStatus, Region } from '@ff14-hub/shared';
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 /** 单个私有工作空间（INV-05：无传统账号，一个工作空间 + 多设备凭证）。 */
@@ -134,6 +134,37 @@ export const pairingClaims = sqliteTable(
   (table) => [index('idx_pairing_claims_device').on(table.deviceId)],
 );
 
+/**
+ * 工作空间模块状态（HUB-050，由 migrations/0003_modules.sql 建立）。
+ *
+ * - 主键 `(workspace_id, module_id)`：模块状态天然按工作空间隔离。
+ * - `module_id` 刻意**没有**外键：模块是代码里的静态注册项（worker/modules/registry），
+ *   不是数据库行；合法性由注册表校验。
+ * - `revision` 是防静默覆盖的乐观并发列：所有变更都以 `WHERE revision = ?` 的条件更新提交。
+ * - `status` 只允许三种持久状态；「未安装」是行缺失时的派生值，永远不会被写进来。
+ * - 停用与卸载都不删除本行，因此个人设置会保留（卸载 ≠ 清数据）。
+ */
+export const workspaceModules = sqliteTable(
+  'workspace_modules',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    moduleId: text('module_id').notNull(),
+    status: text('status').$type<ModulePersistedStatus>().notNull(),
+    settingsJson: text('settings_json').notNull(),
+    settingsVersion: integer('settings_version').notNull(),
+    revision: integer('revision').notNull(),
+    installedAt: integer('installed_at').notNull(),
+    enabledAt: integer('enabled_at'),
+    disabledAt: integer('disabled_at'),
+    uninstalledAt: integer('uninstalled_at'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [index('idx_workspace_modules_workspace_status').on(table.workspaceId, table.status)],
+);
+
 /** 全部表的集合，供 drizzle 客户端与测试使用。 */
 export const schema = {
   workspaces,
@@ -143,4 +174,5 @@ export const schema = {
   workspaceBootstrapGuard,
   authRateLimits,
   pairingClaims,
+  workspaceModules,
 } as const;
