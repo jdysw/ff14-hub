@@ -74,3 +74,34 @@ jobs:
 
       - name: 迁移清单（供审查留痕）
         run: pnpm exec wrangler d1 migrations list DB --local
+
+  e2e:
+    name: 阶段 02 真实浏览器验收链
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: 冻结安装（frozen lockfile）
+        run: pnpm install --frozen-lockfile
+
+      # 浏览器驱动只在本地运行：整个验收链使用本地 wrangler dev + 本地 D1，
+      # 不部署、不创建远程资源、不读取仓库 Secrets。
+      - name: 安装 Playwright chromium（含系统依赖）
+        run: pnpm exec playwright install --with-deps chromium
+
+      # 编排脚本负责：清空专用本地 D1 目录 → 构建前端 → 应用迁移 → 启动 wrangler dev
+      # （用随机生成的一次性初始化密钥，不写 .dev.vars）→ 通过真实 HTTP 端点初始化设备
+      # → playwright test → 关闭服务并删除临时凭证文件。
+      - name: 阶段 02 浏览器验收链（本地 wrangler dev + 本地 D1）
+        run: pnpm run e2e:phase02

@@ -9,20 +9,25 @@ export function StageNotice() {
     <section className="panel" aria-labelledby="stage-title">
       <h2 id="stage-title">当前阶段</h2>
       <p>
-        <strong>阶段 01 · HUB-001 ～ HUB-005</strong>
-        （Core 工程、Worker/API 基础、D1 迁移、认证中间件、CI 与测试基础）
+        <strong>阶段 02 · HUB-043 / HUB-044 / HUB-050</strong>
+        （Module Registry 静态注册、Widget Host 与实例隔离、模块生命周期与数据策略）
       </p>
       <p className="panel__muted">
-        本页只是结构化的 App Shell，用于验证同域静态资源与 API 调用链。导航、鱼类工作台、
-        布局编辑器与通知调度均未实现，也不在本轮范围内。
+        阶段 01 的工程底座与设备身份系统已经合并入 <code>main</code>。
+        本阶段提供的是**模块运行时**：内置可信模块的注册表、基于静态组件映射的 Widget Host、
+        以及模块启停 / 卸载 / 恢复的持久状态与契约。
+        界面上出现的组件全部是 <code>demo.*</code> 演示组件，<strong>没有游戏业务数据</strong>。
       </p>
       <ul className="roadmap">
-        <li>阶段 02 · Module Registry 与 Widget Host</li>
-        <li>阶段 03 · 自定义工作台（多页面、拖拽布局、备份恢复）</li>
+        <li>阶段 03 · 自定义工作台（持久页面、拖拽布局、备份恢复）</li>
         <li>阶段 04 · 自由导航与首页</li>
-        <li>阶段 05 · 鱼类 / 活动 / 提醒</li>
+        <li>阶段 05 · 鱼类 / 活动 / 提醒（含真实持久调度）</li>
         <li>阶段 06 · 鱼糕 WebDAV 同步与发布</li>
       </ul>
+      <p className="panel__muted">
+        明确未做：清数据（purge）被显式拒绝（501）；没有 Cron、没有 Web Push、没有真实游戏导航；
+        多页面与布局编辑不在本阶段。
+      </p>
     </section>
   );
 }

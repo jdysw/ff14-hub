@@ -9,8 +9,13 @@
  * - D1 的 FK 约束由运行时强制（`PRAGMA foreign_keys` 默认开启），
  *   不依赖 ORM 层的 `references()`。
  */
-import type { IdentityAuditEvent, Region } from '@ff14-hub/shared';
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import type {
+  IdentityAuditEvent,
+  ModulePersistedStatus,
+  ModuleSupportedAction,
+  Region,
+} from '@ff14-hub/shared';
+import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 /** 单个私有工作空间（INV-05：无传统账号，一个工作空间 + 多设备凭证）。 */
 export const workspaces = sqliteTable(
@@ -134,6 +139,83 @@ export const pairingClaims = sqliteTable(
   (table) => [index('idx_pairing_claims_device').on(table.deviceId)],
 );
 
+/**
+ * 工作空间模块状态（HUB-050，由 migrations/0003_modules.sql 建立）。
+ *
+ * - 主键 `(workspace_id, module_id)`：模块状态天然按工作空间隔离。
+ * - `module_id` 刻意**没有**外键：模块是代码里的静态注册项（worker/modules/registry），
+ *   不是数据库行；合法性由注册表校验。
+ * - `revision` 是防静默覆盖的乐观并发列：所有变更都以 `WHERE revision = ?` 的条件更新提交。
+ * - `status` 只允许三种持久状态；「未安装」是行缺失时的派生值，永远不会被写进来。
+ * - 停用与卸载都不删除本行，因此个人设置会保留（卸载 ≠ 清数据）。
+ */
+export const workspaceModules = sqliteTable(
+  'workspace_modules',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    moduleId: text('module_id').notNull(),
+    status: text('status').$type<ModulePersistedStatus>().notNull(),
+    settingsJson: text('settings_json').notNull(),
+    settingsVersion: integer('settings_version').notNull(),
+    revision: integer('revision').notNull(),
+    installedAt: integer('installed_at').notNull(),
+    enabledAt: integer('enabled_at'),
+    disabledAt: integer('disabled_at'),
+    uninstalledAt: integer('uninstalled_at'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [index('idx_workspace_modules_workspace_status').on(table.workspaceId, table.status)],
+);
+
+/**
+ * 待完成的模块生命周期操作（HUB-050，由 migrations/0004_module_operations.sql 建立）。
+ *
+ * 存在一行 = 有一次已原子准入但尚未完成（或已失败待重试）的操作。
+ * 此时门禁状态为 `transitioning`（见 `@ff14-hub/shared` 的 `moduleGateStatus()`），
+ * 因此它绝不会被当成「可以运行」。全部副作用成功后本行才被删除。
+ */
+export const workspaceModuleOperations = sqliteTable(
+  'workspace_module_operations',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    moduleId: text('module_id').notNull(),
+    action: text('action').$type<ModuleSupportedAction>().notNull(),
+    targetStatus: text('target_status').$type<ModulePersistedStatus>().notNull(),
+    revision: integer('revision').notNull(),
+    startedAt: integer('started_at').notNull(),
+    attempts: integer('attempts').notNull(),
+    lastError: text('last_error'),
+  },
+  (table) => [primaryKey({ columns: [table.workspaceId, table.moduleId] })],
+);
+
+/**
+ * 生命周期副作用的**独占执行认领**（HUB-050，由 migrations/0005_module_operation_claims.sql 建立）。
+ *
+ * 主键 `(workspace_id, module_id)` 保证同一时刻只有一个执行者持有 `token`；
+ * 所有副作用写入（收尾 / 失败记录）都以 token 为条件，因此被取代的执行者写不进去。
+ * `expires_at` 是租约，只用于崩溃后的原子抢占——**不**假设 TTL 到期旧执行者已停止，
+ * 端口清理另有 revision fence（`upToRevision` / `maxRevision`）。
+ */
+export const workspaceModuleOperationClaims = sqliteTable(
+  'workspace_module_operation_claims',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    moduleId: text('module_id').notNull(),
+    token: text('token').notNull(),
+    claimedAt: integer('claimed_at').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.workspaceId, table.moduleId] })],
+);
+
 /** 全部表的集合，供 drizzle 客户端与测试使用。 */
 export const schema = {
   workspaces,
@@ -143,4 +225,7 @@ export const schema = {
   workspaceBootstrapGuard,
   authRateLimits,
   pairingClaims,
+  workspaceModules,
+  workspaceModuleOperations,
+  workspaceModuleOperationClaims,
 } as const;

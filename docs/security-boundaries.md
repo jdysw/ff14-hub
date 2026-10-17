@@ -169,14 +169,59 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains   ← 仅在请�
 - 撤销审计的条件判定改用**实际受影响行数**（`changes()`）而非时间戳相等；
   另有部分唯一索引 `idx_identity_audit_device_revoked_once` 作为数据库级去重保证。
 - 迁移本身不写 `PRAGMA foreign_keys`：D1 默认开启外键约束。
+- **模块生命周期同样依赖这一点**：条件 CAS（`WHERE revision = ?`）与待完成标记的插入在
+  **同一个 batch** 里完成，`INSERT ... SELECT ... WHERE changes() = 1` 保证「只有 CAS 赢家
+  才会留下待完成标记」。抢输的一方因此在任何可变副作用之前就以 409 退出。
 
-## 9. 明确未做的安全项（不要读成已完成）
+## 9. 模块运行时的边界（阶段 02 / HUB-043 · HUB-044 · HUB-050）
+
+- **作用域只来自认证结果**：`/me/modules*` 全部经 `deviceAuth()`，workspace 一律取
+  `c.get('workspaceId')`；请求体里出现 `workspaceId` 会被严格 Schema 拒绝（422）。
+- **能力是执行期门禁**：交给模块的调度视图在 `schedule` 前查注册表授予结果
+  （`registry.hasCapability(moduleId, 'scheduled:own')`）；Manifest 的声明不参与判定。
+- **作用域闭包绑定**：模块拿到的 `ModuleScopedScheduler` 入参没有 workspace/module 字段，
+  实现只按闭包构造委派入参，多传的作用域字段被丢弃 → 伪造在类型与运行时都无效。
+- **不把平台端口交给模块**：带任意作用域的管理端口与实例清理端口只存在于平台代码；
+  模块 handler 的上下文里没有 D1、没有 `env`、没有请求对象、没有设备标识。
+- **初始化豁免受数据库核对**：唯一能越过 `transitioning` 门禁的路径是「模块自己的
+  enable/restore + 数据库里同 action 同 revision 的待完成操作 + 已授予 `scheduled:own`」，
+  模块无法伪造（见 ADR-0002 D15）。
+- **防静默覆盖**：`PATCH` 必须带 `expectedRevision`，全部状态变更以 `WHERE revision = ?`
+  条件更新提交；抢占失败返回 409 且**不产生任何副作用**（副作用在准入之后）。
+- **独占执行 + fence**：待完成操作的续做必须先抢到 `workspace_module_operation_claims` 的唯一 token
+  （或原子抢占**已过期**的租约）；收尾与失败记录都以 token 为条件，被取代者写不进去。
+- **fence 传播到模块调度视图**：交给 handler 的调度视图绑定本次执行的 token 与准入 revision，
+  `schedule` / `cancel` **每次可变调用前**都校验执行权并把该 revision 作为上界；
+  旧 handler 在 `await` 中被接管后无法删除或冒充 restore 之后同名的任务，
+  `insert` 在途发生世代变化时会按旧代撤销自己的插入。
+  端口清理（实例与任务）一律带 revision fence，
+  因此不假设「租约到期旧执行者已停止」——它删不掉 restore 之后的新实例与新任务。
+- **状态读取是单一 SQL 快照**：状态与「是否有待完成操作」来自同一条 `LEFT JOIN`，
+  不会因为两次读之间插入一次准入而组合出「enabled 且无 pending」的假快照；
+  准入的 CAS 也把「该模块没有待完成操作」写进同一个条件，不会出现状态提交而标记被吞掉。
+- **清数据不可达**：`purge` 恒返回 501 且不写库；代码中不存在删除 `workspace_modules` 行的路径。
+  以后实现清数据必须是「先备份 + 显式二次确认」的独立流程。
+- **前端会话隔离**：凭证快照只含 `{ generation, authenticated }`，明文只交给 API 客户端内部；
+  会话作用域容器在整个会话期间保持挂载、只在代际变化时重挂，因此切换视图不会残留/丢失旧数据，
+  而切换凭证会立刻清空；旧会话迟到的 GET 不写状态、迟到的写返回 `stale` 并跳过 Host 联动。
+  前端还只接受**不小于已知 revision** 的写响应，避免用过期响应删除新一代实例（见 ADR-0002 D20）。
+- **Widget Host 以注册表为归属权威**：实例自述的 `moduleId` 与注册表不一致时拒绝执行组件；
+  配置迁移抛错降级为本实例配置错误；旧 attempt 的迟到回调被忽略（见 ADR-0002 D17）。
+- **设置校验不回显提交值**：失败只回字段路径 + 问题类别（`worker/lib/zod-issues.ts`），
+  为将来可能包含 WebDAV 口令之类敏感值的模块设置留出安全边界。
+
+## 10. 明确未做的安全项（不要读成已完成）
 
 - **认证失败审计未落库**：`identity_audit.workspace_id` 为 NOT NULL，无法承载
   「未知 Token 认证失败」这类没有工作空间归属的事件；这类失败只写脱敏日志。
   若要落库需要新增一张无归属审计表（属于后续工作）。
 - **恢复密钥轮换**：未实现，理由见 2.5（避免让离线备份失效）。
-- **前端身份界面**：未实现，因此浏览器端目前不会持有任何凭证；
-  将来接入时应使用 IndexedDB 而非 localStorage，并沿用严格 CSP。
+- **前端身份界面**：只有阶段 02 补的「会话内存凭证」最小入口；
+  初始化向导、配对、恢复、设备管理 UI 仍未实现。将来接入持久化时必须使用 IndexedDB
+  而非 localStorage，并沿用严格 CSP。
+- **模块设置里的敏感值**：当前没有 WebDAV / 推送凭证类设置；若将来加入，
+  必须改成专门的密文存储与掩码回显，不能继续明文放在 `settings_json`。
+- **待完成操作的自动恢复**：只有客户端显式重试这一条路径，没有后台自动重试或定时对账；
+  租约到期后的抢占也必须有新请求触发（`EXECUTION_LEASE_MS = 15s`）。
 - **Web Push / SSRF 防护**：阶段 05 才涉及，本轮没有任何服务端外发请求。
 - **URL 协议白名单**（拒绝 `javascript:`/`data:`）：阶段 04 导航功能才需要，本轮无导航数据。

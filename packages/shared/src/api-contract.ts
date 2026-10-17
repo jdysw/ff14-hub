@@ -5,7 +5,9 @@
  * - 公开端点可以匿名访问；任何 `/me/*` 必须通过设备身份验证（Bearer 设备 Token）。
  * - 阶段 01 已实现：`GET /health`、身份四端点（bootstrap / pairing / pairing.claim / recover）、
  *   以及 `GET /me/profile`、`GET /me/devices`、`DELETE /me/devices/:id`。
- * - 身份端点的请求/响应形状见 `./identity-api.ts`；业务端点属于阶段 02+。
+ * - 阶段 02 已实现：`GET /modules/catalog`（公开目录）、
+ *   `GET/PATCH /me/modules`、`POST /me/modules/:id/purge`（**显式拒绝**，501）。
+ * - 身份端点的请求/响应形状见 `./identity-api.ts`；模块端点的形状见 `./module-api.ts`。
  * - 服务端返回体不得包含 token_hash / recovery_hash 等摘要，也不得包含 environment secrets。
  */
 import { z } from 'zod';
@@ -17,7 +19,7 @@ export const API_V1_PREFIX = '/api/v1' as const;
 /** 请求 ID 的响应头与响应体字段名。 */
 export const REQUEST_ID_HEADER = 'X-Request-Id' as const;
 
-/** 阶段 01 端点路径常量。 */
+/** 端点路径常量。路由与前端都从这里取值，避免硬编码漂移。 */
 export const API_ROUTES = {
   health: `${API_V1_PREFIX}/health`,
   bootstrap: `${API_V1_PREFIX}/identity/bootstrap`,
@@ -27,6 +29,14 @@ export const API_ROUTES = {
   meProfile: `${API_V1_PREFIX}/me/profile`,
   meDevices: `${API_V1_PREFIX}/me/devices`,
   meDeviceById: `${API_V1_PREFIX}/me/devices/:id`,
+  /** 公开模块目录（匿名可读，只含非敏感元数据）。 */
+  moduleCatalog: `${API_V1_PREFIX}/modules/catalog`,
+  /** 当前工作空间的模块状态集合（设备鉴权）。 */
+  meModules: `${API_V1_PREFIX}/me/modules`,
+  /** 单个模块的读取与生命周期变更（设备鉴权）。 */
+  meModuleById: `${API_V1_PREFIX}/me/modules/:id`,
+  /** 清数据入口：本阶段恒返回 501，明确拒绝而不是静默删除。 */
+  meModulePurge: `${API_V1_PREFIX}/me/modules/:id/purge`,
 } as const;
 
 /** 服务标识与版本，用于健康检查与 UA 判定。 */

@@ -55,21 +55,30 @@ current_execution:
 
 | 任务 | 状态 | 证据 |
 |---|---|---|
-| HUB-001 工程初始化 | implemented_pending_review | `package.json` / `pnpm-workspace.yaml` / `pnpm-lock.yaml` / `apps/web` / `worker` / `packages/shared`；`pnpm install --frozen-lockfile`、`pnpm typecheck`、`pnpm build` 本地实际通过 |
-| HUB-002 Workers 运行环境 | implemented_pending_review | `wrangler.jsonc`（D1 + 同域 assets）、`worker/index.ts`、`worker/env.ts`、`.dev.vars.example`；本地 `wrangler dev` 同域静态页与 `/api/v1/health` 冒烟通过 |
-| HUB-003 D1 数据模型与迁移 | implemented_pending_review | `migrations/0001_core.sql`、`worker/db/schema.ts`；本地全新迁移成功、重复应用安全；FK/唯一/枚举约束在 workerd+D1 中被实测 |
-| HUB-004 API 基础与校验 | implemented_pending_review | `worker/api/`、`worker/middleware/`、`packages/shared/src/errors.ts`；401/404/405/409/413/415/422/500 路径均有测试 |
-| HUB-005 CI 与测试基础 | implemented_pending_review | `.github/workflows/ci.yml`、ESLint 扁平配置、Vitest Workers 池、`tests/e2e/` 预留；本地 lint/typecheck/test/build 全绿 |
-| HUB-006 单工作空间身份与设备管理 | implemented_pending_review | `worker/modules/identity/`（bootstrap / pairing / recovery / devices / audit / credentials）、`worker/api/v1/identity.ts`、已实现的 `/api/v1/me/*`、`migrations/0002_identity.sql`、`worker/lib/rate-limit.ts`；48+ 个身份与原子性测试在真实 workerd + D1 中通过 |
+| HUB-001 工程初始化 | merged | `package.json` / `pnpm-workspace.yaml` / `pnpm-lock.yaml` / `apps/web` / `worker` / `packages/shared`；随 PR #1 合并（squash commit `c65e29e`），`main` 上 CI run `39063324867` success |
+| HUB-002 Workers 运行环境 | merged | `wrangler.jsonc`（D1 + 同域 assets）、`worker/index.ts`、`worker/env.ts`、`.dev.vars.example`；同上合并与 CI 证据 |
+| HUB-003 D1 数据模型与迁移 | merged | `migrations/0001_core.sql`、`worker/db/schema.ts`；FK/唯一/枚举约束在 workerd+D1 中实测；同上合并与 CI 证据 |
+| HUB-004 API 基础与校验 | merged | `worker/api/`、`worker/middleware/`、`packages/shared/src/errors.ts`；401/404/405/409/413/415/422/500 路径均有测试 |
+| HUB-005 CI 与测试基础 | merged | `.github/workflows/ci.yml`、ESLint 扁平配置、Vitest Workers 池；同上合并与 CI 证据 |
+| HUB-006 单工作空间身份与设备管理 | merged | `worker/modules/identity/`、`worker/api/v1/identity.ts`、`migrations/0002_identity.sql`、`worker/lib/rate-limit.ts`；PR #1 合并（gpt 独立复核 51 项身份测试通过），`main` CI run `39063324867` success |
+| HUB-043 Module Registry | implemented_pending_review | `worker/modules/registry/`（注册表 + 内置演示模块）、`packages/shared/src/builtin-modules.ts`；`worker/test/module-registry.spec.ts` 30 项在真实 workerd 中通过 |
+| HUB-044 Widget Host | implemented_pending_review | `apps/web/src/app/widgets/`（Host、静态组件映射、实例存储、演示组件）、`apps/web/src/lib/RenderErrorBoundary.tsx`；`apps/web/test/widget-host.spec.tsx` 等 63 项通过；Playwright 验收链覆盖桌面与窄屏 |
+| HUB-050 模块生命周期与数据策略 | implemented_pending_review | `migrations/0003_modules.sql` + `0004_module_operations.sql` + `0005_module_operation_claims.sql`、`worker/modules/lifecycle/`、`worker/api/v1/{modules,me-modules}.ts`、`apps/web/src/app/modules/`；`worker/test/module-lifecycle.spec.ts`（52 项，含确定性交错/独占认领/租约抢占/revision fence 传播/快照一致性）+ `module-schema.spec.ts` 在真实 D1 中通过 |
 
 **明确未完成 / 未做（不要读成已完成）：**
 
-- 未合并任何 PR；分支 `codex/phase01-core` 上的内容仍待评审。
+- 阶段 02 的工作位于分支 `codex/phase02-modules`，以**草稿 PR** 提交集中复核，**尚未合并**。
 - 未创建任何 Cloudflare 远程资源（无 D1 远程库、无 Worker 部署、无预览环境、无域名绑定、无 Cron）。
-- 阶段 02 的 Module Registry / Widget Host 运行时、阶段 03 的工作台与布局编辑器、阶段 04 的导航业务、阶段 05 的鱼类/通知引擎、阶段 06 的 WebDAV 同步均未实现。
-- 前端的身份界面（初始化向导、配对、设备管理 UI）未实现；本轮交付的是**后端身份系统与 API**。当前前端只保留结构化的常驻系统入口占位。
+- 阶段 03 的工作台与布局编辑器（多页面、`widget_instances` / `widget_layouts` 表、拖拽缩放、备份恢复）、
+  阶段 04 的导航业务、阶段 05 的鱼类/通知引擎、阶段 06 的 WebDAV 同步均未实现。
+- 阶段 02 的 Widget 实例只存在于**浏览器内存**：`widget_instances` 表未迁移，
+  服务端卸载只能通过 `ModuleInstanceStore` 端口请求清理（默认实现是标注 `persistent: false` 的替身）。
+- 阶段 02 的调度端口只有**内存**实现（`persistent: false`）：没有 Cron、没有 Web Push、没有真实通知派发；
+  `wrangler.jsonc` 的 `triggers.crons` 保持为空。
+- 清数据（purge）**未实现**，只提供显式拒绝（501）；将来必须做成「先备份 + 二次确认」的独立流程。
+- 前端的完整身份界面（初始化向导、配对、设备管理 UI）未实现；阶段 02 只补了「会话内存凭证」这一最小入口。
 - 认证失败事件仍未落库（`identity_audit.workspace_id` 为 NOT NULL，无法承载无归属事件），只写脱敏日志。
-- Playwright 端到端用例仅在 `tests/e2e/README.md` 预留位置，尚未编写。
+- 界面上的组件全部是 `demo.*` 演示组件，**没有任何游戏业务数据**。
 
 ## 0. 给 AI Agent 的执行指令
 
@@ -759,3 +768,7 @@ before_reporting_done:
 |---|---|---|
 | 2026-10-18 | 本文件首次进入仓库 | 保存用户批准的完整规划；同时更新 `current_execution` 以反映真实执行状态（阶段 01 HUB-001～005 已实现待评审、HUB-006 未开始、未部署）。规划正文未做删改。 |
 | 2026-10-18 | 更新 HUB-006 状态 | HUB-006 后端身份系统（Bootstrap / 配对 / 恢复 / 设备管理 / 速率限制 / 审计）已实现并带真实 Workers+D1 测试；状态改为 `implemented_pending_review`。前端身份界面仍未实现。规划正文未做删改。 |
+| 2026-10-18 | 阶段 01 合并 + 阶段 02 实施 | 阶段 01 经 GPT 独立复核后以 PR #1 squash 合并入 `main`（merge commit `c65e29e`，`main` CI run `39063324867` success），HUB-001～006 状态改为 `merged`。阶段 02（HUB-043 / HUB-044 / HUB-050）在分支 `codex/phase02-modules` 实施：模块静态注册表与诊断、Widget Host 与静态组件映射、`workspace_modules` 迁移与生命周期契约、公开目录与设备鉴权端点、模块管理与组件验收视图、React 与 Playwright 验收测试。状态为 `implemented_pending_review`（草稿 PR，未合并）。规划正文未做删改；阶段 02 的具体取舍记录在 `docs/adr/0002-phase02-module-runtime.md`。 |
+| 2026-10-18 | 阶段 02 复核修复 | 按集中复核意见修正五个真实缺陷：① 生命周期改为「先原子准入提交状态 → 副作用 → 收尾」，CAS 输家在任何可变副作用前退出，副作用失败以 200 + `pending/failure` 如实暴露并持久化待完成操作（新增 `0004_module_operations.sql`），可用同动作 + 同 revision 幂等重试；② 模块服务端口改为闭包绑定作用域 + `scheduled:own` 执行期门禁，平台管理端口不交给模块，初始化豁免需数据库核对；③ 前端按不含明文凭证的会话代际隔离私有快照/Host 实例/在途响应；④ Widget Host 以注册表为归属权威，配置迁移抛错降级到本实例，report 回调按 attempt 隔离；⑤ Registry 补同 Manifest 内 route 重复检测，handler/组件表改用 `Object.hasOwn`。取舍记录在 ADR-0002（D4 重写、新增 D13–D17）。规划正文未做删改。 |
+| 2026-10-18 | 阶段 02 二次复核修复 | 按第二轮集中复核修正三处：① 生命周期增加**独占执行认领**（`workspace_module_operation_claims`，token + 租约），`attempts` 在认领事务内递增，收尾/失败写入以 token 为条件，端口清理加 revision fence（`maxRevision`/`upToRevision`）——被取代的旧执行者在副作用前退出，且删不掉 restore 之后的新实例/新任务（新增迁移 `0005`）；② 状态读取改为**单一 LEFT JOIN 快照**（`readStatus`/`listStatuses`/门禁/变更后读取同源），并把「该模块没有待完成操作」写进准入 CAS 的条件，避免「enabled 且无 pending」的假快照与标记被静默吞掉；③ 会话作用域容器改为**整个会话期间保持挂载**（只按 generation 重挂），切换视图不再丢实例，仅切换/清除凭证才清空，并新增前端「只接受不小于已知 revision 的写响应」fence。ADR-0002 的 D4 再次重写并新增 D18–D20。规划正文未做删改。 |
+| 2026-10-18 | 阶段 02 三次复核修复（fence 传播） | 把执行归属传入模块调度视图：`ModuleScopedScheduler` 绑定本次执行的 `token` + 准入 revision，`schedule`/`cancel` **每次可变调用前**都校验执行权并把该 revision 作为上界；`schedule` 校验 `expectedRevision` 且以它作为新任务的 `createdRevision`（拒绝过期执行者、不把旧代提升为新代），`insert` 在途发生接管/restore 时按旧代撤销自己的插入（`deleteByKey({ upToRevision: 旧代 })`）；单 key 取消也加 revision fence（不再只保护 `cancelAllForModule`）。新增真实 D1 + deferred handler/store 回归：handler 跨租约被取代后其内部 cancel/schedule 均为 `execution_superseded` 且新代任务不被删除/冒充；insert 在途（写入前/写入后）两种交错的迟到清理。ADR-0002 D4 阶段 3 与 D15 同步更新。规划正文未做删改。 |

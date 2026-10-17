@@ -9,7 +9,9 @@
 // 说明：本包只作为源码被 Vite / esbuild 打包消费（不产出 dist、不直接被 Node 原生 ESM 加载），
 // 因此相对导入省略扩展名，与 tsconfig 的 moduleResolution: "bundler" 保持一致。
 export * from './api-contract';
+export * from './builtin-modules';
 export * from './errors';
 export * from './identity';
 export * from './identity-api';
+export * from './module-api';
 export * from './module-manifest';
