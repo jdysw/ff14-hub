@@ -213,6 +213,8 @@ interface SideEffectInput {
   readonly timestamp: number;
   /** 本次准入后的 revision：既是执行权的核对依据，也是端口清理的 fence 上界。 */
   readonly admissionRevision: number;
+  /** 本次执行的 token（绑定进模块调度视图，作为可变调用的归属依据）。 */
+  readonly token: string;
 }
 
 interface SideEffectResult {
@@ -436,6 +438,10 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
                 const pending = snapshot?.pendingRow ?? null;
                 return pending === null ? null : { action: pending.action, revision: pending.revision };
               },
+              // 执行归属：handler 在 await 中跨租约被取代后，其内部的 schedule/cancel
+              // 都会得到 execution_superseded，无法破坏新一代的任务集合（见 ADR-0002 D4/D15）。
+              execution: { token: input.token, admissionRevision: input.admissionRevision },
+              isExecutionCurrent: assertOwned,
             }),
           },
         };
@@ -721,6 +727,7 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
           targetStatus: pendingRow.target_status,
           timestamp,
           admissionRevision,
+          token,
         },
         assertOwned,
       );
@@ -1043,6 +1050,7 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
         targetStatus,
         timestamp,
         admissionRevision,
+        token,
       },
       assertOwned,
     );

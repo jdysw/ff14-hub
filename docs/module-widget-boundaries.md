@@ -63,6 +63,10 @@
   未授予直接 `capability_not_granted`；Manifest 里写了也不影响判定。
 - 调度视图的作用域由闭包绑定，入参里没有 workspace/module 字段；
   多传的作用域字段会被丢弃，**伪造无效**。
+- **执行归属同样绑定在视图上**：`schedule` / `cancel` 每次调用前都校验「本次执行的 token 仍是当前」，
+  并把自己这一代的 revision 作为 fence 传给管理端口。因此 handler 在 `await` 中被接管之后，
+  它内部的任务操作一律 `execution_superseded`——既删不掉 restore 之后同名的任务，
+  也不能把旧代任务标成当前代；`insert` 若在途发生接管/restore，会按旧代撤销自己的插入。
 - 平台清理用的管理端口（可跨作用域）**绝不交给模块代码**。
 
 ### 4.2 Widget Host 的职责边界

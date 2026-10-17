@@ -37,11 +37,17 @@ export interface ScheduledTask {
  * - `module_inactive`：模块门禁状态不是 enabled（含待完成操作）→ 不得排入任何后台行为。
  * - `capability_not_granted`：模块没有获得 `scheduled:own`，注册表的授予结果就是权威。
  * - `invalid_run_at`：执行时间非法。
+ * - `execution_superseded`：调用者的**执行归属已过期**（被接管、restore 或状态写入换了代）。
+ *   这时既不能新建任务，也不能把旧代任务「提升」成当前代——必须原样放弃。
  *
  * 注意 `cancel` / `cancelAllForModule` **没有**失败分支：取消必须永远可做，
- * 否则模块一旦停用就再也清理不掉已经排队的任务。
+ * 但取消受 revision 上界 fence 约束（见下方 `upToRevision`）。
  */
-export type ScheduleRejection = 'module_inactive' | 'capability_not_granted' | 'invalid_run_at';
+export type ScheduleRejection =
+  | 'module_inactive'
+  | 'capability_not_granted'
+  | 'invalid_run_at'
+  | 'execution_superseded';
 
 export type ScheduleDecision =
   | { readonly ok: true; readonly task: ScheduledTask; readonly duplicate: boolean }
@@ -62,7 +68,17 @@ export interface ScheduledTaskStore {
   /** 返回 false 表示 taskKey 已存在（同一任务的重复排程被判定为重复，语义为幂等成功）。 */
   insert(task: ScheduledTask): Promise<boolean>;
   find(input: { readonly workspaceId: string; readonly moduleId: string; readonly taskKey: string }): Promise<ScheduledTask | null>;
-  deleteByKey(input: { readonly workspaceId: string; readonly moduleId: string; readonly taskKey: string }): Promise<number>;
+  /**
+   * 删除单个任务。
+   * `upToRevision` 是 fence：只删这一代及更早登记的任务；未给则不加限制（仅供平台内部测试/运维）。
+   * 这个 fence 不能只加在 `deleteAllForModule` 上——单 key 取消同样可能删到新一代的同名任务。
+   */
+  deleteByKey(input: {
+    readonly workspaceId: string;
+    readonly moduleId: string;
+    readonly taskKey: string;
+    readonly upToRevision?: number;
+  }): Promise<number>;
   /**
    * 取消该模块**至多 upToRevision** 这一代登记的任务。
    * `upToRevision` 是 fence：旧执行者传入的是它自己的准入 revision，
@@ -92,14 +108,22 @@ export interface ModuleSchedulerPort {
      * **平台内部专用**：仅当「模块正在完成它自己的启用/恢复初始化」且已由
      * `createModuleScopedScheduler` 用数据库事实核对过时才为 true。
      * 它是唯一能越过 `transitioning` 门禁的入口，模块代码拿不到管理端口、也无法伪造它。
-     * 语义：登记自己的后台任务 ≠ 立刻执行；执行时的门禁由调度实现负责。
      */
     readonly selfInit?: boolean;
+    /**
+     * 执行归属的 revision fence（模块作用域视图必定传入）。
+     * 必须等于**当前**模块 revision，否则调度被 `execution_superseded` 拒绝；
+     * 新任务也以它作为 `createdRevision`，因此**旧执行者不会把任务标成新代**。
+     * 写入前后各校验一次：`insert` 在途发生接管/restore 时，会按旧代撤销自己的插入。
+     */
+    readonly expectedRevision?: number;
   }): Promise<ScheduleDecision>;
   cancel(input: {
     readonly workspaceId: string;
     readonly moduleId: string;
     readonly taskKey: string;
+    /** revision 上界 fence（模块作用域视图必定传入）。 */
+    readonly upToRevision?: number;
   }): Promise<CancelTasksResult>;
   /** `upToRevision` 为 fence：只取消该 revision 及更早登记的任务。 */
   cancelAllForModule(input: {
@@ -111,18 +135,26 @@ export interface ModuleSchedulerPort {
   listPending(input: { readonly workspaceId: string; readonly moduleId: string }): Promise<readonly ScheduledTask[]>;
 }
 
+/** 模块作用域取消的结果：执行归属已过期时**不**执行删除。 */
+export type ScopedCancelOutcome =
+  | { readonly ok: true; readonly cancelled: number }
+  | { readonly ok: false; readonly reason: 'execution_superseded' };
+
 /**
- * 交给模块代码的调度视图：**作用域已由闭包绑定**。
+ * 交给模块代码的调度视图：**作用域已由闭包绑定**，且每个**可变**调用都以本次执行归属为权威。
  *
  * - 入参里没有 workspaceId / moduleId，因此伪造作用域在类型上就不可表达；
  *   实现也会忽略调用者多传的任何作用域字段（只按闭包构造委派入参），运行时同样无效。
  * - `schedule` 在未获得 `scheduled:own` 时返回 `capability_not_granted`；
  *   授权判定来自注册表的授予集合，而不是 Manifest 的声明。
- * - `cancel` / `listPending` 只作用于自己的任务，属于收缩权限面的操作，不设能力门禁。
+ * - **执行归属**：调度与取消都把本次执行的 token / 准入 revision 传给管理端口；
+ *   handler 在 `await` 中跨租约被取代之后，其内部调用会得到 `execution_superseded`，
+ *   既不能删掉新一代的同名任务，也不能把旧代任务「提升」成当前代。
+ * - `listPending` 只读、且只作用于自己的模块，不设执行归属门禁。
  */
 export interface ModuleScopedScheduler {
   schedule(input: { readonly taskKey: string; readonly runAt: number }): Promise<ScheduleDecision>;
-  cancel(input: { readonly taskKey: string }): Promise<CancelTasksResult>;
+  cancel(input: { readonly taskKey: string }): Promise<ScopedCancelOutcome>;
   listPending(): Promise<readonly ScheduledTask[]>;
 }
 

@@ -80,9 +80,18 @@ UPDATE workspace_module_operations SET attempts = attempts + 1, last_error = NUL
 
 顺序固定：模块 handler → 移除实例 → 取消已排队任务；**每一步前后都校验执行权**。
 - handler 只拿到受限上下文（见 D6）；平台清理是安全不变量，**不因 handler 失败而跳过**。
+- **执行归属传到模块调度视图**：交给 handler 的 `ModuleScopedScheduler` 绑定本次执行的
+  `token` + 准入 revision，并在**每一次可变调用**（`schedule` / `cancel`）前校验执行权。
+  handler 可能在 `await` 中跨过租约被别的重试取代——「等 handler 返回后再查 token」无法撤销
+  它内部已经造成的副作用，所以归属检查必须发生在调用点上：
+  - `schedule` 以 `expectedRevision = 准入 revision` 传入管理端口：代际不匹配 → `execution_superseded`；
+    新任务以该 revision 作为 `createdRevision`，**旧执行者不会把任务标成新代**；
+    写入后**再校验一次**，若期间发生接管/restore，则按旧代撤销自己的插入
+    （`deleteByKey({ upToRevision: 旧代 })`，绝不会删到同 key 的新代任务）。
+  - `cancel` 同样带 `upToRevision = 准入 revision` 的 fence 并先校验执行权，
+    因此旧 handler 删不掉 restore 之后同名的任务。
 - 端口清理带 **revision fence**：`removeInstancesForModule({ maxRevision })`、
-  `cancelAllForModule({ upToRevision })`。旧执行者传入的是它自己的准入 revision，
-  因此**删不掉 restore 之后（revision 更大）的新实例与新任务**。
+  `cancelAllForModule({ upToRevision })`、`cancel({ upToRevision })`。
   这是「租约到期 ≠ 旧执行者已停止」的应对方式——不假设 TTL 到期它就停了。
 - 任一步失败：把原因写进 `last_error`（`attempts` 已在认领时递增），状态**不回滚**。
   失败后立即释放认领，客户端可以马上重试。
@@ -234,6 +243,11 @@ handler 可以操作**别的工作空间/模块**的任务；未获得 `schedule
 ① 有 `scheduled:own`；② 正在执行自己的 enable/restore；③ 数据库里的待完成操作与该动作、
 该 revision 完全一致。豁免通过管理端口的 `selfInit` 内部标志传递，模块拿不到管理端口，
 也无法伪造数据库事实。停用/卸载的 handler **不**享有该豁免（停止过程不得再排程）。
+
+**执行归属也绑定在这个视图上**（不只是作用域）：`schedule` / `cancel` 每次调用前都校验
+「我仍是当前 token 持有者」，并把自己这一代的 revision 作为 fence 传给管理端口（见 D4 阶段 3）。
+因此 handler 在 `await` 中被接管之后，它内部的任务操作一律 `execution_superseded`，
+不会删掉或冒充 restore 之后的新一代任务。
 
 ## D16. 前端会话隔离：代际绑定 + 卸载即失效
 

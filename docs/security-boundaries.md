@@ -190,7 +190,11 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains   ← 仅在请�
   条件更新提交；抢占失败返回 409 且**不产生任何副作用**（副作用在准入之后）。
 - **独占执行 + fence**：待完成操作的续做必须先抢到 `workspace_module_operation_claims` 的唯一 token
   （或原子抢占**已过期**的租约）；收尾与失败记录都以 token 为条件，被取代者写不进去。
-  端口清理额外带 revision fence（`maxRevision` / `upToRevision`），
+- **fence 传播到模块调度视图**：交给 handler 的调度视图绑定本次执行的 token 与准入 revision，
+  `schedule` / `cancel` **每次可变调用前**都校验执行权并把该 revision 作为上界；
+  旧 handler 在 `await` 中被接管后无法删除或冒充 restore 之后同名的任务，
+  `insert` 在途发生世代变化时会按旧代撤销自己的插入。
+  端口清理（实例与任务）一律带 revision fence，
   因此不假设「租约到期旧执行者已停止」——它删不掉 restore 之后的新实例与新任务。
 - **状态读取是单一 SQL 快照**：状态与「是否有待完成操作」来自同一条 `LEFT JOIN`，
   不会因为两次读之间插入一次准入而组合出「enabled 且无 pending」的假快照；

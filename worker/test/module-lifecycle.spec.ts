@@ -24,7 +24,13 @@ import { z } from 'zod';
 import { createModuleLifecycle, EXECUTION_LEASE_MS } from '../modules/lifecycle/module-lifecycle';
 import { createInMemoryScheduledTaskStore, createModuleScheduler } from '../modules/lifecycle/scheduler';
 import { readModuleGateStatus } from '../modules/lifecycle/workspace-modules';
-import type { ModuleInstanceStore, ModuleSchedulerPort } from '../modules/ports';
+import type {
+  ModuleInstanceStore,
+  ModuleSchedulerPort,
+  ScheduleDecision,
+  ScheduledTaskStore,
+  ScopedCancelOutcome,
+} from '../modules/ports';
 import { builtinModuleRegistry } from '../modules/registry/builtin-modules';
 import { buildModuleRegistryOrThrow, type ModuleRegistry } from '../modules/registry/module-registry';
 import {
@@ -563,8 +569,7 @@ interface ServiceHarness {
   readonly lifecycle: ReturnType<typeof createModuleLifecycle>;
   readonly management: ModuleSchedulerPort;
   readonly scheduler: ModuleSchedulerPort;
-  readonly scheduledTasks: ReturnType<typeof createInMemoryScheduledTaskStore>;
-  readonly instances: RecordingInstanceStore;
+  readonly scheduledTasks: ReturnType<typeof createInMemoryScheduledTaskStore>;  readonly instances: RecordingInstanceStore;
   /** 推进注入时钟（租约过期等确定性交错用）。 */
   advanceClock(ms: number): void;
   now(): number;
@@ -576,10 +581,12 @@ interface HarnessOptions {
   readonly wrapScheduler?: (management: ModuleSchedulerPort) => ModuleSchedulerPort;
   readonly registry?: ModuleRegistry;
   readonly instances?: RecordingInstanceStore;
+  /** 注入任务存储（用于「insert 在途」的确定性交错）。 */
+  readonly taskStore?: ScheduledTaskStore;
 }
 
 function buildHarness(options: HarnessOptions = {}): ServiceHarness {
-  const scheduledTasks = createInMemoryScheduledTaskStore();
+  const scheduledTasks = options.taskStore ?? createInMemoryScheduledTaskStore();
   const management = createModuleScheduler({
     store: scheduledTasks,
     readModuleStatus: ({ workspaceId, moduleId }) => readModuleGateStatus(env.DB, workspaceId, moduleId),
@@ -1763,5 +1770,331 @@ describe('读取快照一致性：状态与待完成操作同源', () => {
         expect(snapshot.pendingOperation.targetStatus).toBe(snapshot.status);
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fence 传播到模块调度视图（复核 P1）：handler 跨租约被取代后，其内部调用不得破坏新代
+// ---------------------------------------------------------------------------
+
+interface DeferredTaskStore {
+  readonly store: ScheduledTaskStore;
+  holdBeforeNextInsert: boolean;
+  holdAfterNextInsert: boolean;
+  readonly pending: { release: () => void; phase: 'before' | 'after' }[];
+}
+
+/** 可以把 `insert` 在「写入前 / 写入后返回前」挂起的任务存储包装器。 */
+function deferredTaskStore(base: ScheduledTaskStore): DeferredTaskStore {
+  const state: DeferredTaskStore = {
+    holdBeforeNextInsert: false,
+    holdAfterNextInsert: false,
+    pending: [],
+    store: {
+      ...base,
+      insert: async (task) => {
+        if (state.holdBeforeNextInsert) {
+          state.holdBeforeNextInsert = false;
+          await new Promise<void>((resolve) => {
+            state.pending.push({ release: resolve, phase: 'before' });
+          });
+        }
+        const inserted = await base.insert(task);
+        if (state.holdAfterNextInsert) {
+          state.holdAfterNextInsert = false;
+          await new Promise<void>((resolve) => {
+            state.pending.push({ release: resolve, phase: 'after' });
+          });
+        }
+        return inserted;
+      },
+    },
+  };
+  return state;
+}
+
+interface HookModule {
+  readonly registry: ModuleRegistry;
+  readonly state: {
+    holdNextDisable: boolean;
+    readonly held: { release: () => void }[];
+    readonly attempts: {
+      cancel: ScopedCancelOutcome | null;
+      schedule: ScheduleDecision | null;
+    }[];
+  };
+}
+
+/**
+ * 一个带 `scheduled:own` 的探针模块：`onDisable` 可被挂起，
+ * 恢复后**在 handler 内部**尝试 `cancel` 与 `schedule`（复核要求的那两个调用）。
+ */
+function hookModule(): HookModule {
+  const state: HookModule['state'] = { holdNextDisable: false, held: [], attempts: [] };
+  const registry = buildModuleRegistryOrThrow([
+    {
+      manifest: {
+        id: 'test.fence',
+        version: '1.0.0',
+        displayName: 'fence 探针模块',
+        capabilities: ['scheduled:own'],
+        widgets: [],
+        routes: [],
+        settingsSchemaVersion: 1,
+        lifecycle: { onEnable: 'test.fence.enable', onDisable: 'test.fence.disable' },
+      },
+      handlerTable: {
+        'test.fence.enable': () => undefined,
+        'test.fence.disable': async (context) => {
+          const shouldPause = state.holdNextDisable;
+          if (shouldPause) {
+            state.holdNextDisable = false;
+            await new Promise<void>((resolve) => {
+              state.held.push({ release: resolve });
+            });
+          }
+          if (!shouldPause) {
+            // 接管者只负责收尾，不尝试改任务集合。
+            return;
+          }
+          const record: { cancel: ScopedCancelOutcome | null; schedule: ScheduleDecision | null } = {
+            cancel: null,
+            schedule: null,
+          };
+          state.attempts.push(record);
+          record.cancel = await context.services.scheduler.cancel({ taskKey: 'same-key' });
+          record.schedule = await context.services.scheduler.schedule({
+            taskKey: 'same-key',
+            runAt: NOW + 777_000,
+          });
+        },
+      },
+      settingsSchema: z.record(z.string(), z.unknown()),
+      settingsSchemaVersion: 1,
+      grantedCapabilities: ['scheduled:own'],
+    },
+  ]);
+  return { registry, state };
+}
+
+describe('模块调度视图的执行归属（fence 传播）', () => {
+  it('handler 跨租约被取代后，内部的 cancel/schedule 均为 execution_superseded，且不碰新代任务', async () => {
+    const workspace = await seedWorkspace();
+    const workspaceId = workspace.workspaceId;
+    const moduleId = 'test.fence';
+    const hook = hookModule();
+    const harness = buildHarness({ registry: hook.registry });
+
+    // 起点：enabled(rev1) + 一个 rev1 的 same-key 任务。
+    const enabled = await harness.lifecycle.mutate({
+      workspaceId,
+      moduleId,
+      request: { expectedRevision: 0, action: 'enable' },
+    });
+    expect(enabled.ok).toBe(true);
+    expect(
+      await harness.management.schedule({ workspaceId, moduleId, taskKey: 'same-key', runAt: NOW + 100_000 }),
+    ).toMatchObject({ ok: true });
+
+    // A：disable(rev2)，handler 在内部被挂起。
+    hook.state.holdNextDisable = true;
+    const retryA = harness.lifecycle.mutate({
+      workspaceId,
+      moduleId,
+      request: { expectedRevision: 1, action: 'disable' },
+    });
+    await waitForCondition(() => hook.state.held.length === 1, 'A 进入 disable handler');
+
+    // 租约过期 → 接管者 C 完成收尾（handler 不再挂起，也不改任务）。
+    harness.advanceClock(EXECUTION_LEASE_MS + 1);
+    const takeover = await harness.lifecycle.mutate({
+      workspaceId,
+      moduleId,
+      request: { expectedRevision: 2, action: 'disable' },
+    });
+    expect(takeover.ok).toBe(true);
+    if (!takeover.ok) {
+      return;
+    }
+    expect(takeover.module.pendingOperation).toBeNull();
+
+    // 新代：enable(rev3) + 同 key 的新任务。
+    const reenabled = await harness.lifecycle.mutate({
+      workspaceId,
+      moduleId,
+      request: { expectedRevision: 2, action: 'enable' },
+    });
+    expect(reenabled.ok).toBe(true);
+    const newGeneration = await harness.management.schedule({
+      workspaceId,
+      moduleId,
+      taskKey: 'same-key',
+      runAt: NOW + 900_000,
+    });
+    expect(newGeneration.ok).toBe(true);
+
+    // 放行 A：它的 handler 继续尝试 cancel + schedule。
+    const held = hook.state.held[0];
+    if (held === undefined) {
+      throw new Error('A 没有被挂起');
+    }
+    held.release();
+    const outcomeA = await retryA;
+    expect(outcomeA.ok).toBe(false);
+    if (!outcomeA.ok) {
+      expect(outcomeA.reason).toBe('operation_superseded');
+    }
+
+    const attempt = hook.state.attempts[0];
+    expect(attempt?.cancel).toEqual({ ok: false, reason: 'execution_superseded' });
+    expect(attempt?.schedule).toEqual({ ok: false, reason: 'execution_superseded' });
+
+    // 新代任务既没有被删除，也没有被旧 handler 覆盖/提升成旧代。
+    const tasks = await harness.scheduledTasks.listByModule({ workspaceId, moduleId });
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]?.taskKey).toBe('same-key');
+    expect(tasks[0]?.createdRevision).toBe(3);
+    expect(tasks[0]?.runAt).toBe(NOW + 900_000);
+    // 状态与个人设置不受影响。
+    const row = await readModuleRow(workspaceId, moduleId);
+    expect(row?.status).toBe('enabled');
+    expect(row?.revision).toBe(3);
+    expect(await readModuleOperationRow(workspaceId, moduleId)).toBeNull();
+  });
+
+  it('insert 在途（写入前）世代改变：旧执行者被判 superseded，不覆盖新代同 key 任务', async () => {
+    const workspace = await seedWorkspace();
+    const workspaceId = workspace.workspaceId;
+    const moduleId = DEMO_BASICS_MODULE_ID;
+    const deferred = deferredTaskStore(createInMemoryScheduledTaskStore());
+    const harness = buildHarness({ taskStore: deferred.store });
+    await enableWithSettings(harness, workspaceId);
+
+    // A：以 rev1 为 fence 排程，insert 被挂起（尚未真正写入）。
+    deferred.holdBeforeNextInsert = true;
+    const attemptA = harness.management.schedule({
+      workspaceId,
+      moduleId,
+      taskKey: 'k',
+      runAt: NOW + 1000,
+      expectedRevision: 1,
+    });
+    await waitForCondition(() => deferred.pending.length === 1, 'A 的 insert 被挂起');
+
+    // 世代推进到 rev2（设置写入），新代先插入同 key 任务。
+    const bumped = await harness.lifecycle.mutate({
+      workspaceId,
+      moduleId,
+      request: { expectedRevision: 1, settings: { greeting: 'bumped' } },
+    });
+    expect(bumped.ok).toBe(true);
+    const newGen = await harness.management.schedule({
+      workspaceId,
+      moduleId,
+      taskKey: 'k',
+      runAt: NOW + 9000,
+      expectedRevision: 2,
+    });
+    expect(newGen.ok).toBe(true);
+
+    deferred.pending[0]?.release();
+    await expect(attemptA).resolves.toEqual({ ok: false, reason: 'execution_superseded' });
+
+    const tasks = await harness.scheduledTasks.listByModule({ workspaceId, moduleId });
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]?.createdRevision).toBe(2);
+    expect(tasks[0]?.runAt).toBe(NOW + 9000);
+  });
+
+  it('insert 已写入但返回前世代改变：按旧代撤销自己的插入，绝不删同 key 的新代任务', async () => {
+    const workspace = await seedWorkspace();
+    const workspaceId = workspace.workspaceId;
+    const moduleId = DEMO_BASICS_MODULE_ID;
+    const deferred = deferredTaskStore(createInMemoryScheduledTaskStore());
+    const harness = buildHarness({ taskStore: deferred.store });
+    await enableWithSettings(harness, workspaceId);
+
+    // A：以 rev1 为 fence 排程；任务已写入，但 insert 尚未返回。
+    deferred.holdAfterNextInsert = true;
+    const attemptA = harness.management.schedule({
+      workspaceId,
+      moduleId,
+      taskKey: 'k',
+      runAt: NOW + 1000,
+      expectedRevision: 1,
+    });
+    await waitForCondition(
+      () => deferred.pending.some((entry) => entry.phase === 'after'),
+      'A 的 insert 已写入但未返回',
+    );
+    expect((await harness.scheduledTasks.listByModule({ workspaceId, moduleId })).map((task) => task.createdRevision)).toEqual([
+      1,
+    ]);
+
+    // 模拟接管：取消旧代任务（fence 上界 1）。
+    expect(
+      await harness.management.cancelAllForModule({
+        workspaceId,
+        moduleId,
+        reason: 'module_disabled',
+        upToRevision: 1,
+      }),
+    ).toEqual({ cancelled: 1 });
+    // 世代推进到 rev2，新代插入同 key 任务。
+    await harness.lifecycle.mutate({
+      workspaceId,
+      moduleId,
+      request: { expectedRevision: 1, settings: { greeting: 'bumped' } },
+    });
+    const newGen = await harness.management.schedule({
+      workspaceId,
+      moduleId,
+      taskKey: 'k',
+      runAt: NOW + 9000,
+      expectedRevision: 2,
+    });
+    expect(newGen.ok).toBe(true);
+
+    // 放行 A：它必须只按旧代撤销，且返回 superseded。
+    deferred.pending[0]?.release();
+    await expect(attemptA).resolves.toEqual({ ok: false, reason: 'execution_superseded' });
+
+    const tasks = await harness.scheduledTasks.listByModule({ workspaceId, moduleId });
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]?.createdRevision).toBe(2);
+    expect(tasks[0]?.runAt).toBe(NOW + 9000);
+  });
+
+  it('单 key 取消同样有 revision fence：不能删掉更新一代的同名任务', async () => {
+    const workspace = await seedWorkspace();
+    const workspaceId = workspace.workspaceId;
+    const harness = buildHarness();
+    await harness.scheduledTasks.insert({
+      workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      taskKey: 'k',
+      runAt: NOW + 1000,
+      createdAt: NOW,
+      createdRevision: 2,
+    });
+
+    // 旧执行者（代际 1）取消同名任务：影响 0 行。
+    expect(
+      await harness.management.cancel({
+        workspaceId,
+        moduleId: DEMO_BASICS_MODULE_ID,
+        taskKey: 'k',
+        upToRevision: 1,
+      }),
+    ).toEqual({ cancelled: 0 });
+    // 当前代执行者（代际 2）可以取消。
+    expect(
+      await harness.management.cancel({
+        workspaceId,
+        moduleId: DEMO_BASICS_MODULE_ID,
+        taskKey: 'k',
+        upToRevision: 2,
+      }),
+    ).toEqual({ cancelled: 1 });
   });
 });
