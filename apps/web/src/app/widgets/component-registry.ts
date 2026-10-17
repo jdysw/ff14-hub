@@ -68,7 +68,8 @@ export function createWidgetComponentRegistry(input: ComponentRegistryInput): Wi
   for (const manifest of input.manifests) {
     for (const widget of manifest.widgets) {
       const contract = input.contracts.find((candidate) => candidate.widgetId === widget.id);
-      const Component = input.components[widget.id];
+      // Object.hasOwn：不能把 Object.prototype 上的成员（如 'constructor'）当成已注册的组件。
+      const Component = Object.hasOwn(input.components, widget.id) ? input.components[widget.id] : undefined;
       if (contract === undefined || Component === undefined) {
         continue;
       }

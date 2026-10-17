@@ -33,7 +33,10 @@ export interface ZodIssueLike {
 export function describeIssues(issues: readonly ZodIssueLike[]): string {
   const parts = issues.slice(0, MAX_REPORTED_ISSUES).map((issue) => {
     const path = issue.path.length > 0 ? issue.path.map((segment) => String(segment)).join('.') : '<root>';
-    return `${path}: ${ISSUE_TEXT[issue.code] ?? '不合法'}`;
+    // Object.hasOwn：issue.code 是字符串，不能让 Object.prototype 上的成员（如 'constructor'）
+    // 被当成类别文案串进响应。
+    const text = Object.hasOwn(ISSUE_TEXT, issue.code) ? ISSUE_TEXT[issue.code] : undefined;
+    return `${path}: ${text ?? '不合法'}`;
   });
   if (issues.length > MAX_REPORTED_ISSUES) {
     parts.push(`…等共 ${issues.length} 项`);

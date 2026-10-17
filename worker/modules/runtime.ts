@@ -16,7 +16,7 @@
 import type { ModuleSchedulerPort } from './ports';
 import { createModuleLifecycle, type ModuleLifecycle } from './lifecycle/module-lifecycle';
 import { createInMemoryScheduledTaskStore, createModuleScheduler, createNoopInstanceStore } from './lifecycle/scheduler';
-import { readEffectiveModuleStatus } from './lifecycle/workspace-modules';
+import { readModuleGateStatus } from './lifecycle/workspace-modules';
 import { builtinModuleRegistry } from './registry/builtin-modules';
 import type { ModuleRegistry } from './registry/module-registry';
 
@@ -33,8 +33,8 @@ export function createModuleRuntime(db: D1Database): ModuleRuntime {
   const scheduledTasks = createInMemoryScheduledTaskStore();
   const scheduler = createModuleScheduler({
     store: scheduledTasks,
-    // 门禁自己查库：调用方无法通过传参绕过「未启用不得排程」。
-    readModuleStatus: ({ workspaceId, moduleId }) => readEffectiveModuleStatus(db, workspaceId, moduleId),
+    // 门禁自己查库（含「有待完成操作」）：调用方无法通过传参绕过。
+    readModuleStatus: ({ workspaceId, moduleId }) => readModuleGateStatus(db, workspaceId, moduleId),
   });
   const lifecycle = createModuleLifecycle({
     db,

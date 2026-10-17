@@ -8,10 +8,10 @@
  */
 // @vitest-environment jsdom
 import { type ModuleCapability, type ModuleManifest, type WidgetConfigContract } from '@ff14-hub/shared';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useEffect, type ReactNode } from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import {
   createWidgetComponentRegistry,
@@ -56,48 +56,68 @@ function cardFor(instanceId: string): HTMLElement {
   return card;
 }
 
-/** 构造一个只含单个自定义组件的注册表，用于验证权限 / 版本 / 超时等分支。 */
-function registryWith(input: {
+/** 构造一个只含自定义组件的注册表，用于验证权限 / 版本 / 超时等分支。 */
+interface WidgetSpec {
   readonly widgetId: string;
+  readonly moduleId?: string;
   readonly capabilities?: readonly ModuleCapability[];
   readonly Component: (props: WidgetRuntimeProps) => ReactNode;
   readonly configSchemaVersion?: number;
   readonly migrations?: Readonly<Record<number, (raw: unknown) => unknown>>;
   readonly schema?: z.ZodType;
-}): WidgetComponentRegistry {
-  const configSchemaVersion = input.configSchemaVersion ?? 1;
-  const manifest: ModuleManifest = {
-    id: 'test.module',
-    version: '1.0.0',
-    displayName: '测试模块',
-    capabilities: [...(input.capabilities ?? [])],
-    widgets: [
-      {
-        id: input.widgetId,
-        moduleId: 'test.module',
-        displayName: '测试组件',
+}
+
+/**
+ * 按模块分组构造注册表（同 moduleId 的 spec 落在同一个 Manifest 里）。
+ * 这样才能在同一个 Host 里同时放「会抛错的组件」与「正常组件」，用于兄弟隔离断言。
+ */
+function buildRegistry(specs: readonly WidgetSpec[]): WidgetComponentRegistry {
+  const byModule = new Map<string, WidgetSpec[]>();
+  for (const spec of specs) {
+    const moduleId = spec.moduleId ?? 'test.module';
+    const list = byModule.get(moduleId) ?? [];
+    list.push(spec);
+    byModule.set(moduleId, list);
+  }
+  const manifests: ModuleManifest[] = [];
+  const contracts: WidgetConfigContract[] = [];
+  const components: Record<string, (props: WidgetRuntimeProps) => ReactNode> = {};
+  for (const [moduleId, moduleSpecs] of byModule) {
+    const capabilities = [...new Set(moduleSpecs.flatMap((spec) => spec.capabilities ?? []))];
+    manifests.push({
+      id: moduleId,
+      version: '1.0.0',
+      displayName: `测试模块 ${moduleId}`,
+      capabilities,
+      widgets: moduleSpecs.map((spec) => ({
+        id: spec.widgetId,
+        moduleId,
+        displayName: `测试组件 ${spec.widgetId}`,
         allowMultiple: true,
         defaultSize: { w: 2, h: 2 },
         minSize: { w: 1, h: 1 },
-        configSchemaVersion,
-      },
-    ],
-    routes: [],
-    settingsSchemaVersion: 1,
-    lifecycle: {},
-  };
-  const contract: WidgetConfigContract = {
-    widgetId: input.widgetId,
-    configSchemaVersion,
-    schema: input.schema ?? z.object({}).passthrough(),
-    defaultConfig: {},
-    migrations: input.migrations ?? {},
-  };
-  return createWidgetComponentRegistry({
-    manifests: [manifest],
-    contracts: [contract],
-    components: { [input.widgetId]: input.Component },
-  });
+        configSchemaVersion: spec.configSchemaVersion ?? 1,
+      })),
+      routes: [],
+      settingsSchemaVersion: 1,
+      lifecycle: {},
+    });
+    for (const spec of moduleSpecs) {
+      contracts.push({
+        widgetId: spec.widgetId,
+        configSchemaVersion: spec.configSchemaVersion ?? 1,
+        schema: spec.schema ?? z.object({}).passthrough(),
+        defaultConfig: {},
+        migrations: spec.migrations ?? {},
+      });
+      components[spec.widgetId] = spec.Component;
+    }
+  }
+  return createWidgetComponentRegistry({ manifests, contracts, components });
+}
+
+function registryWith(spec: WidgetSpec): WidgetComponentRegistry {
+  return buildRegistry([spec]);
 }
 
 /** 永远不报告就绪的组件（用于加载超时兜底）。 */
@@ -195,7 +215,15 @@ describe('配置失效', () => {
   it('缺少可用迁移：显示配置错误且不执行组件', () => {
     render(
       <WidgetHost
-        instances={[demoInstance({ widgetId: DEMO_WIDGET_IDS.solo, config: {}, configVersion: 0 })]}
+        instances={[
+          demoInstance({
+            // 归属必须与注册表一致（demo-solo 属于 demo.solo），否则会先被归属校验拦下。
+            widgetId: DEMO_WIDGET_IDS.solo,
+            moduleId: 'demo.solo',
+            config: {},
+            configVersion: 0,
+          }),
+        ]}
         access={enabledAccess()}
       />,
     );
@@ -440,5 +468,122 @@ describe('实例级操作', () => {
 
     await user.click(within(cardFor('a')).getByRole('button', { name: '移除实例' }));
     expect(removed).toEqual(['a']);
+  });
+});
+
+describe('归属、解析异常与 attempt 隔离', () => {
+  function ReadyWidget(props: WidgetRuntimeProps) {
+    const { reportReady } = props;
+    useEffect(() => {
+      reportReady();
+    }, [reportReady]);
+    return <p>就绪内容</p>;
+  }
+
+  it('实例声明的模块与注册表归属不一致时拒绝执行（不能借启用中的模块执行别的模块组件）', () => {
+    const executed = vi.fn();
+    const registry = buildRegistry([
+      {
+        widgetId: 'owned-widget',
+        Component: () => {
+          executed();
+          return <p>不该被渲染</p>;
+        },
+      },
+    ]);
+    render(
+      <WidgetHost
+        // 伪造：组件属于 test.module，但实例自称属于 other.module（其门禁是 enabled）。
+        instances={[demoInstance({ widgetId: 'owned-widget', moduleId: 'other.module' })]}
+        access={enabledAccess()}
+        registry={registry}
+      />,
+    );
+
+    const card = cardFor('i1');
+    expect(card.getAttribute('data-phase')).toBe('blocked:ownership');
+    expect(within(card).getByText('实例归属不一致，已拒绝执行')).toBeDefined();
+    expect(within(card).getByText(/以注册表为准/)).toBeDefined();
+    expect(executed).not.toHaveBeenCalled();
+  });
+
+  it('配置迁移函数抛错时降级为**本实例**配置错误，不打穿兄弟与区域', async () => {
+    const registry = buildRegistry([
+      {
+        widgetId: 'throwing',
+        configSchemaVersion: 2,
+        migrations: {
+          1: () => {
+            throw new Error('迁移炸了');
+          },
+        },
+        Component: ReadyWidget,
+      },
+      { widgetId: 'ok-widget', Component: ReadyWidget },
+    ]);
+    render(
+      <div>
+        <h1>Shell 标题</h1>
+        <WidgetHost
+          instances={[
+            demoInstance({ instanceId: 'bad', widgetId: 'throwing', moduleId: 'test.module', config: {}, configVersion: 1 }),
+            demoInstance({ instanceId: 'good', widgetId: 'ok-widget', moduleId: 'test.module', config: {}, configVersion: 1 }),
+          ]}
+          access={enabledAccess()}
+          registry={registry}
+        />
+      </div>,
+    );
+
+    const bad = cardFor('bad');
+    expect(bad.getAttribute('data-phase')).toBe('blocked:config');
+    expect(within(bad).getByText(/配置解析或迁移过程抛出异常：迁移炸了/)).toBeDefined();
+    // 兄弟实例与 Shell 都没被打穿。
+    expect(await screen.findByText('就绪内容')).toBeDefined();
+    expect(screen.getByText('Shell 标题')).toBeDefined();
+  });
+
+  it('重试后旧 attempt 的迟到回调不会改写新 attempt 的状态', async () => {
+    const user = userEvent.setup();
+    const stale: { reporter: ((error: unknown) => void) | null } = { reporter: null };
+
+    function LateFailWidget(props: WidgetRuntimeProps) {
+      const { retryToken, reportReady, reportAsyncError } = props;
+      useEffect(() => {
+        if (retryToken === 0) {
+          // 保存「第一次 attempt」的上报函数：它代表一次没有清理干净的异步操作。
+          stale.reporter = reportAsyncError;
+          reportAsyncError(new Error('第一次失败'));
+          return;
+        }
+        reportReady();
+      }, [retryToken, reportReady, reportAsyncError]);
+      return <p>第二次就绪</p>;
+    }
+
+    const registry = registryWith({ widgetId: 'late', Component: LateFailWidget });
+    render(
+      <WidgetHost
+        instances={[demoInstance({ widgetId: 'late', moduleId: 'test.module', config: {} })]}
+        access={enabledAccess()}
+        registry={registry}
+      />,
+    );
+
+    expect(await screen.findByText('组件异步加载失败')).toBeDefined();
+    const retry = screen.getByRole('button', { name: '重试' });
+    retry.focus();
+    await user.keyboard('{Enter}');
+    expect(await screen.findByText('第二次就绪')).toBeDefined();
+    expect(cardFor('i1').getAttribute('data-phase')).toBe('ready');
+
+    // 旧 attempt 的错误迟到：必须被忽略，不能把新 attempt 打回错误态。
+    await act(() => {
+      stale.reporter?.(new Error('迟到的旧错误'));
+      return Promise.resolve();
+    });
+    expect(cardFor('i1').getAttribute('data-phase')).toBe('ready');
+    expect(screen.getByText('第二次就绪')).toBeDefined();
+    expect(screen.queryByText('组件异步加载失败')).toBeNull();
   });
 });

@@ -9,10 +9,12 @@
  * - `createNoopInstanceStore` 同理：阶段 02 还没有持久页面/实例表，
  *   服务端只能通过端口请求「当前 Host」清理实例；真实清理由浏览器内的 Host 完成。
  */
+import type { ModuleSupportedAction } from '@ff14-hub/shared';
 import type {
   CancelTasksResult,
   ModuleInstanceStore,
   ModuleSchedulerPort,
+  ModuleScopedScheduler,
   ModuleStatusReader,
   ScheduleDecision,
   ScheduledTask,
@@ -77,10 +79,13 @@ export function createModuleScheduler(deps: ModuleSchedulerDeps): ModuleSchedule
       if (!Number.isInteger(input.runAt) || input.runAt < 0) {
         return { ok: false, reason: 'invalid_run_at' };
       }
-      const status = await deps.readModuleStatus({ workspaceId: input.workspaceId, moduleId: input.moduleId });
-      if (status !== 'enabled') {
-        // 未启用 / 已停用 / 已卸载 / 未安装：一律拒绝排入后台行为。
-        return { ok: false, reason: 'module_inactive' };
+      // selfInit 是平台内部专用通道（由作用域闭包 + 数据库核对后设置），模块无法伪造。
+      if (input.selfInit !== true) {
+        const status = await deps.readModuleStatus({ workspaceId: input.workspaceId, moduleId: input.moduleId });
+        if (status !== 'enabled') {
+          // 未启用 / 已停用 / 已卸载 / 未安装 / 待完成收尾：一律拒绝排入后台行为。
+          return { ok: false, reason: 'module_inactive' };
+        }
       }
       const task: ScheduledTask = {
         taskKey: input.taskKey,
@@ -127,5 +132,73 @@ export function createNoopInstanceStore(): ModuleInstanceStore {
     persistent: false,
     removeInstancesForModule: () => Promise.resolve({ removed: 0 }),
     countInstancesForModule: () => Promise.resolve(0),
+  };
+}
+
+export interface ModuleScopedSchedulerDeps {
+  /** 由平台注入的**已认证**作用域，模块代码无法更改它。 */
+  readonly workspaceId: string;
+  readonly moduleId: string;
+  /** 平台内部管理端口；绝不暴露给模块。 */
+  readonly management: ModuleSchedulerPort;
+  /**
+   * 注册表对本模块 `scheduled:own` 的**授予**结果。
+   * 由服务用 `registry.hasCapability()` 计算，因此 Manifest 里写没写不影响这里的结论。
+   */
+  readonly canSchedule: boolean;
+  /**
+   * 本次 handler 正在执行的动作与准入 revision（非启用/恢复时为 null）。
+   * 只有「模块正在完成自己的启用/恢复初始化」才可能获得门禁豁免。
+   */
+  readonly ownInit: { readonly action: ModuleSupportedAction; readonly revision: number } | null;
+  /** 读取当前待完成操作（作用域已绑定）。用于**用数据库事实**核对豁免是否成立。 */
+  readonly readPendingOperation: () => Promise<{ readonly action: ModuleSupportedAction; readonly revision: number } | null>;
+}
+
+/**
+ * 构造交给模块 handler 的调度视图：作用域闭包绑定 + 能力门禁 + 受核对的初始化豁免。
+ *
+ * 运行时防伪：委派入参**只**由闭包构造，调用者额外传入的 workspaceId / moduleId 一律被丢弃
+ * （TS 类型上也不接受），因此「伪造别的模块/工作空间」既不合法也不生效。
+ *
+ * 初始化豁免（唯一的越门禁入口）必须同时满足：
+ * 1. 模块被授予 `scheduled:own`；
+ * 2. 正在执行的是它自己的 enable / restore 动作；
+ * 3. 数据库里确实存在与该动作、该 revision 完全一致的待完成操作。
+ * 因此模块无法「假装自己在初始化」——它连管理端口都拿不到，也无法改写数据库。
+ */
+export function createModuleScopedScheduler(deps: ModuleScopedSchedulerDeps): ModuleScopedScheduler {
+  return {
+    schedule: async (input): Promise<ScheduleDecision> => {
+      if (!deps.canSchedule) {
+        return { ok: false, reason: 'capability_not_granted' };
+      }
+      let selfInit = false;
+      if (deps.ownInit !== null) {
+        const pending = await deps.readPendingOperation();
+        selfInit =
+          pending !== null &&
+          pending.action === deps.ownInit.action &&
+          pending.revision === deps.ownInit.revision;
+      }
+      return await deps.management.schedule({
+        workspaceId: deps.workspaceId,
+        moduleId: deps.moduleId,
+        taskKey: input.taskKey,
+        runAt: input.runAt,
+        ...(selfInit ? { selfInit: true } : {}),
+      });
+    },
+    cancel: async (input): Promise<CancelTasksResult> =>
+      await deps.management.cancel({
+        workspaceId: deps.workspaceId,
+        moduleId: deps.moduleId,
+        taskKey: input.taskKey,
+      }),
+    listPending: async (): Promise<readonly ScheduledTask[]> =>
+      await deps.management.listPending({
+        workspaceId: deps.workspaceId,
+        moduleId: deps.moduleId,
+      }),
   };
 }

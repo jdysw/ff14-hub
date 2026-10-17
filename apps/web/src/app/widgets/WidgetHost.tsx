@@ -13,13 +13,14 @@
 import {
   MODULE_STATUS_HINTS,
   MODULE_STATUS_LABELS,
-  type ModuleEffectiveStatus,
+  type ModuleGateStatus,
 } from '@ff14-hub/shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RenderErrorBoundary, errorMessageOf } from '../../lib/RenderErrorBoundary';
 import {
   resolveWidgetConfig,
   widgetComponentRegistry,
+  type ConfigResolution,
   type WidgetComponentEntry,
   type WidgetComponentRegistry,
 } from './component-registry';
@@ -58,7 +59,7 @@ const INITIAL_SLOT_STATE: SlotState = {
 };
 
 interface BlockedReason {
-  readonly kind: 'module' | 'permission' | 'config';
+  readonly kind: 'ownership' | 'module' | 'permission' | 'config';
   readonly title: string;
   readonly detail: string;
 }
@@ -118,18 +119,44 @@ function WidgetSlot(props: WidgetSlotProps) {
   const { instance, entry, registry, access, loadingTimeoutMs } = props;
   const [state, setState] = useState<SlotState>(INITIAL_SLOT_STATE);
 
-  const resolution = useMemo(
-    () => resolveWidgetConfig(registry, instance.widgetId, instance.config, instance.configVersion),
+  /**
+   * 配置解析必须**在 useMemo 内兜住异常**：
+   * `resolveWidgetConfig` 会调用组件注册的迁移函数，而那是任意代码。
+   * 如果让它抛出，异常发生在 WidgetSlot 自身的渲染中——而每实例的错误边界在下面只包住
+   * `<Component/>`，于是它会一路冒到区域边界，连带打掉兄弟实例。
+   * 因此这里把「迁移/校验抛错」降级成本实例的配置错误。
+   */
+  const resolution = useMemo<ConfigResolution>(() => {
+    try {
+      return resolveWidgetConfig(registry, instance.widgetId, instance.config, instance.configVersion);
+    } catch (error) {
+      return {
+        ok: false,
+        reason: 'invalid_config',
+        detail: `配置解析或迁移过程抛出异常：${errorMessageOf(error)}`,
+      };
+    }
     // retryToken 参与依赖：重试会重新做一次版本检查与迁移。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [registry, instance.widgetId, instance.config, instance.configVersion, state.retryToken],
-  );
+  }, [registry, instance.widgetId, instance.config, instance.configVersion, state.retryToken]);
 
-  const moduleStatus: ModuleEffectiveStatus = access.status;
+  const moduleStatus: ModuleGateStatus = access.status;
 
   const blocked = useMemo<BlockedReason | null>(() => {
+    // 归属校验必须最先做：Host 用 instance.moduleId 取访问判定，却用 widgetId 选组件条目。
+    // 若两者不一致（伪造或损坏的实例），就会出现「借启用中的 A 模块执行已停用 B 模块的组件」。
+    // 静态注册表的归属是权威，不一致时**拒绝执行**。
+    if (entry !== null && entry.moduleId !== instance.moduleId) {
+      return {
+        kind: 'ownership',
+        title: '实例归属不一致，已拒绝执行',
+        detail:
+          `静态注册表中 ${instance.widgetId} 属于模块 ${entry.moduleId}，` +
+          `但该实例声称为 ${instance.moduleId}。以注册表为准，不执行该组件。`,
+      };
+    }
     if (!isModuleUsableForRendering(moduleStatus)) {
-      // 未启用 / 已停用 / 已卸载 / 未安装：安全降级，绝不执行组件。
+      // 未启用 / 已停用 / 已卸载 / 未安装 / 正在完成操作：安全降级，绝不执行组件。
       // 「能否渲染」这条规则只有一处实现（instance-store 的 isModuleUsableForRendering），
       // 避免 Host 与实例存储对同一策略给出不同答案。
       return {
@@ -158,27 +185,41 @@ function WidgetSlot(props: WidgetSlotProps) {
       };
     }
     return null;
-  }, [moduleStatus, entry, access.grantedCapabilities, resolution]);
+  }, [instance.moduleId, instance.widgetId, moduleStatus, entry, access.grantedCapabilities, resolution]);
+
+  /**
+   * 本次 attempt 的令牌。所有 report* 回调都绑定到创建它们时的 attempt：
+   * 重试后旧 attempt 的迟到回调（旧定时器、未取消的 Promise）一律被忽略，
+   * 不会把新 attempt 的 ready/empty/error 改写掉。
+   */
+  const attempt = state.retryToken;
 
   const reportReady = useCallback(() => {
     setState((current) =>
-      current.renderFailed ? current : { ...current, phase: 'ready', errorKind: null, errorDetail: '' },
+      current.renderFailed || current.retryToken !== attempt
+        ? current
+        : { ...current, phase: 'ready', errorKind: null, errorDetail: '' },
     );
-  }, []);
+  }, [attempt]);
 
   const reportEmpty = useCallback(() => {
     setState((current) =>
-      current.phase === 'ready' || current.renderFailed ? current : { ...current, phase: 'empty' },
-    );
-  }, []);
-
-  const reportAsyncError = useCallback((error: unknown) => {
-    setState((current) =>
-      current.phase === 'error'
+      current.retryToken !== attempt || current.renderFailed || current.phase === 'ready'
         ? current
-        : { ...current, phase: 'error', errorKind: 'async', errorDetail: messageOf(error) },
+        : { ...current, phase: 'empty' },
     );
-  }, []);
+  }, [attempt]);
+
+  const reportAsyncError = useCallback(
+    (error: unknown) => {
+      setState((current) =>
+        current.retryToken !== attempt || current.phase === 'error'
+          ? current
+          : { ...current, phase: 'error', errorKind: 'async', errorDetail: messageOf(error) },
+      );
+    },
+    [attempt],
+  );
 
   const handleRenderError = useCallback((error: unknown) => {
     setState((current) => ({

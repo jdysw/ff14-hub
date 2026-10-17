@@ -4,8 +4,15 @@
  * 重点：这里断言的是**行为**——哪一类配置会被拒绝、迁移后到底变成什么——
  * 而不是把实现里的常量抄一遍。
  */
-import { BUILTIN_MODULE_MANIFESTS, BUILTIN_WIDGET_CONFIG_CONTRACTS, DEMO_WIDGET_IDS } from '@ff14-hub/shared';
+import {
+  BUILTIN_MODULE_MANIFESTS,
+  BUILTIN_WIDGET_CONFIG_CONTRACTS,
+  DEMO_WIDGET_IDS,
+  type ModuleManifest,
+  type WidgetConfigContract,
+} from '@ff14-hub/shared';
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import {
   createWidgetComponentRegistry,
   resolveWidgetConfig,
@@ -39,6 +46,49 @@ describe('内置组件注册表', () => {
     });
     expect(registry.find(DEMO_WIDGET_IDS.counter)).toBeNull();
     expect(registry.find(DEMO_WIDGET_IDS.solo)).not.toBeNull();
+  });
+
+  it('不会把 Object.prototype 上的成员当成已注册组件（constructor 不能冒充组件）', () => {
+    const widgetId = 'constructor';
+    const manifest: ModuleManifest = {
+      id: 'test.ctor',
+      version: '1.0.0',
+      displayName: '原型链测试模块',
+      capabilities: [],
+      widgets: [
+        {
+          id: widgetId,
+          moduleId: 'test.ctor',
+          displayName: '原型链测试组件',
+          allowMultiple: true,
+          defaultSize: { w: 1, h: 1 },
+          minSize: { w: 1, h: 1 },
+          configSchemaVersion: 1,
+        },
+      ],
+      routes: [],
+      settingsSchemaVersion: 1,
+      lifecycle: {},
+    };
+    const contract: WidgetConfigContract = {
+      widgetId,
+      configSchemaVersion: 1,
+      schema: z.object({}).passthrough(),
+      defaultConfig: {},
+      migrations: {},
+    };
+
+    // 组件表为空：prototype 上的 Object 构造函数**不能**被当成本组件。
+    const empty = createWidgetComponentRegistry({ manifests: [manifest], contracts: [contract], components: {} });
+    expect(empty.find(widgetId)).toBeNull();
+
+    // 显式登记（own property）时正常生效，形成对照。
+    const registered = createWidgetComponentRegistry({
+      manifests: [manifest],
+      contracts: [contract],
+      components: { [widgetId]: (): null => null },
+    });
+    expect(registered.find(widgetId)).not.toBeNull();
   });
 });
 

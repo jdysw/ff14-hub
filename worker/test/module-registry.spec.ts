@@ -208,7 +208,7 @@ describe('拒绝非法注册', () => {
     }
   });
 
-  it('拒绝重复的路由 path 与 viewId', () => {
+  it('拒绝重复的路由 path 与 viewId（跨模块）', () => {
     const other = registration({ manifest: manifest({ id: 'test.other', widgets: [widget('other-widget', 'test.other')] }) });
     const build = buildModuleRegistry([registration(), other]);
     expect(build.ok).toBe(false);
@@ -219,9 +219,48 @@ describe('拒绝非法注册', () => {
     }
   });
 
+  it('拒绝**同一 Manifest 内**重复的路由 path（跨模块表在循环后才填，单靠它发现不了）', () => {
+    const diagnostics = expectRejected(
+      registration({
+        manifest: manifest({
+          routes: [
+            { path: '/dup', viewId: 'view-a' },
+            { path: '/dup', viewId: 'view-b' },
+          ],
+        }),
+      }),
+    );
+    expect(codesOf(diagnostics)).toContain('duplicate_route_path');
+    expect(codesOf(diagnostics)).not.toContain('duplicate_route_view');
+  });
+
+  it('拒绝**同一 Manifest 内**重复的路由 viewId', () => {
+    const diagnostics = expectRejected(
+      registration({
+        manifest: manifest({
+          routes: [
+            { path: '/a', viewId: 'same-view' },
+            { path: '/b', viewId: 'same-view' },
+          ],
+        }),
+      }),
+    );
+    expect(codesOf(diagnostics)).toContain('duplicate_route_view');
+    expect(codesOf(diagnostics)).not.toContain('duplicate_route_path');
+  });
+
   it('拒绝引用不存在 handler 的 Manifest（缺失 handler 必须失败，不得静默）', () => {
     const diagnostics = expectRejected(
       registration({ manifest: manifest({ lifecycle: { onEnable: 'test.not_registered' } }) }),
+    );
+    expect(codesOf(diagnostics)).toContain('missing_lifecycle_handler');
+  });
+
+  it('不会把 Object.prototype 上的成员当成已注册的 handler（例如 constructor）', () => {
+    // `handlerTable['constructor']` 在原型链上是 Object 构造函数（typeof === 'function'），
+    // 因此必须用 Object.hasOwn 判定，否则任何人都能引用 "constructor" 当 handler。
+    const diagnostics = expectRejected(
+      registration({ manifest: manifest({ lifecycle: { onEnable: 'constructor' } }) }),
     );
     expect(codesOf(diagnostics)).toContain('missing_lifecycle_handler');
   });

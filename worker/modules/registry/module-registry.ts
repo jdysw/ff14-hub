@@ -168,9 +168,20 @@ export function buildModuleRegistry(inputs: readonly ModuleRegistrationInput[]):
       continue;
     }
 
-    // --- Widget 类型 ID 全局唯一 ---------------------------------------------
+    // --- Widget 类型 ID 全局唯一（同 Manifest 内 + 跨 Manifest）------------------
+    // 同 Manifest 内的重复由 Manifest Schema 的 superRefine 把关；这里再做一次**局部**检查，
+    // 因为跨模块的 Map 是「循环结束后才填」的，单靠它发现不了同一个 Manifest 内部的重复。
     let widgetOk = true;
+    const localWidgetIds = new Set<string>();
     for (const widget of manifest.widgets) {
+      if (localWidgetIds.has(widget.id)) {
+        diagnostics.push({
+          code: 'duplicate_widget_id',
+          moduleId: manifest.id,
+          detail: `同一模块内 Widget 类型 ID 重复：${widget.id}`,
+        });
+        widgetOk = false;
+      }
       const owner = widgetOwners.get(widget.id);
       if (owner !== undefined) {
         diagnostics.push({
@@ -180,14 +191,33 @@ export function buildModuleRegistry(inputs: readonly ModuleRegistrationInput[]):
         });
         widgetOk = false;
       }
+      localWidgetIds.add(widget.id);
     }
     if (!widgetOk) {
       continue;
     }
 
-    // --- 路由唯一 ------------------------------------------------------------
+    // --- 路由唯一（同 Manifest 内 + 跨 Manifest）-----------------------------
     let routeOk = true;
+    const localRoutePaths = new Set<string>();
+    const localRouteViews = new Set<string>();
     for (const route of manifest.routes ?? []) {
+      if (localRoutePaths.has(route.path)) {
+        diagnostics.push({
+          code: 'duplicate_route_path',
+          moduleId: manifest.id,
+          detail: `同一模块内路由 path 重复：${route.path}`,
+        });
+        routeOk = false;
+      }
+      if (localRouteViews.has(route.viewId)) {
+        diagnostics.push({
+          code: 'duplicate_route_view',
+          moduleId: manifest.id,
+          detail: `同一模块内路由 viewId 重复：${route.viewId}`,
+        });
+        routeOk = false;
+      }
       const pathOwner = routePaths.get(route.path);
       if (pathOwner !== undefined) {
         diagnostics.push({
@@ -206,6 +236,8 @@ export function buildModuleRegistry(inputs: readonly ModuleRegistrationInput[]):
         });
         routeOk = false;
       }
+      localRoutePaths.add(route.path);
+      localRouteViews.add(route.viewId);
     }
     if (!routeOk) {
       continue;
@@ -219,7 +251,9 @@ export function buildModuleRegistry(inputs: readonly ModuleRegistrationInput[]):
     ].filter((name): name is string => name !== undefined);
     let handlerOk = true;
     for (const name of referencedHandlers) {
-      if (typeof input.handlerTable[name] !== 'function') {
+      // Object.hasOwn：不能把 Object.prototype 上的成员（如 'constructor'）当成已注册的 handler。
+      const candidate = Object.hasOwn(input.handlerTable, name) ? input.handlerTable[name] : undefined;
+      if (typeof candidate !== 'function') {
         diagnostics.push({
           code: 'missing_lifecycle_handler',
           moduleId: manifest.id,

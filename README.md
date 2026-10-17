@@ -97,6 +97,10 @@ pnpm run db:migrations:list:local  # 查看已应用清单
 - `migrations/0003_modules.sql` —— `workspace_modules`：`(workspace_id, module_id)` 主键、状态 CHECK
   （只允许 `enabled` / `disabled` / `uninstalled`）、设置与设置版本、`revision` 乐观并发列、
   安装/启停/卸载时间戳。**停用与卸载都不删除本行**，因此个人设置会保留（卸载 ≠ 清数据）。
+- `migrations/0004_module_operations.sql` —— `workspace_module_operations`：待完成生命周期操作的
+  持久事实（`action` / `target_status` / `revision` / `attempts` / `last_error`），复合外键指向
+  `workspace_modules` 并级联删除。存在即表示「状态已提交、收尾未完成或失败待重试」，
+  此时门禁为 `transitioning`（不执行组件、不排程）。
 
 约定与注意点：
 
@@ -164,6 +168,11 @@ ff14-hub/
 | `uninstall` | 移除该模块全部实例并停用 | 停止并取消任务 | **默认保留**，可 `restore` |
 | `purge` | —— | —— | 本阶段**拒绝**（501） |
 
+生命周期采用「**先原子准入提交状态 → 执行副作用 → 收尾**」三段式：
+抢输的一方（409）在任何可变副作用之前退出；副作用失败时返回 200 +
+`effect.pending = true` + 失败原因，并把待完成操作持久化（`workspace_module_operations`），
+可用**同动作 + 同 revision** 幂等重试续做。详见 ADR-0002 D4。
+
 安全细节（配对原子性、撤销审计去重、速率限制、常量时间比较等）见
 [`docs/security-boundaries.md`](docs/security-boundaries.md)；
 模块与 Widget 的边界见 [`docs/module-widget-boundaries.md`](docs/module-widget-boundaries.md)。
@@ -202,6 +211,8 @@ ff14-hub/
 
 ## 10. 已知限制
 
+- **待完成操作没有自动恢复**：副作用失败的收尾只能由客户端显式重试（同动作 + 同 revision），
+  没有后台自动重试或定时对账。
 - **Widget 实例不持久**：`widget_instances` 表属于阶段 03，因此实例只存在于浏览器内存，
   刷新即丢失；服务端卸载只能通过 `ModuleInstanceStore` 端口**请求**清理
   （默认实现自报 `persistent: false`）。语义已被测试钉住，替换实现即可。

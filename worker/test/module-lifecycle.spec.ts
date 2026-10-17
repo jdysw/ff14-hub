@@ -1,11 +1,12 @@
 /**
  * 模块生命周期集成测试（HUB-050 验收）。
  *
- * 两层证据，缺一不可：
- * 1. **真实 HTTP + 真实 D1**：走 SELF.fetch 打真实端点，再用 SQL 直接读 `workspace_modules`
- *    断言数据库事实（例如「卸载没有删掉设置」不能只看响应体自述）。
- * 2. **服务层 + 注入端口**：验证平台副作用（实例清理、任务取消）与失败语义，
- *    这些在阶段 02 还没有持久实现，但语义必须被真实断言。
+ * 三层证据：
+ * 1. **真实 HTTP + 真实 D1**：走 SELF.fetch 打真实端点，再用 SQL 直接读表断言数据库事实
+ *    （例如「卸载没有删掉设置」不能只看响应体自述）。
+ * 2. **服务层 + 注入端口**：验证「原子准入 → 副作用 → 收尾」协议、失败语义与幂等重试。
+ * 3. **确定性交错**：CAS 输家必须在**任何可变副作用之前**退出；副作用失败必须留下持久事实；
+ *    已发生的部分副作用不得被响应伪装成「状态未变所以没发生」。
  */
 import {
   DEMO_BASICS_MODULE_ID,
@@ -15,16 +16,17 @@ import {
   moduleMutationResponseSchema,
   myModulesResponseSchema,
   workspaceModuleStatusResponseSchema,
+  type ModuleCapability,
 } from '@ff14-hub/shared';
 import { SELF, env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createModuleLifecycle } from '../modules/lifecycle/module-lifecycle';
 import { createInMemoryScheduledTaskStore, createModuleScheduler } from '../modules/lifecycle/scheduler';
-import { readEffectiveModuleStatus } from '../modules/lifecycle/workspace-modules';
-import type { ModuleInstanceStore, ScheduledTaskStore } from '../modules/ports';
+import { readModuleGateStatus } from '../modules/lifecycle/workspace-modules';
+import type { ModuleInstanceStore, ModuleSchedulerPort } from '../modules/ports';
 import { builtinModuleRegistry } from '../modules/registry/builtin-modules';
-import { buildModuleRegistryOrThrow } from '../modules/registry/module-registry';
+import { buildModuleRegistryOrThrow, type ModuleRegistry } from '../modules/registry/module-registry';
 import {
   URLS,
   countRows,
@@ -32,6 +34,7 @@ import {
   modulePurgeUrl,
   moduleUrl,
   patchModule,
+  readModuleOperationRow,
   readModuleRow,
   readModuleSettings,
   resetIdentityState,
@@ -67,10 +70,10 @@ describe('公开模块目录（匿名）', () => {
     expect(response.headers.get('Cache-Control')).toBe('no-store');
 
     const text = await response.text();
-    // 只含元数据：不能出现 handler 名（内部注册细节）或工作空间状态。
     expect(text).not.toContain('demo.basics.enable');
     expect(text).not.toContain('"status"');
     expect(text).not.toContain('lifecycle');
+    expect(text).not.toContain('pendingOperation');
 
     const parsed = moduleCatalogResponseSchema.safeParse(JSON.parse(text) as unknown);
     expect(parsed.success).toBe(true);
@@ -113,7 +116,6 @@ describe('鉴权边界', () => {
     });
     expect(bEnable.status).toBe(200);
 
-    // A 从未安装该模块：disable 属于非法迁移，必须 409，且不能碰到 B 的行。
     const aAttempt = await patchModule(a.authorization, DEMO_BASICS_MODULE_ID, {
       expectedRevision: 0,
       action: 'disable',
@@ -126,13 +128,13 @@ describe('鉴权边界', () => {
     expect(bRow?.revision).toBe(1);
     expect(await readModuleSettings(b.workspaceId, DEMO_BASICS_MODULE_ID)).toMatchObject({ greeting: 'B 的设置' });
 
-    // A 的列表里该模块仍是「未安装」，且看不到 B 的设置。
     const listResponse = await SELF.fetch(URLS.meModules, { headers: { Authorization: a.authorization } });
     const list = myModulesResponseSchema.parse(await listResponse.json());
     const basics = list.modules.find((module) => module.moduleId === DEMO_BASICS_MODULE_ID);
     expect(basics?.status).toBe('not_installed');
     expect(basics?.settings).toEqual({});
     expect(basics?.revision).toBe(0);
+    expect(basics?.pendingOperation).toBeNull();
   });
 
   it('客户端提交 workspaceId 只会被当成非法字段拒绝（作用域只来自认证结果）', async () => {
@@ -155,8 +157,8 @@ describe('鉴权边界', () => {
   });
 });
 
-describe('生命周期状态机', () => {
-  it('enable 建立状态并写入 Schema 默认设置', async () => {
+describe('生命周期状态机（HTTP）', () => {
+  it('enable 建立状态、写入 Schema 默认设置，且没有留下待完成标记', async () => {
     const auth = await seedAuth();
     const response = await patchModule(auth.authorization, DEMO_BASICS_MODULE_ID, {
       expectedRevision: 0,
@@ -166,10 +168,15 @@ describe('生命周期状态机', () => {
     const body = moduleMutationResponseSchema.parse(await response.json());
     expect(body.module.status).toBe('enabled');
     expect(body.module.revision).toBe(1);
+    expect(body.module.pendingOperation).toBeNull();
     expect(body.effect.changed).toBe(true);
+    expect(body.effect.pending).toBe(false);
+    expect(body.effect.failure).toBeNull();
     expect(body.effect.handlersRun).toEqual(['demo.basics.enable']);
     expect(body.effect.userDataRetained).toBe(true);
     expect(body.module.settings['greeting']).toBe('你好');
+    // 收尾完成后不应残留「待完成操作」行。
+    expect(await readModuleOperationRow(auth.workspaceId, DEMO_BASICS_MODULE_ID)).toBeNull();
 
     const row = await readModuleRow(auth.workspaceId, DEMO_BASICS_MODULE_ID);
     expect(row?.installed_at).toBeGreaterThan(0);
@@ -192,22 +199,15 @@ describe('生命周期状态机', () => {
     await patchModule(auth.authorization, DEMO_BASICS_MODULE_ID, { expectedRevision: 0, action: 'enable' });
 
     const first = await patchModule(auth.authorization, DEMO_BASICS_MODULE_ID, { expectedRevision: 1, action: 'enable' });
-    expect(first.status).toBe(200);
     const firstBody = moduleMutationResponseSchema.parse(await first.json());
     expect(firstBody.effect.changed).toBe(false);
     expect(firstBody.effect.handlersRun).toEqual([]);
     expect(firstBody.module.revision).toBe(1);
 
-    const again = await patchModule(auth.authorization, DEMO_BASICS_MODULE_ID, { expectedRevision: 1, action: 'enable' });
-    const againBody = moduleMutationResponseSchema.parse(await again.json());
-    expect(againBody.module.revision).toBe(1);
-    expect(againBody.effect.changed).toBe(false);
-
     const disable = await patchModule(auth.authorization, DEMO_BASICS_MODULE_ID, {
       expectedRevision: 1,
       action: 'disable',
     });
-    expect(disable.status).toBe(200);
     const disabled = moduleMutationResponseSchema.parse(await disable.json());
     expect(disabled.module.status).toBe('disabled');
     expect(disabled.module.revision).toBe(2);
@@ -267,10 +267,9 @@ describe('生命周期状态机', () => {
     expect(body.module.status).toBe('uninstalled');
     expect(body.effect.handlersRun).toEqual(['demo.basics.uninstall']);
     expect(body.effect.userDataRetained).toBe(true);
+    expect(body.effect.pending).toBe(false);
     expect(body.effect.message).toContain('个人数据');
-    expect(body.effect.message).toContain('可随时恢复');
 
-    // 数据库事实：行还在、设置还在、当前状态时间戳互斥。
     expect(await countRows('workspace_modules')).toBe(before);
     const row = await readModuleRow(auth.workspaceId, DEMO_BASICS_MODULE_ID);
     expect(row?.status).toBe('uninstalled');
@@ -281,7 +280,6 @@ describe('生命周期状态机', () => {
       announce: true,
     });
 
-    // 恢复后设置沿用。
     await patchModule(auth.authorization, DEMO_BASICS_MODULE_ID, { expectedRevision: 2, action: 'restore' });
     expect(await readModuleSettings(auth.workspaceId, DEMO_BASICS_MODULE_ID)).toMatchObject({ greeting: '别删我' });
   });
@@ -298,6 +296,9 @@ describe('设置与版本校验', () => {
     const body = moduleMutationResponseSchema.parse(await response.json());
     expect(body.module.settings).toMatchObject({ greeting: '你好呀', announce: true });
     expect(body.effect.message).toContain('设置');
+    // 仅设置变更不产生待完成标记（没有副作用需要收尾）。
+    expect(body.module.pendingOperation).toBeNull();
+    expect(await readModuleOperationRow(auth.workspaceId, DEMO_BASICS_MODULE_ID)).toBeNull();
   });
 
   it('拒绝非法设置（422），且不回显提交的值', async () => {
@@ -333,7 +334,7 @@ describe('设置与版本校验', () => {
     expect(response.status).toBe(409);
   });
 
-  it('请求体必须严格符合契约：缺少或缺失 expectedRevision、空请求、未知 action 都返回 422', async () => {
+  it('请求体必须严格符合契约：缺少 expectedRevision、空请求、未知 action、负 revision 都返回 422', async () => {
     const auth = await seedAuth();
     const cases: unknown[] = [
       { action: 'enable' },
@@ -350,7 +351,7 @@ describe('设置与版本校验', () => {
   });
 });
 
-describe('并发与防静默覆盖', () => {
+describe('并发与防静默覆盖（HTTP）', () => {
   it('revision 不匹配时返回 409 且不写入', async () => {
     const auth = await seedAuth();
     await patchModule(auth.authorization, DEMO_BASICS_MODULE_ID, { expectedRevision: 0, action: 'enable' });
@@ -376,6 +377,8 @@ describe('并发与防静默覆盖', () => {
 
     const row = await readModuleRow(auth.workspaceId, DEMO_BASICS_MODULE_ID);
     expect(row?.revision).toBe(2);
+    // 只有赢家会写状态；无论谁赢，都不应该留下待完成标记（两个动作的副作用都能成功）。
+    expect(await readModuleOperationRow(auth.workspaceId, DEMO_BASICS_MODULE_ID)).toBeNull();
   });
 });
 
@@ -414,6 +417,40 @@ describe('清数据（purge）显式拒绝', () => {
     expect(row?.status).toBe('enabled');
     expect(row?.revision).toBe(1);
   });
+
+  it('即使存在待完成操作，purge 也只返回 501，不会顺手改状态或清掉标记', async () => {
+    const workspace = await seedWorkspace();
+    const harness = buildHarness({
+      wrapScheduler: (management) => ({
+        ...management,
+        cancelAllForModule: () => Promise.reject(new Error('调度不可用')),
+      }),
+    });
+    await harness.lifecycle.mutate({
+      workspaceId: workspace.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      request: { expectedRevision: 0, action: 'enable' },
+    });
+    const failed = await harness.lifecycle.mutate({
+      workspaceId: workspace.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      request: { expectedRevision: 1, action: 'uninstall' },
+    });
+    expect(failed.ok).toBe(true);
+    const pendingBefore = await readModuleOperationRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID);
+    expect(pendingBefore).not.toBeNull();
+
+    const purge = await harness.lifecycle.mutate({
+      workspaceId: workspace.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      request: { expectedRevision: 2, action: 'purge' },
+    });
+    expect(purge.ok).toBe(false);
+    if (!purge.ok) {
+      expect(purge.reason).toBe('purge_unsupported');
+    }
+    expect(await readModuleOperationRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID)).toEqual(pendingBefore);
+  });
 });
 
 describe('读取状态', () => {
@@ -427,6 +464,7 @@ describe('读取状态', () => {
       expect(module.status).toBe('not_installed');
       expect(module.revision).toBe(0);
       expect(module.settings).toEqual({});
+      expect(module.pendingOperation).toBeNull();
     }
   });
 
@@ -439,11 +477,12 @@ describe('读取状态', () => {
     expect(response.status).toBe(200);
     const body = workspaceModuleStatusResponseSchema.parse(await response.json());
     expect(body.module.status).toBe('enabled');
+    expect(body.module.pendingOperation).toBeNull();
   });
 });
 
 // ---------------------------------------------------------------------------
-// 服务层：平台副作用、失败语义、调度门禁（真实 D1 + 注入端口）
+// 服务层：原子准入 → 副作用 → 收尾；失败语义、幂等重试、端口作用域与能力门禁
 // ---------------------------------------------------------------------------
 
 interface RecordingInstanceStore {
@@ -468,85 +507,156 @@ function recordingInstanceStore(removed = 2): RecordingInstanceStore {
 
 interface ServiceHarness {
   readonly lifecycle: ReturnType<typeof createModuleLifecycle>;
-  readonly scheduler: ReturnType<typeof createModuleScheduler>;
-  readonly scheduledTasks: ScheduledTaskStore;
+  readonly management: ModuleSchedulerPort;
+  readonly scheduler: ModuleSchedulerPort;
+  readonly scheduledTasks: ReturnType<typeof createInMemoryScheduledTaskStore>;
   readonly instances: RecordingInstanceStore;
 }
 
-function serviceHarness(instanceStore?: ModuleInstanceStore): ServiceHarness {
+interface HarnessOptions {
+  readonly instanceStore?: ModuleInstanceStore;
+  /** 包装内部管理端口，用于注入「某一步失败」。 */
+  readonly wrapScheduler?: (management: ModuleSchedulerPort) => ModuleSchedulerPort;
+  readonly registry?: ModuleRegistry;
+}
+
+function buildHarness(options: HarnessOptions = {}): ServiceHarness {
   const scheduledTasks = createInMemoryScheduledTaskStore();
-  const scheduler = createModuleScheduler({
+  const management = createModuleScheduler({
     store: scheduledTasks,
-    readModuleStatus: ({ workspaceId, moduleId }) => readEffectiveModuleStatus(env.DB, workspaceId, moduleId),
+    readModuleStatus: ({ workspaceId, moduleId }) => readModuleGateStatus(env.DB, workspaceId, moduleId),
   });
+  const scheduler = options.wrapScheduler?.(management) ?? management;
   const instances = recordingInstanceStore();
   const lifecycle = createModuleLifecycle({
     db: env.DB,
-    registry: builtinModuleRegistry,
-    instanceStore: instanceStore ?? instances.store,
+    registry: options.registry ?? builtinModuleRegistry,
+    instanceStore: options.instanceStore ?? instances.store,
     scheduler,
     now: () => NOW,
   });
-  return { lifecycle, scheduler, scheduledTasks, instances };
+  return { lifecycle, management, scheduler, scheduledTasks, instances };
 }
 
-describe('平台副作用与端口', () => {
-  it('卸载会请求移除实例并取消已排队任务，同时如实报告计数', async () => {
+const GREETING = '保留的设置';
+
+async function enableWithSettings(harness: ServiceHarness, workspaceId: string): Promise<void> {
+  const outcome = await harness.lifecycle.mutate({
+    workspaceId,
+    moduleId: DEMO_BASICS_MODULE_ID,
+    request: { expectedRevision: 0, action: 'enable', settings: { greeting: GREETING } },
+  });
+  if (!outcome.ok) {
+    throw new Error(`准备 enable 失败：${outcome.reason}`);
+  }
+}
+
+describe('原子准入：CAS 输家在任何可变副作用之前退出', () => {
+  it('设置更新先赢，卸载用过期 revision 输在 409，且没有移除实例/取消任务/留下标记', async () => {
     const workspace = await seedWorkspace();
-    const harness = serviceHarness();
-
-    const enabled = await harness.lifecycle.mutate({
+    const harness = buildHarness();
+    await enableWithSettings(harness, workspace.workspaceId);
+    await harness.management.schedule({
       workspaceId: workspace.workspaceId,
       moduleId: DEMO_BASICS_MODULE_ID,
-      request: { expectedRevision: 0, action: 'enable' },
-    });
-    expect(enabled.ok).toBe(true);
-
-    const scheduled = await harness.scheduler.schedule({
-      workspaceId: workspace.workspaceId,
-      moduleId: DEMO_BASICS_MODULE_ID,
-      taskKey: 'demo-task-1',
+      taskKey: 'sentinel',
       runAt: NOW + 60_000,
     });
-    expect(scheduled.ok).toBe(true);
+    const instanceCallsBefore = harness.instances.calls.length;
 
-    const uninstalled = await harness.lifecycle.mutate({
+    const settingsWin = await harness.lifecycle.mutate({
+      workspaceId: workspace.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      request: { expectedRevision: 1, settings: { greeting: '赢家的设置' } },
+    });
+    expect(settingsWin.ok).toBe(true);
+
+    const uninstallLoses = await harness.lifecycle.mutate({
       workspaceId: workspace.workspaceId,
       moduleId: DEMO_BASICS_MODULE_ID,
       request: { expectedRevision: 1, action: 'uninstall' },
     });
-    expect(uninstalled.ok).toBe(true);
-    if (uninstalled.ok) {
-      expect(uninstalled.effect.instancesRemoved).toBe(2);
-      expect(uninstalled.effect.scheduledTasksCancelled).toBe(1);
-      expect(uninstalled.effect.message).toContain('移除 2 个当前实例');
+    expect(uninstallLoses.ok).toBe(false);
+    if (!uninstallLoses.ok) {
+      expect(uninstallLoses.reason).toBe('revision_conflict');
     }
 
-    // 端口被调用且参数正确（这正是「卸载移除当前 Host 实例」的可验证落点）。
-    expect(harness.instances.calls).toEqual([
-      { workspaceId: workspace.workspaceId, moduleId: DEMO_BASICS_MODULE_ID, reason: 'module_uninstalled' },
-    ]);
-    expect(await harness.scheduledTasks.listByModule({
-      workspaceId: workspace.workspaceId,
-      moduleId: DEMO_BASICS_MODULE_ID,
-    })).toHaveLength(0);
-
-    // 数据保留：行与设置都还在。
-    expect(await readModuleRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID)).not.toBeNull();
+    // 关键断言：输家**没有**产生任何可变副作用。
+    expect(harness.instances.calls).toHaveLength(instanceCallsBefore);
+    expect(
+      await harness.scheduledTasks.listByModule({ workspaceId: workspace.workspaceId, moduleId: DEMO_BASICS_MODULE_ID }),
+    ).toHaveLength(1);
+    const row = await readModuleRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID);
+    expect(row?.status).toBe('enabled');
+    expect(await readModuleOperationRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID)).toBeNull();
+    expect(await readModuleSettings(workspace.workspaceId, DEMO_BASICS_MODULE_ID)).toMatchObject({
+      greeting: '赢家的设置',
+    });
   });
 
-  it('卸载失败（端口抛错）时不写库，状态与 revision 保持不变', async () => {
+  it('真并发（同一 revision）：恰好一个成功，且只有赢家产生副作用', async () => {
     const workspace = await seedWorkspace();
-    const failingStore: ModuleInstanceStore = {
-      persistent: false,
-      removeInstancesForModule: () => Promise.reject(new Error('实例库不可用')),
-      countInstancesForModule: () => Promise.resolve(0),
-    };
-    const harness = serviceHarness(failingStore);
-    await harness.lifecycle.mutate({
+    const harness = buildHarness();
+    await enableWithSettings(harness, workspace.workspaceId);
+    await harness.management.schedule({
       workspaceId: workspace.workspaceId,
       moduleId: DEMO_BASICS_MODULE_ID,
-      request: { expectedRevision: 0, action: 'enable' },
+      taskKey: 'sentinel',
+      runAt: NOW + 60_000,
+    });
+
+    const [settingsAttempt, uninstallAttempt] = await Promise.all([
+      harness.lifecycle.mutate({
+        workspaceId: workspace.workspaceId,
+        moduleId: DEMO_BASICS_MODULE_ID,
+        request: { expectedRevision: 1, settings: { greeting: '并发者' } },
+      }),
+      harness.lifecycle.mutate({
+        workspaceId: workspace.workspaceId,
+        moduleId: DEMO_BASICS_MODULE_ID,
+        request: { expectedRevision: 1, action: 'uninstall' },
+      }),
+    ]);
+
+    const winners = [settingsAttempt, uninstallAttempt].filter((outcome) => outcome.ok);
+    expect(winners).toHaveLength(1);
+
+    const pendingTasks = await harness.scheduledTasks.listByModule({
+      workspaceId: workspace.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+    });
+    if (uninstallAttempt.ok) {
+      // 卸载赢了：实例被移除、任务被取消，这正是赢家该做的事。
+      expect(harness.instances.calls).toHaveLength(1);
+      expect(pendingTasks).toHaveLength(0);
+      const row = await readModuleRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID);
+      expect(row?.status).toBe('uninstalled');
+    } else {
+      // 设置赢了：卸载完全没发生，实例与任务都还在。
+      expect(harness.instances.calls).toHaveLength(0);
+      expect(pendingTasks).toHaveLength(1);
+      const row = await readModuleRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID);
+      expect(row?.status).toBe('enabled');
+    }
+    expect(await readModuleOperationRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID)).toBeNull();
+  });
+});
+
+describe('副作用失败的持久事实与幂等重试', () => {
+  it('实例清理成功但任务取消失败：状态已提交 + 待完成标记记录失败，绝不出现「enabled 但实例已删」', async () => {
+    const workspace = await seedWorkspace();
+    const harness = buildHarness({
+      wrapScheduler: (management) => ({
+        ...management,
+        cancelAllForModule: () => Promise.reject(new Error('调度不可用')),
+      }),
+    });
+    await enableWithSettings(harness, workspace.workspaceId);
+    await harness.management.schedule({
+      workspaceId: workspace.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      taskKey: 'sentinel',
+      runAt: NOW + 60_000,
     });
 
     const outcome = await harness.lifecycle.mutate({
@@ -554,18 +664,218 @@ describe('平台副作用与端口', () => {
       moduleId: DEMO_BASICS_MODULE_ID,
       request: { expectedRevision: 1, action: 'uninstall' },
     });
-    expect(outcome.ok).toBe(false);
+
+    expect(outcome.ok).toBe(true);
     if (!outcome.ok) {
-      expect(outcome.reason).toBe('side_effect_failed');
+      return;
     }
+    // 状态已提交为 uninstalled，且**没有**被伪装成「什么都没发生」。
+    expect(outcome.module.status).toBe('uninstalled');
+    expect(outcome.effect.pending).toBe(true);
+    expect(outcome.effect.failure).toContain('平台清理失败');
+    expect(outcome.effect.instancesRemoved).toBe(2);
+    expect(outcome.effect.message).toContain('收尾未完成');
+    expect(outcome.effect.message).toContain('个人数据与设置保留');
+    expect(outcome.module.pendingOperation).not.toBeNull();
+    expect(outcome.module.pendingOperation?.action).toBe('uninstall');
+    expect(outcome.module.pendingOperation?.lastError).toContain('平台清理失败');
+
+    // 数据库事实：状态、待完成操作、以及仍然保留的设置。
     const row = await readModuleRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID);
-    expect(row?.status).toBe('enabled');
-    expect(row?.revision).toBe(1);
+    expect(row?.status).toBe('uninstalled');
+    const pendingRow = await readModuleOperationRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID);
+    expect(pendingRow?.action).toBe('uninstall');
+    expect(pendingRow?.target_status).toBe('uninstalled');
+    expect(pendingRow?.attempts).toBe(1);
+    expect(pendingRow?.last_error).toContain('平台清理失败');
+    expect(await readModuleSettings(workspace.workspaceId, DEMO_BASICS_MODULE_ID)).toMatchObject({
+      greeting: GREETING,
+    });
+    // 门禁必须是安全的：不能是 enabled。
+    expect(await harness.lifecycle.gateStatus(workspace.workspaceId, DEMO_BASICS_MODULE_ID)).toBe('transitioning');
+    // 实例清理确实发生了（响应如实报告，而不是隐瞒）。
+    expect(harness.instances.calls).toHaveLength(1);
   });
 
-  it('生命周期 handler 抛错时不写库，也不执行平台副作用', async () => {
+  it('幂等重试可以完成收尾：清除标记、取消任务、个人数据不删', async () => {
     const workspace = await seedWorkspace();
-    const failingRegistry = buildModuleRegistryOrThrow([
+    let cancelFails = true;
+    const harness = buildHarness({
+      wrapScheduler: (management) => ({
+        ...management,
+        cancelAllForModule: (input) =>
+          cancelFails ? Promise.reject(new Error('调度不可用')) : management.cancelAllForModule(input),
+      }),
+    });
+    await enableWithSettings(harness, workspace.workspaceId);
+    await harness.management.schedule({
+      workspaceId: workspace.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      taskKey: 'sentinel',
+      runAt: NOW + 60_000,
+    });
+
+    const first = await harness.lifecycle.mutate({
+      workspaceId: workspace.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      request: { expectedRevision: 1, action: 'uninstall' },
+    });
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      return;
+    }
+    expect(first.effect.pending).toBe(true);
+
+    cancelFails = false;
+    const retry = await harness.lifecycle.mutate({
+      workspaceId: workspace.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      request: { expectedRevision: first.module.revision, action: 'uninstall' },
+    });
+    expect(retry.ok).toBe(true);
+    if (!retry.ok) {
+      return;
+    }
+    expect(retry.module.pendingOperation).toBeNull();
+    expect(retry.effect.pending).toBe(false);
+    expect(retry.effect.failure).toBeNull();
+    expect(retry.effect.scheduledTasksCancelled).toBe(1);
+    expect(retry.effect.message).toContain('收尾已完成');
+    expect(retry.effect.userDataRetained).toBe(true);
+
+    expect(await readModuleOperationRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID)).toBeNull();
+    expect(await readModuleSettings(workspace.workspaceId, DEMO_BASICS_MODULE_ID)).toMatchObject({
+      greeting: GREETING,
+    });
+    expect(await harness.lifecycle.gateStatus(workspace.workspaceId, DEMO_BASICS_MODULE_ID)).toBe('uninstalled');
+  });
+
+  it('存在待完成操作时：其他动作或夹带设置都被 409 拒绝，避免交错', async () => {
+    const workspace = await seedWorkspace();
+    const harness = buildHarness({
+      wrapScheduler: (management) => ({
+        ...management,
+        cancelAllForModule: () => Promise.reject(new Error('调度不可用')),
+      }),
+    });
+    await enableWithSettings(harness, workspace.workspaceId);
+    const failed = await harness.lifecycle.mutate({
+      workspaceId: workspace.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      request: { expectedRevision: 1, action: 'uninstall' },
+    });
+    expect(failed.ok).toBe(true);
+    if (!failed.ok) {
+      return;
+    }
+    const revision = failed.module.revision;
+
+    const otherAction = await harness.lifecycle.mutate({
+      workspaceId: workspace.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      request: { expectedRevision: revision, action: 'enable' },
+    });
+    expect(otherAction.ok).toBe(false);
+    if (!otherAction.ok) {
+      expect(otherAction.reason).toBe('pending_conflict');
+    }
+
+    const withSettings = await harness.lifecycle.mutate({
+      workspaceId: workspace.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      request: { expectedRevision: revision, action: 'uninstall', settings: { greeting: '偷改' } },
+    });
+    expect(withSettings.ok).toBe(false);
+    if (!withSettings.ok) {
+      expect(withSettings.reason).toBe('pending_conflict');
+    }
+
+    // 设置没有被改动，待完成标记仍在。
+    expect(await readModuleSettings(workspace.workspaceId, DEMO_BASICS_MODULE_ID)).toMatchObject({
+      greeting: GREETING,
+    });
+    expect(await readModuleOperationRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID)).not.toBeNull();
+  });
+
+  it('待完成的 enable（handler 失败）同样让门禁降级为 transitioning，重试后才可排程', async () => {
+    const workspace = await seedWorkspace();
+    let handlerFails = true;
+    const registry = buildModuleRegistryOrThrow([
+      {
+        manifest: {
+          id: 'test.gated',
+          version: '1.0.0',
+          displayName: '门禁测试模块',
+          capabilities: ['scheduled:own'],
+          widgets: [],
+          routes: [],
+          settingsSchemaVersion: 1,
+          lifecycle: { onEnable: 'test.gated.enable' },
+        },
+        handlerTable: {
+          'test.gated.enable': () => {
+            if (handlerFails) {
+              throw new Error('初始化失败');
+            }
+          },
+        },
+        settingsSchema: z.object({}).strict(),
+        settingsSchemaVersion: 1,
+        grantedCapabilities: ['scheduled:own'],
+      },
+    ]);
+    const harness = buildHarness({ registry });
+    const moduleId = 'test.gated';
+
+    const first = await harness.lifecycle.mutate({
+      workspaceId: workspace.workspaceId,
+      moduleId,
+      request: { expectedRevision: 0, action: 'enable' },
+    });
+    expect(first.ok).toBe(true);
+    if (!first.ok) {
+      return;
+    }
+    expect(first.module.status).toBe('enabled');
+    expect(first.effect.pending).toBe(true);
+    expect(first.effect.failure).toContain('生命周期 handler 失败');
+    expect(await harness.lifecycle.gateStatus(workspace.workspaceId, moduleId)).toBe('transitioning');
+
+    // 待完成期间不得排入后台任务（门禁不是 enabled）。
+    expect(
+      await harness.management.schedule({
+        workspaceId: workspace.workspaceId,
+        moduleId,
+        taskKey: 'blocked',
+        runAt: NOW + 1000,
+      }),
+    ).toEqual({ ok: false, reason: 'module_inactive' });
+
+    handlerFails = false;
+    const retry = await harness.lifecycle.mutate({
+      workspaceId: workspace.workspaceId,
+      moduleId,
+      request: { expectedRevision: first.module.revision, action: 'enable' },
+    });
+    expect(retry.ok).toBe(true);
+    if (!retry.ok) {
+      return;
+    }
+    expect(retry.module.pendingOperation).toBeNull();
+    expect(await harness.lifecycle.gateStatus(workspace.workspaceId, moduleId)).toBe('enabled');
+    expect(
+      await harness.management.schedule({
+        workspaceId: workspace.workspaceId,
+        moduleId,
+        taskKey: 'allowed',
+        runAt: NOW + 1000,
+      }),
+    ).toMatchObject({ ok: true });
+  });
+
+  it('handler 失败也不会跳过平台清理（安全不变量优先），并记录原因', async () => {
+    const workspace = await seedWorkspace();
+    const registry = buildModuleRegistryOrThrow([
       {
         manifest: {
           id: 'test.failing',
@@ -575,11 +885,12 @@ describe('平台副作用与端口', () => {
           widgets: [],
           routes: [],
           settingsSchemaVersion: 1,
-          lifecycle: { onEnable: 'test.failing.enable' },
+          lifecycle: { onEnable: 'test.failing.enable', onUninstall: 'test.failing.uninstall' },
         },
         handlerTable: {
-          'test.failing.enable': () => {
-            throw new Error('handler 故意失败');
+          'test.failing.enable': () => undefined,
+          'test.failing.uninstall': () => {
+            throw new Error('卸载 handler 甩锅');
           },
         },
         settingsSchema: z.object({}).strict(),
@@ -587,56 +898,213 @@ describe('平台副作用与端口', () => {
         grantedCapabilities: [],
       },
     ]);
-    const scheduledTasks = createInMemoryScheduledTaskStore();
-    const instances = recordingInstanceStore();
-    const lifecycle = createModuleLifecycle({
-      db: env.DB,
-      registry: failingRegistry,
-      instanceStore: instances.store,
-      scheduler: createModuleScheduler({
-        store: scheduledTasks,
-        readModuleStatus: ({ workspaceId, moduleId }) => readEffectiveModuleStatus(env.DB, workspaceId, moduleId),
-      }),
-      now: () => NOW,
-    });
-
-    const outcome = await lifecycle.mutate({
+    const harness = buildHarness({ registry });
+    const moduleId = 'test.failing';
+    await harness.lifecycle.mutate({
       workspaceId: workspace.workspaceId,
-      moduleId: 'test.failing',
+      moduleId,
       request: { expectedRevision: 0, action: 'enable' },
     });
-    expect(outcome.ok).toBe(false);
+
+    const outcome = await harness.lifecycle.mutate({
+      workspaceId: workspace.workspaceId,
+      moduleId,
+      request: { expectedRevision: 1, action: 'uninstall' },
+    });
+    expect(outcome.ok).toBe(true);
     if (!outcome.ok) {
-      expect(outcome.reason).toBe('handler_failed');
+      return;
     }
-    expect(await readModuleRow(workspace.workspaceId, 'test.failing')).toBeNull();
-    expect(instances.calls).toHaveLength(0);
+    expect(outcome.effect.pending).toBe(true);
+    expect(outcome.effect.failure).toContain('生命周期 handler 失败');
+    // 关键：handler 失败**没有**阻止实例清理。
+    expect(harness.instances.calls).toHaveLength(1);
+    expect(outcome.effect.instancesRemoved).toBe(2);
+    expect(await readModuleOperationRow(workspace.workspaceId, moduleId)).not.toBeNull();
+  });
+});
+
+describe('模块服务端口：作用域闭包绑定 + 能力门禁', () => {
+  interface ProbeResult {
+    readonly decision: unknown;
+    readonly pendingInside: number;
+  }
+
+  function probeRegistry(options: {
+    readonly granted: boolean;
+    readonly onProbe: (result: ProbeResult) => void;
+  }): ModuleRegistry {
+    // 能力声明与授予保持一致：`granted=false` 时两者都为空。
+    const capabilities: readonly ModuleCapability[] = options.granted ? ['scheduled:own'] : [];
+    return buildModuleRegistryOrThrow([
+      {
+        manifest: {
+          id: 'test.scheduler',
+          version: '1.0.0',
+          displayName: '调度探针模块',
+          capabilities: [...capabilities],
+          widgets: [],
+          routes: [],
+          settingsSchemaVersion: 1,
+          lifecycle: { onEnable: 'test.scheduler.enable' },
+        },
+        handlerTable: {
+          'test.scheduler.enable': async (context) => {
+            // 运行时**伪造**作用域：多传 workspaceId / moduleId 必须被忽略。
+            const forged = {
+              taskKey: 'probe-task',
+              runAt: NOW + 1000,
+              workspaceId: 'forged-workspace',
+              moduleId: 'forged.module',
+            } as unknown as { taskKey: string; runAt: number };
+            const decision: unknown = await context.services.scheduler.schedule(forged);
+            const pending = await context.services.scheduler.listPending();
+            options.onProbe({ decision, pendingInside: pending.length });
+          },
+        },
+        settingsSchema: z.object({}).strict(),
+        settingsSchemaVersion: 1,
+        grantedCapabilities: [...capabilities],
+      },
+    ]);
+  }
+
+  it('未授予 scheduled:own 时，模块 handler 的排程被 capability_not_granted 拒绝且不落任何任务', async () => {
+    const workspace = await seedWorkspace();
+    const probe: { value: ProbeResult | null } = { value: null };
+    const harness = buildHarness({
+      registry: probeRegistry({
+        granted: false,
+        onProbe: (result) => {
+          probe.value = result;
+        },
+      }),
+    });
+
+    const outcome = await harness.lifecycle.mutate({
+      workspaceId: workspace.workspaceId,
+      moduleId: 'test.scheduler',
+      request: { expectedRevision: 0, action: 'enable' },
+    });
+    expect(outcome.ok).toBe(true);
+    expect(probe.value).not.toBeNull();
+    expect(probe.value?.decision).toEqual({ ok: false, reason: 'capability_not_granted' });
+    expect(probe.value?.pendingInside).toBe(0);
+    expect(
+      await harness.scheduledTasks.listByModule({ workspaceId: workspace.workspaceId, moduleId: 'test.scheduler' }),
+    ).toHaveLength(0);
+    expect(
+      await harness.scheduledTasks.listByModule({ workspaceId: 'forged-workspace', moduleId: 'forged.module' }),
+    ).toHaveLength(0);
+  });
+
+  it('已授予时排程成功，且任务落在**闭包绑定的**真实作用域上（伪造字段无效）', async () => {
+    const workspace = await seedWorkspace();
+    const probe: { value: ProbeResult | null } = { value: null };
+    const harness = buildHarness({
+      registry: probeRegistry({
+        granted: true,
+        onProbe: (result) => {
+          probe.value = result;
+        },
+      }),
+    });
+
+    const outcome = await harness.lifecycle.mutate({
+      workspaceId: workspace.workspaceId,
+      moduleId: 'test.scheduler',
+      request: { expectedRevision: 0, action: 'enable' },
+    });
+    expect(outcome.ok).toBe(true);
+    expect(probe.value).not.toBeNull();
+    expect(probe.value?.decision).toMatchObject({ ok: true });
+    expect(probe.value?.pendingInside).toBe(1);
+
+    // 任务属于真实 workspace/module，而不是伪造值。
+    const tasks = await harness.scheduledTasks.listByModule({
+      workspaceId: workspace.workspaceId,
+      moduleId: 'test.scheduler',
+    });
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]?.taskKey).toBe('probe-task');
+    expect(tasks[0]?.workspaceId).toBe(workspace.workspaceId);
+    expect(tasks[0]?.moduleId).toBe('test.scheduler');
+    expect(
+      await harness.scheduledTasks.listByModule({ workspaceId: 'forged-workspace', moduleId: 'forged.module' }),
+    ).toHaveLength(0);
+    // 其他工作空间也看不到它。
+    expect(
+      await harness.scheduledTasks.listByModule({ workspaceId: workspace.workspaceId, moduleId: 'forged.module' }),
+    ).toHaveLength(0);
+  });
+
+  it('停用 handler 不享有初始化豁免：它已经处于停止过程，排程仍被门禁拒绝', async () => {
+    const workspace = await seedWorkspace();
+    const moduleId = 'test.stopper';
+    const probe: { value: { readonly decision: unknown } | null } = { value: null };
+    const registry = buildModuleRegistryOrThrow([
+      {
+        manifest: {
+          id: moduleId,
+          version: '1.0.0',
+          displayName: '停止过程探针模块',
+          capabilities: ['scheduled:own'],
+          widgets: [],
+          routes: [],
+          settingsSchemaVersion: 1,
+          lifecycle: { onEnable: 'test.stopper.enable', onDisable: 'test.stopper.disable' },
+        },
+        handlerTable: {
+          'test.stopper.enable': () => undefined,
+          'test.stopper.disable': async (context) => {
+            probe.value = {
+              decision: await context.services.scheduler.schedule({ taskKey: 'stopping-task', runAt: NOW + 1000 }),
+            };
+          },
+        },
+        settingsSchema: z.object({}).strict(),
+        settingsSchemaVersion: 1,
+        grantedCapabilities: ['scheduled:own'],
+      },
+    ]);
+    const harness = buildHarness({ registry });
+
+    await harness.lifecycle.mutate({
+      workspaceId: workspace.workspaceId,
+      moduleId,
+      request: { expectedRevision: 0, action: 'enable' },
+    });
+    const disabled = await harness.lifecycle.mutate({
+      workspaceId: workspace.workspaceId,
+      moduleId,
+      request: { expectedRevision: 1, action: 'disable' },
+    });
+    expect(disabled.ok).toBe(true);
+
+    expect(probe.value?.decision).toEqual({ ok: false, reason: 'module_inactive' });
+    expect(
+      await harness.scheduledTasks.listByModule({ workspaceId: workspace.workspaceId, moduleId }),
+    ).toHaveLength(0);
   });
 });
 
 describe('调度门禁受模块启停状态约束', () => {
   it('未启用 / 已停用 / 已卸载都不能排入后台任务，启用后才可排程', async () => {
     const workspace = await seedWorkspace();
-    const harness = serviceHarness();
+    const harness = buildHarness();
     const schedule = (taskKey: string) =>
-      harness.scheduler.schedule({
+      harness.management.schedule({
         workspaceId: workspace.workspaceId,
         moduleId: DEMO_BASICS_MODULE_ID,
         taskKey,
         runAt: NOW + 60_000,
       });
 
-    // 未安装。
     expect(await schedule('t-before')).toEqual({ ok: false, reason: 'module_inactive' });
 
-    await harness.lifecycle.mutate({
-      workspaceId: workspace.workspaceId,
-      moduleId: DEMO_BASICS_MODULE_ID,
-      request: { expectedRevision: 0, action: 'enable' },
-    });
+    await enableWithSettings(harness, workspace.workspaceId);
     expect((await schedule('t-enabled')).ok).toBe(true);
 
-    // 停用：已排队任务被取消，且不能再排新的。
     const disabled = await harness.lifecycle.mutate({
       workspaceId: workspace.workspaceId,
       moduleId: DEMO_BASICS_MODULE_ID,
@@ -648,7 +1116,6 @@ describe('调度门禁受模块启停状态约束', () => {
     }
     expect(await schedule('t-disabled')).toEqual({ ok: false, reason: 'module_inactive' });
 
-    // 卸载后同样不能排程。
     await harness.lifecycle.mutate({
       workspaceId: workspace.workspaceId,
       moduleId: DEMO_BASICS_MODULE_ID,
@@ -659,15 +1126,11 @@ describe('调度门禁受模块启停状态约束', () => {
 
   it('非法的执行时间被拒绝；同一 taskKey 重复排程是幂等成功', async () => {
     const workspace = await seedWorkspace();
-    const harness = serviceHarness();
-    await harness.lifecycle.mutate({
-      workspaceId: workspace.workspaceId,
-      moduleId: DEMO_BASICS_MODULE_ID,
-      request: { expectedRevision: 0, action: 'enable' },
-    });
+    const harness = buildHarness();
+    await enableWithSettings(harness, workspace.workspaceId);
 
     expect(
-      await harness.scheduler.schedule({
+      await harness.management.schedule({
         workspaceId: workspace.workspaceId,
         moduleId: DEMO_BASICS_MODULE_ID,
         taskKey: 'bad-time',
@@ -675,14 +1138,14 @@ describe('调度门禁受模块启停状态约束', () => {
       }),
     ).toEqual({ ok: false, reason: 'invalid_run_at' });
 
-    const first = await harness.scheduler.schedule({
+    const first = await harness.management.schedule({
       workspaceId: workspace.workspaceId,
       moduleId: DEMO_BASICS_MODULE_ID,
       taskKey: 'same-key',
       runAt: NOW + 1000,
     });
     expect(first.ok).toBe(true);
-    const second = await harness.scheduler.schedule({
+    const second = await harness.management.schedule({
       workspaceId: workspace.workspaceId,
       moduleId: DEMO_BASICS_MODULE_ID,
       taskKey: 'same-key',
@@ -699,13 +1162,9 @@ describe('调度门禁受模块启停状态约束', () => {
 
   it('取消永远可做（包括模块已停用时），否则停用后就清理不掉已排队任务', async () => {
     const workspace = await seedWorkspace();
-    const harness = serviceHarness();
-    await harness.lifecycle.mutate({
-      workspaceId: workspace.workspaceId,
-      moduleId: DEMO_BASICS_MODULE_ID,
-      request: { expectedRevision: 0, action: 'enable' },
-    });
-    await harness.scheduler.schedule({
+    const harness = buildHarness();
+    await enableWithSettings(harness, workspace.workspaceId);
+    await harness.management.schedule({
       workspaceId: workspace.workspaceId,
       moduleId: DEMO_BASICS_MODULE_ID,
       taskKey: 'to-cancel',
@@ -717,14 +1176,15 @@ describe('调度门禁受模块启停状态约束', () => {
       request: { expectedRevision: 1, action: 'disable' },
     });
 
-    const cancelled = await harness.scheduler.cancel({
-      workspaceId: workspace.workspaceId,
-      moduleId: DEMO_BASICS_MODULE_ID,
-      taskKey: 'to-cancel',
-    });
-    expect(cancelled.cancelled).toBe(0);
     expect(
-      await harness.scheduler.cancelAllForModule({
+      await harness.management.cancel({
+        workspaceId: workspace.workspaceId,
+        moduleId: DEMO_BASICS_MODULE_ID,
+        taskKey: 'to-cancel',
+      }),
+    ).toEqual({ cancelled: 0 });
+    expect(
+      await harness.management.cancelAllForModule({
         workspaceId: workspace.workspaceId,
         moduleId: DEMO_BASICS_MODULE_ID,
         reason: 'module_disabled',
@@ -733,8 +1193,8 @@ describe('调度门禁受模块启停状态约束', () => {
   });
 });
 
-describe('服务层的设置上限与 purge', () => {
-  it('设置超过字节上限时拒绝，且不写库', async () => {
+describe('设置上限与其他拒绝路径', () => {
+  it('设置超过字节上限时拒绝，且不写库也不产生待完成标记', async () => {
     const workspace = await seedWorkspace();
     const registry = buildModuleRegistryOrThrow([
       {
@@ -755,16 +1215,9 @@ describe('服务层的设置上限与 purge', () => {
         grantedCapabilities: [],
       },
     ]);
-    const harness = serviceHarness();
-    const lifecycle = createModuleLifecycle({
-      db: env.DB,
-      registry,
-      instanceStore: harness.instances.store,
-      scheduler: harness.scheduler,
-      now: () => NOW,
-    });
+    const harness = buildHarness({ registry });
 
-    const outcome = await lifecycle.mutate({
+    const outcome = await harness.lifecycle.mutate({
       workspaceId: workspace.workspaceId,
       moduleId: 'test.permissive',
       request: { expectedRevision: 0, action: 'enable', settings: { blob: 'x'.repeat(9000) } },
@@ -774,20 +1227,20 @@ describe('服务层的设置上限与 purge', () => {
       expect(outcome.reason).toBe('settings_too_large');
     }
     expect(await readModuleRow(workspace.workspaceId, 'test.permissive')).toBeNull();
+    expect(await readModuleOperationRow(workspace.workspaceId, 'test.permissive')).toBeNull();
   });
 
-  it('purge 在服务层同样被显式拒绝（不会走到写库）', async () => {
+  it('未注册模块在服务层同样返回 module_unknown', async () => {
     const workspace = await seedWorkspace();
-    const harness = serviceHarness();
+    const harness = buildHarness();
     const outcome = await harness.lifecycle.mutate({
       workspaceId: workspace.workspaceId,
-      moduleId: DEMO_BASICS_MODULE_ID,
-      request: { expectedRevision: 0, action: 'purge' },
+      moduleId: 'no.such.module',
+      request: { expectedRevision: 0, action: 'enable' },
     });
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) {
-      expect(outcome.reason).toBe('purge_unsupported');
+      expect(outcome.reason).toBe('module_unknown');
     }
-    expect(await readModuleRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID)).toBeNull();
   });
 });

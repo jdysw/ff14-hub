@@ -128,6 +128,7 @@ export async function resetIdentityState(): Promise<void> {
     env.DB.prepare('DELETE FROM identity_audit'),
     env.DB.prepare('DELETE FROM pairing_claims'),
     env.DB.prepare('DELETE FROM device_pairings'),
+    env.DB.prepare('DELETE FROM workspace_module_operations'),
     env.DB.prepare('DELETE FROM workspace_modules'),
     env.DB.prepare('DELETE FROM devices'),
     env.DB.prepare('DELETE FROM workspace_bootstrap_guard'),
@@ -145,6 +146,7 @@ const COUNTABLE_TABLES = [
   'auth_rate_limits',
   'pairing_claims',
   'workspace_modules',
+  'workspace_module_operations',
 ] as const;
 
 export type CountableTable = (typeof COUNTABLE_TABLES)[number];
@@ -296,4 +298,27 @@ export async function readModuleSettings(
   }
   const parsed: unknown = JSON.parse(row.settings_json);
   return typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : null;
+}
+
+/** `workspace_module_operations` 的一行（待完成操作的持久事实）。 */
+export interface ModuleOperationRowSnapshot {
+  readonly action: string;
+  readonly target_status: string;
+  readonly revision: number;
+  readonly started_at: number;
+  readonly attempts: number;
+  readonly last_error: string | null;
+}
+
+/** 直接读取待完成操作行，用于断言「副作用失败留下了持久事实」。 */
+export async function readModuleOperationRow(
+  workspaceId: string,
+  moduleId: string,
+): Promise<ModuleOperationRowSnapshot | null> {
+  return await env.DB.prepare(
+    `SELECT action, target_status, revision, started_at, attempts, last_error
+       FROM workspace_module_operations WHERE workspace_id = ? AND module_id = ?`,
+  )
+    .bind(workspaceId, moduleId)
+    .first<ModuleOperationRowSnapshot>();
 }

@@ -6,18 +6,22 @@
  * - 模块状态来自 `GET /api/v1/me/modules`（真实设备鉴权）；没有凭证时状态不可读写。
  * - 启停 / 卸载 / 恢复 / 保存设置都走 `PATCH /api/v1/me/modules/:id`，
  *   并带上 `expectedRevision` 防静默覆盖；成功后就地显示服务端返回的副作用说明。
+ * - **待完成操作**（`pendingOperation`）会被如实展示：状态已提交但收尾失败/未完成时，
+ *   门禁状态是 `transitioning`（组件不执行、不排程），界面给出「重试完成收尾」入口
+ *   （同一动作 + 同一 revision，服务端续做而不是重做）。
  * - 「清数据」按钮刻意保留并调用 purge：让 501 拒绝在界面上是可见事实，而不是口头承诺。
  */
 import {
   MODULE_STATUS_HINTS,
   MODULE_STATUS_LABELS,
   type ModuleDescriptor,
+  type ModuleGateStatus,
   type ModuleMutationResponse,
   type ModuleSupportedAction,
   type WorkspaceModuleStatus,
 } from '@ff14-hub/shared';
 import { useState } from 'react';
-import type { ModuleState } from '../modules/use-module-state';
+import { effectiveStatusOf, type ModuleState } from '../modules/use-module-state';
 
 export interface ModuleManagerPanelProps {
   readonly moduleState: ModuleState;
@@ -45,7 +49,12 @@ function actionLabel(action: ModuleSupportedAction): string {
   }
 }
 
-function primaryActions(status: WorkspaceModuleStatus['status']): readonly ModuleSupportedAction[] {
+/**
+ * 允许的动作集合。
+ * `transitioning`（存在待完成操作）时**只有**重试入口：其他动作会被服务端以 409 拒绝，
+ * 因此界面上不提供，避免制造必然失败的点击。
+ */
+function primaryActions(status: ModuleGateStatus): readonly ModuleSupportedAction[] {
   switch (status) {
     case 'not_installed':
       return ['enable'];
@@ -55,6 +64,8 @@ function primaryActions(status: WorkspaceModuleStatus['status']): readonly Modul
       return ['enable', 'uninstall'];
     case 'uninstalled':
       return ['restore'];
+    case 'transitioning':
+      return [];
   }
 }
 
@@ -70,6 +81,10 @@ export function ModuleManagerPanel(props: ModuleManagerPanelProps) {
     const outcome = await moduleState.mutate(moduleId, { action, expectedRevision: revision });
     setBusy(null);
     if (!outcome.ok) {
+      if (outcome.stale) {
+        // 会话已切换：结果被丢弃，既不提示也不联动（本组件通常已随会话卸载）。
+        return;
+      }
       setNotice({ kind: 'error', text: `操作被拒绝：${outcome.message}` });
       if (outcome.conflict) {
         // 409 表示本地 revision 已过期：刷新后用户可以基于最新状态重试。
@@ -77,7 +92,12 @@ export function ModuleManagerPanel(props: ModuleManagerPanelProps) {
       }
       return;
     }
-    setNotice({ kind: 'ok', text: outcome.response.effect.message });
+    if (outcome.response.effect.pending) {
+      // 状态已提交但收尾未完成：必须如实说明，而不是显示成功。
+      setNotice({ kind: 'error', text: outcome.response.effect.message });
+    } else {
+      setNotice({ kind: 'ok', text: outcome.response.effect.message });
+    }
     props.onMutated?.(moduleId, outcome.response);
   }
 
@@ -103,13 +123,20 @@ export function ModuleManagerPanel(props: ModuleManagerPanelProps) {
     });
     setBusy(null);
     if (!outcome.ok) {
+      if (outcome.stale) {
+        return;
+      }
       setNotice({ kind: 'error', text: `设置未保存：${outcome.message}` });
       if (outcome.conflict) {
         moduleState.reload();
       }
       return;
     }
-    setNotice({ kind: 'ok', text: outcome.response.effect.message });
+    if (outcome.response.effect.pending) {
+      setNotice({ kind: 'error', text: outcome.response.effect.message });
+    } else {
+      setNotice({ kind: 'ok', text: outcome.response.effect.message });
+    }
     // 清空草稿：让输入框重新从服务端返回的设置派生。
     setSettingsDrafts((current) => {
       const next = { ...current };
@@ -125,11 +152,14 @@ export function ModuleManagerPanel(props: ModuleManagerPanelProps) {
     // 服务端在**校验 revision 之前**就拒绝 purge，因此这里用 0 也不会变成「先改状态再拒绝」。
     const result = await moduleState.mutate(moduleId, { expectedRevision: 0, action: 'purge' });
     setBusy(null);
-    setNotice(
-      result.ok
-        ? { kind: 'ok', text: '意外地执行了清数据（本阶段不应发生）。' }
-        : { kind: 'error', text: `清数据被明确拒绝（没有删除任何数据）：${result.message}` },
-    );
+    if (result.ok) {
+      setNotice({ kind: 'ok', text: '意外地执行了清数据（本阶段不应发生）。' });
+      return;
+    }
+    if (result.stale) {
+      return;
+    }
+    setNotice({ kind: 'error', text: `清数据被明确拒绝（没有删除任何数据）：${result.message}` });
   }
 
   return (
@@ -181,17 +211,20 @@ export function ModuleManagerPanel(props: ModuleManagerPanelProps) {
 
       <ul className="module-list">
         {moduleState.catalog.map((module) => {
-          const status = moduleState.statuses[module.id];
-          const current = status?.status ?? 'not_installed';
-          const revision = status?.revision ?? 0;
-          const settingsVersion = status?.settingsVersion ?? 0;
+          const record = moduleState.statuses[module.id];
+          // 界面一律使用**门禁状态**：存在待完成操作时显示「正在完成操作」，且不提供其他动作。
+          const gate = effectiveStatusOf(moduleState.statuses, module.id);
+          const pending = record?.pendingOperation ?? null;
+          const revision = record?.revision ?? 0;
+          const settingsVersion = record?.settingsVersion ?? 0;
           return (
             <li
               key={module.id}
               className="module-card"
               data-testid="module-card"
               data-module-id={module.id}
-              data-status={current}
+              data-status={gate}
+              data-pending={pending === null ? 'none' : pending.action}
             >
               <header className="module-card__header">
                 <h3 className="module-card__title">{module.displayName}</h3>
@@ -199,15 +232,28 @@ export function ModuleManagerPanel(props: ModuleManagerPanelProps) {
                   <code>{module.id}</code> · v{module.version}
                 </p>
                 <p className="module-card__badges">
-                  <span className="tag tag--status">{MODULE_STATUS_LABELS[current]}</span>
+                  <span className="tag tag--status">{MODULE_STATUS_LABELS[gate]}</span>
                   <span className="tag">revision {String(revision)}</span>
+                  {pending !== null ? (
+                    <span className="tag tag--warn">
+                      待完成：{actionLabel(pending.action)}（已尝试 {String(pending.attempts)} 次）
+                    </span>
+                  ) : null}
                   {settingsVersion !== module.settingsSchemaVersion ? (
                     <span className="tag tag--warn">设置版本 {String(settingsVersion)}</span>
                   ) : null}
                 </p>
               </header>
 
-              <p className="module-card__hint">{MODULE_STATUS_HINTS[current]}</p>
+              <p className="module-card__hint">{MODULE_STATUS_HINTS[gate]}</p>
+
+              {pending !== null ? (
+                <p className="notice notice--error" role="status" data-testid="module-pending-notice">
+                  状态已提交为「{MODULE_STATUS_LABELS[pending.targetStatus]}」，但收尾未完成：
+                  <code>{pending.lastError ?? '未知原因'}</code>。
+                  个人数据与设置保留；请重试以完成清理（服务端会**续做**而不是重做）。
+                </p>
+              ) : null}
 
               <dl className="module-card__facts">
                 <dt>能力</dt>
@@ -221,7 +267,7 @@ export function ModuleManagerPanel(props: ModuleManagerPanelProps) {
               </dl>
 
               <div className="module-card__actions">
-                {primaryActions(current).map((action) => (
+                {primaryActions(gate).map((action) => (
                   <button
                     key={action}
                     type="button"
@@ -234,6 +280,18 @@ export function ModuleManagerPanel(props: ModuleManagerPanelProps) {
                     {actionLabel(action)}
                   </button>
                 ))}
+                {pending !== null ? (
+                  <button
+                    type="button"
+                    className="button button--small"
+                    disabled={!hasCredential || busy !== null}
+                    onClick={() => {
+                      void runAction(module.id, pending.action, revision);
+                    }}
+                  >
+                    重试完成收尾
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="button button--small button--secondary"
@@ -251,6 +309,7 @@ export function ModuleManagerPanel(props: ModuleManagerPanelProps) {
                 <p className="panel__muted">
                   当前设置版本 {String(settingsVersion)}，组件契约版本 {String(module.settingsSchemaVersion)}。
                   保存时会带上这两个版本与 <code>expectedRevision</code>；服务端校验不通过会返回 409/422。
+                  {pending !== null ? '（有待完成操作时不允许修改设置：请先重试完成收尾。）' : ''}
                 </p>
                 <label className="field">
                   <span className="field__label">设置 JSON（{module.displayName}）</span>
@@ -258,7 +317,7 @@ export function ModuleManagerPanel(props: ModuleManagerPanelProps) {
                     className="field__input field__input--code"
                     rows={4}
                     spellCheck={false}
-                    value={settingsDrafts[module.id] ?? JSON.stringify(status?.settings ?? {}, null, 2)}
+                    value={settingsDrafts[module.id] ?? JSON.stringify(record?.settings ?? {}, null, 2)}
                     onChange={(event) => {
                       const value = event.target.value;
                       setSettingsDrafts((drafts) => ({ ...drafts, [module.id]: value }));
@@ -268,10 +327,10 @@ export function ModuleManagerPanel(props: ModuleManagerPanelProps) {
                 <button
                   type="button"
                   className="button button--small"
-                  disabled={!hasCredential || busy !== null || status === undefined}
+                  disabled={!hasCredential || busy !== null || record === undefined || pending !== null}
                   onClick={() => {
-                    if (status !== undefined) {
-                      void saveSettings(module, status);
+                    if (record !== undefined) {
+                      void saveSettings(module, record);
                     }
                   }}
                 >

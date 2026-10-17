@@ -9,8 +9,10 @@
  * - `disable`：**实例保留**。停用只是让 Host 按状态渲染降级卡片（组件不执行），
  *   这样用户重新启用后实例还在，不会被静默丢弃。
  * - `enable` / `restore`：实例保留，重新启用后立即可用。
+ * - `effect.pending` 为 true 时**如实追加**说明：状态已提交但收尾未完成，需要在模块管理中重试。
+ *   调用方必须只在**当前会话**的结果上调用本函数（过期会话的结果会被 useModuleState 丢弃）。
  */
-import type { ModuleMutationResponse } from '@ff14-hub/shared';
+import { MODULE_STATUS_LABELS, type ModuleMutationResponse } from '@ff14-hub/shared';
 import type { WidgetInstanceStore } from '../widgets/instance-store';
 
 export interface ModuleMutationHostEffect {
@@ -26,20 +28,26 @@ export function applyModuleMutationToHost(
   response: ModuleMutationResponse,
 ): ModuleMutationHostEffect {
   const status = response.module.status;
+  let removedInstances = 0;
+  let notice: string;
+
   if (status === 'uninstalled') {
-    const removedInstances = store.removeInstancesForModule(moduleId);
-    return {
-      removedInstances,
-      notice:
-        `模块 ${moduleId} 已卸载：当前 Host 移除了 ${String(removedInstances)} 个实例，` +
-        '个人数据与设置保留，可在模块管理中恢复。',
-    };
+    removedInstances = store.removeInstancesForModule(moduleId);
+    notice =
+      `模块 ${moduleId} 已卸载：当前 Host 移除了 ${String(removedInstances)} 个实例，` +
+      '个人数据与设置保留，可在模块管理中恢复。';
+  } else if (status === 'disabled') {
+    notice = `模块 ${moduleId} 已停用：实例保留但暂停执行（降级显示），重新启用后立即可用。`;
+  } else {
+    notice = `模块 ${moduleId} 状态已更新为「${MODULE_STATUS_LABELS[status]}」。`;
   }
-  if (status === 'disabled') {
-    return {
-      removedInstances: 0,
-      notice: `模块 ${moduleId} 已停用：实例保留但暂停执行（降级显示），重新启用后立即可用。`,
-    };
+
+  if (response.effect.pending) {
+    // 状态已经提交，因此必须把「收尾未完成」如实说出来，而不是让调用方以为一切正常。
+    notice +=
+      ` 但收尾未完成（${response.effect.failure ?? '未知原因'}）；` +
+      '个人数据与设置仍保留，可在模块管理中重试完成清理。';
   }
-  return { removedInstances: 0, notice: `模块 ${moduleId} 状态已更新为「${status}」。` };
+
+  return { removedInstances, notice };
 }

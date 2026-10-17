@@ -24,12 +24,27 @@ function statusOf(status: ModulePersistedStatus): WorkspaceModuleStatus {
     disabledAt: status === 'disabled' ? 2 : null,
     uninstalledAt: status === 'uninstalled' ? 2 : null,
     updatedAt: 2,
+    pendingOperation: null,
   };
 }
 
-function mutation(status: ModulePersistedStatus): ModuleMutationResponse {
+function mutation(status: ModulePersistedStatus, options: { readonly pending?: boolean } = {}): ModuleMutationResponse {
+  const pending = options.pending ?? false;
   return {
-    module: statusOf(status),
+    module:
+      pending && status === 'uninstalled'
+        ? {
+            ...statusOf(status),
+            pendingOperation: {
+              action: 'uninstall',
+              revision: 4,
+              targetStatus: 'uninstalled',
+              startedAt: 3,
+              attempts: 1,
+              lastError: '平台清理失败（Error）',
+            },
+          }
+        : statusOf(status),
     effect: {
       changed: true,
       instancesRemoved: 0,
@@ -37,6 +52,8 @@ function mutation(status: ModulePersistedStatus): ModuleMutationResponse {
       handlersRun: [],
       // 契约级保证：生命周期操作不删除个人数据。
       userDataRetained: true,
+      pending,
+      failure: pending ? '平台清理失败（Error）' : null,
       message: '服务端返回的说明',
     },
   };
@@ -94,5 +111,18 @@ describe('模块变更对 Host 实例的影响', () => {
     expect(result.ok).toBe(true);
     applyModuleMutationToHost(store, 'other.module', mutation('uninstalled'));
     expect(store.list()).toHaveLength(3);
+  });
+
+  it('收尾未完成时如实追加说明（不把「状态已提交但清理失败」伪装成一切正常）', () => {
+    const store = storeWithInstances();
+    const effect = applyModuleMutationToHost(store, 'demo.basics', mutation('uninstalled', { pending: true }));
+    // 实例确实被移除了（已发生的副作用不能被隐去）……
+    expect(effect.removedInstances).toBe(2);
+    expect(store.list()).toHaveLength(0);
+    // ……同时必须说清收尾未完成、可以去重试、个人数据仍在。
+    expect(effect.notice).toContain('收尾未完成');
+    expect(effect.notice).toContain('平台清理失败');
+    expect(effect.notice).toContain('重试');
+    expect(effect.notice).toContain('个人数据与设置保留');
   });
 });

@@ -209,3 +209,102 @@ describe('workspace_modules 约束', () => {
     expect(row?.revision).toBe(2);
   });
 });
+
+describe('workspace_module_operations（待完成操作的持久事实）', () => {
+  async function insertOperation(overrides: Partial<Record<string, unknown>> = {}): Promise<unknown> {
+    return await env.DB.prepare(
+      `INSERT INTO workspace_module_operations (
+         workspace_id, module_id, action, target_status, revision, started_at, attempts, last_error
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(
+        overrides['workspace_id'] ?? 'ws-ops',
+        overrides['module_id'] ?? 'demo.basics',
+        overrides['action'] ?? 'uninstall',
+        overrides['target_status'] ?? 'uninstalled',
+        overrides['revision'] ?? 2,
+        NOW,
+        overrides['attempts'] ?? 1,
+        overrides['last_error'] ?? null,
+      )
+      .run();
+  }
+
+  it('表已建立', async () => {
+    expect(await tableExists('workspace_module_operations')).toBe(true);
+  });
+
+  it('复合外键指向 workspace_modules：没有模块行就不能有待完成操作（不留孤儿）', async () => {
+    await expect(insertOperation({ workspace_id: 'no-such-workspace' })).rejects.toThrow(
+      /FOREIGN KEY constraint failed/i,
+    );
+
+    await insertWorkspace('ws-ops');
+    await insertModuleRow({ workspaceId: 'ws-ops', moduleId: 'demo.basics', status: 'disabled' });
+    await insertOperation({ workspace_id: 'ws-ops', module_id: 'demo.basics' });
+    const row = await env.DB.prepare(
+      'SELECT COUNT(*) AS count FROM workspace_module_operations WHERE workspace_id = ?',
+    )
+      .bind('ws-ops')
+      .first<{ count: number }>();
+    expect(row?.count).toBe(1);
+  });
+
+  it('主键 (workspace_id, module_id) 保证同一模块同时最多一个待完成操作', async () => {
+    await insertWorkspace('ws-ops-pk');
+    await insertModuleRow({ workspaceId: 'ws-ops-pk', moduleId: 'demo.basics' });
+    await insertOperation({ workspace_id: 'ws-ops-pk', module_id: 'demo.basics' });
+    await expect(insertOperation({ workspace_id: 'ws-ops-pk', module_id: 'demo.basics', action: 'enable' })).rejects.toThrow();
+  });
+
+  it('枚举 CHECK 拒绝未知动作与未知目标状态', async () => {
+    await insertWorkspace('ws-ops-enum');
+    await insertModuleRow({ workspaceId: 'ws-ops-enum', moduleId: 'demo.basics' });
+    await expect(
+      insertOperation({ workspace_id: 'ws-ops-enum', module_id: 'demo.basics', action: 'purge' }),
+    ).rejects.toThrow();
+    await expect(
+      insertOperation({ workspace_id: 'ws-ops-enum', module_id: 'demo.basics', target_status: 'not_installed' }),
+    ).rejects.toThrow();
+  });
+
+  it('attempts 必须 >= 1（0 次尝试没有意义）', async () => {
+    await insertWorkspace('ws-ops-attempts');
+    await insertModuleRow({ workspaceId: 'ws-ops-attempts', moduleId: 'demo.basics' });
+    await expect(
+      insertOperation({ workspace_id: 'ws-ops-attempts', module_id: 'demo.basics', attempts: 0 }),
+    ).rejects.toThrow();
+  });
+
+  it('删除模块状态时级联删除其待完成操作（不会留下指向不存在模块的记录）', async () => {
+    await insertWorkspace('ws-ops-cascade');
+    await insertModuleRow({ workspaceId: 'ws-ops-cascade', moduleId: 'demo.basics' });
+    await insertOperation({ workspace_id: 'ws-ops-cascade', module_id: 'demo.basics' });
+    await env.DB.prepare('DELETE FROM workspace_modules WHERE workspace_id = ?').bind('ws-ops-cascade').run();
+    const row = await env.DB.prepare(
+      'SELECT COUNT(*) AS count FROM workspace_module_operations WHERE workspace_id = ?',
+    )
+      .bind('ws-ops-cascade')
+      .first<{ count: number }>();
+    expect(row?.count).toBe(0);
+  });
+
+  it('迁移重放安全：重跑全部迁移后仍可正常写入与级联', async () => {
+    for (const migration of env.TEST_MIGRATIONS) {
+      for (const query of migration.queries) {
+        await env.DB.prepare(query).run();
+      }
+    }
+    expect(await tableExists('workspace_module_operations')).toBe(true);
+    await insertWorkspace('ws-ops-replay');
+    await insertModuleRow({ workspaceId: 'ws-ops-replay', moduleId: 'demo.basics' });
+    await insertOperation({ workspace_id: 'ws-ops-replay', module_id: 'demo.basics' });
+    await env.DB.prepare('DELETE FROM workspace_modules WHERE workspace_id = ?').bind('ws-ops-replay').run();
+    const row = await env.DB.prepare(
+      'SELECT COUNT(*) AS count FROM workspace_module_operations WHERE workspace_id = ?',
+    )
+      .bind('ws-ops-replay')
+      .first<{ count: number }>();
+    expect(row?.count).toBe(0);
+  });
+});

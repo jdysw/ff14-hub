@@ -9,19 +9,21 @@
  *
  * 关键边界：
  * - **不**引入前端路由，**不**实现拖拽/缩放/多页面布局（阶段 03）。
- * - 内容区包在渲染错误边界里：某个视图（或 Host 内部）抛错时，SystemBar 与 Shell 仍然存活，
- *   用户可以切走或重试，而不是整页白屏。
- * - Widget 实例只存在于本页内存（阶段 02 无持久实例表）；模块卸载时由这里清理实例，
- *   与服务端 `ModuleInstanceStore` 端口的语义保持一致。
+ * - 内容区包在渲染错误边界里：某个视图（或 Host 内部）抛错时，SystemBar 与 Shell 仍然存活。
+ * - **会话隔离**：模块/组件视图放在以 `session.generation` 为 key 的 `SessionWorkbench` 里。
+ *   凭证身份一变（切换或清除），整棵会话子树**同步**重挂：
+ *   旧会话的私有状态、Host 实例与提示立刻消失，不等任何网络返回；
+ *   旧会话在途的 GET/写响应由 `useModuleState` 的 mounted 判定丢弃，也不会触发 Host 副作用。
+ * - 明文凭证只交给 API 客户端内部读取；Shell 只使用 `{ generation, authenticated }` 快照。
  */
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { useMemo, useState } from 'react';
 import type { ModuleMutationResponse } from '@ff14-hub/shared';
 import { createApiClient } from '../../lib/api-client';
 import { RenderErrorBoundary, errorMessageOf } from '../../lib/RenderErrorBoundary';
 import { applyModuleMutationToHost } from '../modules/apply-module-mutation';
-import { createModulesApi } from '../modules/modules-api';
+import { createModulesApi, type ModulesApi } from '../modules/modules-api';
 import { ModuleManagerPanel } from '../modules/ModuleManagerPanel';
-import { createSessionCredentialStore } from '../modules/session-credentials';
+import { createSessionCredentialStore, useSession } from '../modules/session-credentials';
 import { useModuleState } from '../modules/use-module-state';
 import { builtinWidgetLookup } from '../widgets/component-registry';
 import { createWidgetInstanceStore } from '../widgets/instance-store';
@@ -69,27 +71,66 @@ function ShellRegion(props: { readonly children: React.ReactNode }) {
   );
 }
 
-export function AppShell() {
-  const [credentialStore] = useState(createSessionCredentialStore);
-  const [instanceStore] = useState(() => createWidgetInstanceStore({ lookup: builtinWidgetLookup }));
-  const [view, setView] = useState<ShellView>('overview');
-  const [instanceNotice, setInstanceNotice] = useState<string | null>(null);
+interface SessionWorkbenchProps {
+  readonly api: ModulesApi;
+  readonly authenticated: boolean;
+  readonly view: 'modules' | 'widgets';
+  readonly onRequestCredential: () => void;
+}
 
-  const api = useMemo(
-    () => createModulesApi(createApiClient({ getToken: () => credentialStore.get() })),
-    [credentialStore],
-  );
-  const token = useSyncExternalStore(credentialStore.subscribe, credentialStore.get);
-  const moduleState = useModuleState(api, token);
+/**
+ * 会话作用域的模块/组件视图。
+ *
+ * 它整体属于**一个会话代际**（由外层用 `key={generation}` 保证），
+ * 因此这里持有的实例存储、模块状态快照与提示都只反映当前会话；
+ * 凭证切换时它们随组件一起被丢弃，不存在「旧会话数据继续展示」的窗口。
+ */
+function SessionWorkbench(props: SessionWorkbenchProps) {
+  const [instanceStore] = useState(() => createWidgetInstanceStore({ lookup: builtinWidgetLookup }));
+  const [instanceNotice, setInstanceNotice] = useState<string | null>(null);
+  const moduleState = useModuleState(props.api, props.authenticated);
 
   /**
    * 模块变更后的 Host 侧联动（语义集中定义在 apply-module-mutation.ts）：
    * 卸载 → 移除该模块的全部实例；停用 → 实例保留但降级显示。
+   * 注意：过期会话的结果根本走不到这里（useModuleState 会返回 stale 并让面板跳过回调）。
    */
   function handleModuleMutated(moduleId: string, response: ModuleMutationResponse): void {
     const effect = applyModuleMutationToHost(instanceStore, moduleId, response);
     setInstanceNotice(effect.notice);
   }
+
+  return (
+    <>
+      {instanceNotice !== null ? (
+        <p className="notice notice--ok" role="status">
+          {instanceNotice}
+        </p>
+      ) : null}
+
+      {props.view === 'modules' ? (
+        <ModuleManagerPanel
+          moduleState={moduleState}
+          hasCredential={props.authenticated}
+          onMutated={handleModuleMutated}
+          onRequestCredential={props.onRequestCredential}
+        />
+      ) : (
+        <WidgetAcceptancePanel moduleState={moduleState} store={instanceStore} />
+      )}
+    </>
+  );
+}
+
+export function AppShell() {
+  const [credentialStore] = useState(createSessionCredentialStore);
+  const [view, setView] = useState<ShellView>('overview');
+  const session = useSession(credentialStore);
+
+  const api = useMemo(
+    () => createModulesApi(createApiClient({ getToken: () => credentialStore.get() })),
+    [credentialStore],
+  );
 
   return (
     <div className="shell">
@@ -114,33 +155,12 @@ export function AppShell() {
       />
 
       <main className="shell__main">
-        {instanceNotice !== null ? (
-          <p className="notice notice--ok" role="status">
-            {instanceNotice}
-          </p>
-        ) : null}
-
         <ShellRegion>
           {view === 'overview' ? (
             <>
               <StageNotice />
               <HealthPanel />
             </>
-          ) : null}
-
-          {view === 'modules' ? (
-            <ModuleManagerPanel
-              moduleState={moduleState}
-              hasCredential={token !== null}
-              onMutated={handleModuleMutated}
-              onRequestCredential={() => {
-                setView('credentials');
-              }}
-            />
-          ) : null}
-
-          {view === 'widgets' ? (
-            <WidgetAcceptancePanel moduleState={moduleState} store={instanceStore} />
           ) : null}
 
           {view === 'credentials' ? (
@@ -151,13 +171,27 @@ export function AppShell() {
               }}
             />
           ) : null}
+
+          {view === 'modules' || view === 'widgets' ? (
+            <SessionWorkbench
+              // 会话代际作为 key：凭证切换/清除时整棵会话子树同步重挂。
+              key={session.generation}
+              api={api}
+              authenticated={session.authenticated}
+              view={view}
+              onRequestCredential={() => {
+                setView('credentials');
+              }}
+            />
+          ) : null}
         </ShellRegion>
       </main>
 
       <footer className="shell__footer">
         <p>
           凭证说明：设备 Token 只通过 <code>Authorization</code> 头传递，不出现在 URL 中；
-          本页把它保存在**会话内存**里，不写入浏览器存储、不记录到日志、不回显内容。
+          本页把它保存在**会话内存**里，不写入浏览器存储、不记录到日志、不回显内容，
+          也不放进组件的 props/state。切换或清除凭证会立即清空当前会话的私有数据与组件实例。
         </p>
       </footer>
     </div>

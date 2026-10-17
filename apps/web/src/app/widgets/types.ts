@@ -11,7 +11,7 @@
  *   渲染期抛错 → 错误边界（WidgetErrorBoundary）
  *   异步失败   → 组件调用 reportAsyncError，由 Host 渲染错误卡片并提供重试
  */
-import type { ModuleCapability, ModuleEffectiveStatus } from '@ff14-hub/shared';
+import type { ModuleCapability, ModuleGateStatus } from '@ff14-hub/shared';
 
 /** 单个实例对外的视图阶段。由 Host 持有，组件无权直接改写。 */
 export type WidgetPhase = 'loading' | 'ready' | 'empty' | 'error';
@@ -38,8 +38,12 @@ export interface WidgetRuntimeProps {
   reportAsyncError: (error: unknown) => void;
 }
 
-/** Host 需要的访问判定结果：模块状态 + 服务端授予的能力。 */
+/**
+ * Host 需要的访问判定结果：**门禁状态** + 服务端授予的能力。
+ * 用门禁状态而不是有效状态：存在待完成操作时必须降级（`transitioning`），
+ * 否则「状态已提交但清理未完成」的模块会被照常执行。
+ */
 export interface ModuleAccess {
-  readonly status: ModuleEffectiveStatus;
+  readonly status: ModuleGateStatus;
   readonly grantedCapabilities: readonly ModuleCapability[];
 }

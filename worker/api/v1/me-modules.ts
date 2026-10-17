@@ -31,16 +31,16 @@ function mutationError(reason: MutationRejection, detail: string): ApiError {
       return new ApiError('not_implemented', PURGE_UNSUPPORTED_MESSAGE, detail);
     case 'status_conflict':
     case 'revision_conflict':
+    case 'pending_conflict':
     case 'settings_version_mismatch':
       return new ApiError('conflict', `${DEFAULT_ERROR_MESSAGE.conflict}（${detail}）`, detail);
     case 'settings_invalid':
       return new ApiError('validation_failed', `${DEFAULT_ERROR_MESSAGE.validation_failed}（${detail}）`, detail);
     case 'settings_too_large':
       return new ApiError('payload_too_large', DEFAULT_ERROR_MESSAGE.payload_too_large, detail);
-    case 'handler_failed':
-    case 'side_effect_failed':
     case 'persist_failed':
-      // 这三类是服务端内部故障：对外只给统一文案，细节只写服务端日志。
+      // 准入事务本身失败：**什么都没有提交**，因此这里用 500 是正确的（可以安全重试）。
+      // 副作用失败不走这里：状态已提交，会以 200 + effect.pending/failure 诚实返回。
       return new ApiError('internal_error', DEFAULT_ERROR_MESSAGE.internal_error, detail);
   }
 }

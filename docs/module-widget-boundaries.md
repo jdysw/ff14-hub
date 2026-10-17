@@ -23,9 +23,10 @@
 | 服务端静态 handler 表与模块 Settings Schema | `worker/modules/registry/builtin-modules.ts` | handler 只拿到受限上下文，拿不到 D1 与设备 Token |
 | 公开模块目录 | `GET /api/v1/modules/catalog`（`worker/api/v1/modules.ts`） | 匿名可读，只含非敏感元数据；**不含** handler 名与个人状态 |
 | 模块状态与生命周期契约 | `GET/PATCH /api/v1/me/modules`、`POST /api/v1/me/modules/:id/purge`（`worker/api/v1/me-modules.ts`） | 设备鉴权；`expectedRevision` 必填；purge **显式拒绝**（501） |
-| 持久状态与迁移 | `migrations/0003_modules.sql`、`worker/db/schema.ts` | `workspace_modules`：(workspace_id, module_id) 主键、状态 CHECK、settings/版本、`revision` 乐观并发 |
-| 生命周期服务 | `worker/modules/lifecycle/module-lifecycle.ts` | 状态迁移矩阵、幂等 no-op、handler→平台副作用→条件写库 |
-| 生命周期端口 | `worker/modules/ports.ts`、`worker/modules/lifecycle/scheduler.ts` | `ModuleInstanceStore` 与 `ScheduledTaskStore`，阶段 02 的替身自报 `persistent: false` |
+| 持久状态与迁移 | `migrations/0003_modules.sql`、`migrations/0004_module_operations.sql`、`worker/db/schema.ts` | `workspace_modules`（状态 CHECK、settings/版本、`revision` 乐观并发）+ `workspace_module_operations`（待完成操作的持久事实） |
+| 生命周期服务 | `worker/modules/lifecycle/module-lifecycle.ts` | **先原子准入提交状态** → 副作用 → 收尾；待完成操作可重试（见 4.3） |
+| 生命周期端口 | `worker/modules/ports.ts`、`worker/modules/lifecycle/scheduler.ts` | 交给模块的是**闭包绑定作用域 + 能力门禁**的 `ModuleScopedScheduler`；管理端口只留在平台 |
+| 门禁状态 | `packages/shared` 的 `moduleGateStatus()` | 存在待完成操作 → `transitioning`；Host 与调度共用同一实现 |
 | Widget Host | `apps/web/src/app/widgets/WidgetHost.tsx` | 独立实例状态机、错误边界、加载/空/错误/重试、降级卡片 |
 | 静态组件映射与配置迁移 | `apps/web/src/app/widgets/component-registry.ts` | 写死的 `widgetId → 组件`，显式版本迁移；未知类型降级 |
 | 浏览器实例表 | `apps/web/src/app/widgets/instance-store.ts` | `allowMultiple` 策略、隐藏/移除只影响实例、按模块整批清理 |
@@ -51,18 +52,30 @@
    不满足即**注册失败**（默认拒绝，不静默忽略）。
 3. `lifecycle` 里的 `onEnable`/`onDisable`/`onUninstall` 只能引用**静态注册表**中的处理器名，
    禁止内联代码或远程地址；引用不存在的名字即注册失败。
-4. Widget 的 `moduleId` 必须等于所属模块 `id`；同一模块内 Widget 类型 ID 唯一，
-   **跨模块也唯一**（组件实例可以重复，类型 ID 不可以）。
-5. handler 必须**幂等**：生命周期失败或并发抢输后的重试会再次执行它。
+   查找使用 `Object.hasOwn`，因此 `constructor` 之类的原型成员**不会**被当成已注册 handler。
+4. Widget 的 `moduleId` 必须等于所属模块 `id`；Widget 类型 ID 在同一 Manifest 内与**跨模块**都唯一
+   （组件实例可以重复，类型 ID 不可以）。路由 `path` / `viewId` 同样在两种范围内唯一。
+5. handler 必须**幂等**：失败或并发抢输后的重试会再次执行它。
+
+### 4.1.1 能力是**执行期**门禁，不只是声明
+
+- `scheduled:own`：交给模块的调度视图在 `schedule` 前查 `registry.hasCapability()`，
+  未授予直接 `capability_not_granted`；Manifest 里写了也不影响判定。
+- 调度视图的作用域由闭包绑定，入参里没有 workspace/module 字段；
+  多传的作用域字段会被丢弃，**伪造无效**。
+- 平台清理用的管理端口（可跨作用域）**绝不交给模块代码**。
 
 ### 4.2 Widget Host 的职责边界
 
 | 职责 | 归属 | 不归属 |
 |---|---|---|
+| **实例归属校验**（`entry.moduleId === instance.moduleId`） | Widget Host（注册表是权威） | 实例自述 |
 | 配置 Schema 版本校验与显式迁移 | Widget Host + 静态组件映射 | 各 Widget 自行猜测 |
+| **配置解析/迁移抛错** | Widget Host（降级为本实例配置错误） | 错误边界（它只包住组件） |
 | 加载态 / 空态 / 错误隔离卡片 / 重试 | Widget Host | 组件 |
 | 渲染期错误隔离 | 错误边界（每实例一个） | —— |
 | 异步失败上报 | 组件 `reportAsyncError` → Host 渲染错误卡片 | 错误边界（它捕获不到异步错误） |
+| **attempt 隔离** | Host（回调绑定 `retryToken`，旧 attempt 的迟到回调被忽略） | 组件自行取消 |
 | 权限与本工作空间数据作用域 | Widget Host + 认证中间件 | Widget（不得自行读库） |
 | 业务计算与数据获取 | 模块 / Adapter | Widget Host |
 | 跨模块通信 | 显式公共事件/服务接口 | 直接读别的模块的表 |
@@ -81,6 +94,28 @@
 `packages/shared/test/module-manifest.spec.ts` 与 `worker/test/module-lifecycle.spec.ts`
 共同保证它们不会退化成同一件事。
 
+### 4.3.1 执行协议与「待完成操作」
+
+生命周期变更采用三段式（详见 `docs/adr/0002-phase02-module-runtime.md` D4）：
+
+1. **原子准入**：一次 D1 事务里做条件 CAS（`WHERE revision = ?`）**并**写入待完成标记。
+   抢输的一方以 409 退出，**在任何可变副作用之前**。
+2. **副作用**：模块 handler → 移除当前 Host 实例 → 取消已排队任务。
+   任一步失败都把原因写进待完成标记（`attempts` / `last_error`），状态**不回滚**（它早已提交）。
+3. **收尾**：条件删除待完成标记（`AND revision = ?`）。
+
+由此得到的可见语义：
+
+| 情况 | API 返回 | 门禁状态 | 个人数据 |
+|---|---|---|---|
+| 成功 | 200，`effect.pending = false` | 目标状态（如 `uninstalled`） | 保留 |
+| 副作用失败 | **200**，`effect.pending = true` + `effect.failure` + `module.pendingOperation` | `transitioning`（不执行、不排程） | 保留 |
+| 准入事务失败 | 500（什么都没提交） | 不变 | 不变 |
+| 抢输 / revision 过期 | 409 | 不变 | 不变 |
+
+重试：**同 action + 同 expectedRevision** 会**续做**未完成的清理；其他动作或夹带设置返回 409
+（`pending_conflict`）。前端会把 `pending` / 失败原因如实展示，并提供「重试完成收尾」。
+
 ### 4.4 系统级入口不可移除
 
 组件库、设置、工作台切换、导入/恢复、设备管理位于 App Shell，**不属于**任何页面配置。
@@ -92,6 +127,7 @@
 | 表 | 状态 |
 |---|---|
 | `workspace_modules` | **已迁移**（`0003_modules.sql`）：状态、设置与版本、`revision` 乐观并发、安装/启停/卸载时间戳 |
+| `workspace_module_operations` | **已迁移**（`0004_module_operations.sql`）：待完成操作（`action`/`target_status`/`revision`/`attempts`/`last_error`），复合外键指向 `workspace_modules` 并级联删除 |
 | `workspace_pages`、`widget_instances`、`widget_layouts` | 未迁移（阶段 03） |
 | `nav_catalog_links` / `workspace_nav_links` 等 | 未迁移（阶段 04） |
 | `notification_jobs` 等 | 未迁移（阶段 05）；当前调度端口是内存替身，**没有 Cron** |

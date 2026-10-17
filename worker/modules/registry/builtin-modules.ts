@@ -54,19 +54,15 @@ const demoBasicsHandlerTable: Readonly<Record<string, ModuleLifecycleHandler>> =
   },
   'demo.basics.disable': async (context) => {
     // 只读地观察该模块当前排队中的后台任务。
-    // 「取消已排队任务」由**平台**在写库前统一执行（见 module-lifecycle.ts 第 6 步），
+    // 「取消已排队任务」由**平台**在写库后统一执行（见 module-lifecycle.ts 第 2 阶段），
     // 模块代码不需要、也不应该依赖自己来完成这条平台级不变量。
-    const pending = await context.services.scheduler.listPending({
-      workspaceId: context.workspaceId,
-      moduleId: context.moduleId,
-    });
+    //
+    // 注意调度视图是**闭包绑定作用域**的：这里没有、也不能传 workspaceId / moduleId。
+    const pending = await context.services.scheduler.listPending();
     logHandler('module_handler_disable', context, { pendingTasks: String(pending.length) });
   },
   'demo.basics.uninstall': async (context) => {
-    const pending = await context.services.scheduler.listPending({
-      workspaceId: context.workspaceId,
-      moduleId: context.moduleId,
-    });
+    const pending = await context.services.scheduler.listPending();
     // 只读观察：这里**绝不**触碰个人数据，卸载不删除任何用户数据。
     logHandler('module_handler_uninstall', context, { pendingTasks: String(pending.length) });
   },

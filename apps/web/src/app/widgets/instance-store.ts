@@ -12,7 +12,7 @@
  * - 快照是不可变的：每次变更都换一个新的数组引用，保证 `useSyncExternalStore`
  *   能可靠地察觉到变化（原地 splice 会让 React 认为没变）。
  */
-import type { ModuleEffectiveStatus } from '@ff14-hub/shared';
+import type { ModuleGateStatus } from '@ff14-hub/shared';
 
 export interface WidgetInstance {
   readonly instanceId: string;
@@ -155,7 +155,7 @@ export function createWidgetInstanceStore(deps: InstanceStoreDeps): WidgetInstan
   };
 }
 
-/** 模块状态 → 该模块的实例是否可以被渲染（未启用一律不执行组件）。 */
-export function isModuleUsableForRendering(status: ModuleEffectiveStatus): boolean {
+/** 模块门禁状态 → 该模块的实例是否可以被渲染（非 enabled 一律不执行组件）。 */
+export function isModuleUsableForRendering(status: ModuleGateStatus): boolean {
   return status === 'enabled';
 }

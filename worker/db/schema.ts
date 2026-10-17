@@ -9,8 +9,13 @@
  * - D1 的 FK 约束由运行时强制（`PRAGMA foreign_keys` 默认开启），
  *   不依赖 ORM 层的 `references()`。
  */
-import type { IdentityAuditEvent, ModulePersistedStatus, Region } from '@ff14-hub/shared';
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import type {
+  IdentityAuditEvent,
+  ModulePersistedStatus,
+  ModuleSupportedAction,
+  Region,
+} from '@ff14-hub/shared';
+import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 /** 单个私有工作空间（INV-05：无传统账号，一个工作空间 + 多设备凭证）。 */
 export const workspaces = sqliteTable(
@@ -165,6 +170,30 @@ export const workspaceModules = sqliteTable(
   (table) => [index('idx_workspace_modules_workspace_status').on(table.workspaceId, table.status)],
 );
 
+/**
+ * 待完成的模块生命周期操作（HUB-050，由 migrations/0004_module_operations.sql 建立）。
+ *
+ * 存在一行 = 有一次已原子准入但尚未完成（或已失败待重试）的操作。
+ * 此时门禁状态为 `transitioning`（见 `@ff14-hub/shared` 的 `moduleGateStatus()`），
+ * 因此它绝不会被当成「可以运行」。全部副作用成功后本行才被删除。
+ */
+export const workspaceModuleOperations = sqliteTable(
+  'workspace_module_operations',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    moduleId: text('module_id').notNull(),
+    action: text('action').$type<ModuleSupportedAction>().notNull(),
+    targetStatus: text('target_status').$type<ModulePersistedStatus>().notNull(),
+    revision: integer('revision').notNull(),
+    startedAt: integer('started_at').notNull(),
+    attempts: integer('attempts').notNull(),
+    lastError: text('last_error'),
+  },
+  (table) => [primaryKey({ columns: [table.workspaceId, table.moduleId] })],
+);
+
 /** 全部表的集合，供 drizzle 客户端与测试使用。 */
 export const schema = {
   workspaces,
@@ -175,4 +204,5 @@ export const schema = {
   authRateLimits,
   pairingClaims,
   workspaceModules,
+  workspaceModuleOperations,
 } as const;

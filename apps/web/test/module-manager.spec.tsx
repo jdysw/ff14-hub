@@ -54,11 +54,16 @@ function statusOf(
     disabledAt: null,
     uninstalledAt: null,
     updatedAt: null,
+    pendingOperation: null,
     ...overrides,
   };
 }
 
-function mutationOf(module: WorkspaceModuleStatus, message: string): ModuleMutationResponse {
+function mutationOf(
+  module: WorkspaceModuleStatus,
+  message: string,
+  options: { readonly pending?: boolean; readonly failure?: string | null } = {},
+): ModuleMutationResponse {
   return {
     module,
     effect: {
@@ -67,6 +72,8 @@ function mutationOf(module: WorkspaceModuleStatus, message: string): ModuleMutat
       scheduledTasksCancelled: 0,
       handlersRun: [],
       userDataRetained: true,
+      pending: options.pending ?? false,
+      failure: options.failure ?? null,
       message,
     },
   };
@@ -118,7 +125,8 @@ function Harness(props: {
   readonly token: string | null;
   readonly onMutated?: ((moduleId: string, response: ModuleMutationResponse) => void) | undefined;
 }) {
-  const moduleState = useModuleState(props.api, props.token);
+  // 与 AppShell 一致：Hook 只接收是否已认证的布尔值，**不接收明文凭证**。
+  const moduleState = useModuleState(props.api, props.token !== null);
   return (
     <ModuleManagerPanel
       moduleState={moduleState}
@@ -287,5 +295,86 @@ describe('模块管理界面', () => {
     };
     render(<Harness api={api} token={null} />);
     expect(await screen.findByText(/加载模块目录失败/)).toBeDefined();
+  });
+
+  it('待完成操作如实展示（门禁为「正在完成操作」），并提供同动作、同 revision 的重试入口', async () => {
+    const user = userEvent.setup();
+    const onMutated = vi.fn();
+    const pendingStatus = statusOf(DEMO_BASICS_MODULE_ID, 'uninstalled', {
+      revision: 2,
+      pendingOperation: {
+        action: 'uninstall',
+        revision: 2,
+        targetStatus: 'uninstalled',
+        startedAt: 1,
+        attempts: 1,
+        lastError: '平台清理失败（Error）',
+      },
+    });
+    const { api, mutateCalls } = fakeApi({
+      statuses: [pendingStatus],
+      mutate: () =>
+        ok(
+          mutationOf(
+            statusOf(DEMO_BASICS_MODULE_ID, 'uninstalled', { revision: 3 }),
+            '上一次操作的收尾已完成：移除 2 个当前实例、取消 1 项待执行任务；个人数据与设置保留。',
+          ),
+        ),
+    });
+    render(<Harness api={api} token="ffh_dev_test" onMutated={onMutated} />);
+
+    await waitFor(() => {
+      expect(cardFor(DEMO_BASICS_MODULE_ID).getAttribute('data-status')).toBe('transitioning');
+    });
+    const card = cardFor(DEMO_BASICS_MODULE_ID);
+    expect(card.getAttribute('data-pending')).toBe('uninstall');
+    expect(within(card).getByTestId('module-pending-notice').textContent).toContain('平台清理失败');
+    // 其他动作必然被服务端 409，因此界面上不提供。
+    expect(within(card).queryByRole('button', { name: '启用' })).toBeNull();
+    expect(within(card).queryByRole('button', { name: '恢复' })).toBeNull();
+
+    await user.click(within(card).getByRole('button', { name: '重试完成收尾' }));
+
+    await waitFor(() => {
+      expect(mutateCalls).toEqual([
+        { moduleId: DEMO_BASICS_MODULE_ID, request: { action: 'uninstall', expectedRevision: 2 } },
+      ]);
+    });
+    expect(await screen.findByText(/收尾已完成/)).toBeDefined();
+    await waitFor(() => {
+      expect(cardFor(DEMO_BASICS_MODULE_ID).getAttribute('data-status')).toBe('uninstalled');
+    });
+    expect(onMutated).toHaveBeenCalledTimes(1);
+  });
+
+  it('会话切换导致的过期结果：不提示、不触发 Host 联动', async () => {
+    const user = userEvent.setup();
+    const onMutated = vi.fn();
+    const resolver: { resolve: ((value: ApiResult<ModuleMutationResponse>) => void) | null } = { resolve: null };
+    const deferred = new Promise<ApiResult<ModuleMutationResponse>>((resolve) => {
+      resolver.resolve = resolve;
+    });
+    const api: ModulesApi = {
+      catalog: () => Promise.resolve(ok({ modules: descriptors })),
+      listMine: () =>
+        Promise.resolve(ok({ modules: [statusOf(DEMO_BASICS_MODULE_ID, 'enabled', { revision: 1 })] })),
+      readModule: () => Promise.resolve(ok({ module: statusOf(DEMO_BASICS_MODULE_ID, 'enabled') })),
+      mutate: () => deferred,
+      purge: () => Promise.resolve(failure('not_implemented', 501, '本阶段不支持。')),
+    };
+    const { unmount } = render(<Harness api={api} token="ffh_dev_test" onMutated={onMutated} />);
+    await waitFor(() => {
+      expect(cardFor(DEMO_BASICS_MODULE_ID).getAttribute('data-status')).toBe('enabled');
+    });
+
+    void user.click(within(cardFor(DEMO_BASICS_MODULE_ID)).getByRole('button', { name: '停用' }));
+    // 会话切换：AppShell 会以新的 generation 重挂整棵会话子树。
+    unmount();
+    resolver.resolve?.(
+      ok(mutationOf(statusOf(DEMO_BASICS_MODULE_ID, 'disabled', { revision: 2 }), '模块已停用。')),
+    );
+    await deferred;
+
+    expect(onMutated).not.toHaveBeenCalled();
   });
 });

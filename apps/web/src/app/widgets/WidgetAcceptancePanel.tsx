@@ -14,7 +14,7 @@ import { MODULE_STATUS_LABELS } from '@ff14-hub/shared';
 import { resolveWidgetConfig, widgetComponentRegistry } from '../widgets/component-registry';
 import type { WidgetInstanceStore } from '../widgets/instance-store';
 import { WidgetHost } from '../widgets/WidgetHost';
-import { moduleAccessFrom, type ModuleState } from '../modules/use-module-state';
+import { effectiveStatusOf, moduleAccessFrom, type ModuleState } from '../modules/use-module-state';
 
 export interface WidgetAcceptancePanelProps {
   readonly moduleState: ModuleState;
@@ -93,7 +93,8 @@ export function WidgetAcceptancePanel(props: WidgetAcceptancePanelProps) {
       <h3 className="subsection-title">可添加的组件类型</h3>
       <ul className="widget-picker">
         {widgets.map((entry) => {
-          const status = moduleState.statuses[entry.moduleId]?.status ?? 'not_installed';
+          // 门禁状态：存在待完成操作时为 transitioning，因此不会被当成可添加/可执行。
+          const status = effectiveStatusOf(moduleState.statuses, entry.moduleId);
           const enabled = status === 'enabled';
           const alreadySingle =
             !entry.allowMultiple && instances.some((instance) => instance.widgetId === entry.widgetId);
