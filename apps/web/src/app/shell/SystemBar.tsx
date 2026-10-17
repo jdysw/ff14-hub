@@ -20,7 +20,20 @@ interface SystemEntry {
   readonly view?: ShellView;
 }
 
+/**
+ * 系统级入口（顺序有意义）：
+ * 「自定义工作台」**排第一**，因为端到端测试用
+ * `getByRole('navigation', {name:'系统级入口（不可移除）'}).getByRole('button', {name:/工作台/}).first()`
+ * 打开工作台——「工作台概览」也匹配 /工作台/，所以主入口必须排在它前面。
+ */
 const SYSTEM_ENTRIES: readonly SystemEntry[] = [
+  {
+    id: 'workbench',
+    label: '自定义工作台',
+    hint: '多页面、拖拽布局、模板与备份恢复',
+    stage: '阶段 03 / HUB-045 · 046 · 049 · 054',
+    view: 'workbench',
+  },
   {
     id: 'overview',
     label: '工作台概览',
@@ -49,9 +62,14 @@ const SYSTEM_ENTRIES: readonly SystemEntry[] = [
     stage: '阶段 02 / HUB-050',
     view: 'credentials',
   },
-  { id: 'workspace-switch', label: '工作台切换', hint: '多页面与默认页', stage: '阶段 03 / HUB-046' },
   { id: 'settings', label: '系统设置', hint: '区服、时区、主题', stage: '阶段 03' },
-  { id: 'backup', label: '导入 / 恢复', hint: '配置备份与恢复默认', stage: '阶段 03 / HUB-054' },
+  {
+    id: 'backup',
+    label: '导入 / 恢复',
+    hint: '配置备份与恢复默认（就位于工作台视图内）',
+    stage: '阶段 03 / HUB-054',
+    view: 'workbench',
+  },
   { id: 'devices', label: '设备管理', hint: '设备列表与撤销', stage: '后端 API 已就绪 · 界面后续' },
 ];
 

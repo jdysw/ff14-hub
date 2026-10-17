@@ -210,6 +210,34 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains   ← 仅在请�
 - **设置校验不回显提交值**：失败只回字段路径 + 问题类别（`worker/lib/zod-issues.ts`），
   为将来可能包含 WebDAV 口令之类敏感值的模块设置留出安全边界。
 
+## 9.1 工作台与备份（阶段 03 / HUB-045 · HUB-046 · HUB-049 · HUB-054）
+
+- **作用域只来自认证结果**：`/me/workbench*`、`/me/pages*`、`/me/widgets*` 全部挂在 `deviceAuth()`
+  之后，作用域取自 `c.get('workspaceId')`。路径参数（pageId / widgetId / backupId）只用于过滤，
+  且每条 SQL 都带 `workspace_id`，因此用 A 的凭证访问 B 的资源只会得到 404。
+- **组件归属以静态注册表为权威**：导入 / 模板 / 新建都从 `registry.findWidget()` 取模块归属、
+  `allowMultiple`、尺寸约束与配置 Schema，客户端提交的这些字段一律不采信。
+  因此「借启用 A 模块去渲染停用 B 模块的组件」在结构上不可表达。
+- **模块门禁在写入路径强制执行**：新建实例要求模块 `enabled` 且无待完成操作；
+  导入与模板遇到不可用模块时**跳过并如实上报**，绝不隐式启用/停用/卸载模块，
+  也绝不加载任何远程代码。
+- **备份内容边界**：`workbenchBackupDocumentSchema` 是 `z.strict()`（多余字段是硬错误），
+  另加一次**递归危险字段扫描**（`token` / `password` / `secret` / `recoveryKey` /
+  `vapidPrivateKey` / `authorization` / `cookie` 等），因为组件配置是自由形状。
+  导出结果**不含**设备 Token、恢复密钥、WebDAV 凭证或任何服务端秘密；有测试直接对导出 JSON
+  字符串搜索真实 Token 值来验证这一点。
+- **导入不借备份 ID 引用他人数据**：导入时**总是**重新分配页面与实例 ID；
+  备份里的 ID 只用于文档内部一致性检查（同文档内重复 ID 判为致命问题）。
+- **容量自洽**：导出与导入共用 `WORKBENCH_BACKUP_MAX_BYTES`（48 KiB，严格小于全局
+  `MAX_JSON_BODY_BYTES` = 64 KiB）；导出超过上限时显式失败，不产出导不回来的文件。
+- **确认与可撤销**：`replace` 导入要求显式 `confirm: true` 且回显预览时的工作台 revision
+  （期间被改动即 409，必须重新预览）；替换在**同一事务**内先写一份 `pre_import` 备份，事后可恢复。
+- **陈旧写一律 409**：页面/实例用自身 revision，布局用「页面 + 断点」的独立 revision；
+  没有任何「省略即覆盖」的入口。
+- **仍然未做的安全项**（不要读成已完成）：清数据仍为 501；没有 WebDAV 凭证处理；
+  没有服务端外发请求（因此也没有 SSRF 面）；没有 URL 协议白名单（阶段 04 导航才需要）；
+  备份上限为 48 KiB，极端规模工作台会导出失败而不是产出损坏文件。
+
 ## 10. 明确未做的安全项（不要读成已完成）
 
 - **认证失败审计未落库**：`identity_audit.workspace_id` 为 NOT NULL，无法承载

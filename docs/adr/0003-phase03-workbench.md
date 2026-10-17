@@ -1,0 +1,283 @@
+# ADR-0003：阶段 03 自定义工作台的关键决定
+
+- 状态：accepted（阶段 03 / HUB-045 · HUB-046 · HUB-049 · HUB-054 实施期记录）
+- 关联：`docs/FF14_Hub_AI_Development_Plan.md` 第 2.2 / 5.2 / 5.3 / 9.1 节、`docs/module-widget-boundaries.md`、`docs/adr/0002-phase02-module-runtime.md`
+
+本 ADR 只记录**本阶段真正做出、且会影响后续阶段的选择**，以及被刻意推迟的东西。
+每条都给出「为什么」与「将来在哪一步替换」，避免后续 Agent 重新争论一遍。
+
+## D1. 布局修订放在「页面 × 断点」，不放在 `workspace_pages.layout_revision`
+
+规划 5.2 把 `layout_revision` 写在 `workspace_pages` 上。实际实现新增了独立表
+`page_layout_revisions (page_id, breakpoint, revision)`，`workspace_pages` 只保留**页面级** revision。
+
+**原因**：规划 ADR-010 要求「桌面/平板/手机各自独立修订」，而单列 `layout_revision` 无法表达这一点：
+手机端保存布局会把同一列 +1，于是桌面端在途的保存会莫名其妙 409——正是 ADR-010 想避免的跨端误覆盖。
+拆表后，保存手机布局只 bump `mobile` 行，桌面端的 `baseRevision` 仍然有效。
+
+**顺带说明**：另有一张 `workspace_workbench_state(workspace_id, revision)`，
+它是**工作台整体**的修订号，只服务两个具体用途：导入预览的新鲜度令牌、前端「工作台有没有变」的便宜信号。
+它与断点级并发是两件事，因此没有合并。
+
+## D2. 幂等用「本次尝试随机 token」守卫，不用 `changes() = 1` 链
+
+所有写入都是「认领（`INSERT INTO workbench_operations ... ON CONFLICT DO NOTHING`）→ 变更 → 收尾」
+同一个 D1 batch。每条变更语句都带守卫：
+
+```sql
+EXISTS (SELECT 1 FROM workbench_operations g
+         WHERE g.workspace_id = ? AND g.operation_id = ? AND g.attempt_token = ?)
+```
+
+**为什么不用 `changes() = 1` 链**（阶段 02 的写法）：`changes()` 只反映**紧邻的上一条语句**，
+而工作台里有大量「可能影响 0 行」的语句（清掉旧默认页、删除不存在的布局行）。
+一旦中间某条影响 0 行，后续语句就会被误跳过——这类 bug 只在特定布局下出现，极难发现。
+token 守卫与语句影响行数**无关**，因此不存在这个失效模式。
+
+**语义收口**：
+- **幂等短路必须发生在任何前置读取之前**。各写入方法会先读状态并做新鲜度判断
+  （布局的 `baseRevision`、页面的 `expectedRevision`、实例的 `revision`）；
+  首次提交成功后这些前置条件**必然已经变化**。如果先做前置检查，那么
+  「响应丢失后客户端原样重试」——幂等最该生效的那个场景——会被早退成 409/404，
+  客户端永远拿不到首次结果。因此每个写入方法的**第一条语句**就是
+  `readWorkbenchReplay()`：命中了就直接返回首次结果，一个字节都不写。
+  （这是阶段 03 复核阶段发现并修掉的真实缺陷，有 `page.delete` 与 `saveLayout` 的回归用例。）
+- 重放（同一 `operationId` 重试）在认领语句处也会生成**新的**随机 token，
+  永远不等于已存行的 token（收尾时已置空），因此即便短路未命中，重放也不会再次施加副作用。
+- 并发抢输的一方因 `ON CONFLICT DO NOTHING` 未插入自己的 token，其全部语句同样不生效；
+  它随后读到已存在的行，按「重放」返回同一结果。
+- 同一 `operationId` 用于**不同类别**（`kind`）返回 409，不静默当重放放行——那是客户端 bug 或探测行为。
+  类别字符串集中定义在 `WORKBENCH_OP_KINDS`，避免「入口检查」与「认领写入」两处字面量漂移
+  （漂移的后果正是把重放误判成类别冲突）。
+- batch 是原子的，因此「已认领但未收尾」在事务外不可观测，不需要额外的崩溃恢复流程。
+
+## D3. 页面删除只墓碑页面本身，实例与布局保留
+
+`workspace_pages.deleted_at` 非空即墓碑。删除页面时**不**动 `widget_instances` 与 `widget_layouts`。
+
+**原因**：需求要求「删除/恢复」有明确行为且可撤销。如果删除页面时把实例也墓碑化，
+恢复页面就只能恢复一个空壳；而「清空所有业务组件」与「删除页面」是两种不同的用户意图。
+保留实例后，`POST /me/pages/:id/restore` 能把页面**连同内容**整体带回来。
+
+**边界**：活跃实例的判定一律要 JOIN 到活跃页面（`p.deleted_at IS NULL`），
+因此墓碑页面上的实例永远不占配额、不参与单例判定、也不出现在任何响应里。
+
+## D4. 「有活跃页面时唯一默认页」由数据库 + 事务共同保证
+
+- **数据库**：部分唯一索引 `idx_workspace_pages_single_default`
+  （`WHERE is_default = 1 AND deleted_at IS NULL`）保证活跃页面中默认页**至多一个**。
+  任何绕过服务层的写入（导入、手工 SQL）都撞得上。
+- **事务**：SQLite 无法声明式表达「集合非空时**恰好**一个」，因此任何改变活跃页面集合的写入
+  （新建 / 删除 / 恢复 / 应用模板）都在**同一个 batch** 内重新推导默认页：
+  `rederiveDefaultPageStatement` **仅在当前没有默认页时**把 sort_order 最小的活跃页面设为默认。
+
+**为什么「仅在缺失时」**：否则每次删除页面都会把默认页重设成「sort_order 最小者」，
+等于悄悄改掉用户选的默认页。
+
+**明确拒绝**：`PATCH {isDefault:false}` 作用于当前默认页返回 422，而不是留下「一个默认页都没有」的状态。
+
+## D5. 新建实例必须同时满足三条原子条件；编辑只受 `transitioning` 限制
+
+新建实例（含复制、模板、导入）在认领语句里同时要求：
+
+1. 页面属于本工作空间且未删除；
+2. 该模块 `status = 'enabled'` **且** `revision` 等于本次读取到的值；
+3. 该模块**没有**待完成操作（`transitioning` 门禁）。
+
+**为什么连 revision 一起比**：新实例要记录 `created_revision` 作为生命周期清理的 fence。
+只有把「登记的代际」与「准入时的代际」绑成同一个原子条件，
+「记录的代际」才不可能是一个被并发改写过的值。不一致时返回 409，客户端重新读取即可。
+
+**为什么编辑（改配置 / 隐藏 / 移除）只要求「没有待完成操作」**：
+停用或卸载模块后，其既有实例是被**保留**的（模块语义：停用 ≠ 删数据）。
+此时编辑配置不产生任何执行，因此不该被禁止；但正在 `transitioning` 时不写，
+避免与「即将清理这批实例」的操作互相踩。新增实例则必须 enabled：界面会引导先启用模块。
+
+## D6. 单例约束（`allowMultiple = false`）的作用域是「整个工作空间」
+
+不是「单个页面」。`demo-solo` 之类的单例组件在一个工作空间内最多一个活跃实例，
+判定发生在认领语句里（跨活跃页面的 `NOT EXISTS`），因此并发添加也只会成功一次。
+
+## D7. 整页保存：矩形集合必须**恰好**覆盖该页面的全部活跃实例
+
+`PUT /me/pages/:id/layout` 只保存**一个断点**，但该断点的矩形必须覆盖该页面全部活跃实例。
+
+**原因**：允许部分提交就会产生「有实例、但某个断点下没有位置」的半状态，
+那正是「静默丢布局」的来源。缺少某个实例的矩形时返回 422 而不是补一个默认位置——
+服务端**只拒绝非法输入，不替用户悄悄改布局**。
+
+## D8. 布局合法性只有一个判定实现
+
+`packages/shared/src/workbench-api.ts` 的 `validateLayoutRects()` 是**唯一**实现，
+服务端保存路径与导入路径都调用它；规则是：实例归属正确、坐标非负、
+`x + w <= 列数`、尺寸落在静态注册表的 `minSize`/`maxSize` 内、任意两项不重叠。
+
+**为什么放共享包**：前端键盘替代操作要在按钮禁用状态上做出与后端一致的判断
+（否则会出现「按钮可点但保存被拒」）。同一份纯函数让两侧不可能漂移。
+服务端的尺寸约束一律取自 `registry.findWidget()`，**不接受**客户端提交的约束。
+
+## D9. 导入时**总是**重新分配 ID 与 slug
+
+备份里的页面 ID、实例 ID 与页面 slug 都只用于文档内部一致性检查
+（同一份备份内重复页面/实例 ID 属于致命问题）。落地时一律重新分配。
+
+**为什么 ID 重映射**：这是杜绝「借备份 ID 引用别人的数据」的最简形式——
+结构上不存在「按备份里的 ID 去匹配现有行」的路径，因此也就不存在跨工作空间引用的可能。
+
+**为什么 slug 也必须重映射**：`idx_workspace_pages_slug` 是覆盖**全部行（含墓碑）**的唯一索引
+（这样「恢复已删除页面」永远不会与新页面撞 slug）。因此备份里的 slug 在同一个工作空间里
+几乎总是已被占用——把导出导回原地时**必然**如此。原样写入会撞唯一索引并让整个导入事务回滚，
+表现为 500 而不是可解释结果。`pickUniqueSlug` 由新建页面、模板重置与导入共同使用，
+避免两套 slug 逻辑漂移。
+
+代价：同一工作空间的 round-trip 在 ID 与 slug 上不等价（结构、名称、配置、各断点矩形等价）。
+这一点在幂等键、导入预览与文档里都写明了，避免被误读为「原样还原」。
+
+## D10. 模块未启用 / 未知模块：**跳过并如实上报**，绝不隐式启用
+
+模板与导入都遵守同一条规则：
+
+- 组件类型未注册（静态注册表里没有）→ 导入视为**致命问题**（`unknown_widget_type`），整份文档不可导入；
+  模板里则由契约保证不会出现（有测试）。
+- 组件类型已注册但所属模块不是 `enabled`（含 `transitioning`）→ **跳过该实例**，
+  在预览的 `unknownModules` 与 `instancesSkipped`、以及应用结果的 `skipped` 里逐条列出原因。
+- 导入路径**不触碰** `workspace_modules`：不启用、不停用、不卸载、不删个人数据（有测试直接断言字节不变）。
+- 组件归属以**静态注册表**为权威：备份里声明的 `moduleId` 与注册表不一致时以注册表为准并给出警告，
+  因此「借启用 A 去渲染停用 B」在结构上不可能。
+
+## D11. 备份容量上限由导出与导入**共用**一个常量
+
+`WORKBENCH_BACKUP_MAX_BYTES = 48 KiB`，严格小于全局 `MAX_JSON_BODY_BYTES = 64 KiB`。
+
+- 导出在序列化后超过该上限时**显式失败**（`export_too_large` + 可读原因），
+  绝不产出一个永远导不回来的文件。
+- 导入超过同一上限时同样显式拒绝。
+
+因此「导出大于导入上限」这种自相矛盾的设计在结构上不成立，并有测试断言这一关系。
+
+**真实边界（不隐瞒）**：上限是 48 KiB，因此一个塞满 30 页 × 40 个组件、且每个组件配置接近 4 KiB 的
+工作台**无法导出**。届时用户会收到明确失败信息，而不是一个损坏的文件。
+把上限提高需要同时提高全局请求体上限并重新评估 D1 参数上限，属于后续工作。
+
+## D12. 重新分配 ID + 事务内先写备份：`replace` 导入是可撤销的
+
+`replace` 模式在**同一个事务**里：写一份 `kind='pre_import'` 的当前快照 → 墓碑化当前活跃页面 →
+按备份内容重建页面与实例。
+
+- 因此不存在「备份写成功但替换失败」或反过来的中间状态。
+- 事后可 `POST /me/workbench/backup/:id/restore` 回到导入前；恢复后把该备份标记为 `consumed_at`，
+  防止同一个撤销点被重复套用。
+- 每个工作空间保留最近 5 份备份（服务层裁剪，同一事务内）。
+
+## D13. 布局编辑器依赖锁定 `react-grid-layout@2.3.0`
+
+| 检查项 | 实际结果 |
+|---|---|
+| 官方当前版本 | `2.3.0`（npm `time.modified` 2026-10-05） |
+| peer 依赖 | `react >= 16.3.0`、`react-dom >= 16.3.0` → 与仓库锁定的 React **19.3.1** 兼容 |
+| 类型 | 2.x 自带 `dist/index.d.ts` / `.d.mts`，**不装** `@types/react-grid-layout`（该包只到 2.1.0，形状对应旧 API） |
+| 模块格式 | ESM（`dist/index.mjs`）+ exports 映射（含 `./css/styles.css`）→ 与 Vite 8 的 ESM 解析一致 |
+| React 19 的 `findDOMNode` 移除 | 2.x 通过 `nodeRef` / `useContainerWidth` 驱动，实际解析到 `react-draggable@4.7.2`、`react-resizable@3.2.0`（均声明 React 19 可用）；真实浏览器拖动/缩放由 Playwright 链验证 |
+| 样式 | 只需 `import 'react-grid-layout/css/styles.css'`：它已包含 resize handle 的全部样式，**不需要** `react-resizable/css/styles.css`（3.2.0 不再提供该文件） |
+
+**为什么不在 1.x**：1.x 依赖 `ReactDOM.findDOMNode`，该 API 在 React 19 已移除；
+2.x 是围绕 React 19 重写的一代（提供 `useContainerWidth` / `useGridLayout` 钩子替代 `WidthProvider` HOC）。
+
+**边界**：只是**布局容器**。组件仍然只来自 `apps/web/src/app/widgets/component-registry.ts`
+的静态映射，绝不按不可信字符串动态加载，也不执行任何第三方 JS。
+
+## D14. 生命周期实例清理端口改为真实 D1 实现
+
+阶段 02 的 `createNoopInstanceStore()`（`persistent: false`，`removed: 0`）被
+`worker/modules/workbench/instance-store.ts` 的 `createD1InstanceStore()` 取代
+（`persistent: true`），并在 `worker/modules/runtime.ts` 装配。
+
+- **三条件同一原子条件**：`UPDATE widget_instances ... WHERE workspace_id = ? AND module_id = ?
+  AND deleted_at IS NULL AND created_revision <= ?`。
+  因此不存在「先按模块查出来、再按 revision 过滤」的时间窗。
+- **实例墓碑，布局硬删除**：实例墓碑是权威记录（卸载 ≠ 删数据，也让后续同步能观察到变化）；
+  已墓碑的实例不该再占网格位置，因此其 `widget_layouts` 行被删除，
+  同时把受影响页面的三个断点修订号 +1，客户端据此知道布局变了。
+- **旧代 fence**：`created_revision` 由写入路径记录。被取代的旧执行者传入它自己的准入 revision，
+  因此删不掉 `restore` 之后（代际更大）创建的实例。有真实 D1 测试覆盖该交错。
+- 清理在同一 `db.batch()` 事务内完成，并把工作台级修订号 +1（卸载确实改变了工作台）。
+
+## D15. `reset_workspace` 只墓碑页面（与 D3 一致），彻底清空走导入替换
+
+模板的 `reset_workspace` 模式墓碑化当前全部活跃页面，然后按模板重建页面。
+它**不**删除实例与布局，因此逐页 `restore` 仍能把内容带回来。
+
+**理由**：与 D3 保持同一套语义（删除页面 ≠ 删数据），也让「重置」不需要额外的备份机制就已是可逆的。
+需要「彻底清空、不保留任何旧组件」的用户应走 `replace` 导入（那条路径会先自动写可撤销备份）。
+界面上重置与替换导入都必须显式确认，并提示可先导出备份。
+
+## D16. 明确推迟的东西（不要读成已实现）
+
+- **不实现跨设备增量同步**（HUB-051）：墓碑已按规划 5.3 保留，但没有同步水位、没有 GC、
+  没有 `GET /me/sync/changes`。墓碑保留策略与垃圾回收属于阶段 04/06。
+- **不实现清数据（purge）**：仍然是显式 501。
+- **不做 WebDAV、通知、Cron、远程部署**：`triggers.crons` 仍为空，未创建任何远程资源。
+- **不做布局草稿的服务端存储**：草稿只存在于前端内存；服务端只接受整页保存。
+- **不提供「导出全量个人业务数据」**：HUB-054 只覆盖工作台配置，不冒充阶段 06 的能力。
+
+## D13.1 拖动把手：`threshold` 锁定 0，且子元素必须转发注入的事件处理器
+
+阶段 03 的前端工作台在真实浏览器（Edge + 真实 `wrangler dev`）里出现过一次**静默失效**：
+按住拖动把手移动 180×60 像素，卡片完全没有反应——类名里始终没有 `react-draggable-dragging`，
+`transform` 停在原值，`data-dirty` 一直是 `false`，浏览器**没有**任何 console error 或 pageerror。
+同一张卡片的**缩放手柄**（右下角 `.react-resizable-handle-se`）却工作正常。
+
+排查后确认是**两个独立原因叠加**，两条都必须记住：
+
+### (1) 根因：组件型子元素没有转发 `onMouseDown`（这条是决定性的）
+
+`react-grid-layout@2.3.0` 的 `GridItem` 用 `DraggableCore` 包住 `children`，而
+`DraggableCore` 的拖动入口是一个 **React 属性**：
+`React.cloneElement(child, { onMouseDown, onMouseUp, onTouchEnd })`。
+`handle` / `nodeRef` / `disabled` 都传得没错，但只有这三个属性真的落在 **DOM 节点**上，
+`react-draggable` 的 `handleDragStart` 才会被调用，`handle` 选择器才会被匹配。
+
+工作台的卡片是**组件**（`WidgetCard`，`forwardRef` 到 `<article>`）。它最初只把
+`className` / `style` / `ref` / `children` 透传下去，**漏了 `onMouseDown`**，
+于是 RGL 注入的拖动入口被组件丢掉了：mousedown 到了 DOM，但没有任何拖动处理器接收。
+
+证据（在真实浏览器里给 `Element.prototype.matches` 插桩，`react-draggable` 正是用它做把手匹配）：
+
+| 观察点 | 修复前 | 修复后 |
+|---|---|---|
+| mousedown 目标 | 把手内部的 `<span>`（命中正确） | 同左 |
+| `Element.matches` 调用次数 | **0**（`handleDragStart` 根本没进） | 正常出现并返回 `true` |
+| `react-draggable-dragging` | 不出现 | 出现 |
+| `transform` | 不变 | `translate(...)` 随拖动变化 |
+| `data-dirty` | `false` | `true`（草稿链路打通） |
+
+**结论**：RGL 的「子元素」如果是组件，必须把 `onMouseDown` / `onMouseUp` / `onTouchEnd`
+原样转发到它的根 DOM 节点（见 `apps/web/src/app/workbench/WidgetCard.tsx` 里
+`onMouseDown` 的注释）。缩放不受影响，因为那个手柄是 `react-resizable` 自己创建并直接
+绑定 ref 的 `<span>`，中间没有组件边界——这也是为什么「只有拖动坏、缩放好」很有迷惑性。
+
+### (2) 同时锁定 `dragConfig.threshold = 0`
+
+`GridItemInner` 在 `dragThreshold > 0` 时**不在 mousedown 阶段调用 `onDragStart`**，
+而是先挂起（`dragPendingRef` / `thresholdExceededRef`），等第一次 `onDrag` 的位移越过阈值
+再补发开始。这条分支在 `noCompactor` 组合下额外引入风险，也让「按下即生效」的语义变复杂。
+真实浏览器对照：`threshold: 0` 时拖动把手、从卡片正文拖动（对照，验证 `handle` 仍然生效）、
+缩放三条路径全部正常；`threshold: 3` 时（在 (1) 修复之前）拖动完全不动。
+
+因此工作台**显式使用 `threshold: 0`**（`apps/web/src/app/workbench/LayoutGrid.tsx`）。
+注意因果：**真正让拖动失效的是 (1)**；(2) 是消除一条不必要分支的防御性选择。
+若将来升级 `react-grid-layout`，必须重新验证本节两条并更新此处。
+
+### 顺带记录：受控布局的引用稳定性
+
+`layouts` 是受控 prop。若每次渲染都新建对象字面量（或复制数组），RGL 每轮都会做一次
+「props 布局 ↔ 内部布局」同步；与 `autoSize` 的高度测量叠加后，会表现为网格高度与
+下方面板位置持续微动（元素「永远不稳定」）。工作台因此在 `WorkbenchView` / `LayoutGrid`
+里保证 `layouts` 与 `instances` 的**引用稳定**，只在真正变化时替换。
+
+### 顺带记录：进入编辑模式时把网格带进视野
+
+工作台视图上方还有页面管理与工具栏，在 720px 高的窗口里网格可能落在折叠线以下，
+而「进入编辑模式」的意图就是改布局。因此进入编辑模式时会 `scrollIntoView` 到网格
+（`WorkbenchView` 的 effect）。这不是测试便利，而是可达性处理：否则用户（以及任何基于
+真实鼠标坐标的自动化）会按在空白处而以为「拖不动」。

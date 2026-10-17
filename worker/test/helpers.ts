@@ -5,7 +5,15 @@
  * 绝不使用任何真实 Token / 恢复密钥，也不把它们写入仓库。
  */
 import { env, SELF } from 'cloudflare:test';
-import { RECOVERY_KEY_PREFIX } from '@ff14-hub/shared';
+import {
+  RECOVERY_KEY_PREFIX,
+  type BreakpointLayout,
+  type GridRect,
+  type LayoutBreakpoint,
+  type WidgetInstance,
+  type WorkbenchSnapshot,
+  type WorkspacePage,
+} from '@ff14-hub/shared';
 import { BOOTSTRAP_SECRET_HEADER } from '../api/v1/identity';
 import type { RuntimeEnv } from '../env';
 import { generateCredential, generateDeviceToken, hashCredential } from '../modules/identity/credentials';
@@ -36,6 +44,16 @@ export const URLS = {
   devices: `${TEST_BASE_URL}/api/v1/me/devices`,
   moduleCatalog: `${TEST_BASE_URL}/api/v1/modules/catalog`,
   meModules: `${TEST_BASE_URL}/api/v1/me/modules`,
+  // 阶段 03：自定义工作台（HUB-045 / HUB-046 / HUB-049 / HUB-054）。
+  workbench: `${TEST_BASE_URL}/api/v1/me/workbench`,
+  pages: `${TEST_BASE_URL}/api/v1/me/pages`,
+  widgets: `${TEST_BASE_URL}/api/v1/me/widgets`,
+  workbenchTemplates: `${TEST_BASE_URL}/api/v1/me/workbench/templates`,
+  workbenchApplyTemplate: `${TEST_BASE_URL}/api/v1/me/workbench/apply-template`,
+  workbenchBackup: `${TEST_BASE_URL}/api/v1/me/workbench/backup`,
+  workbenchBackups: `${TEST_BASE_URL}/api/v1/me/workbench/backups`,
+  workbenchImportPreview: `${TEST_BASE_URL}/api/v1/me/workbench/import/preview`,
+  workbenchImportApply: `${TEST_BASE_URL}/api/v1/me/workbench/import/apply`,
 } as const;
 
 /** 单个模块状态端点。 */
@@ -46,6 +64,45 @@ export function moduleUrl(moduleId: string): string {
 /** 清数据端点（本阶段恒 501）。 */
 export function modulePurgeUrl(moduleId: string): string {
   return `${URLS.meModules}/${moduleId}/purge`;
+}
+
+// ---------------------------------------------------------------------------
+// 工作台端点（阶段 03）
+// ---------------------------------------------------------------------------
+
+/** 单个页面端点（PATCH / DELETE）。 */
+export function pageUrl(pageId: string): string {
+  return `${URLS.pages}/${pageId}`;
+}
+
+/** 页面布局端点（GET / PUT，按断点独立保存）。 */
+export function pageLayoutUrl(pageId: string): string {
+  return `${pageUrl(pageId)}/layout`;
+}
+
+/** 页面 Widget 实例集合端点（GET / POST）。 */
+export function pageWidgetsUrl(pageId: string): string {
+  return `${pageUrl(pageId)}/widgets`;
+}
+
+/** 从墓碑恢复页面的端点。 */
+export function pageRestoreUrl(pageId: string): string {
+  return `${pageUrl(pageId)}/restore`;
+}
+
+/** 单个 Widget 实例端点（PATCH / DELETE）。 */
+export function widgetUrl(widgetId: string): string {
+  return `${URLS.widgets}/${widgetId}`;
+}
+
+/** 复制 Widget 实例的端点。 */
+export function widgetDuplicateUrl(widgetId: string): string {
+  return `${widgetUrl(widgetId)}/duplicate`;
+}
+
+/** 用可恢复备份撤销一次替换导入的端点。 */
+export function backupRestoreUrl(backupId: string): string {
+  return `${URLS.workbenchBackup}/${backupId}/restore`;
 }
 
 /** 构造 JSON POST 请求。 */
@@ -70,6 +127,15 @@ export function jsonPatch(body: unknown, headers: Record<string, string> = {}): 
 export function jsonDelete(body: unknown, headers: Record<string, string> = {}): RequestInit {
   return {
     method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify(body),
+  };
+}
+
+/** 构造带 JSON 体的 PUT 请求（布局整页保存用）。 */
+export function jsonPut(body: unknown, headers: Record<string, string> = {}): RequestInit {
+  return {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(body),
   };
@@ -122,9 +188,25 @@ export async function createPairingViaApi(
   return await response.json<{ pairingCode: string; expiresAt: number }>();
 }
 
-/** 清空全部身份与模块相关表（顺序满足外键约束）。 */
+/**
+ * 清空全部身份、模块与工作台相关表（顺序满足外键约束）。
+ *
+ * 阶段 03 新增的 7 张工作台表**必须**在 `workspaces` 之前显式清空：
+ * `workspaces` 上的级联删除虽然也能带走它们，但依赖级联会让「清空顺序」变成隐含假设；
+ * 显式按「子表 → 父表」顺序删除（布局 → 实例 → 页面 → 工作空间级状态）更可验证。
+ * 既有调用方（阶段 01/02 的 spec）拿到的是同一份契约：调用后所有表为空。
+ */
 export async function resetIdentityState(): Promise<void> {
   await env.DB.batch([
+    // 阶段 03：工作台相关（子表在前，避免外键失败）。
+    env.DB.prepare('DELETE FROM workbench_operations'),
+    env.DB.prepare('DELETE FROM workbench_backups'),
+    env.DB.prepare('DELETE FROM widget_layouts'),
+    env.DB.prepare('DELETE FROM page_layout_revisions'),
+    env.DB.prepare('DELETE FROM widget_instances'),
+    env.DB.prepare('DELETE FROM workspace_pages'),
+    env.DB.prepare('DELETE FROM workspace_workbench_state'),
+    // 阶段 01/02：身份与模块。
     env.DB.prepare('DELETE FROM identity_audit'),
     env.DB.prepare('DELETE FROM pairing_claims'),
     env.DB.prepare('DELETE FROM device_pairings'),
@@ -147,6 +229,14 @@ const COUNTABLE_TABLES = [
   'pairing_claims',
   'workspace_modules',
   'workspace_module_operations',
+  // 阶段 03：工作台。
+  'workspace_pages',
+  'widget_instances',
+  'widget_layouts',
+  'page_layout_revisions',
+  'workspace_workbench_state',
+  'workbench_operations',
+  'workbench_backups',
 ] as const;
 
 export type CountableTable = (typeof COUNTABLE_TABLES)[number];
@@ -321,4 +411,308 @@ export async function readModuleOperationRow(
   )
     .bind(workspaceId, moduleId)
     .first<ModuleOperationRowSnapshot>();
+}
+
+/** 通过真实生命周期端点启用演示模块（首次安装：`expectedRevision` 必须为 0）。 */
+export async function enableDemoModule(authorization: string, moduleId: string): Promise<void> {
+  const response = await patchModule(authorization, moduleId, { action: 'enable', expectedRevision: 0 });
+  if (response.status !== 200) {
+    throw new Error(`启用模块未成功：module=${moduleId} status=${response.status} body=${await response.text()}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 阶段 03：工作台数据库事实读取器
+// ---------------------------------------------------------------------------
+//
+// 为什么单独写一份（而不是复用 `modules/workbench/internal.ts` 的读函数）：
+//   那些读函数**按业务语义过滤**（排除墓碑、排除「页面已删除」的实例），
+//   而测试要断言的恰恰是「墓碑行还在不在」「布局行是不是真的被删了」。
+//   因此这里的读取器一律不过滤墓碑，读的是最原始的行事实。
+
+export interface WorkbenchPageRowSnapshot {
+  readonly id: string;
+  readonly workspace_id: string;
+  readonly name: string;
+  readonly slug: string;
+  readonly is_default: number;
+  readonly sort_order: number;
+  readonly revision: number;
+  readonly deleted_at: number | null;
+  readonly created_at: number;
+  readonly updated_at: number;
+}
+
+const PAGE_ROW_COLUMNS =
+  'id, workspace_id, name, slug, is_default, sort_order, revision, deleted_at, created_at, updated_at';
+
+/** 读取一个页面行；**不**按墓碑过滤（墓碑本身就是待断言的事实）。 */
+export async function readPageRow(
+  workspaceId: string,
+  pageId: string,
+): Promise<WorkbenchPageRowSnapshot | null> {
+  return await env.DB.prepare(
+    `SELECT ${PAGE_ROW_COLUMNS} FROM workspace_pages WHERE id = ? AND workspace_id = ?`,
+  )
+    .bind(pageId, workspaceId)
+    .first<WorkbenchPageRowSnapshot>();
+}
+
+/** 读取本工作空间全部页面行（含墓碑），顺序与列表接口一致。 */
+export async function readPageRows(workspaceId: string): Promise<WorkbenchPageRowSnapshot[]> {
+  const result = await env.DB.prepare(
+    `SELECT ${PAGE_ROW_COLUMNS} FROM workspace_pages WHERE workspace_id = ?
+      ORDER BY sort_order ASC, created_at ASC`,
+  )
+    .bind(workspaceId)
+    .all<WorkbenchPageRowSnapshot>();
+  return result.results;
+}
+
+export interface WorkbenchInstanceRowSnapshot {
+  readonly id: string;
+  readonly workspace_id: string;
+  readonly page_id: string;
+  readonly module_id: string;
+  readonly widget_type: string;
+  readonly config_json: string;
+  readonly config_version: number;
+  readonly is_hidden: number;
+  readonly revision: number;
+  readonly created_revision: number;
+  readonly deleted_at: number | null;
+  readonly created_at: number;
+  readonly updated_at: number;
+}
+
+const INSTANCE_ROW_COLUMNS =
+  'id, workspace_id, page_id, module_id, widget_type, config_json, config_version, ' +
+  'is_hidden, revision, created_revision, deleted_at, created_at, updated_at';
+
+/** 读取一个 Widget 实例行；**不**按墓碑过滤（用于证明「移除 = 墓碑而非硬删除」）。 */
+export async function readInstanceRow(
+  workspaceId: string,
+  widgetId: string,
+): Promise<WorkbenchInstanceRowSnapshot | null> {
+  return await env.DB.prepare(
+    `SELECT ${INSTANCE_ROW_COLUMNS} FROM widget_instances WHERE id = ? AND workspace_id = ?`,
+  )
+    .bind(widgetId, workspaceId)
+    .first<WorkbenchInstanceRowSnapshot>();
+}
+
+/** 读取一个页面的全部实例行（含墓碑与隐藏），按创建顺序。 */
+export async function readInstanceRows(pageId: string): Promise<WorkbenchInstanceRowSnapshot[]> {
+  const result = await env.DB.prepare(
+    `SELECT ${INSTANCE_ROW_COLUMNS} FROM widget_instances WHERE page_id = ?
+      ORDER BY created_at ASC, id ASC`,
+  )
+    .bind(pageId)
+    .all<WorkbenchInstanceRowSnapshot>();
+  return result.results;
+}
+
+export interface WorkbenchLayoutRowSnapshot {
+  readonly widget_id: string;
+  readonly breakpoint: LayoutBreakpoint;
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+/**
+ * 读取一个页面的全部布局行。
+ * **不**排除墓碑实例：实例被移除后其布局行是否真的被删掉，正是要断言的事实。
+ */
+export async function readLayoutRows(pageId: string): Promise<WorkbenchLayoutRowSnapshot[]> {
+  const result = await env.DB.prepare(
+    `SELECT wl.widget_id, wl.breakpoint, wl.x, wl.y, wl.w, wl.h
+       FROM widget_layouts wl
+       JOIN widget_instances wi ON wi.id = wl.widget_id
+      WHERE wi.page_id = ?
+      ORDER BY wl.breakpoint ASC, wl.widget_id ASC`,
+  )
+    .bind(pageId)
+    .all<WorkbenchLayoutRowSnapshot>();
+  return result.results;
+}
+
+/** 读取一个页面三个断点的布局修订号（行缺失的断点不出现在 Map 里）。 */
+export async function readLayoutRevisions(pageId: string): Promise<Map<LayoutBreakpoint, number>> {
+  const result = await env.DB.prepare(
+    'SELECT breakpoint, revision FROM page_layout_revisions WHERE page_id = ?',
+  )
+    .bind(pageId)
+    .all<{ breakpoint: LayoutBreakpoint; revision: number }>();
+  const revisions = new Map<LayoutBreakpoint, number>();
+  for (const row of result.results) {
+    revisions.set(row.breakpoint, row.revision);
+  }
+  return revisions;
+}
+
+/** 读取工作台级修订号行（不存在即 null；行缺失等价于 0）。 */
+export async function readWorkbenchStateRow(
+  workspaceId: string,
+): Promise<{ readonly revision: number; readonly updated_at: number } | null> {
+  return await env.DB.prepare(
+    'SELECT revision, updated_at FROM workspace_workbench_state WHERE workspace_id = ?',
+  )
+    .bind(workspaceId)
+    .first<{ revision: number; updated_at: number }>();
+}
+
+export interface WorkbenchOperationRowSnapshot {
+  readonly kind: string;
+  readonly result_json: string;
+  readonly attempt_token: string | null;
+  readonly created_at: number;
+}
+
+/** 读取幂等操作留痕行（直接读库，用于断言「重放没有留下第二行」）。 */
+export async function readWorkbenchOperationRow(
+  workspaceId: string,
+  operationId: string,
+): Promise<WorkbenchOperationRowSnapshot | null> {
+  return await env.DB.prepare(
+    `SELECT kind, result_json, attempt_token, created_at
+       FROM workbench_operations WHERE workspace_id = ? AND operation_id = ?`,
+  )
+    .bind(workspaceId, operationId)
+    .first<WorkbenchOperationRowSnapshot>();
+}
+
+export interface WorkbenchBackupRowSnapshot {
+  readonly id: string;
+  readonly workspace_id: string;
+  readonly kind: string;
+  readonly schema_version: number;
+  readonly payload_json: string;
+  readonly created_at: number;
+  readonly created_by_device: string | null;
+  readonly consumed_at: number | null;
+}
+
+/** 读取可恢复备份行（替换导入「先备份、可撤销」的持久事实）。 */
+export async function readBackupRow(
+  workspaceId: string,
+  backupId: string,
+): Promise<WorkbenchBackupRowSnapshot | null> {
+  return await env.DB.prepare(
+    `SELECT id, workspace_id, kind, schema_version, payload_json, created_at, created_by_device, consumed_at
+       FROM workbench_backups WHERE id = ? AND workspace_id = ?`,
+  )
+    .bind(backupId, workspaceId)
+    .first<WorkbenchBackupRowSnapshot>();
+}
+
+// ---------------------------------------------------------------------------
+// 阶段 03：工作台 API 便捷入口（只用于「应当成功」的路径）
+// ---------------------------------------------------------------------------
+
+export interface TemplateSkipSummary {
+  readonly widgetType: string;
+  readonly detail: string;
+}
+
+export interface WorkbenchPageResponse {
+  readonly page: WorkspacePage;
+  /** 新建后的默认页：新页面成为默认页时是它自己，否则是原有默认页。 */
+  readonly defaultPageId: string | null;
+  readonly skipped: readonly TemplateSkipSummary[];
+  readonly replayed: boolean;
+}
+
+/** 创建页面（成功路径）；失败时抛错，失败路径请直接用 SELF.fetch 断言。 */
+export async function createPageViaApi(
+  authorization: string,
+  input: { readonly name: string; readonly operationId: string; readonly templateId?: string },
+): Promise<WorkbenchPageResponse> {
+  const body: Record<string, unknown> = { name: input.name, operationId: input.operationId };
+  if (input.templateId !== undefined) {
+    body['templateId'] = input.templateId;
+  }
+  const response = await SELF.fetch(URLS.pages, jsonPost(body, { Authorization: authorization }));
+  if (response.status !== 201) {
+    throw new Error(`创建页面未成功：status=${response.status} body=${await response.text()}`);
+  }
+  return await response.json<WorkbenchPageResponse>();
+}
+
+export interface WidgetInstanceResponse {
+  readonly instance: WidgetInstance;
+  readonly replayed: boolean;
+}
+
+/** 添加 Widget 实例（成功路径）；失败时抛错，失败路径请直接用 SELF.fetch 断言。 */
+export async function addWidgetViaApi(
+  authorization: string,
+  pageId: string,
+  input: {
+    readonly widgetType: string;
+    readonly operationId: string;
+    readonly config?: unknown;
+    readonly hidden?: boolean;
+  },
+): Promise<WidgetInstanceResponse> {
+  const body: Record<string, unknown> = {
+    widgetType: input.widgetType,
+    operationId: input.operationId,
+  };
+  if (input.config !== undefined) {
+    body['config'] = input.config;
+  }
+  if (input.hidden !== undefined) {
+    body['hidden'] = input.hidden;
+  }
+  const response = await SELF.fetch(pageWidgetsUrl(pageId), jsonPost(body, { Authorization: authorization }));
+  if (response.status !== 201) {
+    throw new Error(`添加组件未成功：status=${response.status} body=${await response.text()}`);
+  }
+  return await response.json<WidgetInstanceResponse>();
+}
+
+/** 读取工作台快照（GET /me/workbench）。 */
+export async function readSnapshotViaApi(authorization: string): Promise<WorkbenchSnapshot> {
+  const response = await SELF.fetch(URLS.workbench, { headers: { Authorization: authorization } });
+  if (response.status !== 200) {
+    throw new Error(`读取工作台快照未成功：status=${response.status} body=${await response.text()}`);
+  }
+  return await response.json<WorkbenchSnapshot>();
+}
+
+/** 读取某页面三个断点的布局（GET /me/pages/:id/layout）。 */
+export async function readLayoutsViaApi(
+  authorization: string,
+  pageId: string,
+): Promise<readonly BreakpointLayout[]> {
+  const response = await SELF.fetch(pageLayoutUrl(pageId), { headers: { Authorization: authorization } });
+  if (response.status !== 200) {
+    throw new Error(`读取布局未成功：status=${response.status} body=${await response.text()}`);
+  }
+  const body = await response.json<{ layouts: BreakpointLayout[] }>();
+  return body.layouts;
+}
+
+/** 读取某页面的活跃实例（GET /me/pages/:id/widgets）。 */
+export async function readInstancesViaApi(
+  authorization: string,
+  pageId: string,
+): Promise<readonly WidgetInstance[]> {
+  const response = await SELF.fetch(pageWidgetsUrl(pageId), { headers: { Authorization: authorization } });
+  if (response.status !== 200) {
+    throw new Error(`读取实例未成功：status=${response.status} body=${await response.text()}`);
+  }
+  const body = await response.json<{ instances: WidgetInstance[] }>();
+  return body.instances;
+}
+
+/** 发起一次整页布局保存（返回 Response，便于断言 409 / 422）。 */
+export async function saveLayoutRequest(
+  authorization: string,
+  pageId: string,
+  body: { readonly breakpoint: LayoutBreakpoint; readonly baseRevision: number; readonly rects: readonly GridRect[]; readonly operationId: string },
+): Promise<Response> {
+  return await SELF.fetch(pageLayoutUrl(pageId), jsonPut(body, { Authorization: authorization }));
 }

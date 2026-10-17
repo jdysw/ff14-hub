@@ -665,3 +665,397 @@ code {
     grid-auto-flow: row;
   }
 }
+
+/* ==========================================================================
+ * 阶段 03：自定义工作台（HUB-045 / 046 / 049 / 054） *
+ * 取向与阶段 01/02 一致：手写 CSS、不用 Tailwind，类名保持朴素。
+ * 三条硬约束：
+ * 1. 任何容器都不得产生横向滚动（`.workbench` 及其子项 `min-width: 0` + 换行/可滚动内部区）。
+ * 2. 触控目标 ≥ 32px（`min-height` / `min-width`）。
+ * 3. 焦点必须可见（`:focus-visible`），因为「不用鼠标也能排布」是硬要求。
+ * ========================================================================== */
+
+/* 脏标记用 `hidden` 属性控制可见性（而不是不渲染），因此必须让它真的隐藏。
+   这条规则同时保证 `toBeHidden()` 之类的可见性断言不会因为别的 display 规则而失真。 */
+[hidden] {
+  display: none !important;
+}
+
+.workbench {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.workbench__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  min-width: 0;
+}
+
+.workbench__toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.workbench__status {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.workbench__status-item {
+  display: inline-block;
+  margin-right: 10px;
+}
+
+.workbench__pages {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.workbench__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.workbench__tab {
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.workbench__tab--active {
+  border-style: solid;
+  border-color: var(--accent);
+  color: var(--text);
+  background: rgb(200 162 74 / 10%);
+}
+
+.workbench__tab-name {
+  overflow-wrap: anywhere;
+}
+
+.workbench__page-form,
+.workbench__confirm {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  min-width: 0;
+}
+
+.workbench__confirm {
+  border-color: var(--warn);
+}
+
+.workbench__recovery {
+  border-color: var(--accent);
+}
+
+.workbench__banner {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+
+.workbench__banner--warn {
+  border-color: var(--warn);
+  background: rgb(217 161 59 / 8%);
+}
+
+.workbench__banner--error {
+  border-color: var(--error);
+  background: rgb(217 106 106 / 8%);
+}
+
+.workbench__banner-title {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.workbench__panel {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+
+.workbench__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.workbench__list-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  min-width: 0;
+}
+
+.workbench__list-item--stacked {
+  align-items: flex-start;
+}
+
+.workbench__list-main {
+  min-width: 0;
+  flex: 1 1 14rem;
+}
+
+.workbench__list-title {
+  margin: 0;
+  font-weight: 600;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  overflow-wrap: anywhere;
+}
+
+.workbench__list-meta,
+.workbench__list-hint {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.workbench__honesty {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  border-left: 3px solid var(--warn);
+  background: rgb(217 161 59 / 8%);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.workbench__fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.workbench__preview {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  min-width: 0;
+}
+
+/* 网格容器：RGL 会用 absolute/transform 定位子项，容器自身必须能容纳且不溢出。 */
+.workbench__grid-wrap {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.workbench__grid {
+  min-width: 0;
+  width: 100%;
+}
+
+/* 卡片本身**就是** RGL 的网格项（这样 react-resizable 的缩放手柄才落在卡片内部）。
+   `overflow: auto` 让内容比格子高时仍然可达（按钮不会被裁掉）；内联的定位样式由 RGL 提供。 */
+.widget-card {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  overflow: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+  min-width: 0;
+}
+
+.widget-card--hidden {
+  opacity: 0.6;
+  border-style: dashed;
+}
+
+.widget-card__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.widget-card__heading {
+  min-width: 0;
+  flex: 1 1 8rem;
+}
+
+.widget-card__title {
+  margin: 0;
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
+.widget-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+/* 拖动把手：≥32px，且是 RGL `dragConfig.handle` 指向的选择器。 */
+.widget-card__drag-handle {
+  font: inherit;
+  display: grid;
+  place-items: center;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #0d1015;
+  color: var(--text-muted);
+  cursor: grab;
+}
+
+.widget-card__drag-handle:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.widget-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.widget-card__actions--move {
+  padding: 6px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+.widget-card__config {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.widget-card__body {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 工作台里的实例卡片由 WidgetHost 渲染，不再重复自身外框。 */
+.widget-card__body .widget-host {
+  grid-template-columns: 1fr;
+}
+
+.widget-card__body .widget-instance {
+  border: none;
+  padding: 0;
+}
+
+/* 触控目标下限：32px（规划 9.1 的可访问性要求）。 */
+.workbench button,
+.workbench input[type='radio'],
+.workbench__tab {
+  min-height: 32px;
+}
+
+.workbench button {
+  min-width: 32px;
+}
+
+/* 被选中的按钮（断点切换、模板选择）：与 shell 的强调色一致。 */
+.button--active {
+  border-color: var(--accent);
+  color: var(--text);
+  background: rgb(200 162 74 / 12%);
+}
+
+/* 焦点必须可见：键盘是排布组件的**一等公民**，不是退路。 */.workbench :focus-visible,
+.system-bar__item:focus-visible,
+.button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 360px 宽度：进一步收紧内边距，并让工具栏整行排列，杜绝横向滚动。 */
+@media (max-width: 360px) {
+  .workbench {
+    padding: 8px;
+  }
+
+  .workbench__toolbar,
+  .workbench__panel,
+  .workbench__preview,
+  .workbench__list-item {
+    padding: 8px 6px;
+  }
+
+  .workbench__toolbar-group,
+  .workbench__list-item {
+    min-width: 100%;
+  }
+
+  .workbench__list-item {
+    justify-content: flex-start;
+  }
+
+  .widget-card__actions button {
+    flex: 1 1 auto;
+  }
+}

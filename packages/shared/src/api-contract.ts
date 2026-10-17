@@ -37,6 +37,23 @@ export const API_ROUTES = {
   meModuleById: `${API_V1_PREFIX}/me/modules/:id`,
   /** 清数据入口：本阶段恒返回 501，明确拒绝而不是静默删除。 */
   meModulePurge: `${API_V1_PREFIX}/me/modules/:id/purge`,
+  /** 工作台整体快照（页面列表 + 默认页 + 工作台 revision）。 */
+  meWorkbench: `${API_V1_PREFIX}/me/workbench`,
+  mePages: `${API_V1_PREFIX}/me/pages`,
+  mePageById: `${API_V1_PREFIX}/me/pages/:id`,
+  mePageRestore: `${API_V1_PREFIX}/me/pages/:id/restore`,
+  /** 某页面某断点的布局读/写。 */
+  mePageLayout: `${API_V1_PREFIX}/me/pages/:id/layout`,
+  /** 某页面下的实例集合（GET 列表 / POST 新增）。 */
+  mePageWidgets: `${API_V1_PREFIX}/me/pages/:id/widgets`,
+  meWidgetById: `${API_V1_PREFIX}/me/widgets/:id`,
+  meWidgetDuplicate: `${API_V1_PREFIX}/me/widgets/:id/duplicate`,
+  meWorkbenchTemplates: `${API_V1_PREFIX}/me/workbench/templates`,
+  meWorkbenchApplyTemplate: `${API_V1_PREFIX}/me/workbench/apply-template`,
+  meWorkbenchBackup: `${API_V1_PREFIX}/me/workbench/backup`,
+  meWorkbenchBackupById: `${API_V1_PREFIX}/me/workbench/backup/:id`,
+  meWorkbenchImportPreview: `${API_V1_PREFIX}/me/workbench/import/preview`,
+  meWorkbenchImportApply: `${API_V1_PREFIX}/me/workbench/import/apply`,
 } as const;
 
 /** 服务标识与版本，用于健康检查与 UA 判定。 */
