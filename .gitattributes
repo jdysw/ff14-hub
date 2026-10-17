@@ -1,0 +1,23 @@
+# 跨平台换行与文本属性统一为 LF。
+# 重要性：CI 在 Linux、开发在 Windows，若随 core.autocrlf 漂移，
+# 会出现「本地跑 lint 通过、CI 因行尾差异失败」这类难以定位的问题。
+* text=auto eol=lf
+
+# 明确二进制，避免被当作文本处理。
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.zip binary
+
+# 这些文件里 CRLF 没有意义，强制 LF。
+*.sh text eol=lf
+*.sql text eol=lf
+*.json text eol=lf
+*.jsonc text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf

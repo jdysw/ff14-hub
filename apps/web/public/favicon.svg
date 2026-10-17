@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="FF14 Hub">
+  <rect width="64" height="64" rx="12" fill="#1b1f2a" />
+  <path d="M18 44V20h6v9h8v-9h6v24h-6v-9h-8v9z" fill="#c8a24a" />
+  <circle cx="46" cy="24" r="4" fill="#7fb7d6" />
+</svg>

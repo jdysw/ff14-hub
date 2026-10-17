@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    // cloudflare:test 的模块声明由 @cloudflare/vitest-pool-workers 的 ./types 子路径导出，
+    // 而 @cloudflare/workers-types 提供 workerd 运行时全局（D1Database、Fetcher 等）。
+    "types": ["@cloudflare/workers-types", "@cloudflare/vitest-pool-workers/types"]
+  },
+  // worker-configuration.d.ts 由 `pnpm run types:worker`（wrangler types）生成，
+  // 是绑定类型的来源；不要手写绑定接口，改 wrangler.jsonc 后重新生成即可。
+  "include": ["**/*.ts", "../worker-configuration.d.ts"]
+}
