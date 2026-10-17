@@ -1,0 +1,75 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ff14-hub",
+  "main": "worker/index.ts",
+  // 兼容日期必须 <= 所锁定测试运行时（@cloudflare/vitest-pool-workers 0.23.0 内置
+  // miniflare 5.20260815.0-alpha / workerd 1.20260815.1）支持的最大日期，
+  // 否则 Workers 运行时测试会以 ERR_FUTURE_COMPATIBILITY_DATE 直接失败。
+  // 升级 vitest-pool-workers 之后才可以同步上调此日期。
+  "compatibility_date": "2026-08-01",
+
+  // 前端静态资源与 API 同域（ADR-001）：
+  // run_worker_first=true 让所有请求先进入 Worker，Worker 对非 /api/* 请求回退到 ASSETS，
+  // 这样安全响应头（CSP 等）能统一由 Worker 施加，而不是只在 /api/* 上生效。
+  "assets": {
+    "directory": "./apps/web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+
+  // 本地开发使用的 D1 绑定。
+  // database_id 是占位值：本地 (--local) 操作不会访问 Cloudflare API，
+  // 也绝不会在本轮创建任何远程资源。真实远程 ID 只能由人工授权后执行 `wrangler d1 create` 获得。
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ff14-hub-local",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "vars": {
+    "ENVIRONMENT": "development"
+  },
+
+  // 预览与生产环境分离：各自持有独立的 D1 与 ENVIRONMENT。
+  // 注意：assets / main / compatibility_date 等键不可被 env 继承，若要发布到这些环境需要在此重复声明；
+  // 本轮不做任何部署，因此这里只声明"分离"的事实与占位 ID，不写入真实凭证或资源 ID。
+  "env": {
+    "preview": {
+      "name": "ff14-hub-preview",
+      "vars": {
+        "ENVIRONMENT": "preview"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "ff14-hub-preview",
+          "database_id": "00000000-0000-0000-0000-00000000000a",
+          "migrations_dir": "migrations"
+        }
+      ]
+    },
+    "production": {
+      "name": "ff14-hub",
+      "vars": {
+        "ENVIRONMENT": "production"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "ff14-hub-production",
+          "database_id": "00000000-0000-0000-0000-00000000000b",
+          "migrations_dir": "migrations"
+        }
+      ]
+    }
+  },
+
+  // 阶段 05 才会启用定时提醒；此处只声明调度入口存在，不创建任何远程定时任务。
+  "triggers": {
+    "crons": []
+  }
+}

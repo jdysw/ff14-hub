@@ -1,0 +1,36 @@
+# 依赖与构建产物
+node_modules/
+dist/
+build/
+.wrangler/
+coverage/
+*.tsbuildinfo
+
+# 环境变量与本地凭证（绝不入库）
+# .dev.vars 是 wrangler 的本地 secrets 文件；.env* 同理。
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+*.p12
+
+# 测试与工具产物
+playwright-report/
+test-results/
+.vitest/
+eslint-report.json
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# 编辑器/系统
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

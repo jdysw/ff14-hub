@@ -1,0 +1,23 @@
+# .dev.vars.example — 本地开发用 wrangler secrets 的**示例占位**文件。
+#
+# 用法：
+#   copy .dev.vars.example .dev.vars    (Windows PowerShell: Copy-Item)
+# 然后自行填入本地随机值。`.dev.vars` 已被 .gitignore 忽略，绝不入库。
+#
+# 安全前提（规划 6.3）：
+# - 这里的值只是占位符，不是真实凭证；任何真实 Token / 恢复密钥 / VAPID 私钥都不得出现在仓库中。
+# - 阶段 01 的 HUB-001～HUB-005 不读取该文件中的任何身份相关配置；
+#   BOOTSTRAP_SECRET 由下一轮 HUB-006 使用，用于一次性初始化唯一工作空间。
+# - 本地、预览、生产必须使用**各自独立**的密钥与 D1，不得共用。
+
+# 一次性 Bootstrap 初始化密钥（HUB-006 使用）。
+# 要求：至少 32 字节高熵随机值，建议 `openssl rand -hex 32` 或 `node -e "console.log(crypto.randomBytes(32).toString('hex'))"`。
+# 泄露即等同于允许重建工作空间，必须离线备份并仅存放于部署环境 Secrets。
+BOOTSTRAP_SECRET="replace-me-with-32-byte-random-hex"
+
+# 额外允许的写请求 Origin（逗号分隔，可选）。
+# 默认只允许同源；仅在未来绑定独立预览域名时才需要配置。不得填写 "*"。
+ALLOWED_ORIGINS=""
+
+# 仅在本地/CI 测试中用于暴露受保护的自检路由；生产必须为 "0"。
+ENABLE_TEST_ROUTES="0"

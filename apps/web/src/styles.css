@@ -1,0 +1,233 @@
+/*
+ * 阶段 01 的样式：手写 CSS，不引入 Tailwind / shadcn-ui（规划 4.1 把 UI 框架列为后续阶段）。
+ * 目标是「结构清晰、可访问、移动端不溢出」，而不是最终视觉设计。
+ */
+
+:root {
+  color-scheme: dark;
+  --bg: #12151c;
+  --bg-elevated: #1b1f2a;
+  --border: #2c3242;
+  --text: #e6e9f0;
+  --text-muted: #9aa3b5;
+  --accent: #c8a24a;
+  --ok: #58b47a;
+  --warn: #d9a13b;
+  --error: #d96a6a;
+  --radius: 10px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'Segoe UI', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+  line-height: 1.6;
+}
+
+code {
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  background: #0d1015;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 0.3em;
+  font-size: 0.9em;
+}
+
+.shell {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  display: grid;
+  gap: 20px;
+}
+
+.shell__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand__mark {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.brand__title {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.brand__subtitle,
+.shell__stage,
+.panel__muted,
+.system-bar__note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.shell__stage {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+
+.system-bar {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+}
+
+.system-bar__list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.system-bar__item {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  min-width: 150px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  cursor: not-allowed;
+}
+
+.system-bar__label {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.system-bar__hint,
+.system-bar__stage {
+  font-size: 0.75rem;
+}
+
+.shell__main {
+  display: grid;
+  gap: 16px;
+}
+
+.panel {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+}
+
+.panel h2 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.panel--empty {
+  border-style: dashed;
+}
+
+.panel__endpoint {
+  margin: 0 0 12px;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: minmax(140px, max-content) 1fr;
+  gap: 6px 16px;
+  margin: 0;
+}
+
+.kv dt {
+  color: var(--text-muted);
+}
+
+.kv dd {
+  margin: 0;
+}
+
+.badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  font-size: 0.8125rem;
+}
+
+.badge--ok {
+  color: var(--ok);
+}
+
+.badge--degraded,
+.badge--unavailable {
+  color: var(--warn);
+}
+
+.alert {
+  border: 1px solid var(--error);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.alert p {
+  margin: 0;
+}
+
+.alert__meta {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.roadmap {
+  margin: 8px 0 0;
+  padding-left: 1.2em;
+  color: var(--text-muted);
+}
+
+.shell__footer {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.shell__footer p {
+  margin: 0;
+}
+
+@media (max-width: 600px) {
+  .kv {
+    grid-template-columns: 1fr;
+  }
+}

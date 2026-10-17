@@ -1,0 +1,42 @@
+{
+  "name": "ff14-hub",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FF14 Hub — FF14 工具导航 + 个人游戏信息中心 + 可自定义模块化工作台（阶段 01：Core 工程与身份基础）",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@11.22.0",
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "build": "pnpm run build:web && pnpm run build:worker",
+    "build:web": "pnpm --filter @ff14-hub/web build",
+    "build:worker": "wrangler deploy --dry-run --outdir .wrangler/dry-run --env=",
+    "validate:config": "wrangler deploy --dry-run --outdir .wrangler/dry-run --env preview",
+    "dev": "pnpm --filter @ff14-hub/web dev",
+    "dev:api": "wrangler dev",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrations:list:local": "wrangler d1 migrations list DB --local",
+    "smoke:local": "node scripts/smoke-local.mjs",
+    "verify": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "catalog:",
+    "@cloudflare/workers-types": "catalog:",
+    "@eslint/js": "catalog:",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
+    "globals": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
+  }
+}

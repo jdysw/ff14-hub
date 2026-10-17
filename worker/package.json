@@ -1,0 +1,25 @@
+{
+  "name": "@ff14-hub/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "FF14 Hub Cloudflare Workers API（Hono + Zod + D1）",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@ff14-hub/shared": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "hono": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "catalog:",
+    "@cloudflare/workers-types": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:"
+  }
+}

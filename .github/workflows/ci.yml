@@ -1,0 +1,71 @@
+# CI（HUB-005）
+#
+# 明确立场：
+# - **不隐藏失败**：全流程不使用 `continue-on-error`、不使用 `|| true`、
+#   不使用 `--passWithNoTests` 之类的「无测试即通过」开关。
+# - 静态检查、类型检查、测试、构建都是必需门槛，任何一步失败都会让 CI 变红。
+# - Cloudflare 侧只做**本地**操作（`wrangler ... --local`）：
+#   不部署、不创建远程资源、不绑定域名、不读取仓库 Secrets。
+# - 依赖版本由 pnpm catalog 在 pnpm-workspace.yaml 中集中锁定，
+#   `--frozen-lockfile` 保证 CI 使用的正是提交进仓库的解析结果。
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: lint / typecheck / test / build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # 与 package.json 的 engines 和 .nvmrc 保持同一来源，避免版本漂移。
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: 冻结安装（frozen lockfile）
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint（ESLint，含类型感知规则）
+        run: pnpm run lint
+
+      - name: Typecheck（strict TypeScript）
+        run: pnpm run typecheck
+
+      - name: Test（Workers 运行时 + Node）
+        run: pnpm run test
+
+      - name: Build（前端产物 + Worker 打包干跑）
+        run: pnpm run build
+
+      # 迁移门槛：先全新应用一次，再重复应用一次。
+      # 第二次必须是安全的空操作——这正是 HUB-003「重复应用安全」的验收点。
+      # 使用 --local：只在 CI runner 的临时目录里操作本地 SQLite，不访问 Cloudflare API。
+      - name: D1 本地迁移（全新应用）
+        run: pnpm exec wrangler d1 migrations apply DB --local
+
+      - name: D1 本地迁移（重复应用必须安全）
+        run: pnpm exec wrangler d1 migrations apply DB --local
+
+      - name: 迁移清单（供审查留痕）
+        run: pnpm exec wrangler d1 migrations list DB --local

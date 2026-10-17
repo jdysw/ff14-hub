@@ -1,0 +1,33 @@
+// Workers 测试专用 wrangler 配置。
+//
+// 为什么不能直接复用根 wrangler.jsonc：
+//   根配置的 assets.directory 指向 ./apps/web/dist（构建产物，不在版本控制中）。
+//   Workers 测试运行时该目录可能不存在，会导致测试池启动失败。
+//   这里改指向已提交的 apps/web/public，从而在测试中也能真实验证
+//   「静态资源经 Worker 回退 + 安全响应头」这条路径。
+//
+// 其余关键项（D1 绑定、compatibility_date、main、run_worker_first）与根配置保持一致，
+// 避免测试环境与生产环境行为漂移。
+{
+  "name": "ff14-hub-test",
+  "main": "../index.ts",
+  // 必须与根 wrangler.jsonc 一致，且不得超出测试运行时 miniflare 支持的日期上限。
+  "compatibility_date": "2026-08-01",
+  "assets": {
+    "directory": "../../apps/web/public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ff14-hub-test",
+      "database_id": "00000000-0000-0000-0000-0000000000ff",
+      "migrations_dir": "../../migrations"
+    }
+  ],
+  "vars": {
+    "ENVIRONMENT": "test"
+  }
+}
