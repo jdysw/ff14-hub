@@ -93,10 +93,54 @@ export const identityAudit = sqliteTable(
   (table) => [index('idx_identity_audit_workspace_created').on(table.workspaceId, table.createdAt)],
 );
 
+/** 单工作空间初始化守卫（HUB-006，由 migrations/0002_identity.sql 建立）。 */
+export const workspaceBootstrapGuard = sqliteTable('workspace_bootstrap_guard', {
+  /** 固定为 'primary'：主键唯一约束即「只能初始化一次」的数据库级保证。 */
+  singletonKey: text('singleton_key').primaryKey(),
+  workspaceId: text('workspace_id').notNull(),
+  claimedAt: integer('claimed_at').notNull(),
+});
+
+/** 身份端点速率限制计数（HUB-006）。scope_key 是端点 + 客户端标识摘要，不含明文 IP。 */
+export const authRateLimits = sqliteTable(
+  'auth_rate_limits',
+  {
+    scopeKey: text('scope_key').primaryKey(),
+    windowStart: integer('window_start').notNull(),
+    attemptCount: integer('attempt_count').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [index('idx_auth_rate_limits_window').on(table.windowStart)],
+);
+
+/**
+ * 配对领取记录（HUB-006，由 migrations/0002_identity.sql 建立）。
+ * `pairingId` 是主键：并发领取时只有一个事务能插入成功；`deviceId` 是本次调用独有的 UUID，
+ * 用作「这一次消费」的无歧义标记（时间戳会撞、UUID 不会）。
+ *
+ * 工作空间回溯（规划 5.1）：`pairingId` 外键指向 `device_pairings`，
+ * 后者带 NOT NULL 的 `workspace_id` 外键，因此本表可经受约束的 FK 链唯一回溯到工作空间，
+ * 无需再存一份 workspace_id 副本。`ON DELETE CASCADE` 保证配对被删除时不留下孤儿占位行。
+ */
+export const pairingClaims = sqliteTable(
+  'pairing_claims',
+  {
+    pairingId: text('pairing_id')
+      .primaryKey()
+      .references(() => devicePairings.id, { onDelete: 'cascade' }),
+    deviceId: text('device_id').notNull(),
+    claimedAt: integer('claimed_at').notNull(),
+  },
+  (table) => [index('idx_pairing_claims_device').on(table.deviceId)],
+);
+
 /** 全部表的集合，供 drizzle 客户端与测试使用。 */
 export const schema = {
   workspaces,
   devices,
   devicePairings,
   identityAudit,
+  workspaceBootstrapGuard,
+  authRateLimits,
+  pairingClaims,
 } as const;

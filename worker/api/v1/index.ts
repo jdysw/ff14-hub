@@ -9,12 +9,14 @@
 import { Hono } from 'hono';
 import type { AppBindings } from '../../types';
 import { healthRoutes } from './health';
+import { identityRoutes } from './identity';
 import { meRoutes } from './me';
 import { createTestRoutes } from './test-routes';
 
 export function createApiV1(): Hono<AppBindings> {
   const v1 = new Hono<AppBindings>();
   v1.route('/', healthRoutes);
+  v1.route('/identity', identityRoutes);
   v1.route('/me', meRoutes);
   v1.route('/__test__', createTestRoutes());
   return v1;

@@ -8,8 +8,7 @@ import { apiErrorBodySchema } from '@ff14-hub/shared';
 import { SELF, env } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../app';
-import type { Env } from '../env';
-import { TEST_BASE_URL } from './helpers';
+import { TEST_BASE_URL, partialEnv } from './helpers';
 
 /** 断言响应是严格的 `{ code, message, requestId }` 结构，并返回该对象。 */
 async function expectApiError(
@@ -96,10 +95,9 @@ describe('统一错误结构', () => {
 describe('环境配置错误处理（HUB-002 验收）', () => {
   it('缺少 DB 绑定时返回脱敏 500，不回显字段级问题', async () => {
     const app = createApp();
-    // 刻意传入不合法 env：这是唯一能触发该分支的方式，且不依赖测试池的绑定可变性。
-    // 双重断言是刻意的：这里要构造**不满足 Env**（缺少 DB 绑定）的运行时输入。
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-    const response = await app.request('/api/v1/health', { method: 'GET' }, {} as unknown as Env);
+    // 刻意传入不合法 env（缺少 DB 绑定）：这是唯一能触发该分支的方式，
+    // 且不依赖测试池的绑定可变性。
+    const response = await app.request('/api/v1/health', { method: 'GET' }, partialEnv({}));
     expect(response.status).toBe(500);
     const body = await response.json<Record<string, unknown>>();
     expect(apiErrorBodySchema.safeParse(body).success).toBe(true);
@@ -114,7 +112,7 @@ describe('环境配置错误处理（HUB-002 验收）', () => {
     const response = await app.request(
       '/api/v1/__test__/boom',
       { method: 'GET' },
-      { DB: env.DB, ENVIRONMENT: 'test' },
+      partialEnv({ DB: env.DB, ENVIRONMENT: 'test' }),
     );
     // 不暴露「该路由存在但被禁用」这一信息。
     expect(response.status).toBe(404);

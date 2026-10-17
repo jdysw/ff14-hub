@@ -21,6 +21,7 @@ export const API_ERROR_CODES = [
   'rate_limited',
   'conflict',
   'not_implemented',
+  'service_unavailable',
   'internal_error',
 ] as const;
 
@@ -39,6 +40,7 @@ export const HTTP_STATUS_BY_ERROR_CODE: Readonly<Record<ApiErrorCode, number>> =
   rate_limited: 429,
   conflict: 409,
   not_implemented: 501,
+  service_unavailable: 503,
   internal_error: 500,
 };
 
@@ -89,5 +91,6 @@ export const DEFAULT_ERROR_MESSAGE: Readonly<Record<ApiErrorCode, string>> = {
   rate_limited: '请求过于频繁，请稍后重试。',
   conflict: '资源状态冲突。',
   not_implemented: '该功能尚未在本次阶段实现。',
+  service_unavailable: '服务尚未完成部署配置，暂时不可用。',
   internal_error: '服务器内部错误。',
 };

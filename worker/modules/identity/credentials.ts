@@ -8,6 +8,7 @@
  *   （Argon2id/scrypt/PBKDF2）并加盐，不得复用这里的哈希。
  */
 import { DEVICE_TOKEN_PREFIX, TOKEN_RANDOM_BYTES } from '@ff14-hub/shared';
+import { constantTimeEqualStrings } from '../../lib/util';
 
 /** 把字节数组编码为 base64url（无填充），与 `packages/shared` 中的 Token 形状约定一致。 */
 export function toBase64Url(bytes: Uint8Array): string {
@@ -42,4 +43,16 @@ export function generateCredential(prefix: string): string {
 /** 设备 Token 生成器。 */
 export function generateDeviceToken(): string {
   return generateCredential(DEVICE_TOKEN_PREFIX);
+}
+
+/**
+ * 以平台的常量时间比较判断两个凭证是否相等。
+ *
+ * 实现要点：先对两侧各自取 SHA-256，使参与比较的字节串长度恒等（32 字节），
+ * 再交给 `crypto.subtle.timingSafeEqual`。这样既避免长度差异泄露信息，
+ * 也不依赖任何手写循环的时序特性。
+ */
+export async function credentialsEqual(a: string, b: string): Promise<boolean> {
+  const [hashA, hashB] = await Promise.all([hashCredential(a), hashCredential(b)]);
+  return constantTimeEqualStrings(hashA, hashB);
 }

@@ -71,6 +71,117 @@ describe('迁移应用与幂等性', () => {
     }
   });
 
+  it('0002_identity.sql 的表与索引都已建立（HUB-006）', async () => {
+    for (const table of ['workspace_bootstrap_guard', 'auth_rate_limits', 'pairing_claims']) {
+      expect(await tableExists(table), `缺少表 ${table}`).toBe(true);
+    }
+    for (const index of ['idx_auth_rate_limits_window', 'idx_pairing_claims_device', 'idx_identity_audit_device_revoked_once']) {
+      expect(await indexExists(index), `缺少索引 ${index}`).toBe(true);
+    }
+  });
+
+  it('device_revoked 审计经部分唯一索引限制为「每工作空间每设备至多一条」', async () => {
+    await insertWorkspace('ws-audit-once');
+    await insertDevice('dev-audit-once', 'ws-audit-once');
+
+    const insertAudit = (id: string, eventType: string) =>
+      env.DB.prepare(
+        'INSERT INTO identity_audit (id, workspace_id, event_type, device_id, created_at, detail_json) VALUES (?, ?, ?, ?, ?, ?)',
+      )
+        .bind(id, 'ws-audit-once', eventType, 'dev-audit-once', NOW, '{}')
+        .run();
+
+    await insertAudit('audit-revoked-1', 'device_revoked');
+    await expect(insertAudit('audit-revoked-2', 'device_revoked')).rejects.toThrow();
+
+    // 部分索引只约束 device_revoked，其它事件类型不受影响。
+    await insertAudit('audit-paired-1', 'device_paired');
+    await insertAudit('audit-paired-2', 'device_paired');
+  });
+
+  /** 建一个完整的「工作空间 → 设备 → 配对」链，供 pairing_claims 的约束测试使用。 */
+  async function seedPairing(pairingId: string, workspaceId: string, deviceId: string): Promise<void> {
+    await insertWorkspace(workspaceId);
+    await insertDevice(deviceId, workspaceId);
+    await env.DB.prepare(
+      'INSERT INTO device_pairings (id, workspace_id, pairing_hash, expires_at, used_at, created_by_device, created_at) VALUES (?, ?, ?, ?, NULL, ?, ?)',
+    )
+      .bind(pairingId, workspaceId, `hash-${pairingId}`, NOW + 60_000, deviceId, NOW)
+      .run();
+  }
+
+  async function countClaimsFor(pairingId: string): Promise<number> {
+    const row = await env.DB.prepare('SELECT COUNT(*) AS count FROM pairing_claims WHERE pairing_id = ?')
+      .bind(pairingId)
+      .first<{ count: number }>();
+    return row?.count ?? 0;
+  }
+
+  it('pairing_claims 的 pairing_id 为主键（同一配对只能被占位一次）', async () => {
+    await seedPairing('pairing-x', 'ws-claim', 'dev-claim');
+    const insertClaim = (claimerDeviceId: string) =>
+      env.DB.prepare('INSERT INTO pairing_claims (pairing_id, device_id, claimed_at) VALUES (?, ?, ?)')
+        .bind('pairing-x', claimerDeviceId, NOW)
+        .run();
+    await insertClaim('claimer-1');
+    await expect(insertClaim('claimer-2')).rejects.toThrow();
+    expect(await countClaimsFor('pairing-x')).toBe(1);
+  });
+
+  it('拒绝孤儿占位记录（pairing 不存在时外键失败）', async () => {
+    await expect(
+      env.DB.prepare('INSERT INTO pairing_claims (pairing_id, device_id, claimed_at) VALUES (?, ?, ?)')
+        .bind('no-such-pairing', 'claimer-orphan', NOW)
+        .run(),
+    ).rejects.toThrow(/FOREIGN KEY constraint failed/i);
+  });
+
+  it('删除配对记录时级联清理其占位记录（不留孤儿）', async () => {
+    await seedPairing('pairing-cascade', 'ws-claim-cascade', 'dev-claim-cascade');
+    await env.DB.prepare('INSERT INTO pairing_claims (pairing_id, device_id, claimed_at) VALUES (?, ?, ?)')
+      .bind('pairing-cascade', 'claimer-cascade', NOW)
+      .run();
+    expect(await countClaimsFor('pairing-cascade')).toBe(1);
+
+    await env.DB.prepare('DELETE FROM device_pairings WHERE id = ?').bind('pairing-cascade').run();
+    expect(await countClaimsFor('pairing-cascade')).toBe(0);
+  });
+
+  it('占位记录可经受约束的 FK 链唯一回溯到工作空间（规划 5.1）', async () => {
+    await seedPairing('pairing-scope', 'ws-claim-scope', 'dev-claim-scope');
+    await env.DB.prepare('INSERT INTO pairing_claims (pairing_id, device_id, claimed_at) VALUES (?, ?, ?)')
+      .bind('pairing-scope', 'claimer-scope', NOW)
+      .run();
+
+    const row = await env.DB.prepare(
+      `SELECT p.workspace_id AS workspace_id
+         FROM pairing_claims c
+         JOIN device_pairings p ON p.id = c.pairing_id
+        WHERE c.pairing_id = ?`,
+    )
+      .bind('pairing-scope')
+      .first<{ workspace_id: string }>();
+    expect(row?.workspace_id).toBe('ws-claim-scope');
+  });
+
+  it('初始化守卫表的 singleton_key 只能是 primary（枚举约束即单例语义）', async () => {
+    await expect(
+      env.DB.prepare('INSERT INTO workspace_bootstrap_guard (singleton_key, workspace_id, claimed_at) VALUES (?, ?, ?)')
+        .bind('secondary', 'ws-x', NOW)
+        .run(),
+    ).rejects.toThrow();
+  });
+
+  it('速率限制表的 attempt_count 不允许为负', async () => {
+    await expect(
+      env.DB.prepare(
+        'INSERT INTO auth_rate_limits (scope_key, window_start, attempt_count, updated_at) VALUES (?, ?, ?, ?)',
+      )
+        .bind('neg:test', NOW, -1, NOW)
+        .run(),
+    ).rejects.toThrow();
+  });
+
   it('认证与约束相关索引存在', async () => {
     const required = [
       'idx_workspaces_recovery_hash',

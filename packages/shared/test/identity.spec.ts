@@ -6,7 +6,6 @@ import {
   TOKEN_BODY_LENGTH,
   TOKEN_RANDOM_BYTES,
   parseBearerToken,
-  timingSafeEqualHex,
 } from '../src/identity';
 
 /** 构造一个形状合法的假 Token（不是真实凭证，仅为形状测试）。 */
@@ -54,14 +53,11 @@ describe('身份 Token 契约', () => {
     });
   });
 
-  describe('timingSafeEqualHex', () => {
-    it('相等返回 true，不等返回 false', () => {
-      expect(timingSafeEqualHex('abc123', 'abc123')).toBe(true);
-      expect(timingSafeEqualHex('abc123', 'abc124')).toBe(false);
-    });
-
-    it('长度不同直接返回 false（摘要长度固定，长度本身不敏感）', () => {
-      expect(timingSafeEqualHex('abc', 'abcd')).toBe(false);
+  describe('常量时间比较的归属', () => {
+    it('共享契约层不提供常量时间比较原语（避免用手写循环冒充时序安全）', async () => {
+      const identityModule: Record<string, unknown> = await import('../src/identity');
+      expect(identityModule['timingSafeEqualHex']).toBeUndefined();
+      expect(identityModule['timingSafeEqual']).toBeUndefined();
     });
   });
 });

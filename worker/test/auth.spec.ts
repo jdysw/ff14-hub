@@ -1,8 +1,8 @@
 /**
- * 私有 /me/* 认证边界测试（HUB-004 验收 + HUB-006 预留契约）。
+ * 私有 /me/* 认证边界测试（HUB-004 验收 + HUB-006 实现后行为）。
  *
- * 本轮 me/* 的处理器体属 HUB-006，因此「已认证」路径断言 501；
- * 这恰好证明认证中间件真的放行了合法凭证，而不是把所有请求都拒掉。
+ * HUB-006 已实现 me/* 处理器：已认证路径返回真实数据（200），
+ * 未认证路径仍统一 401。下面同时断言这两件事，以证明认证中间件既放行合法凭证、也挡住非法凭证。
  */
 import { parseBearerToken, RECOVERY_KEY_PREFIX, TOKEN_BODY_LENGTH } from '@ff14-hub/shared';
 import { SELF } from 'cloudflare:test';
@@ -86,14 +86,15 @@ describe('私有 API 未授权一律 401', () => {
   });
 });
 
-describe('已认证路径（HUB-006 预留契约）', () => {
-  it('有效设备 Token 通过认证，处理器返回 501 not_implemented', async () => {
-    const { device } = await seedWorkspaceWithDevice();
+describe('已认证路径（HUB-006 已实现）', () => {
+  it('有效设备 Token 通过认证并返回所属工作空间的非敏感配置', async () => {
+    const { workspace, device } = await seedWorkspaceWithDevice();
     const response = await SELF.fetch(PROFILE_URL, { headers: { Authorization: device.authorization } });
-    // 501 而不是 401：证明认证真的通过了，只是处理器体属 HUB-006。
-    expect(response.status).toBe(501);
-    const body = await readErrorBody(response);
-    expect(body.code).toBe('not_implemented');
+    expect(response.status).toBe(200);
+    const body = await response.json<{ id: string; region: string }>();
+    // 作用域来自认证结果：返回的必须是本设备所属的工作空间。
+    expect(body.id).toBe(workspace.workspaceId);
+    expect(body.region).toBe('cn');
   });
 
   it('响应体既不包含明文 Token，也不包含其摘要', async () => {
@@ -129,9 +130,9 @@ describe('已认证路径（HUB-006 预留契约）', () => {
 
     // 被撤销的设备被拒绝。
     expect((await SELF.fetch(PROFILE_URL, { headers: { Authorization: revoked.authorization } })).status).toBe(401);
-    // 同一工作空间的另一台设备仍然通过认证（501 说明认证通过）。
+    // 同一工作空间的另一台设备仍然通过认证。
     const response = await SELF.fetch(PROFILE_URL, { headers: { Authorization: active.authorization } });
-    expect(response.status).toBe(501);
+    expect(response.status).toBe(200);
   });
 
   it('数据库只保存摘要：库中不存在明文 Token', async () => {

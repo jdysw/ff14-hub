@@ -31,6 +31,9 @@ export default defineConfig(async () => {
             TEST_MIGRATIONS: migrations,
             // 自检路由仅在测试中开启。
             ENABLE_TEST_ROUTES: '1',
+            // 测试专用的初始化密钥：明显是一次性测试值，绝不是生产秘密，
+            // 也不得被复制到任何部署环境（生产秘密只能通过部署环境的 Secret 注入）。
+            BOOTSTRAP_SECRET: 'test-only-bootstrap-secret-value-0123456789',
           },
         },
       }),

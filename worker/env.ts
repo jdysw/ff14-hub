@@ -1,32 +1,42 @@
 /**
- * Worker 环境（绑定 + 变量）的**结构化校验与边界**（HUB-002）。
+ * Worker 环境的**运行时视图**与结构化校验（HUB-002 / HUB-006）。
  *
- * 设计边界：
- * - 所有绑定与变量在使用前都必须经过这里的解析；失败返回**脱敏**的 500，不把 zod 明细发给调用方。
- * - 本文件只做「形状」校验，不读取、不记录任何凭证的值。`hasBootstrapSecret` 只记录**是否存在**。
- * - 阶段 01 只使用 DB（D1）；ASSETS 是静态资源绑定，仅在 wrangler 运行时存在，
- *   因此在 Workers 测试与单测中允许缺失，由调用方降级处理。
+ * 类型来源（避免配置漂移）：
+ * - 绑定的**存在性与形状**由 `wrangler types` 生成的 `worker-configuration.d.ts` 提供
+ *   （由根 `wrangler.jsonc` 推导）。新增绑定后必须重新运行 `pnpm run types:worker`，
+ *   CI 会用 `--check` 校验生成结果与配置一致。
+ * - `RuntimeEnv` 只补上生成类型无法表达的**尚未配置的 secret**：`BOOTSTRAP_SECRET`
+ *   由 .dev.vars / 部署 Secrets 提供，未配置时身份初始化端点返回 503，
+ *   因此它在类型上是可选的。
+ *
+ * 运行时校验（HUB-002）：
+ * - 所有绑定与变量在使用前都必须经过 `parseEnv`；失败返回**脱敏**的 500，不把 zod 明细发给调用方。
+ * - 本文件只做形状校验，不读取、不记录任何凭证的值。`hasBootstrapSecret` 只记录**是否存在**。
+ * - `ASSETS` 是静态资源绑定，仅在 wrangler 运行时存在，因此允许缺失并由调用方降级处理。
  */
 import { z } from 'zod';
 
-/** Worker 绑定与变量。字段名与 wrangler.jsonc 保持一致。 */
-export interface Env {
-  /** D1 数据库绑定（阶段 01 必需）。 */
-  readonly DB: D1Database;
-  /** 静态资源绑定；仅在 wrangler dev/deploy 运行时由 assets 配置注入。 */
-  readonly ASSETS?: Fetcher;
-  /** 运行环境标识，用于健康检查展示与行为分流。 */
-  readonly ENVIRONMENT?: string;
-  /** 额外允许的写请求 Origin（逗号分隔）。默认只允许同源。绝不允许 "*"。 */
-  readonly ALLOWED_ORIGINS?: string;
-  /** 仅本地/CI 用于暴露自检路由；生产必须缺省或为 "0"。 */
-  readonly ENABLE_TEST_ROUTES?: string;
-  /** HUB-006 使用的一次性 Bootstrap 密钥；本轮只校验其存在性与长度，绝不记录其值。 */
+/** 运行时绑定视图：生成类型 + 尚未配置的 secrets。 */
+export interface RuntimeEnv extends Cloudflare.Env {
+  /** HUB-006 的一次性初始化密钥；由部署环境提供，未配置时为 undefined。 */
   readonly BOOTSTRAP_SECRET?: string;
 }
 
+/**
+ * Worker 代码沿用 `Env` 这个名字。
+ * 这是**模块作用域**的导出，与 `worker-configuration.d.ts` 声明的全局 `Env` 互不冲突。
+ */
+export type Env = RuntimeEnv;
+
 export const ENVIRONMENTS = ['development', 'preview', 'production', 'test'] as const;
 export type EnvironmentName = (typeof ENVIRONMENTS)[number];
+
+/**
+ * Bootstrap 初始化密钥的最小长度（字符）。
+ * 要求至少 32 个字符的高熵随机值；配置了更短的值会被视为部署配置错误。
+ * 该常量由 env.ts 与 identity 路由共用，避免两处出现不一致的下限。
+ */
+export const MIN_BOOTSTRAP_SECRET_LENGTH = 32;
 
 const d1DatabaseSchema = z.custom<D1Database>(
   (value) =>
@@ -40,10 +50,12 @@ const d1DatabaseSchema = z.custom<D1Database>(
 const envSchema = z.object({
   DB: d1DatabaseSchema,
   ENVIRONMENT: z.enum(ENVIRONMENTS).optional(),
-  ALLOWED_ORIGINS: z.string().optional(),
   ENABLE_TEST_ROUTES: z.enum(['0', '1']).optional(),
-  // 高熵初始化密钥：至少 32 个字符。这里只校验长度，值永不落日志。
-  BOOTSTRAP_SECRET: z.string().min(32).optional(),
+  ALLOWED_ORIGINS: z.string().optional(),
+  // 高熵初始化密钥：只校验长度，值永不落日志、永不进入任何响应。
+  // 注意这里是**强校验**：配置了过短的密钥会让整个 Worker 拒绝服务（fail-closed），
+  // 以避免带着弱初始化密钥上线。
+  BOOTSTRAP_SECRET: z.string().min(MIN_BOOTSTRAP_SECRET_LENGTH).optional(),
 });
 
 /** 经过校验的运行时配置（不含任何凭证值）。 */
@@ -75,7 +87,7 @@ export function parseAllowedOrigins(raw: string | undefined): readonly string[] 
 
 /** 仅解析环境名，用于安全响应头等不依赖完整校验的场景。 */
 export function resolveEnvironmentName(raw: unknown): EnvironmentName {
-  const value = raw !== null && typeof raw === 'object' ? (raw as Env).ENVIRONMENT : undefined;
+  const value = raw !== null && typeof raw === 'object' ? (raw as RuntimeEnv).ENVIRONMENT : undefined;
   return (ENVIRONMENTS as readonly string[]).includes(value ?? '') ? (value as EnvironmentName) : 'development';
 }
 
@@ -100,7 +112,7 @@ export function parseEnv(raw: unknown): EnvParseResult {
       allowedOrigins: parseAllowedOrigins(data.ALLOWED_ORIGINS),
       enableTestRoutes: data.ENABLE_TEST_ROUTES === '1',
       hasBootstrapSecret: data.BOOTSTRAP_SECRET !== undefined,
-      hasAssetsBinding: raw !== null && typeof raw === 'object' && 'ASSETS' in raw && (raw as Env).ASSETS !== undefined,
+      hasAssetsBinding: raw !== null && typeof raw === 'object' && 'ASSETS' in raw && (raw as RuntimeEnv).ASSETS !== undefined,
     },
   };
 }

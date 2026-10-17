@@ -31,14 +31,16 @@ current_execution:
     HUB-003: implemented_pending_review
     HUB-004: implemented_pending_review
     HUB-005: implemented_pending_review
-    HUB-006: not_started
+    HUB-006: implemented_pending_review
   last_status_update: "2026-10-18"
   status_evidence: |
-    分支 codex/phase01-core（尚未合并）。
+    分支 codex/phase01-core（尚未合并，PR 为 draft）。
     本地已实际通过：pnpm install --frozen-lockfile、pnpm lint、pnpm typecheck、pnpm test、pnpm build。
-    本地 D1：全新迁移成功、重复应用安全；同域静态页与 /api/v1/health 冒烟通过。
+    本地 D1：全新迁移成功、重复应用安全；同域静态页与 /api/v1/health 冒烟通过；
+    身份系统端到端冒烟（Bootstrap → 配对 → 恢复 → 撤销）通过。
     Cloudflare 部署状态：未部署（未创建远程资源、未绑定域名）。
-    HUB-001～005 仅为「已实现、待人工评审」，**不是** done；HUB-006 尚未开始。
+    HUB-001～006 均为「已实现、待人工评审」，**不是** done；阶段 01 完成定义中的
+    「PR 合并」与「授权 E2E 可复现」尚未满足。
 ---
 
 # FF14 Hub — AI 开发主规划
@@ -58,14 +60,15 @@ current_execution:
 | HUB-003 D1 数据模型与迁移 | implemented_pending_review | `migrations/0001_core.sql`、`worker/db/schema.ts`；本地全新迁移成功、重复应用安全；FK/唯一/枚举约束在 workerd+D1 中被实测 |
 | HUB-004 API 基础与校验 | implemented_pending_review | `worker/api/`、`worker/middleware/`、`packages/shared/src/errors.ts`；401/404/405/409/413/415/422/500 路径均有测试 |
 | HUB-005 CI 与测试基础 | implemented_pending_review | `.github/workflows/ci.yml`、ESLint 扁平配置、Vitest Workers 池、`tests/e2e/` 预留；本地 lint/typecheck/test/build 全绿 |
-| HUB-006 单工作空间身份与设备管理 | **not_started** | 本轮只在契约层与认证中间件上预留：`packages/shared/src/identity.ts`、`packages/shared/src/identity-api.ts`、`worker/modules/identity/`、受保护的 `/api/v1/me/*`（未授权 401、已认证 501） |
+| HUB-006 单工作空间身份与设备管理 | implemented_pending_review | `worker/modules/identity/`（bootstrap / pairing / recovery / devices / audit / credentials）、`worker/api/v1/identity.ts`、已实现的 `/api/v1/me/*`、`migrations/0002_identity.sql`、`worker/lib/rate-limit.ts`；48+ 个身份与原子性测试在真实 workerd + D1 中通过 |
 
 **明确未完成 / 未做（不要读成已完成）：**
 
 - 未合并任何 PR；分支 `codex/phase01-core` 上的内容仍待评审。
 - 未创建任何 Cloudflare 远程资源（无 D1 远程库、无 Worker 部署、无预览环境、无域名绑定、无 Cron）。
-- HUB-006 的身份流程（Bootstrap、设备配对、恢复）未实现，处理器体为 `501 not_implemented`。
 - 阶段 02 的 Module Registry / Widget Host 运行时、阶段 03 的工作台与布局编辑器、阶段 04 的导航业务、阶段 05 的鱼类/通知引擎、阶段 06 的 WebDAV 同步均未实现。
+- 前端的身份界面（初始化向导、配对、设备管理 UI）未实现；本轮交付的是**后端身份系统与 API**。当前前端只保留结构化的常驻系统入口占位。
+- 认证失败事件仍未落库（`identity_audit.workspace_id` 为 NOT NULL，无法承载无归属事件），只写脱敏日志。
 - Playwright 端到端用例仅在 `tests/e2e/README.md` 预留位置，尚未编写。
 
 ## 0. 给 AI Agent 的执行指令
@@ -755,3 +758,4 @@ before_reporting_done:
 | 日期 | 变更 | 说明 |
 |---|---|---|
 | 2026-10-18 | 本文件首次进入仓库 | 保存用户批准的完整规划；同时更新 `current_execution` 以反映真实执行状态（阶段 01 HUB-001～005 已实现待评审、HUB-006 未开始、未部署）。规划正文未做删改。 |
+| 2026-10-18 | 更新 HUB-006 状态 | HUB-006 后端身份系统（Bootstrap / 配对 / 恢复 / 设备管理 / 速率限制 / 审计）已实现并带真实 Workers+D1 测试；状态改为 `implemented_pending_review`。前端身份界面仍未实现。规划正文未做删改。 |

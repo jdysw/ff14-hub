@@ -1,6 +1,6 @@
-# 安全边界说明（阶段 01 已生效）
+# 安全边界说明
 
-本文件描述**当前代码里真实生效**的边界，以及每条边界的落点和对应测试。
+本文件描述**当前代码里真实生效**的边界，以及每条边界的落点与对应测试。
 未实现的项会明确标注为未实现，避免把计划读成现状。
 
 ## 1. 统一错误结构
@@ -12,16 +12,84 @@
   或对象展开里——避免「顺手打个日志就泄露诊断细节」。
 - 测试：`worker/test/errors.spec.ts`。
 
-## 2. 认证边界
+## 2. 身份系统（HUB-006，已实现）
 
-- 所有 `/api/v1/me/*` 必须先通过 `deviceAuth()` 中间件。
-- 缺少凭证、形状非法、未知 Token、已撤销 Token **全部返回同一个 401** 且文案一致，
-  不提供可用于枚举的差异（测试对比了两者响应体）。
-- 服务端只保存 SHA-256 摘要；查询命中后再做一次固定时序比较。
-- 数据作用域只能来自认证结果（`c.get('workspaceId')`），不接受客户端提交的 workspace id。
-- 响应中绝不出现明文 Token、`token_hash`、`recovery_hash`。
-- `ENABLE_TEST_ROUTES` 未开启时，自检路由表现为 **404**（而不是 403），不暴露其存在。
-- 测试：`worker/test/auth.spec.ts`。
+### 2.1 工作空间初始化是「一次且仅一次」
+
+- `POST /api/v1/identity/bootstrap` 需要部署环境中的高熵初始化密钥，通过**请求头**
+  `X-Bootstrap-Secret` 传递（不放请求体：body 更容易被日志与错误上报捕获）。
+- **未配置**（或配置长度不足 32 字符）密钥时返回 **503**，且不解释原因（fail-closed）。
+- 密钥比较走 `credentialsEqual()`：两侧各自 SHA-256 后用平台的
+  `crypto.subtle.timingSafeEqual` 比较；「没带」与「带错」在时间与响应上都不可区分（均为 401）。
+- 「只能初始化一次」由 `workspace_bootstrap_guard.singleton_key` 的**主键唯一约束**在数据库层保证，
+  而不是「先查有没有工作空间再插入」。
+- 守卫行、工作空间、首台设备与审计写在**同一个 `db.batch()`（D1 中是 SQL 事务）**里，
+  因此并发中的失败者整批回滚，不会留下「有 workspace 没 device」这类半初始化状态。
+- 测试：`worker/test/identity.spec.ts`（含 4 路并发初始化恰好 1 个成功）、
+  `worker/test/identity-security.spec.ts`。
+
+### 2.2 设备凭证：高熵、只存摘要、独立
+
+- 每台设备的 Token 是 32 字节（256-bit）随机值的 base64url 编码，形状由
+  `DEVICE_TOKEN_PATTERN` 约束；恢复密钥与配对凭证各有独立前缀与形状，互不通用。
+- 服务端只保存 SHA-256 摘要；`devices` 表没有明文列（有测试断言列集合）。
+- 明文凭证只在发放响应中出现一次，且该响应显式 `Cache-Control: no-store`。
+
+### 2.3 撤销立即生效，无进程内缓存
+
+- 认证中间件**每个请求都查库**，不存在「进程内令牌缓存」这种会让撤销延迟生效的结构。
+- 撤销是条件更新（`revoked_at IS NULL`），重复撤销幂等；撤销自己也被允许，
+  后续请求立即 401。
+- 撤销同时清理该设备创建的未消费配对，使其配对码立即失效。
+- 测试：`worker/test/identity.spec.ts`（撤销后同一 Token 立刻 401）。
+
+### 2.4 配对凭证：一次性、有限期、与撤销联动
+
+- 有效期由 `expires_at` 强制，且请求给定的 TTL 会被**夹紧**到 60–3600 秒
+  （不能只信请求参数；超限的直接 422）。
+- **消费、新设备创建与审计在同一个 `db.batch()` 内完成**：
+  - 独占判定用 `pairing_claims.pairing_id`（主键）与本次调用独有的 `device_id`（UUID），
+    **不用毫秒时间戳**——时间戳在同一毫秒会撞，UUID 不会。
+  - 「未消费 / 未过期 / 发起设备未撤销」三项检查与消费写在同一批语句内，
+    因此不存在「读到有效状态、提交前状态被改变」的 TOCTOU 窗口。
+  - 竞争失败者是合法的空操作：**不创建设备、不写审计、不留下消费标记**。
+  - 任何一句失败（含被故障注入的触发器阻止）都会整批回滚，配对码不会被烧毁，可重试。
+- `pairing_claims` 通过 `pairing_id → device_pairings → workspaces` 的受约束 FK 链唯一回溯到
+  工作空间（规划 5.1），并在配对记录被删除时 `ON DELETE CASCADE` 清理，不留孤儿行。
+- 对外失败一律 401（不区分不存在 / 过期 / 已消费 / 发起设备已撤销），真实原因只写脱敏日志。
+- 测试：`worker/test/identity.spec.ts`、`worker/test/identity-atomicity.spec.ts`。
+
+### 2.5 恢复访问
+
+- 恢复密钥是独立的高熵随机值，只存摘要；查询按唯一索引命中。
+- 换发新设备凭证与审计在同一事务内提交。
+- **有意不轮换恢复密钥**：用户被要求离线备份该密钥，若在此轮换，旧备份立即失效，
+  而一旦客户端没收到新密钥（网络中断、响应丢失）就永久失去恢复能力。
+  轮换应作为独立、带二次确认与备份引导的显式操作。
+- 测试：`worker/test/identity.spec.ts`。
+
+### 2.6 速率限制
+
+- 覆盖 bootstrap / pairing.claim / pairing.create / recover，每端点两层：客户端标识 + 全局。
+- 实现是 D1 上的固定窗口计数，靠 `UPDATE ... WHERE attempt_count < limit` 的**条件更新**
+  与 `INSERT ... ON CONFLICT DO NOTHING` 的插入结果判定，不做「读-判断-写」。
+- 限流表只保存「端点 + 客户端标识摘要」的哈希，**不保存明文 IP**。
+- 被限流的请求返回 429 并带 `Retry-After`；限流施加在**任何凭证判断之前**，
+  因此暴力猜测在到达比较逻辑前就会被挡住。
+- 测试：`worker/test/rate-limit.spec.ts`（含并发 25 次恰好放行 20 次）。
+
+### 2.7 作用域
+
+- 所有私有查询都带 `workspace_id = ?`，该值**只能**来自认证中间件写入的 context。
+- 因此拿 A 工作空间的凭证操作 B 工作空间的设备只会得到 404，不泄露对象是否存在。
+- 测试：`worker/test/identity-security.spec.ts`。
+
+### 2.8 常量时间比较
+
+- Worker 侧统一使用平台提供的 `crypto.subtle.timingSafeEqual`
+  （`worker/lib/util.ts` 的 `constantTimeEqualStrings`、`credentials.ts` 的 `credentialsEqual`）。
+- `packages/shared` **刻意不提供**常量时间比较原语：纯 JS 循环经 JIT 优化后不具备
+  可声称的时序安全保证，放在共享契约层容易被误用。
 
 ## 3. 写请求边界（纵深防御，不是身份认证）
 
@@ -38,7 +106,7 @@
 
 白名单中的 `"*"` 会在解析阶段被**丢弃**（`parseAllowedOrigins`），不存在通配放行。
 
-- 测试：`worker/test/security.spec.ts`、`worker/test/unit.spec.ts`。
+- 测试：`worker/test/security.spec.ts`、`worker/test/identity-security.spec.ts`、`worker/test/unit.spec.ts`。
 
 ## 4. 校验失败不泄露提交值
 
@@ -83,6 +151,7 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains   ← 仅在请�
 - URL 查询串中的 `token=`/`key=`/`secret=`/`sig=`。
 
 脱敏是**兜底**，不是许可：代码本身就不应把凭证放进错误信息。
+身份端点的失败日志只记录 `route` 与 `reason` 这类枚举值，不记录任何原始输入。
 
 ## 7. 请求 ID
 
@@ -90,21 +159,24 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains   ← 仅在请�
 - 含 CRLF 的头值在平台层就会被 `Headers` 构造拒绝（第二道防线）。
 - 响应 `X-Request-Id` 与错误体 `requestId` 一致，便于跨日志追踪。
 
-## 8. 明确未做的安全项（不要读成已完成）
+## 8. D1 事务语义（一致性所依赖的事实）
 
-- **速率限制**：配对、恢复、认证失败的限流属于 HUB-006，本轮未实现。
-- **审计写入**：`identity_audit` 表已建，但认证失败事件因 `workspace_id` 为 NOT NULL
-  而无法记录（见下方「已知限制」）。本轮只写脱敏日志。
+- 官方文档明确：`batch()` 中的语句是一个 SQL 事务，任一条失败即**整批回滚**。
+  本项目的身份写入依赖这一点，并且**实测验证**：
+  - `worker/test/identity-security.spec.ts`：中途外键失败 → 先前的 INSERT 不保留。
+  - `worker/test/identity-atomicity.spec.ts`：`changes()` 反映上一条语句的受影响行数；
+    故障注入（触发器阻止设备/审计插入）→ 消费标记、设备、审计一起回滚。
+- 撤销审计的条件判定改用**实际受影响行数**（`changes()`）而非时间戳相等；
+  另有部分唯一索引 `idx_identity_audit_device_revoked_once` 作为数据库级去重保证。
+- 迁移本身不写 `PRAGMA foreign_keys`：D1 默认开启外键约束。
+
+## 9. 明确未做的安全项（不要读成已完成）
+
+- **认证失败审计未落库**：`identity_audit.workspace_id` 为 NOT NULL，无法承载
+  「未知 Token 认证失败」这类没有工作空间归属的事件；这类失败只写脱敏日志。
+  若要落库需要新增一张无归属审计表（属于后续工作）。
+- **恢复密钥轮换**：未实现，理由见 2.5（避免让离线备份失效）。
+- **前端身份界面**：未实现，因此浏览器端目前不会持有任何凭证；
+  将来接入时应使用 IndexedDB 而非 localStorage，并沿用严格 CSP。
 - **Web Push / SSRF 防护**：阶段 05 才涉及，本轮没有任何服务端外发请求。
 - **URL 协议白名单**（拒绝 `javascript:`/`data:`）：阶段 04 导航功能才需要，本轮无导航数据。
-- **SPA 凭证存储**：本轮前端不持有任何凭证；HUB-006 起改用 IndexedDB，不使用 localStorage。
-
-## 9. 已知限制（留给 HUB-006 决策）
-
-`identity_audit.workspace_id` 为 `NOT NULL`，且 `device_id` 可空。这意味着**无法记录
-「未知 Token 的认证失败」**这类没有工作空间归属的事件。HUB-006 需要二选一：
-
-1. 把 `workspace_id` 放宽为可空（需一次新的迁移，并处理既有数据）；
-2. 另建一张无归属的审计表（例如 `auth_attempts`）。
-
-本轮选择的临时方案是：只写脱敏结构化日志，不写库。

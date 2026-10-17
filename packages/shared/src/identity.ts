@@ -71,19 +71,13 @@ export function parseBearerToken(headerValue: string | null | undefined): Bearer
 }
 
 /**
- * 常量时间字符串比较，用于比较摘要等敏感值。
- * 注意：长度不同会提前返回，因此比较对象必须是**固定长度**的十六进制摘要。
+ * 关于「常量时间比较」：本包**不提供**该原语。
+ *
+ * 原因：这里是前后端共用的纯函数层，只能写出普通 JS 循环，而 JIT 优化使它不具备
+ * 可声称的时序安全保证。Worker 侧的凭证比较使用平台的
+ * `crypto.subtle.timingSafeEqual`，见 `worker/lib/util.ts` 与
+ * `worker/modules/identity/credentials.ts` 的 `credentialsEqual()`。
  */
-export function timingSafeEqualHex(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
-  let diff = 0;
-  for (let i = 0; i < a.length; i += 1) {
-    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return diff === 0;
-}
 
 /** 受支持的区服（规划 1.4）。 */
 export const REGIONS = ['cn', 'global'] as const;

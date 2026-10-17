@@ -9,11 +9,16 @@ import { env } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 import { parseEnv, parseAllowedOrigins } from '../env';
 import { REDACTED, logLine, redactSecrets } from '../lib/redact';
-import { timingSafeEqual } from '../lib/util';
+import { constantTimeEqualStrings } from '../lib/util';
 import { normalizeRequestId } from '../middleware/request-id';
 import { describeIssues } from '../middleware/validation';
 import { isAllowedOrigin, isJsonContentType } from '../middleware/write-guard';
-import { generateCredential, generateDeviceToken, hashCredential } from '../modules/identity/credentials';
+import {
+  credentialsEqual,
+  generateCredential,
+  generateDeviceToken,
+  hashCredential,
+} from '../modules/identity/credentials';
 
 describe('日志脱敏', () => {
   it('脱敏三类高熵凭证前缀', () => {
@@ -171,11 +176,24 @@ describe('凭证原语（HUB-006 契约）', () => {
   });
 });
 
-describe('常量时间比较', () => {
-  it('相等与不等的判断正确', () => {
-    expect(timingSafeEqual('abcd', 'abcd')).toBe(true);
-    expect(timingSafeEqual('abcd', 'abce')).toBe(false);
-    expect(timingSafeEqual('abc', 'abcd')).toBe(false);
+describe('常量时间比较（使用平台原语）', () => {
+  it('相等、不等、长度不同的判断都正确', () => {
+    expect(constantTimeEqualStrings('abcd', 'abcd')).toBe(true);
+    expect(constantTimeEqualStrings('abcd', 'abce')).toBe(false);
+    expect(constantTimeEqualStrings('abc', 'abcd')).toBe(false);
+    expect(constantTimeEqualStrings('', '')).toBe(true);
+  });
+
+  it('底层使用平台提供的 crypto.subtle.timingSafeEqual，而不是手写 JS 循环', () => {
+    expect(typeof crypto.subtle.timingSafeEqual).toBe('function');
+  });
+
+  it('credentialsEqual 对相同凭证返回 true、对不同凭证返回 false', async () => {
+    const token = generateDeviceToken();
+    expect(await credentialsEqual(token, token)).toBe(true);
+    expect(await credentialsEqual(token, generateDeviceToken())).toBe(false);
+    // 前缀相同但主体不同也必须判为不等。
+    expect(await credentialsEqual(`ffh_dev_${'A'.repeat(43)}`, `ffh_dev_${'B'.repeat(43)}`)).toBe(false);
   });
 });
 

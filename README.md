@@ -2,9 +2,10 @@
 
 FF14 个人导航与模块化工作台。默认面向国服玩家与个人自用，预留国际服扩展。
 
-**当前状态：阶段 01（Core 工程与身份基础）实现中，尚未部署、尚未合并。**
-本仓库现在能跑通的是「工程基线 + 统一 API 骨架 + D1 迁移 + 认证中间件 + CI」，
-**不是**一个可用的 FF14 工具站。导航、鱼类、工作台编辑器、提醒与同步均未实现。
+**当前状态：阶段 01（Core 工程与身份基础）后端已实现，尚未部署、尚未合并（PR 为 draft）。**
+已能跑通的是「工程基线 + 统一 API + D1 迁移 + 单工作空间身份系统 + CI」，
+**不是**一个可用的 FF14 工具站：导航、鱼类、工作台编辑器、提醒与同步均未实现，
+前端也只有结构化的 App Shell（身份相关界面尚未编写）。
 
 - 完整开发规划（单一事实来源）：[`docs/FF14_Hub_AI_Development_Plan.md`](docs/FF14_Hub_AI_Development_Plan.md)
 - 安全边界（已生效的边界与已知限制）：[`docs/security-boundaries.md`](docs/security-boundaries.md)
@@ -42,6 +43,22 @@ pnpm run dev:api                 # wrangler dev，默认 http://127.0.0.1:8787
 pnpm run smoke:local             # 另开终端：同域静态页 + /api/v1/health 冒烟
 ```
 
+身份系统端到端冒烟（需要本地 `.dev.vars` 中配置了初始化密钥）：
+
+```powershell
+# 先生成一个本地随机初始化密钥写入 .dev.vars（该文件不入库）
+$secret = node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+"BOOTSTRAP_SECRET=`"$secret`"" | Set-Content .dev.vars
+pnpm run db:migrate:local
+pnpm run dev:api
+# 另开终端
+$env:FF14_E2E_BOOTSTRAP_SECRET = $secret
+pnpm run smoke:identity
+```
+
+该脚本覆盖 Bootstrap → 配对 → 领取 → 撤销即时失效 → 恢复 的完整链路，
+并且只输出判定结果，**不打印任何凭证**。
+
 `pnpm run dev` 只启动 Vite 开发服务器（前端热更新，不同域）；要做同域联调请用 `dev:api`。
 
 ## 3. 环境变量与本地凭证
@@ -66,8 +83,10 @@ pnpm run db:migrate:local          # 再跑一次：应为 "No migrations to app
 pnpm run db:migrations:list:local  # 查看已应用清单
 ```
 
-已落地：`migrations/0001_core.sql` —— `workspaces` / `devices` / `device_pairings` / `identity_audit`
-四张表，含外键、唯一索引、枚举 CHECK 与索引。
+已落地：
+- `migrations/0001_core.sql` —— `workspaces` / `devices` / `device_pairings` / `identity_audit`，含外键、唯一索引、枚举 CHECK。
+- `migrations/0002_identity.sql` —— `workspace_bootstrap_guard`（单例初始化守卫）、`auth_rate_limits`（限流计数）、
+  `pairing_claims`（配对独占占位，经 FK 链回溯到工作空间）、以及撤销审计的部分唯一索引。
 
 约定与注意点：
 
@@ -99,15 +118,23 @@ ff14-hub/
 
 ## 6. API（阶段 01 实际可用范围）
 
-| Method | Path | 状态 |
+| Method | Path | 说明 |
 |---|---|---|
-| GET | `/api/v1/health` | 可用（就绪探针：会真实探测 D1） |
-| GET | `/api/v1/me/profile` | **骨架**：未授权 401；已认证 501（HUB-006 实现） |
-| GET | `/api/v1/me/devices` | 同上 |
-| DELETE | `/api/v1/me/devices/:id` | 同上 |
+| GET | `/api/v1/health` | 就绪探针：会真实探测 D1 |
+| POST | `/api/v1/identity/bootstrap` | 一次性初始化唯一工作空间；需要 `X-Bootstrap-Secret`，成功后通道关闭（再调 409） |
+| POST | `/api/v1/identity/pairing` | 已认证设备生成一次性、有限期配对凭证（TTL 60–3600 秒） |
+| POST | `/api/v1/identity/pairing/claim` | 凭配对凭证领取新设备凭证；一次性消费，发起设备被撤销后立即失效 |
+| POST | `/api/v1/identity/recover` | 用离线备份的恢复密钥换发新设备凭证 |
+| GET | `/api/v1/me/profile` | 当前工作空间的非敏感配置 |
+| GET | `/api/v1/me/devices` | 本工作空间设备列表（不含 `token_hash`） |
+| DELETE | `/api/v1/me/devices/:id` | 撤销设备；**立即生效**（认证每个请求都查库，无进程内缓存） |
 
-统一错误结构：`{ "code": "...", "message": "...", "requestId": "..." }`。
+统一错误结构：`{ "code": "...", "message": "...", "requestId": ... }`。
 `/api/*` 下的未知路径返回 JSON 404，不会回退成 SPA 的 HTML。
+所有身份与私有端点响应均为 `Cache-Control: no-store`。
+
+安全细节（配对原子性、撤销审计去重、速率限制、常量时间比较等）见
+[`docs/security-boundaries.md`](docs/security-boundaries.md)。
 
 ## 7. 测试策略
 
@@ -116,9 +143,11 @@ ff14-hub/
 | 纯契约 | `packages/shared/test/` | Node |
 | 前端客户端逻辑 | `apps/web/test/` | Node |
 | API / 认证 / 安全 / 迁移约束 | `worker/test/` | **workerd + Miniflare D1**（`@cloudflare/vitest-pool-workers`） |
+| 身份原子性与故障回滚 | `worker/test/identity-atomicity.spec.ts` | 同上（含确定性交错与触发器故障注入） |
 
 **SQLite 单元测试不等同于 D1 运行时测试**，因此迁移与约束断言全部在 Workers 运行时执行。
-`tests/e2e/README.md` 说明了 Playwright 为何推迟到阶段 03 之后启用。
+`tests/e2e/README.md` 说明了 Playwright 为何推迟到阶段 03 之后启用；
+身份链路的端到端验证目前由 `scripts/e2e-identity.mjs` 覆盖。
 
 ## 8. CI
 
@@ -136,9 +165,10 @@ ff14-hub/
 
 ## 10. 已知限制
 
-- 认证失败事件目前只写脱敏日志，未落库（`identity_audit.workspace_id` 为 NOT NULL，
-  无法容纳无归属事件）。处理方案留待 HUB-006，见 `docs/security-boundaries.md` 第 9 节。
-- 速率限制（配对 / 恢复 / 认证失败）属 HUB-006，本轮未实现。
+- **认证失败事件未落库**：`identity_audit.workspace_id` 为 NOT NULL，无法承载无归属事件，
+  这类失败只写脱敏日志。详见 `docs/security-boundaries.md` 第 9 节。
+- **恢复密钥不轮换**：为避免让用户已离线备份的密钥失效（及响应丢失导致永久失去恢复能力）。
+- **前端身份界面未实现**：本轮交付后端身份系统与 API；浏览器端目前不持有任何凭证。
 - `compatibility_date` 暂为 `2026-08-01`，受锁定的 Workers 测试运行时支持上限约束
   （见 ADR-0001 第 5 条）。
 - CSP 尚未启用 `require-trusted-types-for 'script'`（Trusted Types 与后续第三方组件的兼容性需单独评估）。

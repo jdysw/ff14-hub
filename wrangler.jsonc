@@ -31,7 +31,14 @@
   ],
 
   "vars": {
-    "ENVIRONMENT": "development"
+    "ENVIRONMENT": "development",
+    // 显式声明为 vars（带安全默认值），使 `wrangler types` 生成的绑定类型与运行时一致：
+    //   ENABLE_TEST_ROUTES 默认 "0"（生产不可达自检路由）
+    //   ALLOWED_ORIGINS 默认空（只允许同源写请求）
+    // BOOTSTRAP_SECRET 不在此声明：它属于 secret，通过 .dev.vars 或部署 Secrets 提供。
+    // 未配置时身份初始化端点会返回 503（fail-closed），因此它在运行时是**可选**的。
+    "ENABLE_TEST_ROUTES": "0",
+    "ALLOWED_ORIGINS": ""
   },
 
   // 预览与生产环境分离：各自持有独立的 D1 与 ENVIRONMENT。

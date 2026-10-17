@@ -48,6 +48,17 @@ export function describeIssues(issues: readonly ZodIssueLike[]): string {
   return parts.join('；');
 }
 
+/** 取出已被 `validateJsonBody` 校验过的请求体，并保持静态类型。 */
+export function parsedJsonBody<T>(c: { get: (key: 'jsonBody') => unknown }, schema: ZodType<T>): T {
+  const result = schema.safeParse(c.get('jsonBody'));
+  if (!result.success) {
+    // 走到这里说明中间件链被错误改动（validateJsonBody 未挂载）。
+    // 这是编程错误而非输入问题，因此按内部错误处理，不把 zod 细节发给调用方。
+    throw new ApiError('internal_error', DEFAULT_ERROR_MESSAGE.internal_error, 'validated_body_missing');
+  }
+  return result.data;
+}
+
 /** 校验已解析的 JSON 请求体，并把校验后的值写回 context。 */
 export function validateJsonBody<T>(schema: ZodType<T>): AppMiddleware {
   return async (c, next) => {

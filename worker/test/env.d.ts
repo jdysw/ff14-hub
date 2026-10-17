@@ -1,16 +1,15 @@
 /**
- * 让测试环境里的 `env` 带上本项目的绑定类型。
+ * 测试运行时补充的绑定类型。
  *
- * 说明：`cloudflare:test` 把 `env` 声明为全局命名空间 `Cloudflare.Env`，
- * 因此这里用声明合并把本项目的 Env 与测试专用绑定补进去。
- * TEST_MIGRATIONS 由 vitest.config.ts 通过 miniflare bindings 注入。
+ * `env.DB`、`env.ASSETS`、`env.ENVIRONMENT` 等来自 `wrangler types` 生成的
+ * `worker-configuration.d.ts`（它声明全局 `Cloudflare.Env` 与 `Env`）。
+ * 这里只补上**测试池**通过 miniflare bindings 注入的那一项。
  */
 import type { D1Migration } from 'cloudflare:test';
-import type { Env as AppEnv } from '../env';
 
 declare global {
   namespace Cloudflare {
-    interface Env extends AppEnv {
+    interface Env {
       readonly TEST_MIGRATIONS: D1Migration[];
     }
   }

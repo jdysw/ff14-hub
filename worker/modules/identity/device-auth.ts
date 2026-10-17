@@ -10,8 +10,7 @@
  * 4) 数据作用域来自认证结果本身：调用方只能使用返回的 workspaceId，
  *    绝不允许由客户端提交的 workspace id 决定作用域。
  */
-import { timingSafeEqualHex } from '@ff14-hub/shared';
-import { newId, timingSafeEqual } from '../../lib/util';
+import { constantTimeEqualStrings } from '../../lib/util';
 import { hashCredential } from './credentials';
 
 /** 认证成功后得到的身份。 */
@@ -46,8 +45,9 @@ export async function authenticateDevice(db: D1Database, token: string): Promise
   if (row === null) {
     return { ok: false, reason: 'invalid' };
   }
-  // 双保险：摘要长度固定，可以做真正的固定时序比较。
-  if (!timingSafeEqual(row.token_hash, tokenHash) || !timingSafeEqualHex(row.token_hash, tokenHash)) {
+  // 摘要长度固定（64 位十六进制），再做一次**平台提供的**常量时间比较：
+  // 不依赖存储层索引比较的实现细节，也不使用手写循环。
+  if (!constantTimeEqualStrings(row.token_hash, tokenHash)) {
     return { ok: false, reason: 'invalid' };
   }
   if (row.revoked_at !== null) {
@@ -74,34 +74,10 @@ async function touchLastSeen(db: D1Database, deviceId: string, currentLastSeen: 
 }
 
 /**
- * 写入身份审计记录（不含任何凭证或摘要）。
- * HUB-006 的 Bootstrap / 配对 / 撤销流程调用它。
+ * 关于审计：写入逻辑已移到 `./audit.ts`，它返回 **statement** 以便与业务写入放进同一个
+ * `db.batch()` 事务提交，避免审计与事实不一致。
  *
- * 已知限制（留给 HUB-006 决定）：`identity_audit.workspace_id` 为 NOT NULL，
- * 因此**无法**记录「未知 Token 的认证失败」这类没有工作空间归属的事件；
- * 本轮的做法是只写脱敏日志。HUB-006 需要选择：把该列放宽为可空，或另建一张无归属审计表。
+ * 关于「认证失败审计」：`identity_audit.workspace_id` 为 NOT NULL，
+ * 无法承载「未知 Token 认证失败」这类没有工作空间归属的事件，因此这类失败只写脱敏日志。
+ * 若要落库，需要新增一张无归属审计表（属于后续工作，已在 docs/security-boundaries.md 记录）。
  */
-export async function recordIdentityAudit(
-  db: D1Database,
-  input: {
-    readonly workspaceId: string;
-    readonly eventType: string;
-    readonly deviceId: string | null;
-    readonly detail?: Readonly<Record<string, unknown>>;
-  },
-): Promise<void> {
-  await db
-    .prepare(
-      'INSERT INTO identity_audit (id, workspace_id, event_type, device_id, created_at, detail_json) VALUES (?, ?, ?, ?, ?, ?)',
-    )
-    .bind(
-      newId(),
-      input.workspaceId,
-      input.eventType,
-      input.deviceId,
-      Date.now(),
-      // detail 只允许放非敏感事实（例如 "pairing_id"、"reason"），禁止放凭证或其摘要。
-      JSON.stringify(input.detail ?? {}),
-    )
-    .run();
-}
