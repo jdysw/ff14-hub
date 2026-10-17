@@ -10,31 +10,27 @@
  * | `uninstallModule` | 移除当前 Host 的全部实例 + 停用 | 停止并取消任务 | **默认保留**，可 `restore` |
  * | `purgeModuleData` | —— | —— | 本阶段**显式拒绝**（501），绝不静默删除 |
  *
- * 因此：卸载 ≠ 清数据。本服务里不存在任何删除数据行的路径，
- * 卸载只写 `status = 'uninstalled'`，`settings_json` 原样保留。
+ * 因此：卸载 ≠ 清数据。本服务里不存在任何删除数据行的路径。
  *
- * ── 执行协议：**先原子准入，再执行副作用**（这是本文件最重要的不变量）──
+ * ── 执行协议：原子准入 → **独占执行认领** → 受 fence 保护的副作用 → 收尾 ──
  *
- * 阶段 1「原子准入」：只做校验与一次数据库事务（D1 batch）：
- *   条件 CAS 提交目标状态（`WHERE revision = ?`）**并**在同一事务里写入
- *   `workspace_module_operations` 待完成标记。
- *   - 抢输的一方（changes() = 0）在这里就以 409 退出，**此前此后都没有任何可变副作用**。
- *   - 因此「谁是赢家」由数据库唯一决定，不依赖 isolate 内互斥（Workers 多 isolate 不共享内存）。
+ * 1. **原子准入**（一个 D1 batch）：条件 CAS（`WHERE revision = ?` **且** 该模块当前没有待完成操作）
+ *    提交目标状态，并在同一事务里写入 `workspace_module_operations`（待完成标记）
+ *    与 `workspace_module_operation_claims`（本请求的执行 token）。
+ *    抢输的一方在这里以 409 退出，**此前此后都没有任何可变副作用**。
+ * 2. **独占认领**：续做路径必须先 `INSERT ... ON CONFLICT DO NOTHING` 抢到 claim（或原子抢占过期租约）。
+ *    抢不到 → `operation_in_progress`（409），**同样没有任何副作用**。
+ * 3. **副作用**：handler → 移除实例 → 取消已排队任务；
+ *    每一步前后都校验「我仍然是当前 token 的持有者」。
+ *    写入（收尾 / 失败记录）全部以 `token` 为条件，因此被取代的执行者写不进去；
+ *    端口清理还额外带 **revision fence**（`maxRevision` / `upToRevision`），
+ *    所以即便旧执行者越过了检查，也删不掉 restore 之后（revision 更大）的新任务与新实例。
+ * 4. **收尾**：条件删除待完成标记（必须仍持有 token）。删除影响 0 行**不是**成功，
+ *    而是「执行权已被取代」（`operation_superseded`，409）。
  *
- * 阶段 2「副作用」：模块 handler、当前 Host 实例清理、已排队任务取消。
- *   - handler 只拿到**闭包绑定作用域**且经能力门禁的调度视图（见 ports.ts）。
- *   - 平台清理是安全不变量，**不因 handler 失败而跳过**。
- *   - 任一步失败：状态**已经**提交（这是事实，不能被响应伪装成没发生），
- *     待完成标记保留并记录 attempts / last_error。
- *   - 实例清理成功但任务取消失败时，也绝不会出现「enabled 但实例已删」：
- *     状态在准入阶段就已经是目标状态（uninstalled/disabled），且待完成标记就在库里。
- *
- * 阶段 3「收尾」：条件删除待完成标记（`AND revision = ?`）并把 revision +1。
- *   删除影响 0 行表示已被并发的重试完成 → 视为幂等成功。
- *
- * 重试：客户端用**同一 action + 同一 expectedRevision** 重发即可继续（不是重做）。
- *   存在待完成标记时，任何其他动作/带设置的请求都会被 409 拒绝，避免交错。
- *   本阶段刻意不引入通用分布式任务框架，也没有后台自动重试或 Cron。
+ * 租约（`EXECUTION_LEASE_MS`）只解决「执行者崩溃后无人收尾」的活性问题；
+ * 它**不**保证 TTL 到期旧执行者已经停止 —— 这正是第 3 步 fence 存在的原因。
+ * 失败时立即释放认领，因此客户端可以马上重试；恢复路径只有一条且显式。
  */
 import {
   MODULE_SETTINGS_MAX_BYTES,
@@ -49,24 +45,23 @@ import {
   type WorkspaceModuleStatus,
 } from '@ff14-hub/shared';
 import { stableStringify } from '../../lib/util';
-import type {
-  ModuleInstanceStore,
-  ModuleLifecycleContext,
-  ModuleSchedulerPort,
-} from '../ports';
+import type { ModuleInstanceStore, ModuleLifecycleContext, ModuleSchedulerPort } from '../ports';
 import type { ModuleRegistry, RegisteredModule } from '../registry/module-registry';
 import { createModuleScopedScheduler } from './scheduler';
 import {
-  listWorkspaceModuleOperations,
-  listWorkspaceModuleRows,
+  listModuleSnapshots,
   parseStoredSettings,
   readModuleGateStatus,
-  readWorkspaceModuleOperation,
-  readWorkspaceModuleRow,
-  toWorkspaceModuleStatus,
+  readModuleSnapshot,
+  snapshotToStatus,
+  toPendingOperation,
+  type ModuleSnapshot,
   type WorkspaceModuleOperationRow,
   type WorkspaceModuleRow,
 } from './workspace-modules';
+
+/** 执行租约：只用于崩溃后的原子抢占，不代表「到期即安全」。 */
+export const EXECUTION_LEASE_MS = 15_000;
 
 /** 变更被拒绝（或技术性失败）的原因。路由层把它映射成错误码，服务层不关心 HTTP。 */
 export type MutationRejection =
@@ -75,11 +70,19 @@ export type MutationRejection =
   | 'status_conflict'
   | 'revision_conflict'
   | 'pending_conflict'
+  /** 该待完成操作正被另一个执行者持有（未过期租约）。 */
+  | 'operation_in_progress'
+  /** 该待完成操作已被其他请求完成（认领失败且 marked 行已消失）。 */
+  | 'operation_already_completed'
+  /** 本次执行权已被取代：不能继续清理，也不能冒充成功。 */
+  | 'operation_superseded'
   | 'settings_invalid'
   | 'settings_version_mismatch'
   | 'settings_too_large'
   /** 准入写入本身失败：什么都没提交（因此可以安全重试）。 */
-  | 'persist_failed';
+  | 'persist_failed'
+  /** 状态与待完成标记不一致（本不应发生）：必须让调用方重新读取，而不是猜。 */
+  | 'inconsistent_state';
 
 export type MutationOutcome =
   | { readonly ok: true; readonly module: WorkspaceModuleStatus; readonly effect: ModuleMutationEffect }
@@ -104,7 +107,7 @@ export interface ModuleLifecycleDeps {
   readonly instanceStore: ModuleInstanceStore;
   /** 平台内部管理调度端口（带任意作用域）；**不交给模块代码**。 */
   readonly scheduler: ModuleSchedulerPort;
-  /** 可注入时钟，便于测试断言时间戳语义。 */
+  /** 可注入时钟（租约与时间戳都用它），便于测试确定性交错。 */
   readonly now?: () => number;
 }
 
@@ -208,7 +211,7 @@ interface SideEffectInput {
   readonly action: ModuleSupportedAction;
   readonly targetStatus: ModulePersistedStatus;
   readonly timestamp: number;
-  /** 本次准入后的 revision（用于初始化豁免的数据库核对）。 */
+  /** 本次准入后的 revision：既是执行权的核对依据，也是端口清理的 fence 上界。 */
   readonly admissionRevision: number;
 }
 
@@ -217,13 +220,14 @@ interface SideEffectResult {
   readonly instancesRemoved: number;
   readonly scheduledTasksCancelled: number;
   readonly failure: string | null;
+  /** true 表示执行权已被取代：调用方必须立即停止，不得收尾。 */
+  readonly superseded: boolean;
 }
 
 interface OutcomeDescriptionInput {
   readonly action: ModuleSupportedAction | undefined;
   readonly resume: boolean;
   readonly pending: ModulePendingOperation | null;
-  readonly targetStatus: ModulePersistedStatus;
   readonly instancesRemoved: number;
   readonly scheduledTasksCancelled: number;
   readonly settingsChanged: boolean;
@@ -262,18 +266,145 @@ function describeOutcome(input: OutcomeDescriptionInput): string {
 export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycle {
   const now = deps.now ?? ((): number => Date.now());
 
+  function newExecutionToken(): string {
+    return crypto.randomUUID();
+  }
+
   /**
-   * 阶段 2：执行副作用。
-   *
-   * handler 只拿到受限上下文；调度视图的**作用域由闭包绑定**，
-   * 且 `schedule` 的授权判定来自注册表的授予集合（`scheduled:own`），
-   * 因此模块无法操作其他 workspace/module，也无法绕过能力授予。
+   * 抢占本次执行的独占权。
+   * - 无认领行 → `INSERT ... ON CONFLICT DO NOTHING`，只有一方能成功。
+   * - 有认领行但租约过期 → 原子 `UPDATE ... WHERE expires_at <= now`，同样只有一方能成功。
+   * 两种成功都会在**同一事务**里把 attempts +1（`changes()` 链式判定，不做无条件的自增）。
+   * 返回 null 表示「别人正在执行」→ 调用方必须立即 409 且不得产生副作用。
    */
-  async function runSideEffects(input: SideEffectInput): Promise<SideEffectResult> {
+  async function claimExecution(input: {
+    readonly workspaceId: string;
+    readonly moduleId: string;
+    readonly admissionRevision: number;
+  }): Promise<string | null> {
+    const token = newExecutionToken();
+    const claimedAt = now();
+    const expiresAt = claimedAt + EXECUTION_LEASE_MS;
+
+    const inserted = await deps.db.batch([
+      deps.db
+        .prepare(
+          `INSERT INTO workspace_module_operation_claims (workspace_id, module_id, token, claimed_at, expires_at)
+           SELECT ?, ?, ?, ?, ?
+            WHERE EXISTS (SELECT 1 FROM workspace_module_operations
+                           WHERE workspace_id = ? AND module_id = ? AND revision = ?)
+           ON CONFLICT (workspace_id, module_id) DO NOTHING`,
+        )
+        .bind(
+          input.workspaceId,
+          input.moduleId,
+          token,
+          claimedAt,
+          expiresAt,
+          input.workspaceId,
+          input.moduleId,
+          input.admissionRevision,
+        ),
+      deps.db
+        .prepare(
+          `UPDATE workspace_module_operations SET attempts = attempts + 1, last_error = NULL
+            WHERE workspace_id = ? AND module_id = ? AND revision = ? AND changes() = 1`,
+        )
+        .bind(input.workspaceId, input.moduleId, input.admissionRevision),
+    ]);
+    if ((inserted[0]?.meta.changes ?? 0) === 1) {
+      return token;
+    }
+
+    // 租约过期才允许抢占；抢占成功后旧 token 立即失效（旧执行者的写入会被 fence 挡住）。
+    const taken = await deps.db.batch([
+      deps.db
+        .prepare(
+          `UPDATE workspace_module_operation_claims SET token = ?, claimed_at = ?, expires_at = ?
+            WHERE workspace_id = ? AND module_id = ? AND expires_at <= ?
+              AND EXISTS (SELECT 1 FROM workspace_module_operations
+                           WHERE workspace_id = ? AND module_id = ? AND revision = ?)`,
+        )
+        .bind(
+          token,
+          claimedAt,
+          expiresAt,
+          input.workspaceId,
+          input.moduleId,
+          claimedAt,
+          input.workspaceId,
+          input.moduleId,
+          input.admissionRevision,
+        ),
+      deps.db
+        .prepare(
+          `UPDATE workspace_module_operations SET attempts = attempts + 1, last_error = NULL
+            WHERE workspace_id = ? AND module_id = ? AND revision = ? AND changes() = 1`,
+        )
+        .bind(input.workspaceId, input.moduleId, input.admissionRevision),
+    ]);
+    return (taken[0]?.meta.changes ?? 0) === 1 ? token : null;
+  }
+
+  /** 释放认领（失败后立即释放，便于客户端马上重试）。被取代者的删除会影响 0 行。 */
+  async function releaseClaim(input: {
+    readonly workspaceId: string;
+    readonly moduleId: string;
+    readonly token: string;
+  }): Promise<void> {
+    await deps.db
+      .prepare(
+        'DELETE FROM workspace_module_operation_claims WHERE workspace_id = ? AND module_id = ? AND token = ?',
+      )
+      .bind(input.workspaceId, input.moduleId, input.token)
+      .run();
+  }
+
+  /** 「我是否仍然是当前 token 的持有者，且待完成操作仍是本次准入」。 */
+  async function ownsExecution(input: {
+    readonly workspaceId: string;
+    readonly moduleId: string;
+    readonly token: string;
+    readonly admissionRevision: number;
+  }): Promise<boolean> {
+    const row = await deps.db
+      .prepare(
+        `SELECT 1 AS owned
+           FROM workspace_module_operation_claims c
+           JOIN workspace_module_operations o
+             ON o.workspace_id = c.workspace_id AND o.module_id = c.module_id
+          WHERE c.workspace_id = ? AND c.module_id = ? AND c.token = ? AND o.revision = ?`,
+      )
+      .bind(input.workspaceId, input.moduleId, input.token, input.admissionRevision)
+      .first<{ owned: number }>();
+    return row !== null;
+  }
+
+  /**
+   * 阶段 2：执行副作用。每一步前后都校验执行权。
+   * handler 失败**不**跳过平台清理（安全不变量优先）。
+   * 端口清理一律带 revision fence，因此即便执行权在这之后丢失，也伤不到新一代数据。
+   */
+  async function runSideEffects(
+    input: SideEffectInput,
+    assertOwned: () => Promise<boolean>,
+  ): Promise<SideEffectResult> {
     const handlersRun: string[] = [];
     let instancesRemoved = 0;
     let scheduledTasksCancelled = 0;
     const failures: string[] = [];
+
+    const superseded = (): SideEffectResult => ({
+      handlersRun,
+      instancesRemoved,
+      scheduledTasksCancelled,
+      failure: null,
+      superseded: true,
+    });
+
+    if (!(await assertOwned())) {
+      return superseded();
+    }
 
     const handlerName = handlerNameFor(input.module, input.action);
     if (handlerName !== undefined) {
@@ -284,8 +415,6 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
       if (typeof handler !== 'function') {
         failures.push(`生命周期 handler 未在静态注册表中定义：${handlerName}`);
       } else {
-        // 只有「模块正在完成自己的启用/恢复初始化」才可能豁免 transitioning 门禁，
-        // 且作用域与豁免都必须经数据库事实核对（见 createModuleScopedScheduler）。
         const ownInit =
           input.action === 'enable' || input.action === 'restore'
             ? { action: input.action, revision: input.admissionRevision }
@@ -303,8 +432,9 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
               canSchedule: deps.registry.hasCapability(input.moduleId, 'scheduled:own'),
               ownInit,
               readPendingOperation: async () => {
-                const row = await readWorkspaceModuleOperation(deps.db, input.workspaceId, input.moduleId);
-                return row === null ? null : { action: row.action, revision: row.revision };
+                const snapshot = await readModuleSnapshot(deps.db, input.workspaceId, input.moduleId);
+                const pending = snapshot?.pendingRow ?? null;
+                return pending === null ? null : { action: pending.action, revision: pending.revision };
               },
             }),
           },
@@ -318,31 +448,44 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
       }
     }
 
-    // 平台清理是安全不变量：即使 handler 失败也必须尝试，否则会留下「状态已停用但行为还在跑」。
-    try {
-      if (input.targetStatus === 'uninstalled') {
+    // 平台清理是安全不变量：即使 handler 失败也必须尝试。
+    if (!(await assertOwned())) {
+      return superseded();
+    }
+    if (input.targetStatus === 'uninstalled') {
+      try {
         const removed = await deps.instanceStore.removeInstancesForModule({
           workspaceId: input.workspaceId,
           moduleId: input.moduleId,
           reason: 'module_uninstalled',
+          // fence：只移除这一代及更早创建的实例。
+          maxRevision: input.admissionRevision,
         });
         instancesRemoved = removed.removed;
-        const cancelled = await deps.scheduler.cancelAllForModule({
-          workspaceId: input.workspaceId,
-          moduleId: input.moduleId,
-          reason: 'module_uninstalled',
-        });
-        scheduledTasksCancelled = cancelled.cancelled;
-      } else if (input.targetStatus === 'disabled') {
-        const cancelled = await deps.scheduler.cancelAllForModule({
-          workspaceId: input.workspaceId,
-          moduleId: input.moduleId,
-          reason: 'module_disabled',
-        });
-        scheduledTasksCancelled = cancelled.cancelled;
+      } catch (error) {
+        failures.push(`实例清理失败（${errorNameOf(error)}）`);
       }
-    } catch (error) {
-      failures.push(`平台清理失败（${errorNameOf(error)}）`);
+      if (!(await assertOwned())) {
+        return superseded();
+      }
+    }
+
+    if (input.targetStatus === 'uninstalled' || input.targetStatus === 'disabled') {
+      if (!(await assertOwned())) {
+        return superseded();
+      }
+      try {
+        const cancelled = await deps.scheduler.cancelAllForModule({
+          workspaceId: input.workspaceId,
+          moduleId: input.moduleId,
+          reason: input.targetStatus === 'uninstalled' ? 'module_uninstalled' : 'module_disabled',
+          // fence：只取消这一代及更早登记的任务。
+          upToRevision: input.admissionRevision,
+        });
+        scheduledTasksCancelled = cancelled.cancelled;
+      } catch (error) {
+        failures.push(`平台清理失败（${errorNameOf(error)}）`);
+      }
     }
 
     return {
@@ -350,64 +493,68 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
       instancesRemoved,
       scheduledTasksCancelled,
       failure: failures.length > 0 ? failures.join('；') : null,
+      superseded: false,
     };
   }
 
+  /** 记录失败原因（条件：仍持有 token）。返回 false 表示已被取代。 */
+  async function recordFailure(input: {
+    readonly workspaceId: string;
+    readonly moduleId: string;
+    readonly admissionRevision: number;
+    readonly token: string;
+    readonly failure: string;
+  }): Promise<boolean> {
+    const updated = await deps.db
+      .prepare(
+        `UPDATE workspace_module_operations SET last_error = ?
+          WHERE workspace_id = ? AND module_id = ? AND revision = ?
+            AND EXISTS (SELECT 1 FROM workspace_module_operation_claims c
+                         WHERE c.workspace_id = ? AND c.module_id = ? AND c.token = ?)`,
+      )
+      .bind(
+        input.failure,
+        input.workspaceId,
+        input.moduleId,
+        input.admissionRevision,
+        input.workspaceId,
+        input.moduleId,
+        input.token,
+      )
+      .run();
+    return (updated.meta.changes ?? 0) === 1;
+  }
+
   /**
-   * 阶段 3：收尾 —— 条件删除待完成标记。
-   *
-   * 刻意**不**再 bump revision：revision 表示「已提交的状态/设置修订号」，
-   * 一次生命周期操作只在准入时 +1；收尾只是清掉瞬态标记，
-   * 「是否有待完成操作」由 `pendingOperation` 字段本身表达。
-   * 这样客户端拿到的 revision 语义稳定（一次操作一次递增），不会因为重试次数而漂移。
-   *
-   * 删除影响 0 行表示并发的重试已经收尾完成 → 视为幂等成功。
+   * 阶段 3：收尾 —— 条件删除待完成标记（必须仍持有 token）。
+   * 影响 0 行**不是**幂等成功，而是「执行权已被取代」。
+   * 刻意不再 bump revision：revision 表示已提交的状态修订号（见 ADR-0002 D13）。
    */
   async function completeAdmission(input: {
     readonly workspaceId: string;
     readonly moduleId: string;
     readonly admissionRevision: number;
+    readonly token: string;
   }): Promise<boolean> {
     const deleted = await deps.db
-      .prepare('DELETE FROM workspace_module_operations WHERE workspace_id = ? AND module_id = ? AND revision = ?')
-      .bind(input.workspaceId, input.moduleId, input.admissionRevision)
-      .run();
-    return (deleted.meta.changes ?? 0) === 1;
-  }
-
-  /** 开始一次副作用尝试：续做时累加 attempts 并清掉上一次错误。 */
-  async function beginAttempt(input: {
-    readonly workspaceId: string;
-    readonly moduleId: string;
-    readonly admissionRevision: number;
-    readonly resume: boolean;
-  }): Promise<void> {
-    if (!input.resume) {
-      return;
-    }
-    await deps.db
       .prepare(
-        `UPDATE workspace_module_operations SET attempts = attempts + 1, last_error = NULL
-          WHERE workspace_id = ? AND module_id = ? AND revision = ?`,
+        `DELETE FROM workspace_module_operations
+          WHERE workspace_id = ? AND module_id = ? AND revision = ?
+            AND EXISTS (SELECT 1 FROM workspace_module_operation_claims c
+                         WHERE c.workspace_id = ? AND c.module_id = ? AND c.token = ?)`,
       )
-      .bind(input.workspaceId, input.moduleId, input.admissionRevision)
-      .run();
-  }
-
-  /** 记录本次尝试的失败原因（保留待完成标记，等待幂等重试）。 */
-  async function recordFailure(input: {
-    readonly workspaceId: string;
-    readonly moduleId: string;
-    readonly admissionRevision: number;
-    readonly failure: string;
-  }): Promise<void> {
-    await deps.db
-      .prepare(
-        `UPDATE workspace_module_operations SET last_error = ?
-          WHERE workspace_id = ? AND module_id = ? AND revision = ?`,
+      .bind(
+        input.workspaceId,
+        input.moduleId,
+        input.admissionRevision,
+        input.workspaceId,
+        input.moduleId,
+        input.token,
       )
-      .bind(input.failure, input.workspaceId, input.moduleId, input.admissionRevision)
       .run();
+    // 注意：D1 的 meta.changes 把**级联删除**（认领行）也计入，因此这里判定 `>= 1`，
+    // 不能写成 `=== 1`（否则成功的收尾会被误判为「执行权被取代」）。
+    return (deleted.meta.changes ?? 0) >= 1;
   }
 
   async function buildOutcome(input: {
@@ -418,17 +565,13 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
     readonly changed: boolean;
     readonly settingsChanged: boolean;
     readonly sideEffects: SideEffectResult;
-    readonly timestamp: number;
   }): Promise<MutationOutcome> {
-    const [row, pendingRow] = await Promise.all([
-      readWorkspaceModuleRow(deps.db, input.workspaceId, input.moduleId),
-      readWorkspaceModuleOperation(deps.db, input.workspaceId, input.moduleId),
-    ]);
-    const pending = toPendingFromRow(pendingRow);
-    const targetStatus: ModulePersistedStatus = pending?.targetStatus ?? row?.status ?? 'disabled';
+    // **一致快照**：状态与待完成操作来自同一条 LEFT JOIN，不会组合出「enabled 且无 pending」。
+    const snapshot: ModuleSnapshot | null = await readModuleSnapshot(deps.db, input.workspaceId, input.moduleId);
+    const pending = toPendingOperation(snapshot?.pendingRow ?? null);
     return {
       ok: true,
-      module: toWorkspaceModuleStatus(input.moduleId, row, pendingRow),
+      module: snapshotToStatus(input.moduleId, snapshot),
       effect: {
         changed: input.changed,
         instancesRemoved: input.sideEffects.instancesRemoved,
@@ -441,7 +584,6 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
           action: input.action,
           resume: input.resume,
           pending,
-          targetStatus,
           instancesRemoved: input.sideEffects.instancesRemoved,
           scheduledTasksCancelled: input.sideEffects.scheduledTasksCancelled,
           settingsChanged: input.settingsChanged,
@@ -450,46 +592,25 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
     };
   }
 
-  function toPendingFromRow(row: WorkspaceModuleOperationRow | null): ModulePendingOperation | null {
-    return row === null
-      ? null
-      : {
-          action: row.action,
-          revision: row.revision,
-          targetStatus: row.target_status,
-          startedAt: row.started_at,
-          attempts: row.attempts,
-          lastError: row.last_error,
-        };
+  function pendingOf(snapshot: ModuleSnapshot | null): WorkspaceModuleOperationRow | null {
+    return snapshot?.pendingRow ?? null;
   }
 
   async function listStatuses(workspaceId: string): Promise<WorkspaceModuleStatus[]> {
-    const [rows, operations] = await Promise.all([
-      listWorkspaceModuleRows(deps.db, workspaceId),
-      listWorkspaceModuleOperations(deps.db, workspaceId),
-    ]);
-    const rowById = new Map(rows.map((row) => [row.module_id, row]));
-    const operationById = new Map(operations.map((row) => [row.module_id, row]));
-    // 只返回**注册表里存在**的模块：数据库里不属于任何已注册模块的残留行不对外暴露，
-    // 避免把未注册的 ID 呈现成「用户可管理的模块」。
-    return deps.registry.list().map((module) =>
-      toWorkspaceModuleStatus(
-        module.manifest.id,
-        rowById.get(module.manifest.id) ?? null,
-        operationById.get(module.manifest.id) ?? null,
-      ),
-    );
+    // 一次查询取回全部模块 + 待完成操作（同一快照）。
+    const snapshots = await listModuleSnapshots(deps.db, workspaceId);
+    const byId = new Map(snapshots.map((snapshot) => [snapshot.row.module_id, snapshot]));
+    // 只返回**注册表里存在**的模块：数据库里不属于任何已注册模块的残留行不对外暴露。
+    return deps.registry
+      .list()
+      .map((module) => snapshotToStatus(module.manifest.id, byId.get(module.manifest.id) ?? null));
   }
 
   async function readStatus(workspaceId: string, moduleId: string): Promise<WorkspaceModuleStatus> {
     if (deps.registry.get(moduleId) === undefined) {
-      return toWorkspaceModuleStatus(moduleId, null);
+      return snapshotToStatus(moduleId, null);
     }
-    const [row, pendingRow] = await Promise.all([
-      readWorkspaceModuleRow(deps.db, workspaceId, moduleId),
-      readWorkspaceModuleOperation(deps.db, workspaceId, moduleId),
-    ]);
-    return toWorkspaceModuleStatus(moduleId, row, pendingRow);
+    return snapshotToStatus(moduleId, await readModuleSnapshot(deps.db, workspaceId, moduleId));
   }
 
   async function mutate(input: {
@@ -504,7 +625,6 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
     const { request } = input;
 
     // ── 校验（全部是纯读/纯计算，没有任何副作用）────────────────────────────
-    // 清数据在任何状态下都被显式拒绝，因此这个判断必须最先做。
     if (request.action === 'purge') {
       return {
         ok: false,
@@ -537,12 +657,10 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
       validatedSettings = validation.settings;
     }
 
-    const row: WorkspaceModuleRow | null = await readWorkspaceModuleRow(deps.db, input.workspaceId, input.moduleId);
-    const pendingRow: WorkspaceModuleOperationRow | null = await readWorkspaceModuleOperation(
-      deps.db,
-      input.workspaceId,
-      input.moduleId,
-    );
+    // **一致快照**：状态与待完成操作必须同时可见，否则会误判「无 pending 可以正常迁移」。
+    const snapshot = await readModuleSnapshot(deps.db, input.workspaceId, input.moduleId);
+    const row: WorkspaceModuleRow | null = snapshot?.row ?? null;
+    const pendingRow = pendingOf(snapshot);
     const currentStatus: ModuleEffectiveStatus = row === null ? 'not_installed' : row.status;
     const currentRevision = row?.revision ?? 0;
     if (request.expectedRevision !== currentRevision) {
@@ -564,29 +682,73 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
             `已尝试 ${String(pendingRow.attempts)} 次）。请用同一动作、不带设置地重试以完成收尾。`,
         };
       }
-      const resumeTimestamp = now();
-      await beginAttempt({
+      const admissionRevision = pendingRow.revision;
+      const token = await claimExecution({
         workspaceId: input.workspaceId,
         moduleId: input.moduleId,
-        admissionRevision: pendingRow.revision,
-        resume: true,
+        admissionRevision,
       });
-      const sideEffects = await runSideEffects({
-        workspaceId: input.workspaceId,
-        moduleId: input.moduleId,
-        module,
-        action: pendingRow.action,
-        targetStatus: pendingRow.target_status,
-        timestamp: resumeTimestamp,
-        admissionRevision: pendingRow.revision,
-      });
-      if (sideEffects.failure !== null) {
-        await recordFailure({
+      if (token === null) {
+        // 认领失败有两种可能：别人正在执行（租约未过期），或这一轮已经被别人收尾完成。
+        const afterFailedClaim = await readModuleSnapshot(deps.db, input.workspaceId, input.moduleId);
+        if (afterFailedClaim === null || afterFailedClaim.pendingRow === null) {
+          return {
+            ok: false,
+            reason: 'operation_already_completed',
+            detail: '该待完成操作已由其他请求完成收尾，请重新读取状态。',
+          };
+        }
+        return {
+          ok: false,
+          reason: 'operation_in_progress',
+          detail: '该待完成操作正由另一次请求执行（独占认领未过期），本次未执行任何副作用。',
+        };
+      }
+      const timestamp = now();
+      const assertOwned = (): Promise<boolean> =>
+        ownsExecution({
           workspaceId: input.workspaceId,
           moduleId: input.moduleId,
-          admissionRevision: pendingRow.revision,
+          token,
+          admissionRevision,
+        });
+      const sideEffects = await runSideEffects(
+        {
+          workspaceId: input.workspaceId,
+          moduleId: input.moduleId,
+          module,
+          action: pendingRow.action,
+          targetStatus: pendingRow.target_status,
+          timestamp,
+          admissionRevision,
+        },
+        assertOwned,
+      );
+
+      if (sideEffects.superseded) {
+        return {
+          ok: false,
+          reason: 'operation_superseded',
+          detail: '本次执行权已被其他重试取代，已停止继续清理（未重复执行任何副作用）。',
+        };
+      }
+      if (sideEffects.failure !== null) {
+        const recorded = await recordFailure({
+          workspaceId: input.workspaceId,
+          moduleId: input.moduleId,
+          admissionRevision,
+          token,
           failure: sideEffects.failure,
         });
+        // 无论记录成功与否都释放认领：失败后应允许立刻重试。
+        await releaseClaim({ workspaceId: input.workspaceId, moduleId: input.moduleId, token });
+        if (!recorded) {
+          return {
+            ok: false,
+            reason: 'operation_superseded',
+            detail: '本次执行权已被取代，未能记录失败原因；请重新读取状态后重试。',
+          };
+        }
         return await buildOutcome({
           workspaceId: input.workspaceId,
           moduleId: input.moduleId,
@@ -595,23 +757,30 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
           changed: false,
           settingsChanged: false,
           sideEffects,
-          timestamp: resumeTimestamp,
         });
       }
+
       const completed = await completeAdmission({
         workspaceId: input.workspaceId,
         moduleId: input.moduleId,
-        admissionRevision: pendingRow.revision,
+        admissionRevision,
+        token,
       });
+      if (!completed) {
+        return {
+          ok: false,
+          reason: 'operation_superseded',
+          detail: '本次执行权已被取代：收尾未提交（状态未被改动）。',
+        };
+      }
       return await buildOutcome({
         workspaceId: input.workspaceId,
         moduleId: input.moduleId,
         action: pendingRow.action,
         resume: true,
-        changed: completed,
+        changed: true,
         settingsChanged: false,
         sideEffects,
-        timestamp: resumeTimestamp,
       });
     }
 
@@ -660,7 +829,7 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
       // 幂等：什么都不写，也不 bump revision，客户端无需重新读取。
       return {
         ok: true,
-        module: toWorkspaceModuleStatus(input.moduleId, row, null),
+        module: snapshotToStatus(input.moduleId, snapshot),
         effect: {
           changed: false,
           instancesRemoved: 0,
@@ -673,7 +842,6 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
             action,
             resume: false,
             pending: null,
-            targetStatus: row?.status ?? 'disabled',
             instancesRemoved: 0,
             scheduledTasksCancelled: 0,
             settingsChanged: false,
@@ -717,17 +885,32 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
         resume: false,
         changed: true,
         settingsChanged: true,
-        sideEffects: { handlersRun: [], instancesRemoved: 0, scheduledTasksCancelled: 0, failure: null },
-        timestamp,
+        sideEffects: {
+          handlersRun: [],
+          instancesRemoved: 0,
+          scheduledTasksCancelled: 0,
+          failure: null,
+          superseded: false,
+        },
       });
     }
 
-    // ── 阶段 1：原子准入（条件 CAS 提交状态 **并** 写入待完成标记，同一事务）──
+    // ── 阶段 1：原子准入（状态 CAS + 待完成标记 + 执行认领，同一事务）──────────
     const targetStatus = nextStatus ?? targetStatusOf(action ?? 'enable');
     const stamps = timestampsFor(targetStatus, timestamp);
     const admissionRevision = currentRevision + 1;
+    const token = newExecutionToken();
+    const claimedAt = timestamp;
+    const expiresAt = claimedAt + EXECUTION_LEASE_MS;
+
+    // 状态写入与「是否已有待完成操作」在**同一个条件**里互斥：
+    // 已有 pending 时 CAS 影响 0 行 → 409，不会出现「状态提交了、pending 却没被匹配」。
+    const noPendingGuard = `NOT EXISTS (SELECT 1 FROM workspace_module_operations g
+                                          WHERE g.workspace_id = ? AND g.module_id = ?)`;
     try {
       let casChanges: number;
+      let operationChanges: number;
+      let claimChanges: number;
       if (row === null) {
         const results = await deps.db.batch([
           deps.db
@@ -735,7 +918,9 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
               `INSERT INTO workspace_modules (
                  workspace_id, module_id, status, settings_json, settings_version, revision,
                  installed_at, enabled_at, disabled_at, uninstalled_at, created_at, updated_at
-               ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
+               )
+               SELECT ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?
+                WHERE ${noPendingGuard}
                ON CONFLICT (workspace_id, module_id) DO NOTHING`,
             )
             .bind(
@@ -750,6 +935,8 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
               stamps.uninstalledAt,
               timestamp,
               timestamp,
+              input.workspaceId,
+              input.moduleId,
             ),
           deps.db
             .prepare(
@@ -760,8 +947,17 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
                ON CONFLICT (workspace_id, module_id) DO NOTHING`,
             )
             .bind(input.workspaceId, input.moduleId, action ?? 'enable', targetStatus, timestamp),
+          deps.db
+            .prepare(
+              `INSERT INTO workspace_module_operation_claims (workspace_id, module_id, token, claimed_at, expires_at)
+               SELECT ?, ?, ?, ?, ? WHERE changes() = 1
+               ON CONFLICT (workspace_id, module_id) DO NOTHING`,
+            )
+            .bind(input.workspaceId, input.moduleId, token, claimedAt, expiresAt),
         ]);
         casChanges = results[0]?.meta.changes ?? 0;
+        operationChanges = results[1]?.meta.changes ?? 0;
+        claimChanges = results[2]?.meta.changes ?? 0;
       } else {
         const results = await deps.db.batch([
           deps.db
@@ -769,7 +965,7 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
               `UPDATE workspace_modules
                   SET status = ?, settings_json = ?, settings_version = ?, revision = revision + 1,
                       enabled_at = ?, disabled_at = ?, uninstalled_at = ?, updated_at = ?
-                WHERE workspace_id = ? AND module_id = ? AND revision = ?`,
+                WHERE workspace_id = ? AND module_id = ? AND revision = ? AND ${noPendingGuard}`,
             )
             .bind(
               targetStatus,
@@ -782,6 +978,8 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
               input.workspaceId,
               input.moduleId,
               currentRevision,
+              input.workspaceId,
+              input.moduleId,
             ),
           deps.db
             .prepare(
@@ -792,15 +990,32 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
                ON CONFLICT (workspace_id, module_id) DO NOTHING`,
             )
             .bind(input.workspaceId, input.moduleId, action ?? 'enable', targetStatus, admissionRevision, timestamp),
+          deps.db
+            .prepare(
+              `INSERT INTO workspace_module_operation_claims (workspace_id, module_id, token, claimed_at, expires_at)
+               SELECT ?, ?, ?, ?, ? WHERE changes() = 1
+               ON CONFLICT (workspace_id, module_id) DO NOTHING`,
+            )
+            .bind(input.workspaceId, input.moduleId, token, claimedAt, expiresAt),
         ]);
         casChanges = results[0]?.meta.changes ?? 0;
+        operationChanges = results[1]?.meta.changes ?? 0;
+        claimChanges = results[2]?.meta.changes ?? 0;
       }
       if (casChanges !== 1) {
         // **抢输：在任何一个可变副作用之前退出。**
         return {
           ok: false,
           reason: 'revision_conflict',
-          detail: '并发写入：revision 已被其他请求改变，本次修改未提交（未执行任何副作用）',
+          detail: '并发写入：revision 已被其他请求改变或该模块已有待完成操作，本次未提交（未执行任何副作用）',
+        };
+      }
+      if (operationChanges !== 1 || claimChanges !== 1) {
+        // 事务里 CAS 成功却不匹配到待完成标记/认领：条件互斥本应阻止它，因此视为内部不一致。
+        return {
+          ok: false,
+          reason: 'inconsistent_state',
+          detail: '状态已提交但待完成标记/执行认领未落库，请重新读取状态后重试',
         };
       }
     } catch (error) {
@@ -811,24 +1026,50 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
       };
     }
 
-    // ── 阶段 2：副作用（状态已提交，失败则保留待完成标记等待重试）────────────
     const resolveAction: ModuleSupportedAction = action ?? 'enable';
-    const sideEffects = await runSideEffects({
-      workspaceId: input.workspaceId,
-      moduleId: input.moduleId,
-      module,
-      action: resolveAction,
-      targetStatus,
-      timestamp,
-      admissionRevision,
-    });
+    const assertOwned = (): Promise<boolean> =>
+      ownsExecution({
+        workspaceId: input.workspaceId,
+        moduleId: input.moduleId,
+        token,
+        admissionRevision,
+      });
+    const sideEffects = await runSideEffects(
+      {
+        workspaceId: input.workspaceId,
+        moduleId: input.moduleId,
+        module,
+        action: resolveAction,
+        targetStatus,
+        timestamp,
+        admissionRevision,
+      },
+      assertOwned,
+    );
+
+    if (sideEffects.superseded) {
+      return {
+        ok: false,
+        reason: 'operation_superseded',
+        detail: '本次执行权已被其他重试取代，已停止继续清理（未重复执行任何副作用）。',
+      };
+    }
     if (sideEffects.failure !== null) {
-      await recordFailure({
+      const recorded = await recordFailure({
         workspaceId: input.workspaceId,
         moduleId: input.moduleId,
         admissionRevision,
+        token,
         failure: sideEffects.failure,
       });
+      await releaseClaim({ workspaceId: input.workspaceId, moduleId: input.moduleId, token });
+      if (!recorded) {
+        return {
+          ok: false,
+          reason: 'operation_superseded',
+          detail: '本次执行权已被取代，未能记录失败原因；请重新读取状态后重试。',
+        };
+      }
       return await buildOutcome({
         workspaceId: input.workspaceId,
         moduleId: input.moduleId,
@@ -837,16 +1078,22 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
         changed: true,
         settingsChanged,
         sideEffects,
-        timestamp,
       });
     }
 
-    // ── 阶段 3：收尾 ────────────────────────────────────────────────────────
-    await completeAdmission({
+    const completed = await completeAdmission({
       workspaceId: input.workspaceId,
       moduleId: input.moduleId,
       admissionRevision,
+      token,
     });
+    if (!completed) {
+      return {
+        ok: false,
+        reason: 'operation_superseded',
+        detail: '本次执行权已被取代：收尾未提交（状态未被改动）。',
+      };
+    }
     return await buildOutcome({
       workspaceId: input.workspaceId,
       moduleId: input.moduleId,
@@ -855,14 +1102,13 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
       changed: true,
       settingsChanged,
       sideEffects,
-      timestamp,
     });
   }
 
   return {
     listStatuses,
     readStatus,
-    gateStatus: (workspaceId, moduleId) => readModuleGateStatus(deps.db, workspaceId, moduleId),
+    gateStatus: async (workspaceId, moduleId) => (await readModuleGateStatus(deps.db, workspaceId, moduleId)).status,
     mutate,
   };
 }

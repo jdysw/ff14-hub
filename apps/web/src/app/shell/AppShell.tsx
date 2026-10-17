@@ -74,26 +74,28 @@ function ShellRegion(props: { readonly children: React.ReactNode }) {
 interface SessionWorkbenchProps {
   readonly api: ModulesApi;
   readonly authenticated: boolean;
-  readonly view: 'modules' | 'widgets';
+  readonly view: ShellView;
   readonly onRequestCredential: () => void;
 }
 
 /**
  * 会话作用域的模块/组件视图。
  *
- * 它整体属于**一个会话代际**（由外层用 `key={generation}` 保证），
- * 因此这里持有的实例存储、模块状态快照与提示都只反映当前会话；
- * 凭证切换时它们随组件一起被丢弃，不存在「旧会话数据继续展示」的窗口。
+ * 生命周期：它**在整个会话期间保持挂载**，只在凭证代际变化时（外层 `key={generation}`）重挂。
+ * 切到概览或会话凭证视图时只是不再渲染模块/组件面板 —— 实例存储与模块状态快照都还在，
+ * 因此「添加实例并改配置 → 去概览 → 回来」不会丢东西；只有切换/清除凭证才会清空。
  */
 function SessionWorkbench(props: SessionWorkbenchProps) {
   const [instanceStore] = useState(() => createWidgetInstanceStore({ lookup: builtinWidgetLookup }));
   const [instanceNotice, setInstanceNotice] = useState<string | null>(null);
   const moduleState = useModuleState(props.api, props.authenticated);
+  const showsModuleViews = props.view === 'modules' || props.view === 'widgets';
 
   /**
    * 模块变更后的 Host 侧联动（语义集中定义在 apply-module-mutation.ts）：
    * 卸载 → 移除该模块的全部实例；停用 → 实例保留但降级显示。
-   * 注意：过期会话的结果根本走不到这里（useModuleState 会返回 stale 并让面板跳过回调）。
+   * 注意：过期会话/过期 revision 的结果根本走不到这里
+   * （useModuleState 会返回 stale 并让面板跳过回调）。
    */
   function handleModuleMutated(moduleId: string, response: ModuleMutationResponse): void {
     const effect = applyModuleMutationToHost(instanceStore, moduleId, response);
@@ -102,22 +104,24 @@ function SessionWorkbench(props: SessionWorkbenchProps) {
 
   return (
     <>
-      {instanceNotice !== null ? (
+      {showsModuleViews && instanceNotice !== null ? (
         <p className="notice notice--ok" role="status">
           {instanceNotice}
         </p>
       ) : null}
 
-      {props.view === 'modules' ? (
+      {showsModuleViews && props.view === 'modules' ? (
         <ModuleManagerPanel
           moduleState={moduleState}
           hasCredential={props.authenticated}
           onMutated={handleModuleMutated}
           onRequestCredential={props.onRequestCredential}
         />
-      ) : (
+      ) : null}
+
+      {showsModuleViews && props.view === 'widgets' ? (
         <WidgetAcceptancePanel moduleState={moduleState} store={instanceStore} />
-      )}
+      ) : null}
     </>
   );
 }
@@ -156,6 +160,21 @@ export function AppShell() {
 
       <main className="shell__main">
         <ShellRegion>
+          {/*
+            会话作用域容器**始终挂载**（只按 generation 重挂）。
+            切到概览 / 会话凭证视图时它只是不渲染内容，实例与模块状态因此得以保留。
+          */}
+          <SessionWorkbench
+            // 会话代际作为 key：凭证切换/清除时整棵会话子树同步重挂。
+            key={session.generation}
+            api={api}
+            authenticated={session.authenticated}
+            view={view}
+            onRequestCredential={() => {
+              setView('credentials');
+            }}
+          />
+
           {view === 'overview' ? (
             <>
               <StageNotice />
@@ -168,19 +187,6 @@ export function AppShell() {
               store={credentialStore}
               onSaved={() => {
                 setView('modules');
-              }}
-            />
-          ) : null}
-
-          {view === 'modules' || view === 'widgets' ? (
-            <SessionWorkbench
-              // 会话代际作为 key：凭证切换/清除时整棵会话子树同步重挂。
-              key={session.generation}
-              api={api}
-              authenticated={session.authenticated}
-              view={view}
-              onRequestCredential={() => {
-                setView('credentials');
               }}
             />
           ) : null}

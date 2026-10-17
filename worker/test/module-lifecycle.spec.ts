@@ -21,7 +21,7 @@ import {
 import { SELF, env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createModuleLifecycle } from '../modules/lifecycle/module-lifecycle';
+import { createModuleLifecycle, EXECUTION_LEASE_MS } from '../modules/lifecycle/module-lifecycle';
 import { createInMemoryScheduledTaskStore, createModuleScheduler } from '../modules/lifecycle/scheduler';
 import { readModuleGateStatus } from '../modules/lifecycle/workspace-modules';
 import type { ModuleInstanceStore, ModuleSchedulerPort } from '../modules/ports';
@@ -485,24 +485,78 @@ describe('读取状态', () => {
 // 服务层：原子准入 → 副作用 → 收尾；失败语义、幂等重试、端口作用域与能力门禁
 // ---------------------------------------------------------------------------
 
-interface RecordingInstanceStore {
-  readonly store: ModuleInstanceStore;
-  readonly calls: { workspaceId: string; moduleId: string; reason: string }[];
+interface FakeInstance {
+  readonly moduleId: string;
+  readonly createdRevision: number;
 }
 
-function recordingInstanceStore(removed = 2): RecordingInstanceStore {
-  const calls: { workspaceId: string; moduleId: string; reason: string }[] = [];
-  return {
+interface RecordingInstanceStore {
+  readonly store: ModuleInstanceStore;
+  readonly calls: {
+    worksspaceIdPlaceholder?: never;
+    moduleId: string;
+    reason: string;
+    maxRevision: number;
+  }[];
+  /** 下一次清理会在**真正删除之前**挂起，直到测试调用 release()（确定性交错用）。 */
+  holdNext: boolean;
+  readonly held: { release: () => void }[];
+  /** 模拟「某一代创建的实例」。清理按 maxRevision 做 fence。 */
+  seedInstance(moduleId: string, createdRevision: number): void;
+  instancesOf(moduleId: string): readonly FakeInstance[];
+}
+
+/**
+ * 带 **revision fence** 的实例端口替身。
+ *
+ * `removeInstancesForModule` 只删除 `createdRevision <= maxRevision` 的实例——
+ * 这正是「旧执行者删不掉 restore 之后的新实例」的可验证落点。
+ */
+function recordingInstanceStore(): RecordingInstanceStore {
+  const calls: RecordingInstanceStore['calls'] = [];
+  const held: { release: () => void }[] = [];
+  const instances: FakeInstance[] = [];
+  const state: RecordingInstanceStore = {
     calls,
+    held,
+    holdNext: false,
+    seedInstance: (moduleId, createdRevision) => {
+      instances.push({ moduleId, createdRevision });
+    },
+    instancesOf: (moduleId) => instances.filter((instance) => instance.moduleId === moduleId),
     store: {
       persistent: false,
-      removeInstancesForModule: (input) => {
-        calls.push({ workspaceId: input.workspaceId, moduleId: input.moduleId, reason: input.reason });
-        return Promise.resolve({ removed });
+      removeInstancesForModule: async (input) => {
+        calls.push({
+          moduleId: input.moduleId,
+          reason: input.reason,
+          maxRevision: input.maxRevision,
+        });
+        if (state.holdNext) {
+          state.holdNext = false;
+          await new Promise<void>((resolve) => {
+            held.push({ release: resolve });
+          });
+        }
+        let removed = 0;
+        for (let index = instances.length - 1; index >= 0; index -= 1) {
+          const instance = instances[index];
+          if (
+            instance !== undefined &&
+            instance.moduleId === input.moduleId &&
+            instance.createdRevision <= input.maxRevision
+          ) {
+            instances.splice(index, 1);
+            removed += 1;
+          }
+        }
+        return { removed };
       },
-      countInstancesForModule: () => Promise.resolve(0),
+      countInstancesForModule: (input) =>
+        Promise.resolve(instances.filter((instance) => instance.moduleId === input.moduleId).length),
     },
   };
+  return state;
 }
 
 interface ServiceHarness {
@@ -511,6 +565,9 @@ interface ServiceHarness {
   readonly scheduler: ModuleSchedulerPort;
   readonly scheduledTasks: ReturnType<typeof createInMemoryScheduledTaskStore>;
   readonly instances: RecordingInstanceStore;
+  /** 推进注入时钟（租约过期等确定性交错用）。 */
+  advanceClock(ms: number): void;
+  now(): number;
 }
 
 interface HarnessOptions {
@@ -518,6 +575,7 @@ interface HarnessOptions {
   /** 包装内部管理端口，用于注入「某一步失败」。 */
   readonly wrapScheduler?: (management: ModuleSchedulerPort) => ModuleSchedulerPort;
   readonly registry?: ModuleRegistry;
+  readonly instances?: RecordingInstanceStore;
 }
 
 function buildHarness(options: HarnessOptions = {}): ServiceHarness {
@@ -527,15 +585,26 @@ function buildHarness(options: HarnessOptions = {}): ServiceHarness {
     readModuleStatus: ({ workspaceId, moduleId }) => readModuleGateStatus(env.DB, workspaceId, moduleId),
   });
   const scheduler = options.wrapScheduler?.(management) ?? management;
-  const instances = recordingInstanceStore();
+  const instances = options.instances ?? recordingInstanceStore();
+  let clock = NOW;
   const lifecycle = createModuleLifecycle({
     db: env.DB,
     registry: options.registry ?? builtinModuleRegistry,
     instanceStore: options.instanceStore ?? instances.store,
     scheduler,
-    now: () => NOW,
+    now: () => clock,
   });
-  return { lifecycle, management, scheduler, scheduledTasks, instances };
+  return {
+    lifecycle,
+    management,
+    scheduler,
+    scheduledTasks,
+    instances,
+    advanceClock: (ms) => {
+      clock += ms;
+    },
+    now: () => clock,
+  };
 }
 
 const GREETING = '保留的设置';
@@ -658,6 +727,10 @@ describe('副作用失败的持久事实与幂等重试', () => {
       taskKey: 'sentinel',
       runAt: NOW + 60_000,
     });
+
+    // 该模块当前有 2 个实例（模拟 Host 里已放好的组件）。
+    harness.instances.seedInstance(DEMO_BASICS_MODULE_ID, 1);
+    harness.instances.seedInstance(DEMO_BASICS_MODULE_ID, 1);
 
     const outcome = await harness.lifecycle.mutate({
       workspaceId: workspace.workspaceId,
@@ -905,6 +978,8 @@ describe('副作用失败的持久事实与幂等重试', () => {
       moduleId,
       request: { expectedRevision: 0, action: 'enable' },
     });
+    harness.instances.seedInstance(moduleId, 1);
+    harness.instances.seedInstance(moduleId, 1);
 
     const outcome = await harness.lifecycle.mutate({
       workspaceId: workspace.workspaceId,
@@ -1188,8 +1263,48 @@ describe('调度门禁受模块启停状态约束', () => {
         workspaceId: workspace.workspaceId,
         moduleId: DEMO_BASICS_MODULE_ID,
         reason: 'module_disabled',
+        upToRevision: 2,
       }),
     ).toEqual({ cancelled: 0 });
+  });
+
+  it('取消带 revision fence：只删这一代及更早登记的任务，不碰 restore 之后的新任务', async () => {
+    const workspace = await seedWorkspace();
+    const harness = buildHarness();
+
+    // 直接构造两代任务：rev2（旧一代）与 rev3（restore 之后）。
+    await harness.scheduledTasks.insert({
+      workspaceId: workspace.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      taskKey: 'old-generation',
+      runAt: NOW + 1000,
+      createdAt: NOW,
+      createdRevision: 2,
+    });
+    await harness.scheduledTasks.insert({
+      workspaceId: workspace.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      taskKey: 'new-generation',
+      runAt: NOW + 2000,
+      createdAt: NOW,
+      createdRevision: 3,
+    });
+
+    // 旧执行者（准入 revision = 2）只能清掉它自己那一代。
+    expect(
+      await harness.management.cancelAllForModule({
+        workspaceId: workspace.workspaceId,
+        moduleId: DEMO_BASICS_MODULE_ID,
+        reason: 'module_uninstalled',
+        upToRevision: 2,
+      }),
+    ).toEqual({ cancelled: 1 });
+
+    const remaining = await harness.scheduledTasks.listByModule({
+      workspaceId: workspace.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+    });
+    expect(remaining.map((task) => task.taskKey)).toEqual(['new-generation']);
   });
 });
 
@@ -1241,6 +1356,412 @@ describe('设置上限与其他拒绝路径', () => {
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) {
       expect(outcome.reason).toBe('module_unknown');
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 独占执行认领（复核 P1）：并发续做只有一个执行者；被取代的执行者不得产生副作用
+// ---------------------------------------------------------------------------
+
+async function waitForCondition(predicate: () => boolean, label: string, timeoutMs = 3000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) {
+      return;
+    }
+    await new Promise((resolve) => {
+      setTimeout(resolve, 5);
+    });
+  }
+  throw new Error(`等待条件超时：${label}`);
+}
+
+/** 制造一个「已提交但收尾失败」的卸载（pending，status=uninstalled）。 */
+async function createFailedUninstall(input: {
+  readonly harness: ServiceHarness;
+  readonly workspaceId: string;
+  readonly moduleId?: string;
+}): Promise<{ revision: number; attempts: number }> {
+  const outcome = await input.harness.lifecycle.mutate({
+    workspaceId: input.workspaceId,
+    moduleId: input.moduleId ?? DEMO_BASICS_MODULE_ID,
+    request: { expectedRevision: 1, action: 'uninstall' },
+  });
+  if (!outcome.ok || !outcome.effect.pending) {
+    throw new Error('准备「收尾失败的卸载」失败');
+  }
+  return {
+    revision: outcome.module.revision,
+    attempts: outcome.module.pendingOperation?.attempts ?? 0,
+  };
+}
+
+/** 让「任务取消」这一步可控地失败。 */
+function failingCancelScheduler(management: ModuleSchedulerPort, shouldFail: () => boolean): ModuleSchedulerPort {
+  return {
+    ...management,
+    cancelAllForModule: (input) =>
+      shouldFail() ? Promise.reject(new Error('调度不可用')) : management.cancelAllForModule(input),
+  };
+}
+
+describe('独占执行认领：并发续做只有一个执行者', () => {
+  it('两个并发续做：恰好一个完成收尾，另一个 operation_in_progress，副作用只发生一次', async () => {
+    const workspace = await seedWorkspace();
+    let cancelFails = true;
+    const harness = buildHarness({
+      wrapScheduler: (management) => failingCancelScheduler(management, () => cancelFails),
+    });
+    await enableWithSettings(harness, workspace.workspaceId);
+    await createFailedUninstall({ harness, workspaceId: workspace.workspaceId });
+    cancelFails = false;
+
+    const instanceCallsBefore = harness.instances.calls.length;
+    const [first, second] = await Promise.all([
+      harness.lifecycle.mutate({
+        workspaceId: workspace.workspaceId,
+        moduleId: DEMO_BASICS_MODULE_ID,
+        request: { expectedRevision: 2, action: 'uninstall' },
+      }),
+      harness.lifecycle.mutate({
+        workspaceId: workspace.workspaceId,
+        moduleId: DEMO_BASICS_MODULE_ID,
+        request: { expectedRevision: 2, action: 'uninstall' },
+      }),
+    ]);
+
+    const winners = [first, second].filter((outcome) => outcome.ok);
+    const losers = [first, second].filter((outcome) => !outcome.ok);
+    expect(winners).toHaveLength(1);
+    expect(losers).toHaveLength(1);
+    if (losers[0] !== undefined && !losers[0].ok) {
+      // 输家必须在**任何副作用之前**退出：要么认领被占用，要么已被别人收尾。
+      expect(['operation_in_progress', 'operation_already_completed']).toContain(losers[0].reason);
+    }
+    // 副作用只发生了一次（一次实例清理调用），且收尾完成。
+    expect(harness.instances.calls.length - instanceCallsBefore).toBe(1);
+    expect(await readModuleOperationRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID)).toBeNull();
+    expect((await readModuleRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID))?.status).toBe('uninstalled');
+  });
+
+  it('租约未过期时续做被拒（operation_in_progress），且不触碰状态与端口', async () => {
+    const workspace = await seedWorkspace();
+    const harness = buildHarness({
+      wrapScheduler: (management) => failingCancelScheduler(management, () => true),
+    });
+    await enableWithSettings(harness, workspace.workspaceId);
+    await createFailedUninstall({ harness, workspaceId: workspace.workspaceId });
+
+    // 手动占用认领，模拟「另一个执行者正在跑」。
+    await env.DB.prepare(
+      `INSERT INTO workspace_module_operation_claims (workspace_id, module_id, token, claimed_at, expires_at)
+       VALUES (?, ?, 'held-by-test', ?, ?)`,
+    )
+      .bind(workspace.workspaceId, DEMO_BASICS_MODULE_ID, harness.now(), harness.now() + 60_000)
+      .run();
+    const instanceCallsBefore = harness.instances.calls.length;
+
+    const blocked = await harness.lifecycle.mutate({
+      workspaceId: workspace.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      request: { expectedRevision: 2, action: 'uninstall' },
+    });
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok) {
+      expect(blocked.reason).toBe('operation_in_progress');
+    }
+    expect(harness.instances.calls).toHaveLength(instanceCallsBefore);
+    // 认领与待完成标记都原样保留（没有被静默改写/覆盖）。
+    const claim = await env.DB.prepare(
+      'SELECT token, expires_at FROM workspace_module_operation_claims WHERE workspace_id = ? AND module_id = ?',
+    )
+      .bind(workspace.workspaceId, DEMO_BASICS_MODULE_ID)
+      .first<{ token: string; expires_at: number }>();
+    expect(claim?.token).toBe('held-by-test');
+    const pendingRow = await readModuleOperationRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID);
+    expect(pendingRow?.attempts).toBe(1);
+  });
+
+  it('租约过期后可以抢占并完成收尾（活性），attempts 在同一事务里递增', async () => {
+    const workspace = await seedWorkspace();
+    let cancelFails = true;
+    const harness = buildHarness({
+      wrapScheduler: (management) => failingCancelScheduler(management, () => cancelFails),
+    });
+    await enableWithSettings(harness, workspace.workspaceId);
+    await createFailedUninstall({ harness, workspaceId: workspace.workspaceId });
+
+    await env.DB.prepare(
+      `INSERT INTO workspace_module_operation_claims (workspace_id, module_id, token, claimed_at, expires_at)
+       VALUES (?, ?, 'stale-executor', ?, ?)`,
+    )
+      .bind(workspace.workspaceId, DEMO_BASICS_MODULE_ID, harness.now(), harness.now() + 60_000)
+      .run();
+
+    // 还没到期：抢占失败。
+    expect(
+      (await harness.lifecycle.mutate({
+        workspaceId: workspace.workspaceId,
+        moduleId: DEMO_BASICS_MODULE_ID,
+        request: { expectedRevision: 2, action: 'uninstall' },
+      })).ok,
+    ).toBe(false);
+
+    cancelFails = false;
+    harness.advanceClock(60_001);
+    const taken = await harness.lifecycle.mutate({
+      workspaceId: workspace.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      request: { expectedRevision: 2, action: 'uninstall' },
+    });
+    expect(taken.ok).toBe(true);
+    if (!taken.ok) {
+      return;
+    }
+    expect(taken.module.pendingOperation).toBeNull();
+    expect(taken.effect.pending).toBe(false);
+    expect(await readModuleOperationRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID)).toBeNull();
+  });
+});
+
+describe('被取代/过期的执行者不得产生副作用（复核复现场景）', () => {
+  it('A 暂停期间 B 被拒、租约过期后 C 完成收尾；A 恢复时被 fence 挡住，新一轮状态/任务/实例不受影响', async () => {
+    const workspace = await seedWorkspace();
+    const workspaceId = workspace.workspaceId;
+    const moduleId = DEMO_BASICS_MODULE_ID;
+    let cancelFails = true;
+    const harness = buildHarness({
+      wrapScheduler: (management) => failingCancelScheduler(management, () => cancelFails),
+    });
+
+    // 起点：已启用（rev1），并有一个 rev1 的后台任务作为哨兵。
+    await enableWithSettings(harness, workspaceId);
+    await harness.management.schedule({ workspaceId, moduleId, taskKey: 'sentinel', runAt: NOW + 60_000 });
+
+    // 第一次卸载：状态已提交为 uninstalled（rev2），任务取消失败 → 留下 pending。
+    const failed = await createFailedUninstall({ harness, workspaceId });
+    expect(failed.revision).toBe(2);
+    expect(failed.attempts).toBe(1);
+
+    // 重试 A 开始执行：在「真正删除实例之前」被挂起。
+    harness.instances.holdNext = true;
+    const retryA = harness.lifecycle.mutate({
+      workspaceId,
+      moduleId,
+      request: { expectedRevision: 2, action: 'uninstall' },
+    });
+    await waitForCondition(() => harness.instances.held.length === 1, 'A 进入实例清理');
+
+    // 重试 B：A 仍持有未过期租约 → 必须被拒，且没有任何副作用。
+    const instanceCallsBeforeB = harness.instances.calls.length;
+    const retryB = await harness.lifecycle.mutate({
+      workspaceId,
+      moduleId,
+      request: { expectedRevision: 2, action: 'uninstall' },
+    });
+    expect(retryB.ok).toBe(false);
+    if (!retryB.ok) {
+      expect(retryB.reason).toBe('operation_in_progress');
+    }
+    expect(harness.instances.calls).toHaveLength(instanceCallsBeforeB);
+
+    // 租约过期 → 重试 C 抢占成功并完成收尾。
+    cancelFails = false;
+    harness.advanceClock(EXECUTION_LEASE_MS + 1);
+    const retryC = await harness.lifecycle.mutate({
+      workspaceId,
+      moduleId,
+      request: { expectedRevision: 2, action: 'uninstall' },
+    });
+    expect(retryC.ok).toBe(true);
+    if (!retryC.ok) {
+      return;
+    }
+    expect(retryC.module.pendingOperation).toBeNull();
+    expect(retryC.effect.scheduledTasksCancelled).toBe(1);
+    expect(await readModuleOperationRow(workspaceId, moduleId)).toBeNull();
+
+    // 新一轮：恢复 → rev3，登记新任务、放一个新实例。
+    const restored = await harness.lifecycle.mutate({
+      workspaceId,
+      moduleId,
+      request: { expectedRevision: 2, action: 'restore' },
+    });
+    expect(restored.ok).toBe(true);
+    if (!restored.ok) {
+      return;
+    }
+    expect(restored.module.status).toBe('enabled');
+    expect(restored.module.revision).toBe(3);
+    const scheduled = await harness.management.schedule({
+      workspaceId,
+      moduleId,
+      taskKey: 'after-restore',
+      runAt: NOW + 120_000,
+    });
+    expect(scheduled.ok).toBe(true);
+    harness.instances.seedInstance(moduleId, 3);
+
+    // 放行 A：它已经不再是执行者 → 必须在**副作用之前**退出。
+    const held = harness.instances.held[0];
+    if (held === undefined) {
+      throw new Error('A 没有被挂起');
+    }
+    held.release();
+    const outcomeA = await retryA;
+    expect(outcomeA.ok).toBe(false);
+    if (!outcomeA.ok) {
+      expect(outcomeA.reason).toBe('operation_superseded');
+    }
+
+    // 关键断言：新一轮的状态、任务、实例都不受旧执行者影响。
+    const row = await readModuleRow(workspaceId, moduleId);
+    expect(row?.status).toBe('enabled');
+    expect(row?.revision).toBe(3);
+    expect(await readModuleOperationRow(workspaceId, moduleId)).toBeNull();
+    const tasks = await harness.scheduledTasks.listByModule({ workspaceId, moduleId });
+    expect(tasks.map((task) => task.taskKey)).toEqual(['after-restore']);
+    expect(harness.instances.instancesOf(moduleId)).toHaveLength(1);
+    // 旧执行者带的是它自己的 revision 作为 fence 上界（2），不会删掉 rev3 的实例。
+    const failingCall = harness.instances.calls.find((call) => call.maxRevision === 2);
+    expect(failingCall).toBeDefined();
+    // 个人数据（设置）仍然保留。
+    expect(await readModuleSettings(workspaceId, moduleId)).toMatchObject({ greeting: GREETING });
+  });
+
+  it('执行权被取代后，收尾与失败记录都写不进去（不会冒充成功）', async () => {
+    const workspace = await seedWorkspace();
+    const workspaceId = workspace.workspaceId;
+    let cancelFails = true;
+    const harness = buildHarness({
+      wrapScheduler: (management) => failingCancelScheduler(management, () => cancelFails),
+    });
+    await enableWithSettings(harness, workspaceId);
+    await createFailedUninstall({ harness, workspaceId });
+
+    // 用一个过期的认领「假装」A 还活着，然后让真正的执行者完成收尾。
+    await env.DB.prepare(
+      `INSERT INTO workspace_module_operation_claims (workspace_id, module_id, token, claimed_at, expires_at)
+       VALUES (?, ?, 'stale-executor', ?, ?)`,
+    )
+      .bind(workspaceId, DEMO_BASICS_MODULE_ID, harness.now(), harness.now() + 60_000)
+      .run();
+    cancelFails = false;
+    harness.advanceClock(60_001);
+    const completedByOther = await harness.lifecycle.mutate({
+      workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      request: { expectedRevision: 2, action: 'uninstall' },
+    });
+    expect(completedByOther.ok).toBe(true);
+
+    // 旧 token 的写入必须影响 0 行：既删不掉 pending（已不存在），也改不了状态。
+    const staleComplete = await env.DB.prepare(
+      `DELETE FROM workspace_module_operations
+        WHERE workspace_id = ? AND module_id = ? AND revision = 2
+          AND EXISTS (SELECT 1 FROM workspace_module_operation_claims c
+                       WHERE c.workspace_id = ? AND c.module_id = ? AND c.token = 'stale-executor')`,
+    )
+      .bind(workspaceId, DEMO_BASICS_MODULE_ID, workspaceId, DEMO_BASICS_MODULE_ID)
+      .run();
+    expect(staleComplete.meta.changes).toBe(0);
+    expect((await readModuleRow(workspaceId, DEMO_BASICS_MODULE_ID))?.status).toBe('uninstalled');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 读取快照一致性（复核 P1）：状态与 pending 必须来自同一条 SQL
+// ---------------------------------------------------------------------------
+
+describe('读取快照一致性：状态与待完成操作同源', () => {
+  it('有待完成操作时，单个模块的读取同时返回状态与 pending（不会只给 enabled）', async () => {
+    const workspace = await seedWorkspace();
+    const harness = buildHarness({
+      wrapScheduler: (management) => failingCancelScheduler(management, () => true),
+    });
+    await enableWithSettings(harness, workspace.workspaceId);
+    await createFailedUninstall({ harness, workspaceId: workspace.workspaceId });
+
+    const status = await harness.lifecycle.readStatus(workspace.workspaceId, DEMO_BASICS_MODULE_ID);
+    expect(status.status).toBe('uninstalled');
+    expect(status.pendingOperation).not.toBeNull();
+    expect(status.pendingOperation?.action).toBe('uninstall');
+    expect(status.pendingOperation?.targetStatus).toBe('uninstalled');
+    // 门禁与读取同源：必须是 transitioning，而不是把「状态已提交」当成可运行。
+    expect(await harness.lifecycle.gateStatus(workspace.workspaceId, DEMO_BASICS_MODULE_ID)).toBe('transitioning');
+  });
+
+  it('列表读取同样是同源快照：pending 存在时逐项带出', async () => {
+    const workspace = await seedWorkspace();
+    const harness = buildHarness({
+      wrapScheduler: (management) => failingCancelScheduler(management, () => true),
+    });
+    await enableWithSettings(harness, workspace.workspaceId);
+    await createFailedUninstall({ harness, workspaceId: workspace.workspaceId });
+
+    const statuses = await harness.lifecycle.listStatuses(workspace.workspaceId);
+    const basics = statuses.find((entry) => entry.moduleId === DEMO_BASICS_MODULE_ID);
+    expect(basics?.status).toBe('uninstalled');
+    expect(basics?.pendingOperation?.action).toBe('uninstall');
+  });
+
+  it('已有待完成操作时，第二次准入不会提交状态（写互斥），标记与设置都不变', async () => {
+    const workspace = await seedWorkspace();
+    const harness = buildHarness({
+      wrapScheduler: (management) => failingCancelScheduler(management, () => true),
+    });
+    await enableWithSettings(harness, workspace.workspaceId);
+    await createFailedUninstall({ harness, workspaceId: workspace.workspaceId });
+    const pendingBefore = await readModuleOperationRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID);
+    const rowBefore = await readModuleRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID);
+
+    // 任何「新动作」都必须被拒（pending_conflict），并且不能悄悄覆盖已有 pending。
+    const attempt = await harness.lifecycle.mutate({
+      workspaceId: workspace.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      request: { expectedRevision: 2, action: 'restore' },
+    });
+    expect(attempt.ok).toBe(false);
+    if (!attempt.ok) {
+      expect(attempt.reason).toBe('pending_conflict');
+    }
+    expect(await readModuleOperationRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID)).toEqual(pendingBefore);
+    expect(await readModuleRow(workspace.workspaceId, DEMO_BASICS_MODULE_ID)).toEqual(rowBefore);
+  });
+
+  it('并发读取与准入交错时，快照不会虚构「enabled 且无 pending」', async () => {
+    const workspace = await seedWorkspace();
+    const workspaceId = workspace.workspaceId;
+    const moduleId = DEMO_BASICS_MODULE_ID;
+    const harness = buildHarness();
+    await enableWithSettings(harness, workspaceId);
+
+    for (let round = 0; round < 12; round += 1) {
+      const before = await harness.lifecycle.readStatus(workspaceId, moduleId);
+      // 并发：一次读取 vs 一次准入（准入在**同一事务**里写 status 与 pending）。
+      const [snapshot] = await Promise.all([
+        harness.lifecycle.readStatus(workspaceId, moduleId),
+        harness.lifecycle.mutate({
+          workspaceId,
+          moduleId,
+          request:
+            before.status === 'enabled'
+              ? { expectedRevision: before.revision, action: 'disable' }
+              : { expectedRevision: before.revision, action: 'enable' },
+        }),
+      ]);
+
+      // 不变量：若快照给出的 revision 与库中待完成操作的 revision 相同，
+      // 该快照必须同时带出 pending —— 否则就是「enabled 且无 pending」的虚构可运行状态。
+      const pendingRow = await readModuleOperationRow(workspaceId, moduleId);
+      if (pendingRow !== null && pendingRow.revision === snapshot.revision) {
+        expect(snapshot.pendingOperation).not.toBeNull();
+      }
+      // 快照里的 status 与 pendingOperation.targetStatus 必须自洽（同一事务写入的事实）。
+      if (snapshot.pendingOperation !== null) {
+        expect(snapshot.pendingOperation.targetStatus).toBe(snapshot.status);
+      }
     }
   });
 });

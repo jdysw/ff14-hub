@@ -94,6 +94,13 @@ export function useModuleState(api: ModulesApi, authenticated: boolean): ModuleS
   const [reloadToken, setReloadToken] = useState(0);
   const [loaded, setLoaded] = useState<LoadedModuleState | null>(null);
   const mountedRef = useRef(true);
+  /**
+   * 状态的镜像（与 `loaded.statuses` 同步维护）。
+   * 用于在**写入前**判定「这个响应是不是基于更早的 revision」——
+   * 生命周期副作用可能需要重试/被取代，旧执行者的响应可能晚到；
+   * 依据过期响应去改本地实例会误删新一代数据，因此这里只接受不小于已知 revision 的响应。
+   */
+  const statusesRef = useRef<Readonly<Record<string, WorkspaceModuleStatus>>>({});
 
   /**
    * 请求键 = 是否已认证 + 刷新计数（**不含凭证内容**）。
@@ -135,6 +142,7 @@ export function useModuleState(api: ModulesApi, authenticated: boolean): ModuleS
       }
 
       // 公开目录**先到先渲染**：不要因为私有状态还没回来就让界面空白。
+      statusesRef.current = {};
       setLoaded({
         requestKey,
         catalog: catalogResult.data.modules,
@@ -157,6 +165,7 @@ export function useModuleState(api: ModulesApi, authenticated: boolean): ModuleS
           statuses[status.moduleId] = status;
         }
       }
+      statusesRef.current = statuses;
       setLoaded({
         requestKey,
         catalog: catalogResult.data.modules,
@@ -192,12 +201,21 @@ export function useModuleState(api: ModulesApi, authenticated: boolean): ModuleS
           conflict: result.error.code === 'conflict',
         };
       }
+      const known = statusesRef.current[moduleId];
+      if (known !== undefined && result.data.module.revision < known.revision) {
+        // 该响应基于更早的 revision（例如收尾重试被取代后晚到的旧响应）：
+        // 不能据此更新界面，更不能据此产生 Host 副作用（那会误删新一代的实例）。
+        return {
+          ok: false,
+          stale: true,
+          message: '该响应基于更早的状态修订，已忽略。',
+          conflict: false,
+        };
+      }
       // 就地应用服务端返回的状态，不做本地推测。
-      setLoaded((current) =>
-        current === null
-          ? current
-          : { ...current, statuses: { ...current.statuses, [moduleId]: result.data.module } },
-      );
+      const nextStatuses = { ...statusesRef.current, [moduleId]: result.data.module };
+      statusesRef.current = nextStatuses;
+      setLoaded((current) => (current === null ? current : { ...current, statuses: nextStatuses }));
       return { ok: true, response: result.data };
     },
     [api],

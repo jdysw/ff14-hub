@@ -38,11 +38,11 @@ Widget 的配置（实例级）继续叫 config。
 
 ## D4. 生命周期执行协议：**先原子准入提交状态，再执行副作用，最后收尾**
 
-> 本条替换了本 ADR 的早期版本。早期设计是「校验 → handler → 平台副作用 → 条件写库」，
-> 它有两个被复核指出的真实缺陷：
-> ① 同一 `enabled/revision` 下，设置更新先赢、卸载后输 409，但**输家在拿到 409 之前已经移除了实例、取消了任务**；
-> ② 实例清理成功而任务取消失败时，数据库仍是 `enabled`，于是出现「enabled 但实例已删」且没有任何记录的状态。
-> 现在改为下面的三段式，并且**由数据库事务决定谁是赢家**（不使用 isolate 内互斥——Workers 的多个 isolate 不共享内存）。
+> 本条替换了本 ADR 的早期版本（两次）。第一次是「校验 → handler → 平台副作用 → 条件写库」，
+> 缺陷是 CAS 输家也会执行副作用。
+> 第二次是「准入 → 副作用 → 收尾」，但**没有限制并发续做**：多个重试可以同时读到 pending 并各自执行副作用，
+> 且「收尾影响 0 行」被当成成功，于是旧执行者能在 restore 之后继续清理新一代的实例与任务。
+> 现在改为下面的四段式，赢家与执行权都由数据库独占（不使用 isolate 内互斥——Workers 的多个 isolate 不共享内存）。
 
 **阶段 1 · 原子准入（唯一的「可变写入」，一个 D1 batch / 一个事务）**
 
@@ -50,31 +50,54 @@ Widget 的配置（实例级）继续叫 config。
 UPDATE workspace_modules
    SET status = <目标>, settings_json = ?, settings_version = ?, revision = revision + 1, ...
  WHERE workspace_id = ? AND module_id = ? AND revision = <expectedRevision>     -- 条件 CAS
+   AND NOT EXISTS (SELECT 1 FROM workspace_module_operations g WHERE ...)      -- 待完成操作互斥
 INSERT INTO workspace_module_operations (..., revision = <新 revision>)
+  SELECT ... WHERE changes() = 1                                               -- 与 CAS 同一事务
+INSERT INTO workspace_module_operation_claims (..., token = <本次执行 token>)
   SELECT ... WHERE changes() = 1                                               -- 与 CAS 同一事务
 ```
 
 - `changes() = 0` 即**抢输**：立刻以 409 返回，**此时以及此后都没有任何可变副作用**。
-- 首次安装（行不存在）用 `INSERT ... ON CONFLICT DO NOTHING` + 同样的 `WHERE changes() = 1`。
-- 纯设置变更没有副作用，因此仍是一条件 UPDATE，不产生待完成标记。
+- 待完成标记的互斥写在**条件里**（`NOT EXISTS`），不是「先插再 `DO NOTHING`」：
+  否则状态 CAS 提交了、标记却被静默吞掉，就等于凭空造出「enabled 且无 pending」。
+- 首次安装（行不存在）用 `INSERT ... SELECT ... WHERE NOT EXISTS ... ON CONFLICT DO NOTHING`。
 
-**阶段 2 · 副作用（状态已提交，失败可重试）**
+**阶段 2 · 独占执行认领（`workspace_module_operation_claims`）**
 
-顺序固定：模块 handler → 平台清理（先移除实例，再取消已排队任务）。
+续做路径必须先抢到执行 token：
+
+```
+INSERT INTO workspace_module_operation_claims (...) SELECT ... WHERE EXISTS(operations ...) ON CONFLICT DO NOTHING
+   -- 0 行 → 已有执行者：若租约未过期，直接 409 operation_in_progress（零副作用）
+   -- 0 行且租约已过期 → UPDATE ... SET token = <新的> WHERE expires_at <= now（原子抢占）
+UPDATE workspace_module_operations SET attempts = attempts + 1, last_error = NULL WHERE changes() = 1
+```
+
+- 同一模块同一时刻只有一个 token 持有者 —— 这是「两个重试不会同时清理」的唯一依据。
+- 抢占成功会让旧 token **立即失效**；旧执行者的收尾/失败记录都以 token 为条件，影响 0 行即退出。
+
+**阶段 3 · 副作用（受 token 与 revision 双重约束）**
+
+顺序固定：模块 handler → 移除实例 → 取消已排队任务；**每一步前后都校验执行权**。
 - handler 只拿到受限上下文（见 D6）；平台清理是安全不变量，**不因 handler 失败而跳过**。
-- 任一步失败：把原因写进 `workspace_module_operations.last_error`（续做时累加 `attempts`），
-  状态**不回滚**——因为状态早就提交了，回滚反而会制造「用户以为没变、实际已变」的假象。
-- 因此「enabled 但实例已删」不可能存在：卸载在准入阶段就已经是 `uninstalled`，
-  且失败事实永久留在待完成标记里。
+- 端口清理带 **revision fence**：`removeInstancesForModule({ maxRevision })`、
+  `cancelAllForModule({ upToRevision })`。旧执行者传入的是它自己的准入 revision，
+  因此**删不掉 restore 之后（revision 更大）的新实例与新任务**。
+  这是「租约到期 ≠ 旧执行者已停止」的应对方式——不假设 TTL 到期它就停了。
+- 任一步失败：把原因写进 `last_error`（`attempts` 已在认领时递增），状态**不回滚**。
+  失败后立即释放认领，客户端可以马上重试。
 
-**阶段 3 · 收尾**
+**阶段 4 · 收尾（必须归属同一执行者）**
 
 ```
 DELETE FROM workspace_module_operations
  WHERE workspace_id = ? AND module_id = ? AND revision = <准入 revision>
+   AND EXISTS (SELECT 1 FROM ...claims c WHERE c.token = <我的 token>)
 ```
 
-删除影响 0 行表示并发的重试已经收尾完成 → 幂等成功。收尾**不**再 bump revision（见 D13）。
+影响 0 行**不是**成功，而是 `operation_superseded`（409）——执行权已被取代或已被别人收尾。
+收尾**不**再 bump revision（见 D13）。注意 D1 的 `meta.changes` 会把级联删除的认领行也算进去，
+因此该判定写的是 `>= 1`。
 
 **失败如何对客户端表达（不允许伪装）**
 
@@ -83,12 +106,13 @@ DELETE FROM workspace_module_operations
 用 5xx 会让客户端以为「什么都没发生」，而那正是本次复核要求消除的伪装。
 只有**准入事务本身失败**（什么都没提交）才返回 500，此时可以安全重试。
 
-**重试（唯一的恢复路径）**
+**重试（唯一的恢复路径）与活性**
 
 存在待完成标记时，用**同一 action + 同一 expectedRevision** 重发即可**续做**（不是重做）；
 其他动作或夹带设置一律 409（`pending_conflict`），避免交错。
-模块 handler 因此必须幂等——这是写在 `worker/modules/ports.ts` 契约注释里的硬性要求。
-本阶段**没有**后台自动重试、没有通用分布式任务框架、没有 Cron。
+租约（`EXECUTION_LEASE_MS = 15s`）只解决「执行者崩溃后没人收尾」的活性问题：
+到期后允许原子抢占，绝不被解读为「旧执行者已经安全停止」——安全性来自 token 与 revision fence。
+模块 handler 因此必须幂等。本阶段**没有**后台自动重试、没有通用分布式任务框架、没有 Cron。
 
 **门禁安全（为什么要 `transitioning`）**
 
@@ -219,11 +243,11 @@ handler 可以操作**别的工作空间/模块**的任务；未获得 `schedule
   明文只经 `get()` 交给 API 客户端内部。这样凭证不会出现在 React 的 props / state / deps
   （否则会进入 React DevTools 与组件序列化）。
 - `generation` 在凭证身份**真正变化**时 +1（重复保存同一凭证不推进）。
-- 模块/组件视图放在以 `generation` 为 key 的 `SessionWorkbench` 里：凭证一变整棵子树**同步重挂**，
-  旧会话的模块状态快照、Host 实例与提示立刻消失，不等任何网络返回。
+- 会话作用域容器 `SessionWorkbench` **在整个会话期间保持挂载**，只以 `generation` 为 key：
+  切换视图（概览 / 模块管理 / 组件验收 / 会话凭证）只是换展示区域，实例存储与模块状态快照都保留；
+  只有凭证切换/清除才让整棵子树**同步重挂**，旧会话的私有状态、Host 实例与提示立刻消失。
 - `useModuleState` 用 `mountedRef` 判定「会话是否还是我」：卸载后迟到的 GET **不写状态**，
-  迟到的写返回 `{ ok: false, stale: true }`，调用方据此**跳过 Host 联动**
-  （不能用旧会话的卸载响应去清理新会话的实例）。
+  迟到的写返回 `{ ok: false, stale: true }`，调用方据此**跳过 Host 联动**。
 
 ## D17. Widget Host：注册表是归属权威，配置解析异常一律降级到实例
 
@@ -237,3 +261,39 @@ handler 可以操作**别的工作空间/模块**的任务；未获得 `schedule
    catch 成本实例的配置错误，避免打穿兄弟实例与区域。
 3. **attempt 隔离**：所有 `report*` 回调绑定创建时的 `retryToken`，
    旧 attempt 的迟到回调（未清理的定时器 / Promise）一律被忽略，不会改写新 attempt 的状态。
+
+## D18. 状态读取必须是**单一 SQL 快照**
+
+`readStatus` / `listStatuses` / 变更后的读取，以及调度门禁，全部走同一条
+`workspace_modules LEFT JOIN workspace_module_operations` 查询。
+
+**原因**：把「状态」和「是否有待完成操作」分成两次查询（即使包在 `Promise.all` 里）
+会在两次读之间被一次准入切开——准入是在**同一事务**里写 status 与 pending 的，
+于是组合出的快照可能是「enabled + 无 pending」，让 Host 绕过 `transitioning` 门禁。
+因此本文件不再导出「单独读模块行 / 单独读操作行」的函数，避免再次拼出不一致的两次读。
+
+同时，准入的**状态 CAS 与待完成标记互斥写在同一个条件里**（`NOT EXISTS`），
+而不是「先插标记再 `ON CONFLICT DO NOTHING`」：后者会让 CAS 提交而标记被静默吞掉。
+
+## D19. 会话容器的生命周期 = 会话代际，而不是当前视图
+
+早期实现只在「模块管理 / 组件验收」两个视图挂载 `SessionWorkbench`，
+于是切到概览或会话凭证（即使不换凭证）就会卸载它、丢掉本会话全部 Widget 实例。
+
+现在容器**始终挂载**，只有 `generation` 变化才重挂：
+
+- 视图切换只改变「渲染哪个面板」，实例存储、模块状态快照与提示都留在容器里；
+- 凭证切换/清除推进 generation → 容器重挂 → 旧数据同步消失（见 D16）。
+
+配置编辑器的草稿是**面板内**状态，因此面板切换会重置草稿——但已应用的实例配置在实例存储里，
+不受影响（这一点有 AppShell 级交互测试覆盖）。
+
+## D20. 前端只接受「不小于已知 revision」的写响应
+
+`useModuleState.mutate` 在写入前比较响应的 `module.revision` 与本地已知 revision：
+更小的视为过期响应，返回 `{ ok: false, stale: true }` 并**跳过 Host 联动**。
+
+**原因**：生命周期收尾可以被重试、执行权可以被取代，旧执行者的响应可能晚到。
+如果拿它去 `removeInstancesForModule`，就会删掉 restore 之后新建的实例——这正是
+服务端 revision fence 在浏览器侧的对应保护。与 D18 同理：宁可丢弃一个过期响应，
+也不要用过期事实修改本地状态。

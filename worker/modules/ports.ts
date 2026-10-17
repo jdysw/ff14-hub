@@ -14,6 +14,10 @@
  * - 服务端口是**闭包绑定作用域**的视图（`ModuleScopedScheduler`）：调用者无法指定别的
  *   workspace / module，也无法绕过 `scheduled:own` 的授予检查。
  * - 平台使用的**内部管理端口**（`ModuleSchedulerPort` / `ModuleInstanceStore`）绝不交给模块代码。
+ *
+ * fence（复核要求）：**所有**平台清理端口都带一个模块 `revision` 上界。
+ * 原因是「租约到期」不等于「旧执行者已停止」——一个被取代的执行者可能在任意时刻继续跑；
+ * 用 revision 作 fence 后，它删不掉新一代（restore 之后）产生的任务与实例。
  */
 import type { ModuleEffectiveStatus, ModuleGateStatus, ModuleSupportedAction } from '@ff14-hub/shared';
 
@@ -24,12 +28,13 @@ export interface ScheduledTask {
   readonly workspaceId: string;
   readonly runAt: number;
   readonly createdAt: number;
+  /** 登记时的模块 revision：取消时用 `upToRevision` 作 fence，避免旧执行者删掉新一代任务。 */
+  readonly createdRevision: number;
 }
 
 /**
  * 调度被拒绝的原因。
  * - `module_inactive`：模块门禁状态不是 enabled（含待完成操作）→ 不得排入任何后台行为。
- *   这正是「停用暂停主动行为」与「待完成不被当成可运行」在代码里的落点。
  * - `capability_not_granted`：模块没有获得 `scheduled:own`，注册表的授予结果就是权威。
  * - `invalid_run_at`：执行时间非法。
  *
@@ -58,7 +63,16 @@ export interface ScheduledTaskStore {
   insert(task: ScheduledTask): Promise<boolean>;
   find(input: { readonly workspaceId: string; readonly moduleId: string; readonly taskKey: string }): Promise<ScheduledTask | null>;
   deleteByKey(input: { readonly workspaceId: string; readonly moduleId: string; readonly taskKey: string }): Promise<number>;
-  deleteAllForModule(input: { readonly workspaceId: string; readonly moduleId: string }): Promise<number>;
+  /**
+   * 取消该模块**至多 upToRevision** 这一代登记的任务。
+   * `upToRevision` 是 fence：旧执行者传入的是它自己的准入 revision，
+   * 因此删不掉 restore 之后（revision 更大）登记的新任务。
+   */
+  deleteAllForModule(input: {
+    readonly workspaceId: string;
+    readonly moduleId: string;
+    readonly upToRevision: number;
+  }): Promise<number>;
   listByModule(input: { readonly workspaceId: string; readonly moduleId: string }): Promise<readonly ScheduledTask[]>;
 }
 
@@ -87,10 +101,12 @@ export interface ModuleSchedulerPort {
     readonly moduleId: string;
     readonly taskKey: string;
   }): Promise<CancelTasksResult>;
+  /** `upToRevision` 为 fence：只取消该 revision 及更早登记的任务。 */
   cancelAllForModule(input: {
     readonly workspaceId: string;
     readonly moduleId: string;
     readonly reason: 'module_disabled' | 'module_uninstalled';
+    readonly upToRevision: number;
   }): Promise<CancelTasksResult>;
   listPending(input: { readonly workspaceId: string; readonly moduleId: string }): Promise<readonly ScheduledTask[]>;
 }
@@ -114,9 +130,12 @@ export interface ModuleScopedScheduler {
  * Widget 实例清理端口（平台内部使用，不交给模块）。
  * 卸载模块时服务端通过它要求「当前 Host」移除该模块的全部实例。
  *
+ * `maxRevision` 是 fence：只应移除该 revision 及更早创建的实例。
+ * 一个被取代的旧执行者传入的是它自己的准入 revision，因此删不掉 restore 之后的新实例。
+ *
  * 阶段 02 的 Host 实例只存在于浏览器内存中，因此服务端的默认实现是 no-op 替身
- * （`persistent: false`，`removed: 0`），文档里明确说明阶段 03 接入持久实例表后
- * 换成真实的 D1 实现。测试通过注入记录型替身来验证「卸载确实请求了清理」。
+ * （`persistent: false`，`removed: 0`）；浏览器侧的真正清理在
+ * `apps/web/src/app/modules/apply-module-mutation.ts`，并按响应 revision 再做一次 fence。
  */
 export interface ModuleInstanceStore {
   /** false 表示当前没有持久实例表，清理只会作用于当前 Host 的内存实例。 */
@@ -125,6 +144,7 @@ export interface ModuleInstanceStore {
     readonly workspaceId: string;
     readonly moduleId: string;
     readonly reason: 'module_uninstalled';
+    readonly maxRevision: number;
   }): Promise<{ readonly removed: number }>;
   countInstancesForModule(input: {
     readonly workspaceId: string;
@@ -162,13 +182,13 @@ export interface ModuleMutationEffect {
 }
 
 /**
- * 模块的**门禁状态**读取器（在有效状态基础上叠加「是否有待完成操作」）。
- * 调度端口用它自己判定门禁，不依赖调用方传参。
+ * 模块的**门禁状态**读取器。
+ * 返回门禁状态**与该行的 revision**：调度需要 revision 给任务打上 fence 标记。
  */
 export type ModuleStatusReader = (input: {
   readonly workspaceId: string;
   readonly moduleId: string;
-}) => Promise<ModuleGateStatus>;
+}) => Promise<{ readonly status: ModuleGateStatus; readonly revision: number }>;
 
 /** 供需要「有效状态」而非门禁状态的地方做类型标注（例如迁移矩阵的输入）。 */
 export type ModuleEffectiveStatusLike = ModuleEffectiveStatus;

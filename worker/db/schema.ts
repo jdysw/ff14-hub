@@ -194,6 +194,28 @@ export const workspaceModuleOperations = sqliteTable(
   (table) => [primaryKey({ columns: [table.workspaceId, table.moduleId] })],
 );
 
+/**
+ * 生命周期副作用的**独占执行认领**（HUB-050，由 migrations/0005_module_operation_claims.sql 建立）。
+ *
+ * 主键 `(workspace_id, module_id)` 保证同一时刻只有一个执行者持有 `token`；
+ * 所有副作用写入（收尾 / 失败记录）都以 token 为条件，因此被取代的执行者写不进去。
+ * `expires_at` 是租约，只用于崩溃后的原子抢占——**不**假设 TTL 到期旧执行者已停止，
+ * 端口清理另有 revision fence（`upToRevision` / `maxRevision`）。
+ */
+export const workspaceModuleOperationClaims = sqliteTable(
+  'workspace_module_operation_claims',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    moduleId: text('module_id').notNull(),
+    token: text('token').notNull(),
+    claimedAt: integer('claimed_at').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.workspaceId, table.moduleId] })],
+);
+
 /** 全部表的集合，供 drizzle 客户端与测试使用。 */
 export const schema = {
   workspaces,
@@ -205,4 +227,5 @@ export const schema = {
   pairingClaims,
   workspaceModules,
   workspaceModuleOperations,
+  workspaceModuleOperationClaims,
 } as const;

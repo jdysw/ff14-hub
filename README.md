@@ -101,6 +101,9 @@ pnpm run db:migrations:list:local  # 查看已应用清单
   持久事实（`action` / `target_status` / `revision` / `attempts` / `last_error`），复合外键指向
   `workspace_modules` 并级联删除。存在即表示「状态已提交、收尾未完成或失败待重试」，
   此时门禁为 `transitioning`（不执行组件、不排程）。
+- `migrations/0005_module_operation_claims.sql` —— `workspace_module_operation_claims`：
+  **独占执行认领**（`token` / `claimed_at` / `expires_at`），主键保证同一模块同时只有一个执行者；
+  所有收尾/失败写入以 token 为条件，端口清理以模块 revision 为 fence。
 
 约定与注意点：
 
@@ -168,10 +171,11 @@ ff14-hub/
 | `uninstall` | 移除该模块全部实例并停用 | 停止并取消任务 | **默认保留**，可 `restore` |
 | `purge` | —— | —— | 本阶段**拒绝**（501） |
 
-生命周期采用「**先原子准入提交状态 → 执行副作用 → 收尾**」三段式：
+生命周期采用「**原子准入（含待完成标记与执行认领）→ 独占执行副作用（revision fence）→ 收尾**」协议：
 抢输的一方（409）在任何可变副作用之前退出；副作用失败时返回 200 +
 `effect.pending = true` + 失败原因，并把待完成操作持久化（`workspace_module_operations`），
-可用**同动作 + 同 revision** 幂等重试续做。详见 ADR-0002 D4。
+可用**同动作 + 同 revision** 幂等重试续做。独占执行由 `workspace_module_operation_claims`
+保证；租约（15s）只用于崩溃后抢占，安全性来自 token 与 revision fence。详见 ADR-0002 D4。
 
 安全细节（配对原子性、撤销审计去重、速率限制、常量时间比较等）见
 [`docs/security-boundaries.md`](docs/security-boundaries.md)；
@@ -212,7 +216,9 @@ ff14-hub/
 ## 10. 已知限制
 
 - **待完成操作没有自动恢复**：副作用失败的收尾只能由客户端显式重试（同动作 + 同 revision），
-  没有后台自动重试或定时对账。
+  没有后台自动重试或定时对账；租约过期后的抢占同样需要新请求触发。
+- **执行租约不保证旧执行者已停止**：`EXECUTION_LEASE_MS = 15s` 只提供崩溃后的活性，
+  安全性依赖 token 条件写入与 revision fence（旧执行者删不掉新一代的实例与任务）。
 - **Widget 实例不持久**：`widget_instances` 表属于阶段 03，因此实例只存在于浏览器内存，
   刷新即丢失；服务端卸载只能通过 `ModuleInstanceStore` 端口**请求**清理
   （默认实现自报 `persistent: false`）。语义已被测试钉住，替换实现即可。

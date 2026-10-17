@@ -22,7 +22,12 @@ import { getModuleRuntime } from '../../modules/runtime';
 import type { MutationRejection } from '../../modules/lifecycle/module-lifecycle';
 import type { AppBindings } from '../../types';
 
-/** 把服务层拒绝原因映射成统一错误契约。刻意不把内部细节放进对外 message。 */
+/**
+ * 把服务层拒绝原因映射成统一错误契约。刻意不把内部细节放进对外 message。
+ *
+ * 说明：执行权冲突（别人正在执行 / 我的执行权已被取代 / 已被别人收尾）都按 409 处理——
+ * 它们是可重试的冲突，不是服务器故障。
+ */
 function mutationError(reason: MutationRejection, detail: string): ApiError {
   switch (reason) {
     case 'module_unknown':
@@ -32,6 +37,9 @@ function mutationError(reason: MutationRejection, detail: string): ApiError {
     case 'status_conflict':
     case 'revision_conflict':
     case 'pending_conflict':
+    case 'operation_in_progress':
+    case 'operation_already_completed':
+    case 'operation_superseded':
     case 'settings_version_mismatch':
       return new ApiError('conflict', `${DEFAULT_ERROR_MESSAGE.conflict}（${detail}）`, detail);
     case 'settings_invalid':
@@ -39,7 +47,8 @@ function mutationError(reason: MutationRejection, detail: string): ApiError {
     case 'settings_too_large':
       return new ApiError('payload_too_large', DEFAULT_ERROR_MESSAGE.payload_too_large, detail);
     case 'persist_failed':
-      // 准入事务本身失败：**什么都没有提交**，因此这里用 500 是正确的（可以安全重试）。
+    case 'inconsistent_state':
+      // 准入事务本身失败 / 内部不一致：这里用 500 是正确的（可以安全重试或重新读取）。
       // 副作用失败不走这里：状态已提交，会以 200 + effect.pending/failure 诚实返回。
       return new ApiError('internal_error', DEFAULT_ERROR_MESSAGE.internal_error, detail);
   }

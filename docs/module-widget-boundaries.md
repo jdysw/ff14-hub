@@ -96,13 +96,17 @@
 
 ### 4.3.1 执行协议与「待完成操作」
 
-生命周期变更采用三段式（详见 `docs/adr/0002-phase02-module-runtime.md` D4）：
+生命周期变更采用四段式（详见 `docs/adr/0002-phase02-module-runtime.md` D4）：
 
-1. **原子准入**：一次 D1 事务里做条件 CAS（`WHERE revision = ?`）**并**写入待完成标记。
-   抢输的一方以 409 退出，**在任何可变副作用之前**。
-2. **副作用**：模块 handler → 移除当前 Host 实例 → 取消已排队任务。
-   任一步失败都把原因写进待完成标记（`attempts` / `last_error`），状态**不回滚**（它早已提交）。
-3. **收尾**：条件删除待完成标记（`AND revision = ?`）。
+1. **原子准入**：一次 D1 事务里做条件 CAS（`WHERE revision = ?` **且该模块没有待完成操作**）、
+   写入待完成标记、写入本次**执行 token**。抢输的一方以 409 退出，**在任何可变副作用之前**。
+2. **独占认领**：续做必须先抢到 `workspace_module_operation_claims` 的唯一 token
+   （或原子抢占**已过期**的租约）。抢不到 → 409 `operation_in_progress`，同样零副作用。
+3. **副作用**：模块 handler → 移除当前 Host 实例 → 取消已排队任务；每步前后校验执行权。
+   端口清理带 **revision fence**（`maxRevision` / `upToRevision`），
+   因此即便旧执行者越过了检查，也删不掉 restore 之后的新实例与新任务。
+4. **收尾**：条件删除待完成标记（必须仍持有 token）。影响 0 行不是成功，
+   而是 409 `operation_superseded`（执行权已被取代或已被别人收尾）。
 
 由此得到的可见语义：
 
@@ -112,9 +116,11 @@
 | 副作用失败 | **200**，`effect.pending = true` + `effect.failure` + `module.pendingOperation` | `transitioning`（不执行、不排程） | 保留 |
 | 准入事务失败 | 500（什么都没提交） | 不变 | 不变 |
 | 抢输 / revision 过期 | 409 | 不变 | 不变 |
+| 别人正在执行 / 我的执行权已被取代 | 409（`operation_in_progress` / `operation_superseded` / `operation_already_completed`） | 不变 | 不变 |
 
 重试：**同 action + 同 expectedRevision** 会**续做**未完成的清理；其他动作或夹带设置返回 409
-（`pending_conflict`）。前端会把 `pending` / 失败原因如实展示，并提供「重试完成收尾」。
+（`pending_conflict`）。租约（15s）只解决崩溃后的活性，**不**假设到期旧执行者已停止——
+安全性来自 token 与 revision fence。前端会把 `pending` / 失败原因如实展示，并提供「重试完成收尾」。
 
 ### 4.4 系统级入口不可移除
 
@@ -128,6 +134,7 @@
 |---|---|
 | `workspace_modules` | **已迁移**（`0003_modules.sql`）：状态、设置与版本、`revision` 乐观并发、安装/启停/卸载时间戳 |
 | `workspace_module_operations` | **已迁移**（`0004_module_operations.sql`）：待完成操作（`action`/`target_status`/`revision`/`attempts`/`last_error`），复合外键指向 `workspace_modules` 并级联删除 |
+| `workspace_module_operation_claims` | **已迁移**（`0005_module_operation_claims.sql`）：**独占执行认领**（`token`、`claimed_at`、`expires_at`），主键保证同一模块同时只有一个执行者；随 operations 行级联删除 |
 | `workspace_pages`、`widget_instances`、`widget_layouts` | 未迁移（阶段 03） |
 | `nav_catalog_links` / `workspace_nav_links` 等 | 未迁移（阶段 04） |
 | `notification_jobs` 等 | 未迁移（阶段 05）；当前调度端口是内存替身，**没有 Cron** |

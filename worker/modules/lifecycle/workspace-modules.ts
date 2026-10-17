@@ -1,17 +1,16 @@
 /**
- * `workspace_modules` / `workspace_module_operations` 的读写（HUB-050）。
+ * `workspace_modules` / `workspace_module_operations` / `..._claims` 的读写（HUB-050）。
  *
  * 安全前提：
  * - 所有语句都带 `workspace_id = ?`，且 workspace_id **只能**来自认证中间件。
- *   拿 A 工作空间的凭证去动 B 工作空间的模块，条件更新会影响 0 行 → 冲突/不存在，
- *   不会泄露 B 的状态。
  * - `settings_json` 在读取时**防御性解析**：某一行损坏不应该让整个接口 500，
- *   但也不能伪造出「有设置」的假象 —— 解析失败即回退为空对象，而写入路径永远只写
- *   JSON.stringify 的结果，因此损坏只可能来自人工改库。
+ *   但也不能伪造出「有设置」的假象 —— 解析失败即回退为空对象。
  *
- * 门禁状态：`readModuleGateStatus()` 是**唯一**的门禁读取入口，
- * 它把「有效状态」与「是否存在待完成操作」合并成 `ModuleGateStatus`（有待完成即 transitioning）。
- * 服务端调度门禁与前端 Host 都使用同一个共享函数 `moduleGateStatus()`。
+ * **一致性快照（复核要求）**：状态与「是否有待完成操作」必须在**同一条 SQL** 里取回。
+ * 分成两次查询（即使包在 Promise.all 里）会在两次读之间被一次准入切开，
+ * 组合出「enabled + 无 pending」的假快照，从而让 Host 绕过 `transitioning` 门禁。
+ * 因此本文件只暴露 `readModuleSnapshot()` / `listModuleSnapshots()`（单条 LEFT JOIN），
+ * 以及基于同一快照推导的 `readModuleGateStatus()`。
  */
 import {
   effectiveModuleStatus,
@@ -48,57 +47,159 @@ export interface WorkspaceModuleOperationRow {
   readonly last_error: string | null;
 }
 
-const SELECT_MODULE_COLUMNS =
-  'module_id, status, settings_json, settings_version, revision, installed_at, enabled_at, disabled_at, uninstalled_at, created_at, updated_at';
+/** 一次查询取回的**一致**快照：模块行 + 它当前（可能不存在的）待完成操作。 */
+export interface ModuleSnapshot {
+  readonly row: WorkspaceModuleRow;
+  readonly pendingRow: WorkspaceModuleOperationRow | null;
+}
 
-const SELECT_OPERATION_COLUMNS =
-  'module_id, action, target_status, revision, started_at, attempts, last_error';
+interface JoinedRow {
+  readonly module_id: string;
+  readonly status: ModulePersistedStatus;
+  readonly settings_json: string;
+  readonly settings_version: number;
+  readonly revision: number;
+  readonly installed_at: number;
+  readonly enabled_at: number | null;
+  readonly disabled_at: number | null;
+  readonly uninstalled_at: number | null;
+  readonly created_at: number;
+  readonly updated_at: number;
+  readonly pending_action: ModuleSupportedAction | null;
+  readonly pending_target_status: ModulePersistedStatus | null;
+  readonly pending_revision: number | null;
+  readonly pending_started_at: number | null;
+  readonly pending_attempts: number | null;
+  readonly pending_last_error: string | null;
+}
 
-/** 读取单个模块的行；不存在返回 null（有效状态为 not_installed）。 */
-export async function readWorkspaceModuleRow(
+/**
+ * 单条 LEFT JOIN 的列清单。
+ * 注意：这里刻意**不**再提供「单独读模块行 / 单独读操作行」的导出函数，
+ * 避免有人再次拼出不一致的两次读。
+ */
+const SNAPSHOT_COLUMNS = `
+  m.module_id            AS module_id,
+  m.status               AS status,
+  m.settings_json        AS settings_json,
+  m.settings_version     AS settings_version,
+  m.revision             AS revision,
+  m.installed_at         AS installed_at,
+  m.enabled_at           AS enabled_at,
+  m.disabled_at          AS disabled_at,
+  m.uninstalled_at       AS uninstalled_at,
+  m.created_at           AS created_at,
+  m.updated_at           AS updated_at,
+  o.action               AS pending_action,
+  o.target_status        AS pending_target_status,
+  o.revision             AS pending_revision,
+  o.started_at           AS pending_started_at,
+  o.attempts             AS pending_attempts,
+  o.last_error           AS pending_last_error
+`;
+
+const SNAPSHOT_FROM = `
+  FROM workspace_modules m
+  LEFT JOIN workspace_module_operations o
+    ON o.workspace_id = m.workspace_id AND o.module_id = m.module_id
+`;
+
+function toSnapshot(row: JoinedRow): ModuleSnapshot {
+  return {
+    row: {
+      module_id: row.module_id,
+      status: row.status,
+      settings_json: row.settings_json,
+      settings_version: row.settings_version,
+      revision: row.revision,
+      installed_at: row.installed_at,
+      enabled_at: row.enabled_at,
+      disabled_at: row.disabled_at,
+      uninstalled_at: row.uninstalled_at,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    },
+    pendingRow:
+      row.pending_action === null ||
+      row.pending_target_status === null ||
+      row.pending_revision === null ||
+      row.pending_started_at === null ||
+      row.pending_attempts === null
+        ? null
+        : {
+            module_id: row.module_id,
+            action: row.pending_action,
+            target_status: row.pending_target_status,
+            revision: row.pending_revision,
+            started_at: row.pending_started_at,
+            attempts: row.pending_attempts,
+            last_error: row.pending_last_error,
+          },
+  };
+}
+
+/** 取单个模块的一致快照；模块尚无状态行时返回 null。 */
+export async function readModuleSnapshot(
   db: D1Database,
   workspaceId: string,
   moduleId: string,
-): Promise<WorkspaceModuleRow | null> {
-  return await db
-    .prepare(`SELECT ${SELECT_MODULE_COLUMNS} FROM workspace_modules WHERE workspace_id = ? AND module_id = ?`)
+): Promise<ModuleSnapshot | null> {
+  const row = await db
+    .prepare(`SELECT ${SNAPSHOT_COLUMNS} ${SNAPSHOT_FROM} WHERE m.workspace_id = ? AND m.module_id = ?`)
     .bind(workspaceId, moduleId)
-    .first<WorkspaceModuleRow>();
+    .first<JoinedRow>();
+  return row === null ? null : toSnapshot(row);
 }
 
-/** 列出本工作空间的全部模块行。 */
-export async function listWorkspaceModuleRows(db: D1Database, workspaceId: string): Promise<WorkspaceModuleRow[]> {
+/** 取本工作空间全部模块的一致快照（单条查询，列表接口使用）。 */
+export async function listModuleSnapshots(db: D1Database, workspaceId: string): Promise<ModuleSnapshot[]> {
   const result = await db
-    .prepare(`SELECT ${SELECT_MODULE_COLUMNS} FROM workspace_modules WHERE workspace_id = ? ORDER BY module_id ASC`)
+    .prepare(`SELECT ${SNAPSHOT_COLUMNS} ${SNAPSHOT_FROM} WHERE m.workspace_id = ? ORDER BY m.module_id ASC`)
     .bind(workspaceId)
-    .all<WorkspaceModuleRow>();
-  return result.results;
+    .all<JoinedRow>();
+  return result.results.map((row) => toSnapshot(row));
 }
 
-/** 读取某个模块的待完成操作；没有则返回 null。 */
-export async function readWorkspaceModuleOperation(
+/**
+ * 读取模块的**门禁状态**与 revision（调度端口使用）。
+ * 与快照同源（同一条 LEFT JOIN），因此「有待完成操作」不会被读到半截。
+ */
+export async function readModuleGateStatus(
   db: D1Database,
   workspaceId: string,
   moduleId: string,
-): Promise<WorkspaceModuleOperationRow | null> {
+): Promise<{ readonly status: ModuleGateStatus; readonly revision: number }> {
+  const snapshot = await readModuleSnapshot(db, workspaceId, moduleId);
+  if (snapshot === null) {
+    // 行缺失 → not_installed；没有行就没有 revision（调度会因此被拒绝）。
+    return { status: effectiveModuleStatus(null), revision: 0 };
+  }
+  const status: ModuleEffectiveStatus = effectiveModuleStatus(snapshot.row.status);
+  return {
+    status: moduleGateStatusFromPresence(status, snapshot.pendingRow !== null),
+    revision: snapshot.row.revision,
+  };
+}
+
+/** 当前执行认领（tests 与运维诊断用）。 */
+export interface OperationClaimRow {
+  readonly token: string;
+  readonly claimed_at: number;
+  readonly expires_at: number;
+}
+
+export async function readOperationClaim(
+  db: D1Database,
+  workspaceId: string,
+  moduleId: string,
+): Promise<OperationClaimRow | null> {
   return await db
     .prepare(
-      `SELECT ${SELECT_OPERATION_COLUMNS} FROM workspace_module_operations WHERE workspace_id = ? AND module_id = ?`,
+      `SELECT token, claimed_at, expires_at FROM workspace_module_operation_claims
+        WHERE workspace_id = ? AND module_id = ?`,
     )
     .bind(workspaceId, moduleId)
-    .first<WorkspaceModuleOperationRow>();
-}
-
-/** 列出本工作空间的全部待完成操作（供列表接口一次读完，避免 N+1）。 */
-export async function listWorkspaceModuleOperations(
-  db: D1Database,
-  workspaceId: string,
-): Promise<WorkspaceModuleOperationRow[]> {
-  const result = await db
-    .prepare(`SELECT ${SELECT_OPERATION_COLUMNS} FROM workspace_module_operations WHERE workspace_id = ?`)
-    .bind(workspaceId)
-    .all<WorkspaceModuleOperationRow>();
-  return result.results;
+    .first<OperationClaimRow>();
 }
 
 /** 防御性解析设置 JSON。 */
@@ -130,16 +231,11 @@ export function toPendingOperation(row: WorkspaceModuleOperationRow | null): Mod
 }
 
 /**
- * 行 → 对外状态。行缺失即 not_installed 且 revision 为 0。
+ * 快照 → 对外状态。行缺失即 not_installed 且 revision 为 0。
  * `pendingOperation` 非 null 表示状态已提交但副作用尚未完成（待重试）。
  */
-export function toWorkspaceModuleStatus(
-  moduleId: string,
-  row: WorkspaceModuleRow | null,
-  pendingRow: WorkspaceModuleOperationRow | null = null,
-): WorkspaceModuleStatus {
-  const pendingOperation = toPendingOperation(pendingRow);
-  if (row === null) {
+export function snapshotToStatus(moduleId: string, snapshot: ModuleSnapshot | null): WorkspaceModuleStatus {
+  if (snapshot === null) {
     return {
       moduleId,
       status: 'not_installed',
@@ -151,9 +247,10 @@ export function toWorkspaceModuleStatus(
       disabledAt: null,
       uninstalledAt: null,
       updatedAt: null,
-      pendingOperation,
+      pendingOperation: null,
     };
   }
+  const { row } = snapshot;
   return {
     moduleId,
     status: effectiveModuleStatus(row.status),
@@ -165,33 +262,6 @@ export function toWorkspaceModuleStatus(
     disabledAt: row.disabled_at,
     uninstalledAt: row.uninstalled_at,
     updatedAt: row.updated_at,
-    pendingOperation,
+    pendingOperation: toPendingOperation(snapshot.pendingRow),
   };
-}
-
-/**
- * 读取模块的**门禁状态**。这是调度端口门禁的唯一数据来源：
- * 状态判定只看数据库（含待完成操作），不看任何调用方传参或进程内缓存。
- */
-export async function readModuleGateStatus(
-  db: D1Database,
-  workspaceId: string,
-  moduleId: string,
-): Promise<ModuleGateStatus> {
-  const row = await db
-    .prepare(
-      `SELECT m.status AS status,
-              o.module_id AS pending_module_id
-         FROM workspace_modules m
-         LEFT JOIN workspace_module_operations o
-           ON o.workspace_id = m.workspace_id AND o.module_id = m.module_id
-        WHERE m.workspace_id = ? AND m.module_id = ?`,
-    )
-    .bind(workspaceId, moduleId)
-    .first<{ status: ModulePersistedStatus; pending_module_id: string | null }>();
-  if (row === null) {
-    return effectiveModuleStatus(null);
-  }
-  const status: ModuleEffectiveStatus = effectiveModuleStatus(row.status);
-  return moduleGateStatusFromPresence(status, row.pending_module_id !== null);
 }

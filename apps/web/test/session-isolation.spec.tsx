@@ -13,11 +13,11 @@ import {
   type ModuleMutationResponse,
   type WorkspaceModuleStatus,
 } from '@ff14-hub/shared';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppShell } from '../src/app/shell/AppShell';
-import { createModulesApi } from '../src/app/modules/modules-api';
+import { createModulesApi, type ModulesApi } from '../src/app/modules/modules-api';
 import { createSessionCredentialStore, type SessionSnapshot } from '../src/app/modules/session-credentials';
 import { useModuleState, type ModuleState } from '../src/app/modules/use-module-state';
 import type { ApiResult } from '../src/lib/api-client';
@@ -367,5 +367,107 @@ describe('AppShell 会话隔离', () => {
     await screen.findByTestId('widget-host');
     expect(screen.queryAllByTestId('widget-instance')).toHaveLength(0);
     expect(screen.getByText(/当前没有可见的组件实例/)).toBeDefined();
+  });
+
+  it('切到概览/会话凭证再回来不会丢实例与配置（只有换凭证才清）', async () => {
+    const user = userEvent.setup();
+    render(<AppShell />);
+
+    await saveCredential(user, 'ffh_dev_keep');
+    await waitFor(() => {
+      expect(moduleCard().getAttribute('data-status')).toBe('enabled');
+    });
+
+    // 添加一个实例并改它的配置（步长 5）。
+    await user.click(screen.getByRole('button', { name: /^组件验收/ }));
+    await screen.findByTestId('widget-host');
+    await user.click(within(elementFor('[data-widget-id="demo-counter"]')).getByRole('button', { name: '添加实例' }));
+    const configTextarea = elementFor('li.instance-config textarea');
+    fireEvent.change(configTextarea, {
+      target: { value: '{"step":5,"label":"改过的实例","initDelayMs":0}' },
+    });
+    await user.click(screen.getByRole('button', { name: '应用配置' }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '+5' })).toBeDefined();
+    });
+
+    // 去概览再回来：实例与配置都必须还在。
+    await user.click(screen.getByRole('button', { name: /^工作台概览/ }));
+    await screen.findByText('当前阶段');
+    await user.click(screen.getByRole('button', { name: /^组件验收/ }));
+    await screen.findByTestId('widget-host');
+    expect(screen.getAllByTestId('widget-instance')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: '+5' })).toBeDefined();
+    expect(elementFor('li.instance-config textarea').textContent).toContain('改过的实例');
+
+    // 只查看会话凭证（不更换、不保存）：回来仍然保留。
+    await user.click(screen.getByRole('button', { name: /^会话凭证/ }));
+    await screen.findByLabelText('设备令牌（Bearer）');
+    expect(screen.queryAllByTestId('widget-instance')).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: /^组件验收/ }));
+    await screen.findByTestId('widget-host');
+    expect(screen.getAllByTestId('widget-instance')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: '+5' })).toBeDefined();
+  });
+});
+
+describe('写入 revision fence', () => {
+  it('更早 revision 的写响应被判为 stale：既不覆盖状态，也不给 Host 联动机会', async () => {
+    const captured: { state: ModuleState | null } = { state: null };
+    const api: ModulesApi = {
+      catalog: () => Promise.resolve({ ok: true, status: 200, data: { modules: CATALOG_BODY.modules } }),
+      // 当前已知 revision = 3（见 privateModulesBody）。
+      listMine: () => Promise.resolve({ ok: true, status: 200, data: privateModulesBody('enabled') }),
+      readModule: () =>
+        Promise.resolve({ ok: true, status: 200, data: { module: privateModulesBody('enabled').modules[0]! } }),
+      // 旧执行者晚到的响应：revision 只有 2。
+      mutate: () =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          data: {
+            module: { ...privateModulesBody('disabled').modules[0]!, revision: 2 },
+            effect: {
+              changed: true,
+              instancesRemoved: 0,
+              scheduledTasksCancelled: 0,
+              handlersRun: [],
+              userDataRetained: true,
+              pending: true,
+              failure: '平台清理失败（Error）',
+              message: '状态已提交为「已停用」，但收尾未完成。',
+            },
+          },
+        }),
+      purge: () =>
+        Promise.resolve({
+          ok: false,
+          status: 501,
+          error: { code: 'not_implemented', message: '本阶段不支持。', requestId: 'test' },
+        }),
+    };
+
+    function Harness() {
+      const state = useModuleState(api, true);
+      captured.state = state;
+      return (
+        <p>
+          状态：{state.statuses['demo.basics']?.status ?? 'not_installed'}@
+          {String(state.statuses['demo.basics']?.revision ?? 0)}
+        </p>
+      );
+    }
+
+    render(<Harness />);
+    expect(await screen.findByText('状态：enabled@3')).toBeDefined();
+
+    const mutate = captured.state?.mutate;
+    if (mutate === null || mutate === undefined) {
+      throw new Error('未捕获 mutate');
+    }
+    const outcome = await mutate('demo.basics', { action: 'disable', expectedRevision: 3 });
+    expect(outcome).toMatchObject({ ok: false, stale: true });
+    // 状态没有被旧 revision 的响应降级。
+    expect(await screen.findByText('状态：enabled@3')).toBeDefined();
   });
 });

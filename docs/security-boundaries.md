@@ -188,11 +188,19 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains   ← 仅在请�
   模块无法伪造（见 ADR-0002 D15）。
 - **防静默覆盖**：`PATCH` 必须带 `expectedRevision`，全部状态变更以 `WHERE revision = ?`
   条件更新提交；抢占失败返回 409 且**不产生任何副作用**（副作用在准入之后）。
+- **独占执行 + fence**：待完成操作的续做必须先抢到 `workspace_module_operation_claims` 的唯一 token
+  （或原子抢占**已过期**的租约）；收尾与失败记录都以 token 为条件，被取代者写不进去。
+  端口清理额外带 revision fence（`maxRevision` / `upToRevision`），
+  因此不假设「租约到期旧执行者已停止」——它删不掉 restore 之后的新实例与新任务。
+- **状态读取是单一 SQL 快照**：状态与「是否有待完成操作」来自同一条 `LEFT JOIN`，
+  不会因为两次读之间插入一次准入而组合出「enabled 且无 pending」的假快照；
+  准入的 CAS 也把「该模块没有待完成操作」写进同一个条件，不会出现状态提交而标记被吞掉。
 - **清数据不可达**：`purge` 恒返回 501 且不写库；代码中不存在删除 `workspace_modules` 行的路径。
   以后实现清数据必须是「先备份 + 显式二次确认」的独立流程。
 - **前端会话隔离**：凭证快照只含 `{ generation, authenticated }`，明文只交给 API 客户端内部；
-  切换/清除凭证会立刻重挂会话子树（旧私有数据与 Host 实例同步消失），
-  旧会话迟到的 GET 不写状态、迟到的写返回 `stale` 并跳过 Host 联动（见 ADR-0002 D16）。
+  会话作用域容器在整个会话期间保持挂载、只在代际变化时重挂，因此切换视图不会残留/丢失旧数据，
+  而切换凭证会立刻清空；旧会话迟到的 GET 不写状态、迟到的写返回 `stale` 并跳过 Host 联动。
+  前端还只接受**不小于已知 revision** 的写响应，避免用过期响应删除新一代实例（见 ADR-0002 D20）。
 - **Widget Host 以注册表为归属权威**：实例自述的 `moduleId` 与注册表不一致时拒绝执行组件；
   配置迁移抛错降级为本实例配置错误；旧 attempt 的迟到回调被忽略（见 ADR-0002 D17）。
 - **设置校验不回显提交值**：失败只回字段路径 + 问题类别（`worker/lib/zod-issues.ts`），
@@ -209,6 +217,7 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains   ← 仅在请�
   而非 localStorage，并沿用严格 CSP。
 - **模块设置里的敏感值**：当前没有 WebDAV / 推送凭证类设置；若将来加入，
   必须改成专门的密文存储与掩码回显，不能继续明文放在 `settings_json`。
-- **待完成操作的自动恢复**：只有客户端显式重试这一条路径，没有后台自动重试或定时对账。
+- **待完成操作的自动恢复**：只有客户端显式重试这一条路径，没有后台自动重试或定时对账；
+  租约到期后的抢占也必须有新请求触发（`EXECUTION_LEASE_MS = 15s`）。
 - **Web Push / SSRF 防护**：阶段 05 才涉及，本轮没有任何服务端外发请求。
 - **URL 协议白名单**（拒绝 `javascript:`/`data:`）：阶段 04 导航功能才需要，本轮无导航数据。

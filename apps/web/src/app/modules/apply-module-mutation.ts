@@ -10,7 +10,8 @@
  *   这样用户重新启用后实例还在，不会被静默丢弃。
  * - `enable` / `restore`：实例保留，重新启用后立即可用。
  * - `effect.pending` 为 true 时**如实追加**说明：状态已提交但收尾未完成，需要在模块管理中重试。
- *   调用方必须只在**当前会话**的结果上调用本函数（过期会话的结果会被 useModuleState 丢弃）。
+ *   调用方必须只在**当前会话、且 revision 不早于已知状态**的结果上调用本函数
+ *   （`useModuleState.mutate` 会把过期响应判为 stale 并跳过本函数，见 ADR-0002 D20）。
  */
 import { MODULE_STATUS_LABELS, type ModuleMutationResponse } from '@ff14-hub/shared';
 import type { WidgetInstanceStore } from '../widgets/instance-store';

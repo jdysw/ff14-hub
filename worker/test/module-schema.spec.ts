@@ -308,3 +308,94 @@ describe('workspace_module_operations（待完成操作的持久事实）', () =
     expect(row?.count).toBe(0);
   });
 });
+
+describe('workspace_module_operation_claims（独占执行认领）', () => {
+  async function seedOperation(workspaceId: string, moduleId = 'demo.basics'): Promise<void> {
+    await insertModuleRow({ workspaceId, moduleId, status: 'uninstalled' });
+    await env.DB.prepare(
+      `INSERT INTO workspace_module_operations (
+         workspace_id, module_id, action, target_status, revision, started_at, attempts, last_error
+       ) VALUES (?, ?, 'uninstall', 'uninstalled', 2, ?, 1, NULL)`,
+    )
+      .bind(workspaceId, moduleId, NOW)
+      .run();
+  }
+
+  async function insertClaim(
+    workspaceId: string,
+    moduleId = 'demo.basics',
+    token = 'token-a',
+  ): Promise<unknown> {
+    return await env.DB.prepare(
+      `INSERT INTO workspace_module_operation_claims (workspace_id, module_id, token, claimed_at, expires_at)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+      .bind(workspaceId, moduleId, token, NOW, NOW + 15_000)
+      .run();
+  }
+
+  it('表已建立', async () => {
+    expect(await tableExists('workspace_module_operation_claims')).toBe(true);
+  });
+
+  it('主键保证同一模块同时只有一个执行者', async () => {
+    await insertWorkspace('ws-claim-pk');
+    await seedOperation('ws-claim-pk');
+    await insertClaim('ws-claim-pk');
+    await expect(insertClaim('ws-claim-pk', 'demo.basics', 'token-b')).rejects.toThrow();
+    // `ON CONFLICT DO NOTHING` 下第二个认领者拿到 0 行（这正是「抢输」的判定依据）。
+    const ignored = await env.DB.prepare(
+      `INSERT INTO workspace_module_operation_claims (workspace_id, module_id, token, claimed_at, expires_at)
+       SELECT ?, ?, ?, ?, ? WHERE 1
+       ON CONFLICT (workspace_id, module_id) DO NOTHING`,
+    )
+      .bind('ws-claim-pk', 'demo.basics', 'token-c', NOW, NOW + 15_000)
+      .run();
+    expect(ignored.meta.changes).toBe(0);
+  });
+
+  it('token 不允许为空（否则「持有执行权」会退化成没有标识）', async () => {
+    await insertWorkspace('ws-claim-token');
+    await seedOperation('ws-claim-token');
+    await expect(insertClaim('ws-claim-token', 'demo.basics', '')).rejects.toThrow();
+  });
+
+  it('认领必须依附于待完成操作：没有 operations 行就没有认领（不留孤儿）', async () => {
+    await insertWorkspace('ws-claim-fk');
+    await insertModuleRow({ workspaceId: 'ws-claim-fk', moduleId: 'demo.basics', status: 'uninstalled' });
+    await expect(insertClaim('ws-claim-fk')).rejects.toThrow(/FOREIGN KEY constraint failed/i);
+  });
+
+  it('删除待完成操作时级联删除认领（执行者收尾后不会留下认领行）', async () => {
+    await insertWorkspace('ws-claim-cascade');
+    await seedOperation('ws-claim-cascade');
+    await insertClaim('ws-claim-cascade');
+    await env.DB.prepare('DELETE FROM workspace_module_operations WHERE workspace_id = ?')
+      .bind('ws-claim-cascade')
+      .run();
+    const row = await env.DB.prepare(
+      'SELECT COUNT(*) AS count FROM workspace_module_operation_claims WHERE workspace_id = ?',
+    )
+      .bind('ws-claim-cascade')
+      .first<{ count: number }>();
+    expect(row?.count).toBe(0);
+  });
+
+  it('迁移重放安全：重跑全部迁移后仍可写入与级联', async () => {
+    for (const migration of env.TEST_MIGRATIONS) {
+      for (const query of migration.queries) {
+        await env.DB.prepare(query).run();
+      }
+    }
+    await insertWorkspace('ws-claim-replay');
+    await seedOperation('ws-claim-replay');
+    await insertClaim('ws-claim-replay');
+    await env.DB.prepare('DELETE FROM workspace_modules WHERE workspace_id = ?').bind('ws-claim-replay').run();
+    const row = await env.DB.prepare(
+      'SELECT COUNT(*) AS count FROM workspace_module_operation_claims WHERE workspace_id = ?',
+    )
+      .bind('ws-claim-replay')
+      .first<{ count: number }>();
+    expect(row?.count).toBe(0);
+  });
+});

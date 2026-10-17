@@ -8,6 +8,10 @@
  *   它只实现两件真实且可被测试的事：① 调度门禁受模块启停状态约束；② 停用/卸载会取消已排队任务。
  * - `createNoopInstanceStore` 同理：阶段 02 还没有持久页面/实例表，
  *   服务端只能通过端口请求「当前 Host」清理实例；真实清理由浏览器内的 Host 完成。
+ *
+ * fence（复核要求）：任务带 `createdRevision`，取消时按 `upToRevision` 过滤。
+ * 一个被取代的旧执行者传入的是它自己的准入 revision，因此删不掉 restore 之后登记的新任务。
+ * 这就是「租约到期 ≠ 旧执行者已停止」的应对方式。
  */
 import type { ModuleSupportedAction } from '@ff14-hub/shared';
 import type {
@@ -47,7 +51,12 @@ export function createInMemoryScheduledTaskStore(): ScheduledTaskStore {
     deleteAllForModule: (input) => {
       let removed = 0;
       for (const [key, task] of tasks) {
-        if (task.workspaceId === input.workspaceId && task.moduleId === input.moduleId) {
+        if (
+          task.workspaceId === input.workspaceId &&
+          task.moduleId === input.moduleId &&
+          // fence：只删这一代及更早登记的任务。
+          task.createdRevision <= input.upToRevision
+        ) {
           tasks.delete(key);
           removed += 1;
         }
@@ -66,8 +75,8 @@ export function createInMemoryScheduledTaskStore(): ScheduledTaskStore {
 export interface ModuleSchedulerDeps {
   readonly store: ScheduledTaskStore;
   /**
-   * 模块有效状态读取器。`schedule` 用它**自己**判定门禁，而不是信任调用方传进来的状态，
-   * 因此调用方无法通过传参绕过「未启用不得排程」。
+   * 模块门禁状态 + revision 读取器。`schedule` 用它**自己**判定门禁，而不是信任调用方传参；
+   * revision 会写进任务，作为将来取消时的 fence。
    */
   readonly readModuleStatus: ModuleStatusReader;
 }
@@ -79,13 +88,12 @@ export function createModuleScheduler(deps: ModuleSchedulerDeps): ModuleSchedule
       if (!Number.isInteger(input.runAt) || input.runAt < 0) {
         return { ok: false, reason: 'invalid_run_at' };
       }
+      // 始终读一次「门禁状态 + revision」：即使 selfInit 豁免门禁判断，也需要 revision 打 fence。
+      const current = await deps.readModuleStatus({ workspaceId: input.workspaceId, moduleId: input.moduleId });
       // selfInit 是平台内部专用通道（由作用域闭包 + 数据库核对后设置），模块无法伪造。
-      if (input.selfInit !== true) {
-        const status = await deps.readModuleStatus({ workspaceId: input.workspaceId, moduleId: input.moduleId });
-        if (status !== 'enabled') {
-          // 未启用 / 已停用 / 已卸载 / 未安装 / 待完成收尾：一律拒绝排入后台行为。
-          return { ok: false, reason: 'module_inactive' };
-        }
+      if (input.selfInit !== true && current.status !== 'enabled') {
+        // 未启用 / 已停用 / 已卸载 / 未安装 / 待完成收尾：一律拒绝排入后台行为。
+        return { ok: false, reason: 'module_inactive' };
       }
       const task: ScheduledTask = {
         taskKey: input.taskKey,
@@ -93,6 +101,7 @@ export function createModuleScheduler(deps: ModuleSchedulerDeps): ModuleSchedule
         workspaceId: input.workspaceId,
         runAt: input.runAt,
         createdAt: Date.now(),
+        createdRevision: current.revision,
       };
       const inserted = await deps.store.insert(task);
       if (!inserted) {
@@ -113,9 +122,11 @@ export function createModuleScheduler(deps: ModuleSchedulerDeps): ModuleSchedule
 
     cancelAllForModule: async (input): Promise<CancelTasksResult> => ({
       // 刻意不检查模块状态：取消必须永远可做，否则停用后无法清理已排队任务。
+      // 但**必须**带 revision fence：被取代的旧执行者不能删掉新一代任务。
       cancelled: await deps.store.deleteAllForModule({
         workspaceId: input.workspaceId,
         moduleId: input.moduleId,
+        upToRevision: input.upToRevision,
       }),
     }),
 
@@ -165,7 +176,6 @@ export interface ModuleScopedSchedulerDeps {
  * 1. 模块被授予 `scheduled:own`；
  * 2. 正在执行的是它自己的 enable / restore 动作；
  * 3. 数据库里确实存在与该动作、该 revision 完全一致的待完成操作。
- * 因此模块无法「假装自己在初始化」——它连管理端口都拿不到，也无法改写数据库。
  */
 export function createModuleScopedScheduler(deps: ModuleScopedSchedulerDeps): ModuleScopedScheduler {
   return {
