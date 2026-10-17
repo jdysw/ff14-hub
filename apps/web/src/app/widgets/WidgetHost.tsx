@@ -24,6 +24,7 @@ import {
   type WidgetComponentRegistry,
 } from './component-registry';
 import type { WidgetInstance } from './instance-store';
+import { isModuleUsableForRendering } from './instance-store';
 import type { ModuleAccess, WidgetErrorKind, WidgetPhase } from './types';
 
 export interface WidgetHostProps {
@@ -127,8 +128,10 @@ function WidgetSlot(props: WidgetSlotProps) {
   const moduleStatus: ModuleEffectiveStatus = access.status;
 
   const blocked = useMemo<BlockedReason | null>(() => {
-    if (moduleStatus !== 'enabled') {
+    if (!isModuleUsableForRendering(moduleStatus)) {
       // 未启用 / 已停用 / 已卸载 / 未安装：安全降级，绝不执行组件。
+      // 「能否渲染」这条规则只有一处实现（instance-store 的 isModuleUsableForRendering），
+      // 避免 Host 与实例存储对同一策略给出不同答案。
       return {
         kind: 'module',
         title: `模块${MODULE_STATUS_LABELS[moduleStatus]}，该实例已暂停`,
