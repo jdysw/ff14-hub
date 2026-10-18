@@ -249,12 +249,41 @@ const COUNTABLE_TABLES = [
 
 export type CountableTable = (typeof COUNTABLE_TABLES)[number];
 
-/** 统计行数。表名来自白名单，不接受任意输入（避免拼接不可信字符串）。 */
+/**
+ * 每个可统计表对应的**固定**计数语句。
+ *
+ * 为什么不写成 `SELECT COUNT(*) FROM ${table}`：即使表名来自白名单，
+ * 把变量拼进 SQL 文本也会被静态分析判为「SQL 注入面」（Sonar S3649），
+ * 而且这种写法确实让「白名单检查少了/写错了」变成真正的注入。
+ * 这里用一张常量表：拼接面彻底消失。
+ */
+const COUNT_ROWS_SQL: Readonly<Record<CountableTable, string>> = {
+  workspaces: 'SELECT COUNT(*) AS count FROM workspaces',
+  devices: 'SELECT COUNT(*) AS count FROM devices',
+  device_pairings: 'SELECT COUNT(*) AS count FROM device_pairings',
+  identity_audit: 'SELECT COUNT(*) AS count FROM identity_audit',
+  workspace_bootstrap_guard: 'SELECT COUNT(*) AS count FROM workspace_bootstrap_guard',
+  auth_rate_limits: 'SELECT COUNT(*) AS count FROM auth_rate_limits',
+  pairing_claims: 'SELECT COUNT(*) AS count FROM pairing_claims',
+  workspace_modules: 'SELECT COUNT(*) AS count FROM workspace_modules',
+  workspace_module_operations: 'SELECT COUNT(*) AS count FROM workspace_module_operations',
+  workspace_pages: 'SELECT COUNT(*) AS count FROM workspace_pages',
+  widget_instances: 'SELECT COUNT(*) AS count FROM widget_instances',
+  widget_layouts: 'SELECT COUNT(*) AS count FROM widget_layouts',
+  page_layout_revisions: 'SELECT COUNT(*) AS count FROM page_layout_revisions',
+  workspace_workbench_state: 'SELECT COUNT(*) AS count FROM workspace_workbench_state',
+  workbench_operations: 'SELECT COUNT(*) AS count FROM workbench_operations',
+  workbench_backups: 'SELECT COUNT(*) AS count FROM workbench_backups',
+  workbench_operation_intents: 'SELECT COUNT(*) AS count FROM workbench_operation_intents',
+  widget_cleanup_marks: 'SELECT COUNT(*) AS count FROM widget_cleanup_marks',
+};
+
+/** 统计行数。表名只接受 `CountableTable` 联合类型中的值（编译期白名单 + 运行期兜底）。 */
 export async function countRows(table: CountableTable): Promise<number> {
   if (!COUNTABLE_TABLES.includes(table)) {
     throw new Error(`不允许统计的表：${table}`);
   }
-  const row = await env.DB.prepare(`SELECT COUNT(*) AS count FROM ${table}`).first<{ count: number }>();
+  const row = await env.DB.prepare(COUNT_ROWS_SQL[table]).first<{ count: number }>();
   return row?.count ?? 0;
 }
 
@@ -898,4 +927,12 @@ export async function previewThenApplyViaApi(
     confirm: true,
   });
   return { preview, apply };
+}
+
+/**
+ * 把 `/me/*` 的错误响应体解析成可断言的形状。
+ * 集中在这里：7 个工作台 spec 都需要它，各写一份会造成重复代码。
+ */
+export function errorBodyOf(text: string): { code: string; message: string } {
+  return JSON.parse(text) as { code: string; message: string };
 }

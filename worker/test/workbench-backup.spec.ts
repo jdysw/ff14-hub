@@ -52,6 +52,8 @@ import {
   saveLayoutRequest,
   opId,
   seedAuth,
+  errorBodyOf,
+
 } from './helpers';
 
 const DEMO_COUNTER = DEMO_WIDGET_IDS.counter;
@@ -63,10 +65,6 @@ const DEMO_COUNTER = DEMO_WIDGET_IDS.counter;
  * 而不是被「缺少 previewToken」这类结构问题提前挡掉——后者会让断言变得空洞。
  */
 const SYNTHETIC_PREVIEW_TOKEN = 'synthetic-preview-token-0000000000000000';
-
-function errorBodyOf(text: string): { code: string; message: string } {
-  return JSON.parse(text) as { code: string; message: string };
-}
 
 interface ExportedBackup {
   readonly backup: Record<string, unknown>;
@@ -1309,21 +1307,24 @@ async function replaceImportWithBackup(
   return { backupId: body.result.backupId ?? '', result: body.result };
 }
 
-/** 仅在本文件使用的「阻断页面插入」触发器（用于证明恢复批次整体回滚）。 */
-const RESTORE_ROLLBACK_TRIGGER = 'test_restore_rollback_guard';
-
+/**
+ * 仅在本文件使用的「阻断页面插入」触发器（用于证明恢复批次整体回滚）。
+ *
+ * 刻意把触发器名写成**字面量 SQL**而不是 ``... ${name}`` 模板拼接：
+ * 把变量拼进 `prepare()` 的文本会被静态分析判为 SQL 注入面（Sonar S3649）。
+ */
 async function createPagesInsertBlocker(): Promise<void> {
   await env.DB.prepare(
-    `CREATE TRIGGER IF NOT EXISTS ${RESTORE_ROLLBACK_TRIGGER}
-       BEFORE INSERT ON workspace_pages
-       BEGIN
-         SELECT RAISE(ABORT, 'UNIQUE constraint failed: workspace_pages.workspace_id, workspace_pages.slug');
-       END`,
+    "CREATE TRIGGER IF NOT EXISTS test_restore_rollback_guard\n" +
+      '  BEFORE INSERT ON workspace_pages\n' +
+      '  BEGIN\n' +
+      "    SELECT RAISE(ABORT, 'UNIQUE constraint failed: workspace_pages.workspace_id, workspace_pages.slug');\n" +
+      '  END',
   ).run();
 }
 
 async function dropPagesInsertBlocker(): Promise<void> {
-  await env.DB.prepare(`DROP TRIGGER IF EXISTS ${RESTORE_ROLLBACK_TRIGGER}`).run();
+  await env.DB.prepare('DROP TRIGGER IF EXISTS test_restore_rollback_guard').run();
 }
 
 /** 配一台同工作空间的第二设备：用于「另一台设备改了工作台」这类真实跨设备场景。 */

@@ -43,6 +43,8 @@ import {
   widgetUrl,
   opId,
   seedAuth,
+  errorBodyOf,
+
 } from './helpers';
 
 const DEMO_COUNTER = DEMO_WIDGET_IDS.counter;
@@ -52,10 +54,6 @@ const DEMO_SOLO = DEMO_WIDGET_IDS.solo;
 const COUNTER_WIDGET = BUILTIN_MODULE_MANIFESTS.flatMap((manifest) => manifest.widgets).find(
   (widget) => widget.id === DEMO_COUNTER,
 );
-
-function errorBodyOf(text: string): { code: string; message: string } {
-  return JSON.parse(text) as { code: string; message: string };
-}
 
 function addWidget(
   authorization: string,

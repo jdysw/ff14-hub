@@ -40,15 +40,13 @@ import {
   resetIdentityState,
   opId,
   seedAuth,
+  errorBodyOf,
+
 } from './helpers';
 
 const DEMO_COUNTER = DEMO_WIDGET_IDS.counter;
 const DEMO_SOLO = DEMO_WIDGET_IDS.solo;
 const BREAKPOINTS = ['desktop', 'tablet', 'mobile'] as const;
-
-function errorBodyOf(text: string): { code: string; message: string } {
-  return JSON.parse(text) as { code: string; message: string };
-}
 
 async function layoutRevisionSnapshot(pageIds: readonly string[]): Promise<Map<string, Map<string, number>>> {
   const snapshot = new Map<string, Map<string, number>>();

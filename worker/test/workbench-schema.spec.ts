@@ -40,18 +40,15 @@ import {
   widgetUrl,
   opId,
   seedAuth,
+  errorBodyOf,
+
 } from './helpers';
 
 const DEMO_COUNTER = DEMO_WIDGET_IDS.counter;
 const NOW = 1_760_000_000_000;
 /** 只在本文件里使用的回滚触发器名（每个用例结束都会 DROP）。 */
-const ROLLBACK_TRIGGER = 'test_force_rollback_guard';
 /** 结构合法但不对应任何真实预览的令牌（用于「先过 Schema，再被业务拒绝」的探针）。 */
 const SYNTHETIC_PREVIEW_TOKEN = 'synthetic-preview-token-0000000000000000';
-
-function errorBodyOf(text: string): { code: string; message: string } {
-  return JSON.parse(text) as { code: string; message: string };
-}
 
 interface RouteProbe {
   readonly label: string;
@@ -238,19 +235,23 @@ async function indexExists(name: string): Promise<boolean> {
   return row !== null;
 }
 
-/** 在 `workspace_pages` 插入时强制失败的触发器（模拟唯一约束冲突）。 */
+/**
+ * 在 `workspace_pages` 插入时强制失败的触发器（模拟唯一约束冲突）。
+ *
+ * 触发器名写成**字面量 SQL**：把变量拼进 `prepare()` 文本会被判为 SQL 注入面（S3649）。
+ */
 async function createRollbackTrigger(): Promise<void> {
   await env.DB.prepare(
-    `CREATE TRIGGER IF NOT EXISTS ${ROLLBACK_TRIGGER}
-       BEFORE INSERT ON workspace_pages
-       BEGIN
-         SELECT RAISE(ABORT, 'UNIQUE constraint failed: workspace_pages.workspace_id, workspace_pages.slug');
-       END`,
+    "CREATE TRIGGER IF NOT EXISTS test_force_rollback_guard\n" +
+      '  BEFORE INSERT ON workspace_pages\n' +
+      '  BEGIN\n' +
+      "    SELECT RAISE(ABORT, 'UNIQUE constraint failed: workspace_pages.workspace_id, workspace_pages.slug');\n" +
+      '  END',
   ).run();
 }
 
 async function dropRollbackTrigger(): Promise<void> {
-  await env.DB.prepare(`DROP TRIGGER IF EXISTS ${ROLLBACK_TRIGGER}`).run();
+  await env.DB.prepare('DROP TRIGGER IF EXISTS test_force_rollback_guard').run();
 }
 
 beforeEach(async () => {

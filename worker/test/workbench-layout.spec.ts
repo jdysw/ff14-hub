@@ -32,13 +32,11 @@ import {
   saveLayoutRequest,
   opId,
   seedAuth,
+  errorBodyOf,
+
 } from './helpers';
 
 const DEMO_COUNTER = DEMO_WIDGET_IDS.counter;
-
-function errorBodyOf(text: string): { code: string; message: string } {
-  return JSON.parse(text) as { code: string; message: string };
-}
 
 function rect(widgetId: string, overrides: Partial<Omit<GridRect, 'i'>> = {}): GridRect {
   return { i: widgetId, x: 0, y: 0, w: 4, h: 3, ...overrides };

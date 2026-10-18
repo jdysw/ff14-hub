@@ -39,14 +39,12 @@ import {
   resetIdentityState,
   opId,
   seedAuth,
+  errorBodyOf,
+
 } from './helpers';
 
 const DEMO_COUNTER = DEMO_WIDGET_IDS.counter;
 
-
-function errorBodyOf(text: string): { code: string; message: string } {
-  return JSON.parse(text) as { code: string; message: string };
-}
 
 async function listPages(authorization: string): Promise<{
   readonly pages: readonly WorkspacePage[];

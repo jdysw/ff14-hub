@@ -31,13 +31,11 @@ import {
   resetIdentityState,
   opId,
   seedAuth,
+  errorBodyOf,
+
 } from './helpers';
 
 const DEMO_COUNTER = DEMO_WIDGET_IDS.counter;
-
-function errorBodyOf(text: string): { code: string; message: string } {
-  return JSON.parse(text) as { code: string; message: string };
-}
 
 /** 幂等两张表的行数（`workbench_operations` 与 0007 的意图指纹表）。 */
 async function operationTableCounts(workspaceId: string): Promise<{ operations: number; intents: number }> {
