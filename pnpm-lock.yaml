@@ -131,6 +131,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@ff14-hub/fish-sync':
+        specifier: workspace:*
+        version: link:../../packages/fish-sync
       '@ff14-hub/shared':
         specifier: workspace:*
         version: link:../../packages/shared

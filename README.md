@@ -240,6 +240,12 @@ ff14-hub/
 **阶段 04 的操作手册**（导航导入/个人副本/多分组/书签预览、导航与活动 Widget、
 多设备同步与草稿冲突、PWA 安装与离线边界）见
 [`docs/phase04-user-guide.md`](docs/phase04-user-guide.md)。
+**阶段 06A/06B 的操作手册与边界**（鱼糕文件导入导出、本机 WebDAV 保险箱、同步协调器的
+顺序/恢复/幂等规则与明确未完成项）见
+[`docs/phase06a-user-guide.md`](docs/phase06a-user-guide.md)、
+[`docs/phase06b-user-guide.md`](docs/phase06b-user-guide.md)、
+[`docs/adr/0007-sync-framework.md`](docs/adr/0007-sync-framework.md)、
+[`docs/adr/0008-client-sync-framework.md`](docs/adr/0008-client-sync-framework.md)。
 
 ## 7. 测试策略
 
@@ -254,6 +260,8 @@ ff14-hub/
 | 真实浏览器验收链（模块切换 → 实例表现，含窄屏与键盘） | `tests/e2e/phase02-modules.spec.ts` | Playwright（本地 `wrangler dev`） |
 | 真实浏览器验收链（工作台拖动/缩放、键盘替代、断点独立、导出导入 round-trip、双客户端并发冲突） | `tests/e2e/phase03-workbench.spec.ts` | Playwright（本地 `wrangler dev`） |
 | 真实浏览器验收链（目录导入→改私人副本→删除→目录升级仍删除、书签预览与往返、导航/活动 Widget 放入/移除/模块停用、PWA 元数据与缓存隐私、窄屏与键盘、双上下文的导航与布局冲突/草稿保留） | `tests/e2e/phase04-navigation.spec.ts` | Playwright（本地 `wrangler dev`） |
+| 鱼糕 JSON 适配 / 三方合并 / 条件式 WebDAV / 本机保险箱 / 同步协调器 / 受限油猴骨架 | `packages/fish-sync/test/*.spec.ts` | Node（内存 DAV/Hub/本地端口） |
+| 真实浏览器验收链（本机 WebDAV 档案面板：真实 IndexedDB 刷新后可解密、CryptoKey 不可导出、无 DAV 请求、窄屏） | `tests/e2e/phase06b-vault.spec.ts` | Playwright（本地 `wrangler dev`） |
 
 **SQLite 单元测试不等同于 D1 运行时测试**，因此迁移与约束断言全部在 Workers 运行时执行。
 浏览器验收链的编排见 [`tests/e2e/README.md`](tests/e2e/README.md)；
@@ -261,7 +269,7 @@ ff14-hub/
 
 ## 8. CI
 
-`.github/workflows/ci.yml` 在 push 到 `main` 与所有 PR 上执行四个 job：
+`.github/workflows/ci.yml` 在 push 到 `main` 与所有 PR 上执行以下 job：
 
 1. `verify`：冻结安装 → 绑定类型与 wrangler 配置一致性 → lint → typecheck → test → build →
    本地 D1 迁移（全新 + 重复应用）+ 迁移清单。
@@ -269,6 +277,8 @@ ff14-hub/
    （本地 wrangler dev + 本地 D1，随机一次性初始化密钥，不写 `.dev.vars`）。
 3. `e2e-phase03`：同上，跑 `pnpm run e2e:phase03`（工作台布局编辑器与备份恢复链）。
 4. `e2e-phase04`：同上，跑 `pnpm run e2e:phase04`（自由导航、活动、PWA 与跨设备同步链）。
+5. `e2e-phase06a` / `e2e-phase06b`：同上，分别跑 `pnpm run e2e:phase06a`（鱼糕文件导入/导出/撤销与
+   扩展字段不上传）与 `pnpm run e2e:phase06b`（本机保险箱：真实 IndexedDB、不可导出密钥、无 DAV 请求）。
 
 - 不使用 `continue-on-error`，不使用 `|| true`，不使用「无测试即通过」开关。
 - 全部 Cloudflare 操作都带 `--local`：CI **不部署、不创建远程资源、不读取仓库 Secrets**。
