@@ -27,8 +27,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env['E2E_PORT'] ?? 8788);
 const BASE_URL = process.env['E2E_BASE_URL'] ?? `http://127.0.0.1:${PORT}`;
 /** 专用持久目录：与本地开发的默认目录隔离，随便删。 */
-const PERSIST_DIR = '.wrangler/e2e-phase04-state';
-const CREDENTIALS_FILE = path.join(root, 'tests/e2e/.credentials.phase04.json');
+const FISHING = process.env['E2E_FISH'] === 'true';
+const PERSIST_DIR = FISHING ? '.wrangler/e2e-phase05-state' : '.wrangler/e2e-phase04-state';
+const CREDENTIALS_FILE = path.join(root, FISHING ? 'tests/e2e/.credentials.phase05.json' : 'tests/e2e/.credentials.phase04.json');
 
 /** 真实业务模块与组件 ID（与 packages/shared 的 Manifest 常量保持一致）。 */
 const NAV_MODULE_ID = 'ff14.navigation';
@@ -186,6 +187,14 @@ async function main() {
   if (migrate.code !== 0) {
     throw new Error('本地迁移失败');
   }
+  if (FISHING) {
+    for (const region of ['cn','global']) {
+      const prepared = await run(`node --experimental-strip-types scripts/prepare-fish-import.mjs data/fish-demo-${region}.json .wrangler/e2e-fish-${region}.sql`);
+      if (prepared.code !== 0) throw new Error('示例数据校验失败');
+      const imported = await run(`pnpm exec wrangler d1 execute DB --local --persist-to ${PERSIST_DIR} --file .wrangler/e2e-fish-${region}.sql`);
+      if (imported.code !== 0) throw new Error('示例数据导入失败');
+    }
+  }
 
   log(`启动本地 wrangler dev（端口 ${String(PORT)}）`);
   const server = spawn(
@@ -205,6 +214,7 @@ async function main() {
     log(`启用真实业务模块 ${NAV_MODULE_ID} 与 ${EVENTS_MODULE_ID}`);
     await enableModule(authorization, NAV_MODULE_ID);
     await enableModule(authorization, EVENTS_MODULE_ID);
+    if (FISHING) await enableModule(authorization, 'ff14.fishing');
 
     log('通过真实 HTTP 端点预置个人链接与个人活动');
     await seedPersonalData(authorization);
@@ -235,7 +245,7 @@ async function main() {
 
     log('运行 Playwright 阶段 04 验收链');
     const playwright = await run(
-      'pnpm exec playwright test phase04-navigation.spec.ts --config tests/e2e/playwright.config.ts',
+      FISHING ? 'pnpm exec playwright test phase05-fishing.spec.ts --config tests/e2e/playwright.config.ts' : 'pnpm exec playwright test phase04-navigation.spec.ts --config tests/e2e/playwright.config.ts',
     );
     if (playwright.code !== 0) {
       log(`验收链失败（退出码 ${String(playwright.code)}）`);

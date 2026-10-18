@@ -27,6 +27,7 @@ interface SystemEntry {
  * 打开工作台——「工作台概览」也匹配 /工作台/，所以主入口必须排在它前面。
  */
 const SYSTEM_ENTRIES: readonly SystemEntry[] = [
+  {id:'fishing',label:'钓鱼手账',hint:'天气窗口与独立进度',stage:'阶段 05A',view:'fishing'},
   {
     id: 'workbench',
     label: '自定义工作台',

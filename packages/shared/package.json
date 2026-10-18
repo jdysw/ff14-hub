@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ff14-hub/fish-engine": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

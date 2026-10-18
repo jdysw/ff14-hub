@@ -29,6 +29,7 @@ npm-debug.log*
 pnpm-debug.log*
 # E2E 运行期生成的**临时**测试凭证（由 scripts/e2e-phase02.mjs 写入并清理，绝不入库）
 tests/e2e/.credentials.json
+tests/e2e/.credentials.*.json
 tests/e2e/.runtime/
 
 # 编辑器/系统
