@@ -354,12 +354,13 @@ describe('模块管理界面', () => {
     const deferred = new Promise<ApiResult<ModuleMutationResponse>>((resolve) => {
       resolver.resolve = resolve;
     });
+    const mutate = vi.fn(() => deferred);
     const api: ModulesApi = {
       catalog: () => Promise.resolve(ok({ modules: descriptors })),
       listMine: () =>
         Promise.resolve(ok({ modules: [statusOf(DEMO_BASICS_MODULE_ID, 'enabled', { revision: 1 })] })),
       readModule: () => Promise.resolve(ok({ module: statusOf(DEMO_BASICS_MODULE_ID, 'enabled') })),
-      mutate: () => deferred,
+      mutate,
       purge: () => Promise.resolve(failure('not_implemented', 501, '本阶段不支持。')),
     };
     const { unmount } = render(<Harness api={api} token="ffh_dev_test" onMutated={onMutated} />);
@@ -367,7 +368,8 @@ describe('模块管理界面', () => {
       expect(cardFor(DEMO_BASICS_MODULE_ID).getAttribute('data-status')).toBe('enabled');
     });
 
-    void user.click(within(cardFor(DEMO_BASICS_MODULE_ID)).getByRole('button', { name: '停用' }));
+    await user.click(within(cardFor(DEMO_BASICS_MODULE_ID)).getByRole('button', { name: '停用' }));
+    expect(mutate).toHaveBeenCalledTimes(1);
     // 会话切换：AppShell 会以新的 generation 重挂整棵会话子树。
     unmount();
     resolver.resolve?.(
