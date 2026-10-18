@@ -12,6 +12,7 @@ export * from './api-contract';
 export * from './builtin-modules';
 export * from './errors';
 export * from './events-api';
+export * from './fish-api';
 export * from './identity';
 export * from './identity-api';
 export * from './module-api';

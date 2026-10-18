@@ -17,6 +17,7 @@ import {
   DEMO_BASICS_MODULE_ID,
   DEMO_SOLO_MODULE_ID,
   EVENTS_MODULE_ID,
+  FISH_MODULE_ID,
   NAV_MODULE_ID,
   type ModuleCapability,
 } from '@ff14-hub/shared';
@@ -132,6 +133,8 @@ const NAVIGATION_CAPABILITIES: readonly ModuleCapability[] = ['storage:own', 'na
 const EVENTS_CAPABILITIES: readonly ModuleCapability[] = ['storage:own'];
 
 const REGISTRATIONS: readonly ModuleRegistrationInput[] = [
+  { manifest: manifestOf(FISH_MODULE_ID), handlerTable: {}, settingsSchema: noSettingsSchema,
+    settingsSchemaVersion: 1, grantedCapabilities: ['storage:own'] },
   {
     manifest: manifestOf(DEMO_BASICS_MODULE_ID),
     handlerTable: demoBasicsHandlerTable,

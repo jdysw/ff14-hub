@@ -18,9 +18,9 @@ project:
   traditional_user_accounts: false
   customization: full_user_control
 current_execution:
-  phase: "03"
-  task_ids: [HUB-045, HUB-046, HUB-049, HUB-054]
-  dispatch: "Codex -> codex-dsh-collab -> DSH Desktop（可用时）"
+  phase: "05A"
+  task_ids: [HUB-013, HUB-014, HUB-015, HUB-016, HUB-017, HUB-018, HUB-019, HUB-035]
+  dispatch: "Codex 直接实现（用户2026-10-18明确接管要求，DSH会话已中止）"
   repository_created: verified
   tasks_dispatched: true
   implementation_status: in_progress
@@ -37,10 +37,20 @@ current_execution:
     HUB-044: merged
     HUB-050: merged
   phase_03_task_status:
-    HUB-045: implemented_pending_review
-    HUB-046: implemented_pending_review
-    HUB-049: implemented_pending_review
-    HUB-054: implemented_pending_review
+    HUB-045: merged
+    HUB-046: merged
+    HUB-049: merged
+    HUB-054: merged
+  phase_04_status: merged
+  phase_05a_task_status:
+    HUB-013: partial_dataset_coverage
+    HUB-014: implemented_pending_review
+    HUB-015: implemented_pending_review
+    HUB-016: implemented_pending_review
+    HUB-017: implemented_pending_review
+    HUB-018: implemented_pending_review
+    HUB-019: partial_historical_validation
+    HUB-035: implemented_pending_review
   last_status_update: "2026-10-18"
   status_evidence: |
     阶段 01：以 PR #1 squash 合并入 main（commit c65e29e），main CI run 39063324867 success；
@@ -85,6 +95,16 @@ current_execution:
 > **阅读顺序：** 第 0 节执行指令 → 第 1–4 节硬约束与架构 → 第 5–9 节数据、接口、关键业务 → 第 10–12 节任务与验收。遇到歧义时优先遵守“不变量”，将必要选择记录为 ADR，不静默变更产品边界。
 
 ## 实施状态快照（由执行 Agent 维护，非规划原文）
+
+### 2026-10-18 最新事实（覆盖下方保留的历史快照）
+
+- 用户最新范围调整：本轮先交付可运行框架与示例占位；具体模板内容后续单独开发，不以真实数据/历史内容未齐阻塞本轮框架交付。
+
+- 阶段03已由PR #10合并；阶段04已由PR #20合并，merge `a899c1bf6eb4c700651f782b0374776d99522029`。
+- 阶段04同步最终语义是“日志仅作失效信号 + 内容/revision/水位同一D1 batch的原子快照发布”，不逐页回放历史payload。
+- 阶段05A：`packages/fish-engine`复用MIT天气算法；`0012_fish.sql`、公开鱼类/窗口API、独立字段CAS/幂等与区域水位、钓鱼页面/Widget、离线导入已实现，见ADR-0005与phase05a-user-guide。
+- HUB-013真实目录覆盖和HUB-019真实历史验证**仍部分完成**：仅提供明确标注的合成示例，不能用于真实钓鱼安排；不得把基础算法测试记成真实鱼类规则已验证。
+- 提醒任务/Cron/Push/WebDAV及部署未做。Sonar-only问题按用户要求延期，功能/安全/构建检查仍执行。
 
 > 本节是为了让「规划」与「当前事实」不被混淆而增加的。规划正文（第 0 节起）保持原样；任务条目仍然只是需求定义。
 

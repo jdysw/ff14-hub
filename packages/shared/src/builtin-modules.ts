@@ -16,6 +16,7 @@
  *   三者都不允许按不可信字符串动态加载或执行远程 JS。
  */
 import { z } from 'zod';
+import { FISH_MODULE_MANIFEST, FISH_WIDGET_CONFIG_CONTRACTS } from './fish-api';
 import {
   EVENTS_MODULE_MANIFEST,
   EVENTS_WIDGET_CONFIG_CONTRACTS,
@@ -144,6 +145,7 @@ export const BUILTIN_WIDGET_CONFIG_CONTRACTS: readonly WidgetConfigContract[] = 
   // 阶段 04：真实业务模块的组件契约（各自的契约文件是唯一来源）。
   ...NAV_WIDGET_CONFIG_CONTRACTS,
   ...EVENTS_WIDGET_CONFIG_CONTRACTS,
+  ...FISH_WIDGET_CONFIG_CONTRACTS,
 ];
 
 export function findWidgetConfigContract(widgetId: string): WidgetConfigContract | null {
@@ -215,4 +217,5 @@ export const BUILTIN_MODULE_MANIFESTS: readonly ModuleManifest[] = [
   // 这里只做静态汇总，因此「有哪些内置模块」只需要看这一处。
   NAV_MODULE_MANIFEST,
   EVENTS_MODULE_MANIFEST,
+  FISH_MODULE_MANIFEST,
 ];

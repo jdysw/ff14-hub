@@ -27,7 +27,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { encodeSyncCursor, type NavSnapshot, type SyncChangesResponse } from '@ff14-hub/shared';
 import { NavView } from '../src/app/nav/NavView';
 import { useNav, type NavController } from '../src/app/nav/use-nav';
-import type { NavApi, SyncChangesApi } from '../src/app/nav/nav-api';
+import type { NavApi, NavResult, SyncChangesApi } from '../src/app/nav/nav-api';
 import {
   catalogEntry,
   deferredSyncResponse,
@@ -45,6 +45,7 @@ import {
   syncDelete,
   syncResponse,
   syncUpsert,
+  type FakeSyncApi,
 } from './nav-fixtures';
 
 afterEach(() => {
@@ -875,5 +876,262 @@ describe('6. 既有行为不回归', () => {
     const applyRequest = fake.calls.applyImport.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(applyRequest['mode']).toBe('restore');
     expect(applyRequest['expectedRevision']).toBe(42);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. 快照内容按 watermark 事实单调发布（请求发起顺序 ≠ 数据库观察顺序）
+//
+// 第五轮复核修正：**请求发起序号不能证明数据库的观察顺序**——先发起的请求完全可能在服务端
+// **后**读到较新状态，后发起的请求反而先读到较旧状态。因此「谁的内容可以落地」只看快照自带的
+// `watermark`（事实），绝不用请求序号推断：
+//   · 响应 watermark < 已发布 watermark → 不覆盖本地内容，且**只**把已发布水位交出去
+//     （绝不把未发布的水位交给轮询器，否则游标会越过本地尚未覆盖的内容）；
+//   · 响应 watermark > 已发布 watermark → 即使迟到也必须落地（不能误伤）。
+// ---------------------------------------------------------------------------
+
+/**
+ * 接管 `readSnapshot`：此后每一次调用都挂起，直到测试显式兑现。
+ *
+ * 为什么要它（而不是复用夹具）：本组用例要构造「两次请求都已经发出去之后，由测试决定先兑现
+ * 哪一份快照」——数据库的观察顺序与响应送达顺序因此可以任意交错。夹具的 `readSnapshot`
+ * 一旦被调用就立刻兑现，无法制造这个交错；`deferredSyncResponse` 只覆盖变更流。
+ *
+ * 为什么用 `vi.spyOn` 而不是夹具的替身：`fake.calls.readSnapshot` 的静态类型是
+ * `ReturnType<typeof vi.fn>`（返回 void 的过程），把「返回 Promise 的实现」交给它会触发
+ * `@typescript-eslint/no-misused-promises`；spy 的类型取自真实的 `NavApi['readSnapshot']`，
+ * 既没有这份噪音，语义也更准确。夹具本身**不改动**。
+ */
+function interceptSnapshotReads(api: NavApi): {
+  readonly pending: ((result: NavResult<NavSnapshot>) => void)[];
+} {
+  const pending: ((result: NavResult<NavSnapshot>) => void)[] = [];
+  vi.spyOn(api, 'readSnapshot').mockImplementation(
+    () =>
+      new Promise<NavResult<NavSnapshot>>((resolve) => {
+        pending.push(resolve);
+      }),
+  );
+  return { pending };
+}
+
+/**
+ * 兑现一份被测试握住的响应，并让在途微任务（含 React 的提交）在 `act` 内跑完。
+ *
+ * 为什么要在 `act` 里等一个宏任务：快照落地发生在 `await readSnapshot()` 之后的那个微任务里；
+ * 只在 `act` 内同步 release 会让这次状态更新跑到 `act` 之外。
+ */
+async function releaseAndSettle(release: () => void): Promise<void> {
+  await act(async () => {
+    release();
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+  });
+}
+
+/**
+ * 等到**挂载阶段**的同步轮次真正收口。
+ *
+ * 为什么不能只等 `syncing === false`：初始状态本来就是 false，只等这一个条件会在轮询器还没
+ * 发起任何请求时就直接通过，随后安装的快照拦截会被挂载阶段那次快照读提前占用掉。
+ * 第二次变更请求已经发出 ⇒ 初始化那一轮的快照读**已经兑现**。
+ */
+async function waitForMountSettled(sync: FakeSyncApi): Promise<void> {
+  await waitFor(() => {
+    expect(sync.queries.length).toBe(2);
+  });
+  await waitFor(() => {
+    expect(probeSyncing()).toBe(false);
+  });
+}
+
+/** 一份只含一行链接的快照：标题是「这份内容对应哪个水位」的唯一可见证据。 */
+function watermarkSnapshot(watermark: number, title: string): NavSnapshot {
+  return snapshot({ revision: watermark, watermark, links: [link('L1', { title, sortOrder: 0 })] });
+}
+
+describe('7. 快照内容按 watermark 事实单调发布（请求发起顺序 ≠ 数据库观察顺序）', () => {
+  const BASELINE_TITLE = '基线快照的链接（水位 30）';
+  const NEWER_TITLE = '较新快照 A（水位 50）';
+  const OLDER_TITLE = '较旧快照 B（水位 35）';
+  const MID_TITLE = '中间快照（水位 35）';
+  const FINAL_TITLE = '最终快照（水位 60）';
+  const STALE_TITLE = '轮询器读到更旧内容的标题（水位 25）';
+
+  it('较旧水位的内容后到：不得覆盖已发布快照，且轮询器下一轮仍带 v2:50（不采用未发布水位）', async () => {
+    const user = userEvent.setup();
+    const baseline = watermarkSnapshot(30, BASELINE_TITLE);
+    const newer = watermarkSnapshot(50, NEWER_TITLE);
+    const older = watermarkSnapshot(35, OLDER_TITLE);
+    const fake = fakeNavApi({ snapshot: baseline });
+    const sync = fakeSyncApi([resetResponse({ watermark: 30, navRevision: 3 })], {
+      navRevision: 3,
+      watermark: 30,
+    });
+    const history = renderNav({ api: fake.api, syncApi: sync.api });
+    expect(await screen.findByText(BASELINE_TITLE)).toBeDefined();
+    await waitForMountSettled(sync);
+
+    // 两次并发 reload：请求都发出去，兑现顺序完全由测试掌握。
+    const { pending } = interceptSnapshotReads(fake.api);
+    await act(async () => {
+      const current = latest(history);
+      void current.reload();
+      void current.reload();
+      await Promise.resolve();
+    });
+    // 两次请求都已经发出（否则下面的兑现顺序没有意义）。
+    expect(pending.length).toBe(2);
+
+    // 第一次请求先兑现 **watermark 更大** 的 S_high（内容含标题 A）。
+    await releaseAndSettle(() => {
+      pending[0]?.({ ok: true, status: 200, data: newer });
+    });
+    expect(probeWatermark()).toBe(50);
+    // 第二次请求后兑现 **watermark 更小** 的 S_low（内容含标题 B）：观察顺序与响应顺序相反。
+    await releaseAndSettle(() => {
+      pending[1]?.({ ok: true, status: 200, data: older });
+    });
+
+    // ① 本地已发布的快照仍是 S_high 的**同一个对象**（整份替换，没有半份合并）。
+    expect(latest(history).snapshot).toBe(newer);
+    expect(screen.getByText(NEWER_TITLE)).toBeDefined();
+    expect(screen.queryByText(OLDER_TITLE)).toBeNull();
+    for (const published of publishedSnapshots(history)) {
+      expect(published.links.some((row) => row.title === OLDER_TITLE)).toBe(false);
+    }
+    expect(latest(history).snapshot?.watermark).toBe(50);
+
+    // ② 提示 / 错误状态没有被那份被丢弃的响应改写。
+    expect(latest(history).status).toBe('ready');
+    expect(latest(history).error).toBeNull();
+    expect(screen.queryByTestId('nav-error')).toBeNull();
+
+    // ③ 轮询器下一次请求带的仍是**已发布**的水位：被丢弃的响应没有把未发布的 35 交出去。
+    const queriesBefore = sync.queries.length;
+    await user.click(screen.getByTestId('nav-sync-now'));
+    await waitFor(() => {
+      expect(sync.queries.length).toBeGreaterThan(queriesBefore);
+    });
+    expect(sync.queries[queriesBefore]?.since).toBe(encodeSyncCursor(50));
+    expect(sync.queries.map((query) => query.since)).not.toContain(encodeSyncCursor(35));
+    await waitFor(() => {
+      expect(probeSyncing()).toBe(false);
+    });
+    expect(screen.queryByText(OLDER_TITLE)).toBeNull();
+  });
+
+  it('较高水位后到仍然落地（不误伤）：最终是较高水位那份，且发布的水位单调不回退', async () => {
+    const user = userEvent.setup();
+    const baseline = watermarkSnapshot(30, BASELINE_TITLE);
+    const mid = watermarkSnapshot(35, MID_TITLE);
+    const final = watermarkSnapshot(60, FINAL_TITLE);
+    const fake = fakeNavApi({ snapshot: baseline });
+    const sync = fakeSyncApi([resetResponse({ watermark: 30, navRevision: 3 })], {
+      navRevision: 3,
+      watermark: 30,
+    });
+    const history = renderNav({ api: fake.api, syncApi: sync.api });
+    expect(await screen.findByText(BASELINE_TITLE)).toBeDefined();
+    await waitForMountSettled(sync);
+
+    const { pending } = interceptSnapshotReads(fake.api);
+    await act(async () => {
+      const current = latest(history);
+      void current.reload();
+      void current.reload();
+      await Promise.resolve();
+    });
+    expect(pending.length).toBe(2);
+
+    // 第一次请求先兑现**水位较小**的那份：它高于已发布水位（30），因此必须落地。
+    await releaseAndSettle(() => {
+      pending[0]?.({ ok: true, status: 200, data: mid });
+    });
+    expect(probeWatermark()).toBe(35);
+    expect(latest(history).snapshot).toBe(mid);
+    expect(screen.getByText(MID_TITLE)).toBeDefined();
+
+    // 第二次请求后兑现**水位更大**的那份：迟到的较新响应同样必须落地（不误伤）。
+    await releaseAndSettle(() => {
+      pending[1]?.({ ok: true, status: 200, data: final });
+    });
+    expect(probeWatermark()).toBe(60);
+    expect(latest(history).snapshot).toBe(final);
+    expect(screen.getByText(FINAL_TITLE)).toBeDefined();
+    expect(screen.queryByText(MID_TITLE)).toBeNull();
+
+    // 中间态与最终态单调：发布过的水位只增不减。
+    const marks = publishedSnapshots(history).map((snap) => snap.watermark);
+    expect(marks[0]).toBe(30);
+    expect(marks[marks.length - 1]).toBe(60);
+    expect(marks).toContain(35);
+    expect(marks).toEqual([...marks].sort((left, right) => left - right));
+
+    // 游标是最终那份快照的水位。
+    const queriesBefore = sync.queries.length;
+    await user.click(screen.getByTestId('nav-sync-now'));
+    await waitFor(() => {
+      expect(sync.queries.length).toBeGreaterThan(queriesBefore);
+    });
+    expect(sync.queries[queriesBefore]?.since).toBe(encodeSyncCursor(60));
+  });
+
+  it('轮询器那次快照读观察到更旧水位：内容不被覆盖，且下一轮仍带已发布水位（未发布水位不外泄）', async () => {
+    const user = userEvent.setup();
+    const published = watermarkSnapshot(30, BASELINE_TITLE);
+    const stale = watermarkSnapshot(25, STALE_TITLE);
+    const fake = fakeNavApi({ snapshot: published });
+    const sync = fakeSyncApi([resetResponse({ watermark: 30, navRevision: 3 })], {
+      navRevision: 3,
+      watermark: 30,
+    });
+    const history = renderNav({ api: fake.api, syncApi: sync.api });
+    expect(await screen.findByText(BASELINE_TITLE)).toBeDefined();
+    await waitForMountSettled(sync);
+
+    /**
+     * 一个真实的失效信号（seq 40）会让轮询器去读权威快照；但那一次读在数据库里观察到的是
+     * **更旧**的状态（水位 25）——请求顺序不能证明观察顺序。日志 payload 也一并喂进去，
+     * 用来证明它从未被逐条应用。
+     */
+    sync.enqueue(
+      syncResponse({
+        navRevision: 9,
+        changes: [
+          syncUpsert({ entityId: 'L9', payload: link('L9', { title: PAYLOAD_MARKER }), seq: 40 }),
+        ],
+        nextCursor: encodeSyncCursor(40),
+        watermark: 40,
+      }),
+    );
+    const { pending } = interceptSnapshotReads(fake.api);
+
+    await user.click(screen.getByTestId('nav-sync-now'));
+    await waitFor(() => {
+      expect(pending.length).toBe(1);
+    });
+    await releaseAndSettle(() => {
+      pending[0]?.({ ok: true, status: 200, data: stale });
+    });
+    await waitFor(() => {
+      expect(probeSyncing()).toBe(false);
+    });
+
+    // 内容仍是已发布的那份：更旧的水位绝不覆盖它，日志 payload 也从未被应用。
+    expect(latest(history).snapshot).toBe(published);
+    expect(screen.getByText(BASELINE_TITLE)).toBeDefined();
+    expect(screen.queryByText(STALE_TITLE)).toBeNull();
+    expect(screen.queryByText(PAYLOAD_MARKER)).toBeNull();
+
+    /**
+     * 轮询器必须继续用**已发布**的水位请求：那一次被丢弃的响应只回答「已发布水位」(30)，
+     * 而不是它自己观察到的 25——否则游标会越过本地尚未覆盖的内容。
+     */
+    const sinceList = sync.queries.map((query) => query.since);
+    expect(sinceList.slice(0, 2)).toEqual([null, encodeSyncCursor(30)]);
+    expect(sinceList.slice(2)).toEqual([encodeSyncCursor(30), encodeSyncCursor(30)]);
+    expect(sinceList).not.toContain(encodeSyncCursor(25));
   });
 });

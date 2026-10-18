@@ -29,6 +29,8 @@ import { ModuleManagerPanel } from '../modules/ModuleManagerPanel';
 import { createSessionCredentialStore, useSession } from '../modules/session-credentials';
 import { moduleAccessFrom, useModuleState } from '../modules/use-module-state';
 import { NavView } from '../nav/NavView';
+import { FishingPage } from '../fish/FishingPanel';
+import { FISH_MODULE_ID } from '@ff14-hub/shared';
 import { createNavTransport, createSyncChangesApi, type SyncChangesApi } from '../nav/nav-api';
 import { useNav } from '../nav/use-nav';
 import { builtinWidgetLookup } from '../widgets/component-registry';
@@ -213,6 +215,7 @@ function SessionWorkbench(props: SessionWorkbenchProps) {
       ) : null}
 
       {props.view === 'nav' ? <NavView state={nav} /> : null}
+      {props.view === 'fishing' ? <FishingPage dataPortFor={dataPortFor} status={moduleAccess(FISH_MODULE_ID).status}/> : null}
 
       {props.view === 'workbench' ? (
         <WorkbenchView
@@ -310,7 +313,7 @@ export function AppShell() {
             <p className="brand__subtitle">个人导航与模块化工作台 · 国服优先</p>
           </div>
         </div>
-        <p className="shell__stage">阶段 04 · 自由导航与内置模块（HUB-007 / 008 / 009 / 010 / 047 / 048）</p>
+        <p className="shell__stage">个人导航 · 天气窗口 · 钓鱼进度</p>
       </header>
 
       {/* 离线提示与「安全更新」入口：始终在 Shell 顶层，因此任何视图下都可见。 */}

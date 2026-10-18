@@ -20,6 +20,8 @@ import { isModuleUsableForRendering } from './instance-store';
 import { EVENTS_MODULE_ID, NAV_MODULE_ID } from '@ff14-hub/shared';
 import { eventsModulePortFactory } from '../events/events-data-port';
 import { navModulePortFactory } from '../nav/nav-data-port';
+import { fishModulePortFactory } from '../fish/fish-data-port';
+import { FISH_MODULE_ID } from '@ff14-hub/shared';
 
 /** 端口工厂拿到的上下文：只有这一层看得见凭证。 */
 export interface ModulePortContext {
@@ -50,6 +52,7 @@ export type ModulePortFactory = (context: ModulePortContext) => ModulePortOperat
 
 /** 组装出的调用表（模块 ID → 工厂）。未列出的模块没有端口（调用会被拒绝）。 */
 export const MODULE_PORT_FACTORIES: Readonly<Record<string, ModulePortFactory>> = {
+  [FISH_MODULE_ID]:fishModulePortFactory,
   [NAV_MODULE_ID]: navModulePortFactory,
   [EVENTS_MODULE_ID]: eventsModulePortFactory,
 };
