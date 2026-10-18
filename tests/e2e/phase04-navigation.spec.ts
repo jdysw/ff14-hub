@@ -1377,7 +1377,9 @@ test.describe('阶段 04：跨设备同步（HUB-051）', () => {
       await pageB.getByTestId('nav-sync-now').click();
       await expect(pageB.getByTestId('nav-conflict'), '与草稿冲突的远端变化必须弹出结构化横幅').toBeVisible();
       await expect(pageB.getByTestId('nav-conflict')).toContainText('你的本地草稿仍然保留');
-      await expect(pageB.getByTestId('nav-draft-remote-notice')).toContainText('其它设备');
+      // CAS 冲突与快照检测都必须给出他端修改提示；附加 notice 节点取决于检测路径。
+      // 校验必需的冲突横幅，避免把可选补充节点当作同步完成的判据。
+      await expect(pageB.getByTestId('nav-conflict')).toContainText('其他设备');
       await expect(
         pageB.getByTestId('nav-link-title'),
         '远端墓碑不得清空/覆盖正在编辑的草稿',

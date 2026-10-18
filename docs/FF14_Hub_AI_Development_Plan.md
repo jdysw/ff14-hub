@@ -18,8 +18,8 @@ project:
   traditional_user_accounts: false
   customization: full_user_control
 current_execution:
-  phase: "05A"
-  task_ids: [HUB-013, HUB-014, HUB-015, HUB-016, HUB-017, HUB-018, HUB-019, HUB-035]
+  phase: "05B"
+  task_ids: [HUB-020, HUB-021, HUB-022, HUB-023, HUB-024, HUB-025, HUB-026]
   dispatch: "Codex 直接实现（用户2026-10-18明确接管要求，DSH会话已中止）"
   repository_created: verified
   tasks_dispatched: true
@@ -42,6 +42,9 @@ current_execution:
     HUB-049: merged
     HUB-054: merged
   phase_04_status: merged
+  phase_05a_framework_status: merged
+  phase_05b_framework_status: implemented_pending_review
+  phase_05b_remaining: [production_cron_activation, real_device_receipt, notification_templates, HUB-027]
   phase_05a_task_status:
     HUB-013: partial_dataset_coverage
     HUB-014: implemented_pending_review
@@ -99,6 +102,8 @@ current_execution:
 ### 2026-10-18 最新事实（覆盖下方保留的历史快照）
 
 - 用户最新范围调整：本轮先交付可运行框架与示例占位；具体模板内容后续单独开发，不以真实数据/历史内容未齐阻塞本轮框架交付。
+- 05A框架已由PR #21合并（c1126c9）。05B提醒框架已实现：规则CAS/幂等、有界任务规划/去重、租约与投递前重验、独立设备订阅/记录、管理页面与Widget。复用MIT WebCrypto推送库，许可证保留，见ADR-0006和phase05b-user-guide。
+- 05B只完成本地可运行框架；未配置生产Cron、未配置VAPID密钥、未验证真实设备收件。模板仍用通用占位文案。HUB-027摘要/免打扰明确延期，不能读成提醒系统已生产上线。
 
 - 阶段03已由PR #10合并；阶段04已由PR #20合并，merge `a899c1bf6eb4c700651f782b0374776d99522029`。
 - 阶段04同步最终语义是“日志仅作失效信号 + 内容/revision/水位同一D1 batch的原子快照发布”，不逐页回放历史payload。

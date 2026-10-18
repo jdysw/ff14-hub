@@ -265,6 +265,8 @@ interface SwApi {
 }
 
 interface SwSandbox {
+  readonly notifications: {title:string;options:Record<string,unknown>}[];
+  readonly openedUrls: string[];
   readonly sw: SwApi;
   readonly handlers: Map<string, ((event: unknown) => void)[]>;
   readonly deletedCaches: string[];
@@ -282,7 +284,8 @@ interface SwSandbox {
 interface SwGlobalScope {
   readonly location: { readonly origin: string };
   addEventListener(type: string, handler: (event: unknown) => void): void;
-  readonly clients: { claim: () => Promise<void> };
+  readonly clients: { claim: () => Promise<void>;openWindow:(url:string)=>Promise<void> };
+  readonly registration:{showNotification:(title:string,options:Record<string,unknown>)=>Promise<void>};
   skipWaiting(): Promise<void>;
   __FF14_HUB_SW__?: SwApi;
 }
@@ -293,6 +296,7 @@ let swModuleLoadCounter = 0;
 /** 把真实的 sw.js 当模块执行，取出它自己的判断函数与事件处理器。 */
 async function loadServiceWorker(): Promise<SwSandbox> {
   const handlers = new Map<string, ((event: unknown) => void)[]>();
+  const notifications:{title:string;options:Record<string,unknown>}[]=[];const openedUrls:string[]=[];
   const deletedCaches: string[] = [];
   const cacheKeys = ['ff14-hub-public-v1', 'ff14-hub-public-v0', 'ff14-hub-private'];
   let skipWaitingCalls = 0;
@@ -322,11 +326,13 @@ async function loadServiceWorker(): Promise<SwSandbox> {
       list.push(handler);
     },
     clients: {
+      openWindow:(url:string)=>{openedUrls.push(url);return Promise.resolve();},
       claim: () => {
         claimCalls += 1;
         return Promise.resolve();
       },
     },
+    registration:{showNotification:(title:string,options:Record<string,unknown>)=>{notifications.push({title,options});return Promise.resolve();}},
     skipWaiting: () => {
       skipWaitingCalls += 1;
       return Promise.resolve();
@@ -355,6 +361,7 @@ async function loadServiceWorker(): Promise<SwSandbox> {
   }
 
   return {
+    notifications,openedUrls,
     sw,
     handlers,
     deletedCaches,
@@ -412,8 +419,18 @@ describe('sw.js：与 cache-policy.ts 一一对应', () => {
     expect(apiLiterals).toEqual([]);
   });
 
-  it('只注册 install / activate / fetch / message 四类事件', async () => {
-    expect(registeredEventTypes(await loadServiceWorker())).toEqual(['activate', 'fetch', 'install', 'message']);
+  it('只注册缓存、显式更新和推送所需的事件', async () => {
+    expect(registeredEventTypes(await loadServiceWorker())).toEqual(['activate', 'fetch', 'install', 'message','notificationclick','push']);
+  });
+  it('空推送安全回退，通知点击始终进入同源提醒视图',async()=>{
+    const sandbox=await loadServiceWorker();let pending=Promise.resolve();
+    handlerOf(sandbox,'push')({data:{json:()=>null},waitUntil:(promise:Promise<void>)=>{pending=promise;}});await pending;
+    expect(sandbox.notifications[0]?.title).toBe('FF14 Hub 提醒');
+    handlerOf(sandbox,'push')({data:{json:()=>({title:'t'.repeat(200),body:'b'.repeat(500),url:'https://evil.test'})},waitUntil:(promise:Promise<void>)=>{pending=promise;}});await pending;
+    expect(sandbox.notifications[1]?.title).toHaveLength(80);
+    expect(sandbox.notifications[1]?.options['body']).toHaveLength(200);
+    handlerOf(sandbox,'notificationclick')({notification:{close:()=>undefined,data:{url:'https://evil.test'}},waitUntil:(promise:Promise<void>)=>{pending=promise;}});await pending;
+    expect(sandbox.openedUrls).toEqual(['/?view=reminders']);
   });
 
   it('对同一批请求/响应输入，sw.js 的判断与 TypeScript 侧逐条一致', async () => {

@@ -17,6 +17,7 @@
  */
 import { z } from 'zod';
 import { FISH_MODULE_MANIFEST, FISH_WIDGET_CONFIG_CONTRACTS } from './fish-api';
+import { REMINDER_MODULE_MANIFEST, REMINDER_WIDGET_CONFIG_CONTRACTS } from './reminder-api';
 import {
   EVENTS_MODULE_MANIFEST,
   EVENTS_WIDGET_CONFIG_CONTRACTS,
@@ -146,6 +147,7 @@ export const BUILTIN_WIDGET_CONFIG_CONTRACTS: readonly WidgetConfigContract[] = 
   ...NAV_WIDGET_CONFIG_CONTRACTS,
   ...EVENTS_WIDGET_CONFIG_CONTRACTS,
   ...FISH_WIDGET_CONFIG_CONTRACTS,
+  ...REMINDER_WIDGET_CONFIG_CONTRACTS,
 ];
 
 export function findWidgetConfigContract(widgetId: string): WidgetConfigContract | null {
@@ -218,4 +220,5 @@ export const BUILTIN_MODULE_MANIFESTS: readonly ModuleManifest[] = [
   NAV_MODULE_MANIFEST,
   EVENTS_MODULE_MANIFEST,
   FISH_MODULE_MANIFEST,
+  REMINDER_MODULE_MANIFEST,
 ];
