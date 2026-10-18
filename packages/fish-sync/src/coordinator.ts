@@ -269,6 +269,7 @@ const MAX_ARCHIVED = 10;
 // ---------------------------------------------------------------------------
 
 export type CoordinatorErrorCode =
+  | 'lock-unavailable'
   | 'lock-busy'
   | 'checkpoint-unavailable'
   | 'pending-operation'

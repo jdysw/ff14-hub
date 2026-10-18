@@ -2,18 +2,17 @@
 
 FF14 个人导航与模块化工作台。默认面向国服玩家与个人自用，预留国际服扩展。
 
-**当前状态：阶段 01（Core 工程与身份基础）已合并入 `main`；阶段 02（模块系统 HUB-043 / 044 / 050）
-已实现，位于分支 `codex/phase02-modules` 的草稿 PR，尚未合并。未部署。**
-已能跑通的是「工程基线 + 统一 API + D1 迁移 + 单工作空间身份系统 + 模块注册表 + Widget Host
-+ 模块生命周期契约 + CI/浏览器验收」，
-**不是**一个可用的 FF14 工具站：导航、鱼类、多页面工作台编辑器、提醒与同步均未实现。
-界面上出现的组件全部是**明确标注的演示组件**（`demo.*`），没有任何游戏业务数据。
+**当前状态：阶段 01～04、05A/05B 与 06A/06B 已合并。工程、身份、模块化工作台、个人导航、
+活动、钓鱼/提醒框架、文件同步与本机凭证保险箱已实现；06C 补充 Hub 客户端端口、跨标签锁与多设备运行时验收。未部署。**
+鱼类数据目前是明确标注的合成演示，具体模板内容留待单独开发。真实鱼糕存储适配、真实 WebDAV 联调、
+产品自动同步与发布恢复演练仍未完成；阶段边界以对应操作手册和 ADR 为准。
 
 - 完整开发规划（单一事实来源）：[`docs/FF14_Hub_AI_Development_Plan.md`](docs/FF14_Hub_AI_Development_Plan.md)
 - 安全边界（已生效的边界与已知限制）：[`docs/security-boundaries.md`](docs/security-boundaries.md)
 - Module / Widget 边界（含阶段 01/02 实际落地与刻意未做）：[`docs/module-widget-boundaries.md`](docs/module-widget-boundaries.md)
 - 工程决策记录：[`docs/adr/0001-phase01-engineering-decisions.md`](docs/adr/0001-phase01-engineering-decisions.md)、
   [`docs/adr/0002-phase02-module-runtime.md`](docs/adr/0002-phase02-module-runtime.md)
+- 06C 运行时端口、验收入口与夹具边界：[`docs/adr/0009-sync-runtime.md`](docs/adr/0009-sync-runtime.md)
 
 ## 1. 环境要求
 

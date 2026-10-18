@@ -31,8 +31,9 @@ const FISHING = process.env['E2E_FISH'] === 'true';
 const REMINDERS = process.env['E2E_REMINDERS'] === 'true';
 const SYNC = process.env['E2E_SYNC'] === 'true';
 const VAULT = process.env['E2E_VAULT'] === 'true';
-const PERSIST_DIR = VAULT ? '.wrangler/e2e-phase06b-state' : SYNC ? '.wrangler/e2e-phase06a-state' : REMINDERS ? '.wrangler/e2e-phase05b-state' : FISHING ? '.wrangler/e2e-phase05-state' : '.wrangler/e2e-phase04-state';
-const CREDENTIALS_FILE = path.join(root, VAULT ? 'tests/e2e/.credentials.phase06b.json' : SYNC ? 'tests/e2e/.credentials.phase06a.json' : REMINDERS ? 'tests/e2e/.credentials.phase05b.json' : FISHING ? 'tests/e2e/.credentials.phase05.json' : 'tests/e2e/.credentials.phase04.json');
+const SYNC_RUNTIME = process.env['E2E_SYNC_RUNTIME'] === 'true';
+const PERSIST_DIR = SYNC_RUNTIME ? '.wrangler/e2e-phase06c-state' : VAULT ? '.wrangler/e2e-phase06b-state' : SYNC ? '.wrangler/e2e-phase06a-state' : REMINDERS ? '.wrangler/e2e-phase05b-state' : FISHING ? '.wrangler/e2e-phase05-state' : '.wrangler/e2e-phase04-state';
+const CREDENTIALS_FILE = path.join(root, SYNC_RUNTIME ? 'tests/e2e/.credentials.phase06c.json' : VAULT ? 'tests/e2e/.credentials.phase06b.json' : SYNC ? 'tests/e2e/.credentials.phase06a.json' : REMINDERS ? 'tests/e2e/.credentials.phase05b.json' : FISHING ? 'tests/e2e/.credentials.phase05.json' : 'tests/e2e/.credentials.phase04.json');
 
 /** 真实业务模块与组件 ID（与 packages/shared 的 Manifest 常量保持一致）。 */
 const NAV_MODULE_ID = 'ff14.navigation';
@@ -184,6 +185,10 @@ async function main() {
   if (build.code !== 0) {
     throw new Error('前端构建失败');
   }
+  if(SYNC_RUNTIME){
+    const fixture=await run('pnpm --filter @ff14-hub/web exec vite build --config vite.sync-e2e.config.ts');
+    if(fixture.code!==0)throw new Error('同步运行时测试夹具构建失败');
+  }
 
   log('应用本地 D1 迁移（专用目录）');
   const migrate = await run(`pnpm exec wrangler d1 migrations apply DB --local --persist-to ${PERSIST_DIR}`);
@@ -250,7 +255,7 @@ async function main() {
 
     log(VAULT ? '运行 Playwright 阶段 06B 验收链' : '运行 Playwright 阶段 04 验收链');
     const playwright = await run(
-      VAULT ? 'pnpm exec playwright test phase06b-vault.spec.ts --config tests/e2e/playwright.config.ts' : SYNC ? 'pnpm exec playwright test phase06a-sync.spec.ts --config tests/e2e/playwright.config.ts' : REMINDERS ? 'pnpm exec playwright test phase05b-reminders.spec.ts --config tests/e2e/playwright.config.ts' : FISHING ? 'pnpm exec playwright test phase05-fishing.spec.ts --config tests/e2e/playwright.config.ts' : 'pnpm exec playwright test phase04-navigation.spec.ts --config tests/e2e/playwright.config.ts',
+      SYNC_RUNTIME ? 'pnpm exec playwright test phase06c-runtime.spec.ts --config tests/e2e/playwright.config.ts' : VAULT ? 'pnpm exec playwright test phase06b-vault.spec.ts --config tests/e2e/playwright.config.ts' : SYNC ? 'pnpm exec playwright test phase06a-sync.spec.ts --config tests/e2e/playwright.config.ts' : REMINDERS ? 'pnpm exec playwright test phase05b-reminders.spec.ts --config tests/e2e/playwright.config.ts' : FISHING ? 'pnpm exec playwright test phase05-fishing.spec.ts --config tests/e2e/playwright.config.ts' : 'pnpm exec playwright test phase04-navigation.spec.ts --config tests/e2e/playwright.config.ts',
     );
     if (playwright.code !== 0) {
       log(`验收链失败（退出码 ${String(playwright.code)}）`);
