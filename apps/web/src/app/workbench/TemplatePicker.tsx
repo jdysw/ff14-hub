@@ -11,6 +11,7 @@
  */
 import { useEffect, useState } from 'react';
 import type { WorkbenchTemplateId } from '@ff14-hub/shared';
+import type { TemplateSummary } from './workbench-api';
 import type { WorkbenchController } from './use-workbench';
 
 export interface TemplatePickerProps {
@@ -18,6 +19,36 @@ export interface TemplatePickerProps {
 }
 
 type ApplyMode = 'new_page' | 'replace_page' | 'reset_workspace';
+
+const MODE_LABELS: Readonly<Record<ApplyMode, string>> = {
+  new_page: '新建页面',
+  replace_page: '替换当前页面',
+  reset_workspace: '重置整个工作台',
+};
+
+/**
+ * 「当前选择」那一行说明：用提前返回把「还没选」与「已选」分开，
+ * 而不是叠成嵌套三元（S3358）。
+ */
+function selectionSummary(selected: TemplateSummary | null, mode: ApplyMode): string {
+  if (selected === null) {
+    return '尚未选择模板：请先在上面选择，再点「确认应用模板」。';
+  }
+  return `已选择「${selected.displayName}」，应用方式：${MODE_LABELS[mode]}。点击确认后才会提交。`;
+}
+
+/**
+ * 确认按钮的 title：三种「为什么不能点 / 点了会做什么」依次提前返回（S3358）。
+ */
+function confirmHint(selected: TemplateSummary | null, mode: ApplyMode, hasActivePage: boolean): string {
+  if (selected === null) {
+    return '请先选择模板';
+  }
+  if (mode === 'replace_page' && !hasActivePage) {
+    return '当前没有页面可替换';
+  }
+  return '应用所选模板';
+}
 
 export function TemplatePicker(props: TemplatePickerProps) {
   const { state } = props;
@@ -129,11 +160,7 @@ export function TemplatePicker(props: TemplatePickerProps) {
       ) : null}
 
       <p className="workbench__status" data-testid="template-selection">
-        {selectedTemplate === null
-          ? '尚未选择模板：请先在上面选择，再点「确认应用模板」。'
-          : `已选择「${selectedTemplate.displayName}」，应用方式：${
-              mode === 'new_page' ? '新建页面' : mode === 'replace_page' ? '替换当前页面' : '重置整个工作台'
-            }。点击确认后才会提交。`}
+        {selectionSummary(selectedTemplate, mode)}
       </p>
 
       <div className="workbench__toolbar-group">
@@ -142,13 +169,7 @@ export function TemplatePicker(props: TemplatePickerProps) {
           className="button"
           data-testid="template-confirm"
           disabled={selectedTemplate === null || state.busy || (mode === 'replace_page' && state.activePageId === null)}
-          title={
-            selectedTemplate === null
-              ? '请先选择模板'
-              : mode === 'replace_page' && state.activePageId === null
-                ? '当前没有页面可替换'
-                : '应用所选模板'
-          }
+          title={confirmHint(selectedTemplate, mode, state.activePageId !== null)}
           onClick={() => {
             if (selectedTemplate === null) {
               return;

@@ -706,6 +706,13 @@ code {
   gap: 6px;
   align-items: center;
   min-width: 0;
+  /* 这些分组用原生 <fieldset> 表达「一组控件」的语义（S6819），
+     因此要清掉 fieldset 的默认边框/内边距/外边距与 min-inline-size，
+     视觉上与原来的 <div role="group"> 完全一致。 */
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-inline-size: 0;
 }
 
 .workbench__status {
@@ -979,6 +986,11 @@ code {
   flex-wrap: wrap;
   gap: 6px;
   min-width: 0;
+  /* 同上：语义上是 <fieldset>，样式上要与 <div> 一致（--move 自带虚线框，见下方规则）。 */
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-inline-size: 0;
 }
 
 .widget-card__actions--move {
@@ -1024,6 +1036,20 @@ code {
   border-color: var(--accent);
   color: var(--text);
   background: rgb(200 162 74 / 12%);
+}
+
+/* 视觉隐藏、但**仍然可被无障碍树读取**的文本（例如 fieldset 的 legend、只对读屏有意义的说明）。
+   不是 aria-hidden：它必须留在无障碍树里，只是不占视觉位置。 */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
 }
 
 /* 焦点必须可见：键盘是排布组件的**一等公民**，不是退路。 */.workbench :focus-visible,

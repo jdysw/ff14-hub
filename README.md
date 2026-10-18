@@ -169,9 +169,9 @@ ff14-hub/
 | POST | `/api/v1/me/workbench/apply-template` | 应用模板：`new_page` / `replace_page` / `reset_workspace` |
 | GET | `/api/v1/me/workbench/backup` | 导出工作台配置（`schemaVersion` 版本化 JSON，**不含任何凭证**） |
 | GET | `/api/v1/me/workbench/backups` | 可恢复备份列表（替换导入时自动生成的那份也在内） |
-| POST | `/api/v1/me/workbench/import/preview` | 预览导入：新增/替换/跳过计数、影响范围、未知模块、问题列表（**不写入**） |
-| POST | `/api/v1/me/workbench/import/apply` | 显式确认（`confirm: true` + `previewRevision`）后按 workspace 事务应用 |
-| POST | `/api/v1/me/workbench/backup/:id/restore` | 用可恢复备份撤销一次替换导入 |
+| POST | `/api/v1/me/workbench/import/preview` | 预览导入：新增/替换/跳过计数、影响范围、未知模块、问题列表（**不写入**）；返回 `previewToken`（绑定 document + mode + 工作台 revision + 相关模块门禁） |
+| POST | `/api/v1/me/workbench/import/apply` | 显式确认（`confirm: true` + `previewRevision` + `previewToken`）后按 workspace 事务应用；令牌不匹配 → 409 要求重新预览 |
+| POST | `/api/v1/me/workbench/backup/:id/restore` | 用可恢复备份撤销一次替换导入（`expectedRevision` 必填；撤销点的消费与替换**同事务**，一份只能用一次） |
 
 统一错误结构：`{ "code": "...", "message": "...", "requestId": ... }`。
 `/api/*` 下的未知路径返回 JSON 404，不会回退成 SPA 的 HTML。

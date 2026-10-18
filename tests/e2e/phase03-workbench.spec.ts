@@ -279,6 +279,8 @@ test.describe('阶段 03：工作台布局编辑与备份恢复', () => {
     page,
     request,
   }, testInfo) => {
+    // 这一批用例在 desktop / mobile 两个 Playwright project 各执行一遍，
+    // 因此按项目跳过的那一半必然被跳过：这里保留带说明的条件式 skip（不删用例、不改 fixme）。
     test.skip(testInfo.project.name !== 'desktop-chromium', '完整链路只在桌面项目执行一次');
 
     await signIn(page);
@@ -458,6 +460,8 @@ test.describe('阶段 03：工作台布局编辑与备份恢复', () => {
   });
 
   test('两个客户端并发保存：后写者收到 409 且保留本地草稿', async ({ browser, request }, testInfo) => {
+    // 这一批用例在 desktop / mobile 两个 Playwright project 各执行一遍，
+    // 因此按项目跳过的那一半必然被跳过：这里保留带说明的条件式 skip（不删用例、不改 fixme）。
     test.skip(testInfo.project.name !== 'desktop-chromium', '并发冲突用例只在桌面项目执行一次');
 
     // 同一台设备凭证、两个独立浏览器上下文 = 两个真实客户端。
@@ -524,6 +528,8 @@ test.describe('阶段 03：工作台布局编辑与备份恢复', () => {
   });
 
   test('窄屏与键盘：断点切换、键盘替代操作与无横向溢出', async ({ page, request }, testInfo) => {
+    // 这一批用例在 desktop / mobile 两个 Playwright project 各执行一遍，
+    // 因此按项目跳过的那一半必然被跳过：这里保留带说明的条件式 skip（不删用例、不改 fixme）。
     test.skip(testInfo.project.name !== 'mobile-chromium', '窄屏用例只在移动项目执行');
 
     await ensureModuleEnabled(request, credentials.moduleIds.basics);

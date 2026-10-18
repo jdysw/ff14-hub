@@ -36,7 +36,23 @@ import type { ApiRequester } from '../modules/modules-api';
 export type CreatePageRequest = z.input<typeof createPageRequestSchema>;
 export type UpdatePageRequest = z.input<typeof updatePageRequestSchema>;
 export type DeletePageRequest = z.input<typeof deletePageRequestSchema>;
-export type RestorePageRequest = z.input<typeof restoreBackupRequestSchema>;
+/**
+ * 从墓碑恢复页面（`POST /me/pages/:id/restore`）的请求体。
+ *
+ * 这个端点**不**接受 `expectedRevision`：被墓碑化的页面已经不在快照里，
+ * 客户端拿不到「用户看到的页面 revision」，因此恢复动作只带幂等 `operationId`
+ * （服务端的 `restorePage` 入口只接受 `workspaceId` / `pageId` / `operationId`）。
+ * 它与下面的备份恢复是两个不同的契约，**不要**共用同一个 Schema。
+ */
+export interface RestorePageRequest {
+  readonly operationId: string;
+}
+/**
+ * 从可恢复备份恢复（`POST /me/workbench/backup/:id/restore`）的请求体。
+ * `expectedRevision` 必填且**取用户点击「恢复」时的工作台 revision**：
+ * 服务端在同一事务里比对，旧恢复请求不会静默覆盖刚发生的跨设备变更。
+ */
+export type RestoreBackupRequest = z.input<typeof restoreBackupRequestSchema>;
 export type SaveLayoutRequest = z.input<typeof saveLayoutRequestSchema>;
 export type AddInstanceRequest = z.input<typeof addWidgetRequestSchema>;
 export type UpdateInstanceRequest = z.input<typeof updateWidgetRequestSchema>;
@@ -55,9 +71,18 @@ export interface ImportPreviewRequest {
   readonly document: unknown;
 }
 
-/** 导入应用请求体：必须回显 `previewRevision` 并显式 `confirm: true`。 */
+/**
+ * 导入应用请求体：必须回显 `previewRevision` 与 `previewToken`，并显式 `confirm: true`。
+ *
+ * `previewToken` **原样**回显预览响应里的值（见 `WorkbenchImportPreview.previewToken`）：
+ * 服务端在提交前会重算并比对，因此绝不自行编造、也绝不自动重试——
+ * 一旦预览过期（409）就必须让用户重新预览，否则「预览时被跳过的集合」与
+ * 「实际写入的集合」可能在用户不知情时发生变化。
+ */
 export interface ImportApplyRequest extends ImportPreviewRequest {
   readonly previewRevision: number;
+  /** 预览时服务端给出的计划摘要令牌（绑定 document / mode / revision / 模块门禁）。 */
+  readonly previewToken: string;
   readonly confirm: true;
   readonly operationId: string;
 }
@@ -226,7 +251,7 @@ export interface WorkbenchApi {
   applyTemplate(request: ApplyTemplateRequest): Promise<ApiResult<ApplyTemplateResponse>>;
   exportBackup(): Promise<ApiResult<BackupExportResponse>>;
   listBackups(): Promise<ApiResult<BackupListResponse>>;
-  restoreBackup(backupId: string, request: RestorePageRequest): Promise<ApiResult<RestoreBackupResponse>>;
+  restoreBackup(backupId: string, request: RestoreBackupRequest): Promise<ApiResult<RestoreBackupResponse>>;
   previewImport(request: ImportPreviewRequest): Promise<ApiResult<ImportPreviewResponse>>;
   applyImport(request: ImportApplyRequest): Promise<ApiResult<ImportApplyResponse>>;
 }
@@ -284,12 +309,26 @@ export function createWorkbenchApi(client: ApiRequester): WorkbenchApi {
  * 生成一次**用户意图**的幂等操作 ID。
  * 规则（共享契约 `operationIdSchema`）：长度 ≥ 8、仅 `[A-Za-z0-9_-]`。
  * 同一意图重试必须复用同一个 ID（服务端据此丢弃重复副作用）；新意图必须换新的。
+ *
+ * 随机源（刻意**不**降级到弱随机）：
+ * `operationId` 只用于幂等去重，**不用于保密**——它不参与鉴权、不进 URL、不进凭证，
+ * 因此它不是一个「密钥」。但即使如此也不使用弱随机数生成器（`Math.random` 可预测、
+ * 种子可枚举）：可预测的 ID 会让幂等去重被第三方猜到并碰撞，从而抑制或冒用真实的写入。
+ * 优先 `crypto.randomUUID()`；其次 `crypto.getRandomValues()`（16 字节 → 32 位十六进制）；
+ * 两者都不可用时**显式抛错**，让「这个运行环境没有安全随机源」成为可见事实。
  */
 export function newOperationId(): string {
   const source: Crypto | undefined = globalThis.crypto;
   if (source !== undefined && typeof source.randomUUID === 'function') {
     return source.randomUUID();
   }
-  // 极简兜底（仅用于没有 WebCrypto 的运行环境）：仍然满足长度与字符集约束。
-  return `op-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  if (source !== undefined && typeof source.getRandomValues === 'function') {
+    const bytes = source.getRandomValues(new Uint8Array(16));
+    // 前缀 `op-` 只是为了人眼可读；总长 35 ≤ 64，且字符集满足 operationIdSchema。
+    return `op-${[...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+  }
+  throw new Error(
+    '当前环境没有可用的安全随机源（crypto.randomUUID / crypto.getRandomValues 都不可用），' +
+      '无法生成幂等 operationId；这里不会退回弱随机数生成器。',
+  );
 }

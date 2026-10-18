@@ -611,12 +611,32 @@ export async function readTakenSlugs(db: D1Database, workspaceId: string): Promi
  * 导入尤其重要：把一份导出重新导回同一个工作空间时，备份里的 slug 一定已被占用，
  * 若原样写入会撞唯一索引并让整个导入事务回滚。
  */
+/**
+ * 去掉首尾的连字符。
+ *
+ * 刻意**不用** `/^-+|-+$/g`：带 `g` 的「两侧锚点 + 量词」组合在引擎里会对每个起始位置重试，
+ * 属于超线性回溯的写法（Sonar 安全规则会标记它）。这里用一次线性扫描，行为完全等价，
+ * 且对任意长度的输入都是 O(n)。
+ */
+function stripEdgeDashes(value: string): string {
+  let start = 0;
+  let end = value.length;
+  while (start < end && value.charAt(start) === '-') {
+    start += 1;
+  }
+  while (end > start && value.charAt(end - 1) === '-') {
+    end -= 1;
+  }
+  return value.slice(start, end);
+}
+
 export function pickUniqueSlug(base: string, taken: Set<string>): string {
-  const normalized = base
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 48);
+  const normalized = stripEdgeDashes(
+    base
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .slice(0, 48),
+  );
   const root = normalized.length > 0 ? normalized : 'page';
   if (!taken.has(root)) {
     return root;

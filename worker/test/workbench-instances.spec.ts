@@ -23,6 +23,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   URLS,
   addWidgetViaApi,
+  assertNoOverlap,
   countRows,
   createPageViaApi,
   enableDemoModule,
@@ -834,5 +835,187 @@ describe('幂等 operationId', () => {
     expect(operationRows?.count).toBe(1);
     // 只有一套副作用：工作台级修订号只被推进了一次（输家一个字都没写）。
     expect((await readWorkbenchStateRow(auth.workspaceId))?.revision).toBe(baseRevision + 1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B1：并发新增 / 复制不得选中同一个空位（复核修复的核心不变量）
+// ---------------------------------------------------------------------------
+
+const LAYOUT_BREAKPOINTS = ['desktop', 'tablet', 'mobile'] as const;
+
+/** 直接读库，按断点取出该页面的全部矩形。 */
+async function rectsByBreakpoint(pageId: string): Promise<Map<string, GridRect[]>> {
+  const rows = await readLayoutRows(pageId);
+  const byBreakpoint = new Map<string, GridRect[]>();
+  for (const breakpoint of LAYOUT_BREAKPOINTS) {
+    byBreakpoint.set(
+      breakpoint,
+      rows
+        .filter((row) => row.breakpoint === breakpoint)
+        .map((row) => ({ i: row.widget_id, x: row.x, y: row.y, w: row.w, h: row.h })),
+    );
+  }
+  return byBreakpoint;
+}
+
+/**
+ * 布局不变量：三个断点上，矩形数量与活跃实例数一致，且两两不重叠。
+ *
+ * 为什么连「数量」一起断言：复核修复的目标是「两个并发请求不能各自选中同一空位」。
+ * 只看「不重叠」在「其中一方完全没写」时也会通过，因此必须同时钉住行数，
+ * 才能区分「赢了但没重叠」与「只写了一半」。
+ */
+async function expectLayoutInvariant(pageId: string, activeInstances: number): Promise<void> {
+  const instanceIds = new Set((await readInstanceRows(pageId)).filter((row) => row.deleted_at === null).map((row) => row.id));
+  const byBreakpoint = await rectsByBreakpoint(pageId);
+  for (const breakpoint of LAYOUT_BREAKPOINTS) {
+    const rects = byBreakpoint.get(breakpoint) ?? [];
+    expect(rects, `${breakpoint} 的矩形数量`).toHaveLength(activeInstances);
+    // 没有孤儿布局：每一行都属于一个真实存在的实例。
+    expect(rects.every((rect) => instanceIds.has(rect.i)), `${breakpoint} 存在孤儿布局`).toBe(true);
+    assertNoOverlap(rects);
+  }
+  expect(await readLayoutRows(pageId)).toHaveLength(activeInstances * LAYOUT_BREAKPOINTS.length);
+}
+
+describe('B1 并发新增不重叠', () => {
+  it('两个不同 operationId 的并发新增：要么都成功且互不重叠，要么恰好一个 409 layout_revision_conflict 且输家零写入', async () => {
+    const auth = await seedAuth();
+    const page = await createPageViaApi(auth.authorization, { name: '并发页', operationId: opId('page') });
+    await enableDemoModule(auth.authorization, DEMO_BASICS_MODULE_ID);
+    expect(await readInstanceRows(page.page.id)).toHaveLength(0);
+
+    const firstOp = opId('concurrent-add-a');
+    const secondOp = opId('concurrent-add-b');
+    const [first, second] = await Promise.all([
+      addWidget(auth.authorization, page.page.id, { widgetType: DEMO_COUNTER, operationId: firstOp }),
+      addWidget(auth.authorization, page.page.id, { widgetType: DEMO_COUNTER, operationId: secondOp }),
+    ]);
+
+    const outcomes = [
+      { operationId: firstOp, response: first },
+      { operationId: secondOp, response: second },
+    ];
+    const winners = outcomes.filter((outcome) => outcome.response.status === 201);
+    const losers = outcomes.filter((outcome) => outcome.response.status !== 201);
+    expect(winners.length).toBeGreaterThanOrEqual(1);
+    expect(losers.length).toBeLessThanOrEqual(1);
+    // 每个请求要么提交成功，要么被明确拒绝成 409——不允许 5xx 或静默 200。
+    for (const winner of winners) {
+      expect(winner.response.status, winner.operationId).toBe(201);
+    }
+    for (const loser of losers) {
+      expect(loser.response.status, loser.operationId).toBe(409);
+      const body = errorBodyOf(await loser.response.text());
+      expect(body.code).toBe('conflict');
+      // 两种可解释原因（布局修订号变了 / 实例集合变了），都指向「并发改动」。
+      expect(body.message).toContain('已被其他设备修改');
+    }
+
+    // 数据库事实：活跃实例数 = 赢家数；每个实例都恰好有 3 条布局行，且互不重叠。
+    await expectLayoutInvariant(page.page.id, winners.length);
+
+    // 赢家有幂等记录且已收尾；输家的 operationId 一行都没留下。
+    for (const winner of winners) {
+      const row = await readWorkbenchOperationRow(auth.workspaceId, winner.operationId);
+      expect(row?.kind, winner.operationId).toBe('widget.add');
+      expect(row?.attempt_token, winner.operationId).toBeNull();
+    }
+    for (const loser of losers) {
+      expect(await readWorkbenchOperationRow(auth.workspaceId, loser.operationId)).toBeNull();
+    }
+    // 工作台修订号恰好被推进「为每个赢家一次」（赢家才会 bump）。
+    expect(await countRows('widget_instances')).toBe(winners.length);
+  });
+});
+
+describe('B1 并发复制不重叠', () => {
+  it('同一源实例、两个不同 operationId 的并发复制：要么都成功且互不重叠，要么恰好一个 409 且输家零写入', async () => {
+    const auth = await seedAuth();
+    const page = await createPageViaApi(auth.authorization, { name: '并发复制页', operationId: opId('page') });
+    await enableDemoModule(auth.authorization, DEMO_BASICS_MODULE_ID);
+    const source = await addWidgetViaApi(auth.authorization, page.page.id, {
+      widgetType: DEMO_COUNTER,
+      operationId: opId('widget-source'),
+      config: { step: 2, label: '源', initDelayMs: 0 },
+    });
+    // 复制前先钉住一次基线：源实例的 3 条布局行。
+    await expectLayoutInvariant(page.page.id, 1);
+
+    const duplicate = (operationId: string): Promise<Response> =>
+      SELF.fetch(widgetDuplicateUrl(source.instance.id), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: auth.authorization },
+        body: JSON.stringify({ operationId }),
+      });
+
+    const firstOp = opId('concurrent-dup-a');
+    const secondOp = opId('concurrent-dup-b');
+    const [first, second] = await Promise.all([duplicate(firstOp), duplicate(secondOp)]);
+
+    const outcomes = [
+      { operationId: firstOp, response: first },
+      { operationId: secondOp, response: second },
+    ];
+    const winners = outcomes.filter((outcome) => outcome.response.status === 201);
+    const losers = outcomes.filter((outcome) => outcome.response.status !== 201);
+    expect(winners.length).toBeGreaterThanOrEqual(1);
+    expect(losers.length).toBeLessThanOrEqual(1);
+    for (const loser of losers) {
+      expect(loser.response.status, loser.operationId).toBe(409);
+      const body = errorBodyOf(await loser.response.text());
+      expect(body.code).toBe('conflict');
+      expect(body.message).toContain('已被其他设备修改');
+    }
+
+    // 复制出的实例 + 源实例：矩形两两不重叠，行数与活跃实例数严格对应。
+    await expectLayoutInvariant(page.page.id, 1 + winners.length);
+    // 复制出来的实例配置与源一致，且有自己的 id。
+    for (const winner of winners) {
+      const body = await winner.response.json<{ instance: { id: string; config: unknown; pageId: string } }>();
+      expect(body.instance.id).not.toBe(source.instance.id);
+      expect(body.instance.pageId).toBe(page.page.id);
+      expect(body.instance.config).toEqual(source.instance.config);
+    }
+    for (const loser of losers) {
+      expect(await readWorkbenchOperationRow(auth.workspaceId, loser.operationId)).toBeNull();
+    }
+  });
+});
+
+describe('B1 顺序新增的空位不变量（并发交错无法在 HTTP 层确定性构造）', () => {
+  it('连续 N 次新增后矩形两两不重叠；随后的一次并发对组合同样不重叠', async () => {
+    const auth = await seedAuth();
+    const page = await createPageViaApi(auth.authorization, { name: '顺序页', operationId: opId('page-seq') });
+    await enableDemoModule(auth.authorization, DEMO_BASICS_MODULE_ID);
+
+    // 为什么是「顺序 N 次 + 并发一对」而不是「确定性交错」：
+    // `addWidget` 在**同一个请求内**读取实例集合与三个断点修订号，HTTP 层无法把另一个
+    // 请求插进「读取」与「认领」之间；能确定性表达的等价性质就是下面这两条不变量。
+    const total = 6;
+    for (let index = 0; index < total; index += 1) {
+      await addWidgetViaApi(auth.authorization, page.page.id, {
+        widgetType: DEMO_COUNTER,
+        operationId: opId(`seq-${String(index)}`),
+        config: { step: index + 1, label: `顺序 ${String(index)}`, initDelayMs: 0 },
+      });
+      // 每加一个都当场校验：这才是「新增落位」的可验证不变量。
+      await expectLayoutInvariant(page.page.id, index + 1);
+    }
+    expect(await readInstanceRows(page.page.id)).toHaveLength(total);
+
+    // 再做一次真并发对：仍不允许出现重叠（无论一方输还是都赢）。
+    const [concurrentFirst, concurrentSecond] = await Promise.all([
+      addWidget(auth.authorization, page.page.id, { widgetType: DEMO_COUNTER, operationId: opId('seq-concurrent-a') }),
+      addWidget(auth.authorization, page.page.id, { widgetType: DEMO_COUNTER, operationId: opId('seq-concurrent-b') }),
+    ]);
+    const committed =
+      (concurrentFirst.status === 201 ? 1 : 0) + (concurrentSecond.status === 201 ? 1 : 0);
+    expect(committed).toBeGreaterThanOrEqual(1);
+    for (const response of [concurrentFirst, concurrentSecond]) {
+      expect([201, 409]).toContain(response.status);
+    }
+    await expectLayoutInvariant(page.page.id, total + committed);
   });
 });

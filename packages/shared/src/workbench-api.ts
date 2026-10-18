@@ -115,6 +115,82 @@ function overlaps(a: GridRect, b: GridRect): boolean {
 }
 
 /**
+ * 校验单个矩形（归属、重复、坐标、尺寸）。
+ *
+ * 从 `validateLayoutRects` 抽出来是为了让两处都保持在认知复杂度门槛内，
+ * 而不是把一段长 `if` 链塞进同一个函数（Sonar 规则 S3776）。
+ * 返回 true 表示这一项**已产生**违规、不应再参与重叠检查。
+ */
+function validateSingleRect(input: {
+  readonly rect: GridRect;
+  readonly cols: number;
+  readonly seen: Set<string>;
+  readonly constraintsOf: (widgetId: string) => WidgetSizeConstraint | null;
+  readonly violations: LayoutViolation[];
+}): boolean {
+  const rect = input.rect;
+  if (input.seen.has(rect.i)) {
+    input.violations.push({ widgetId: rect.i, code: 'duplicate_widget', detail: '同一实例在同一断点出现了多次' });
+    return true;
+  }
+  input.seen.add(rect.i);
+
+  const constraint = input.constraintsOf(rect.i);
+  if (constraint === null) {
+    input.violations.push({ widgetId: rect.i, code: 'unknown_widget', detail: '该实例不属于本页面或组件类型未注册' });
+    return true;
+  }
+  if (rect.x < 0 || rect.y < 0) {
+    input.violations.push({ widgetId: rect.i, code: 'negative_position', detail: '坐标不能为负' });
+    return true;
+  }
+  if (rect.w < constraint.minW || rect.h < constraint.minH) {
+    input.violations.push({
+      widgetId: rect.i,
+      code: 'size_below_min',
+      detail: `尺寸 ${rect.w}×${rect.h} 小于该组件的最小尺寸 ${constraint.minW}×${constraint.minH}`,
+    });
+    return true;
+  }
+  if (
+    (constraint.maxW !== null && rect.w > constraint.maxW) ||
+    (constraint.maxH !== null && rect.h > constraint.maxH)
+  ) {
+    input.violations.push({
+      widgetId: rect.i,
+      code: 'size_above_max',
+      detail: `尺寸 ${rect.w}×${rect.h} 超过该组件的最大尺寸 ${constraint.maxW ?? '∞'}×${constraint.maxH ?? '∞'}`,
+    });
+    return true;
+  }
+  if (rect.x + rect.w > input.cols || rect.y + rect.h > MAX_LAYOUT_Y + 1) {
+    input.violations.push({
+      widgetId: rect.i,
+      code: 'out_of_bounds',
+      detail: `矩形 (x=${rect.x}, y=${rect.y}, w=${rect.w}, h=${rect.h}) 超出 ${input.cols} 列网格边界`,
+    });
+    return true;
+  }
+  return false;
+}
+
+/** 两两重叠检查（只对已通过单项校验的矩形做，避免同一错误重复报多条）。 */
+function collectOverlaps(rects: readonly GridRect[], violations: LayoutViolation[]): void {
+  for (let a = 0; a < rects.length; a += 1) {
+    for (let b = a + 1; b < rects.length; b += 1) {
+      const first = rects[a];
+      const second = rects[b];
+      if (first === undefined || second === undefined) {
+        continue;
+      }
+      if (overlaps(first, second)) {
+        violations.push({ widgetId: second.i, code: 'overlap', detail: `与实例 ${first.i} 的矩形重叠` });
+      }
+    }
+  }
+}
+
+/**
  * 校验一组矩形是否构成该断点下的合法布局。
  *
  * 规则（全部必须满足）：
@@ -135,71 +211,16 @@ export function validateLayoutRects(input: {
   const cols = columnsForBreakpoint(input.breakpoint);
   const violations: LayoutViolation[] = [];
   const seen = new Set<string>();
+  const valid: GridRect[] = [];
 
   for (const rect of input.rects) {
-    if (seen.has(rect.i)) {
-      violations.push({ widgetId: rect.i, code: 'duplicate_widget', detail: '同一实例在同一断点出现了多次' });
-      continue;
-    }
-    seen.add(rect.i);
-
-    const constraint = input.constraintsOf(rect.i);
-    if (constraint === null) {
-      violations.push({ widgetId: rect.i, code: 'unknown_widget', detail: '该实例不属于本页面或组件类型未注册' });
-      continue;
-    }
-    if (rect.x < 0 || rect.y < 0) {
-      violations.push({ widgetId: rect.i, code: 'negative_position', detail: '坐标不能为负' });
-      continue;
-    }
-    if (rect.w < constraint.minW || rect.h < constraint.minH) {
-      violations.push({
-        widgetId: rect.i,
-        code: 'size_below_min',
-        detail: `尺寸 ${rect.w}×${rect.h} 小于该组件的最小尺寸 ${constraint.minW}×${constraint.minH}`,
-      });
-      continue;
-    }
-    if (
-      (constraint.maxW !== null && rect.w > constraint.maxW) ||
-      (constraint.maxH !== null && rect.h > constraint.maxH)
-    ) {
-      violations.push({
-        widgetId: rect.i,
-        code: 'size_above_max',
-        detail: `尺寸 ${rect.w}×${rect.h} 超过该组件的最大尺寸 ${constraint.maxW ?? '∞'}×${constraint.maxH ?? '∞'}`,
-      });
-      continue;
-    }
-    if (rect.x + rect.w > cols || rect.y + rect.h > MAX_LAYOUT_Y + 1) {
-      violations.push({
-        widgetId: rect.i,
-        code: 'out_of_bounds',
-        detail: `矩形 (x=${rect.x}, y=${rect.y}, w=${rect.w}, h=${rect.h}) 超出 ${cols} 列网格边界`,
-      });
+    const failed = validateSingleRect({ rect, cols, seen, constraintsOf: input.constraintsOf, violations });
+    if (!failed) {
+      valid.push(rect);
     }
   }
 
-  // 重叠检查只对「已经通过单项校验」的矩形做，避免对同一错误重复报多条。
-  const valid = input.rects.filter(
-    (rect) => !violations.some((violation) => violation.widgetId === rect.i),
-  );
-  for (let a = 0; a < valid.length; a += 1) {
-    for (let b = a + 1; b < valid.length; b += 1) {
-      const first = valid[a];
-      const second = valid[b];
-      if (first === undefined || second === undefined) {
-        continue;
-      }
-      if (overlaps(first, second)) {
-        violations.push({
-          widgetId: second.i,
-          code: 'overlap',
-          detail: `与实例 ${first.i} 的矩形重叠`,
-        });
-      }
-    }
-  }
+  collectOverlaps(valid, violations);
 
   return violations.length === 0 ? { ok: true } : { ok: false, violations };
 }
@@ -648,20 +669,48 @@ export type WorkbenchImportMode = (typeof WORKBENCH_IMPORT_MODES)[number];
 export const WORKBENCH_BACKUP_KINDS = ['pre_import', 'manual'] as const;
 export type WorkbenchBackupKind = (typeof WORKBENCH_BACKUP_KINDS)[number];
 
+/**
+ * 应用导入。
+ *
+ * 除「显式确认」之外，还必须回显预览时服务端给出的 `previewToken`：
+ * 它绑定「这份 document + 这个 mode + 当时的工作台 revision + 所有相关模块的门禁状态与 revision」。
+ * 服务端在提交前会重算并比对，任何一项变化都要求重新预览（409），
+ * 而不是用「实际执行时再跳过一些实例」来事后改变用户确认过的结果。
+ */
 export const importRequestSchema = z
   .object({
     mode: z.enum(WORKBENCH_IMPORT_MODES),
-    /** 预览时返回的 `previewRevision`；服务端重算后不一致即 409（期间工作台已被改动）。 */
+    /** 预览时返回的 `previewRevision`（工作台 revision 的显式回显）。 */
     previewRevision: z.number().int().nonnegative(),
+    /** 预览时返回的 `previewToken`（计划摘要令牌，绑定 document / mode / revision / 模块门禁）。 */
+    previewToken: z.string().min(16).max(128),
     /** 必须显式为 true：不接受「省略即确认」。 */
     confirm: z.literal(true),
     operationId: operationIdSchema,
   })
   .strict();
 
+/**
+ * 从墓碑恢复**页面**。页面恢复只依赖它自己的 revision（在服务端以「墓碑存在 + 页面数量」为前置条件），
+ * 因此只需要 operationId。
+ */
+export const restorePageRequestSchema = z
+  .object({
+    operationId: operationIdSchema,
+  })
+  .strict();
+
+/**
+ * 从可恢复备份恢复**工作台**。
+ *
+ * `expectedRevision` 必填：用户在界面上选择「恢复」时所看到的工作台 revision。
+ * 服务端在同一事务的准入条件里比对，因此一个「旧的」恢复请求不会静默覆盖
+ * 刚发生的跨设备变更（那是「用旧快照覆盖新数据」的典型入口）。
+ */
 export const restoreBackupRequestSchema = z
   .object({
     operationId: operationIdSchema,
+    expectedRevision: z.number().int().nonnegative(),
   })
   .strict();
 
@@ -714,6 +763,14 @@ export interface WorkbenchImportPreview {
   /** 影响范围：将被替换/触及的现有页面名。 */
   readonly affectedPages: readonly string[];
   readonly previewRevision: number;
+  /**
+   * 计划摘要令牌：绑定 `document` + `mode` + 预览时的工作台 revision +
+   * 所有相关模块的门禁状态与 revision。
+   *
+   * 应用导入时必须原样回显；服务端在提交前重算并比对，
+   * 因此「预览时被跳过的集合」与「实际写入的集合」不可能在用户不知情时发生变化。
+   */
+  readonly previewToken: string;
   /** 预览后需要用户显式确认的文案。 */
   readonly confirmPrompt: string;
 }
@@ -735,11 +792,17 @@ export const WORKBENCH_MESSAGES = {
   layout_revision_conflict: '布局已被其他设备修改，请先比较或重新载入。',
   revision_conflict: '数据已被其他设备修改，请重新载入后再提交。',
   operation_id_reused: '该操作 ID 已用于不同类型的操作。',
+  /** 同一个 operationId 换了目标/正文（意图变了）：拒绝并零写入，绝不当成重放。 */
+  operation_payload_mismatch: '该操作 ID 已用于不同的请求内容，请用新的操作 ID 重试。',
   layout_invalid: '布局不合法：位置或尺寸超出该组件的允许范围。',
   last_page_deleted: '已删除最后一个页面；可通过「新建页面」或模板恢复工作台。',
   import_not_importable: '备份内容存在问题，未执行任何写入。',
-  import_preview_stale: '预览之后工作台已被改动，请重新预览。',
+  import_preview_stale: '预览之后工作台或相关模块状态已变化，请重新预览。',
   import_too_large: `备份文档超过 ${String(WORKBENCH_BACKUP_MAX_BYTES)} 字节上限。`,
   export_too_large: `工作台内容超过备份上限（${String(WORKBENCH_BACKUP_MAX_BYTES)} 字节）；请减少页面或组件后再导出。`,
+  export_inconsistent: '工作台在导出过程中被其他设备修改，已放弃本次导出；请重试。',
   backup_not_found: '可恢复备份不存在或已过期。',
+  /** 该备份已被用过（恢复是「一次性撤销点」）。 */
+  backup_consumed: '该备份已被使用过，不能再次恢复。',
+  backup_revision_conflict: '工作台已被其他设备修改，请重新读取备份列表后再恢复。',
 } as const;

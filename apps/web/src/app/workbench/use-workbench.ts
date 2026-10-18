@@ -216,6 +216,13 @@ export interface WorkbenchController {
   readonly loadBackups: () => Promise<void>;
   readonly exportBackup: () => Promise<void>;
   readonly previewImport: (document: unknown, mode: WorkbenchImportMode) => Promise<void>;
+  /**
+   * 丢弃当前预览（**不**发任何请求）。
+   *
+   * 预览令牌绑定「这份 document + 这个 mode + 当时的工作台 revision + 模块门禁」，
+   * 因此只要用户换了文件或改了导入模式，旧令牌就必须立刻作废，必须重新预览。
+   */
+  readonly discardImportPreview: () => void;
   readonly confirmImport: () => Promise<void>;
   readonly cancelImport: () => void;
   readonly restoreBackup: (backupId: string) => Promise<void>;
@@ -902,13 +909,15 @@ export function useWorkbench(options: UseWorkbenchOptions): WorkbenchController 
         api.addInstance(pageId, { widgetType, operationId: newOperationId() }),
       );
       if (!outcome.ok) {
+        // 冲突（409）最常见的原因是「该组件所属模块还没启用」，因此额外补一句可执行的提示。
+        // 这里刻意写成独立语句而不是嵌套三元（S3358）：两种情况的文案来源不同。
+        let failureMessage = `添加组件失败：${outcome.message}`;
+        if (outcome.conflict) {
+          failureMessage += ' 提示：该组件所属模块可能未启用，请先在「模块管理」里启用该模块。';
+        }
         update((current) => ({
           ...current,
-          error: outcome.stale
-            ? outcome.message
-            : `添加组件失败：${outcome.message}${
-                outcome.conflict ? ' 提示：该组件所属模块可能未启用，请先在「模块管理」里启用该模块。' : ''
-              }`,
+          error: outcome.stale ? outcome.message : failureMessage,
         }));
         return;
       }
@@ -1141,13 +1150,20 @@ export function useWorkbench(options: UseWorkbenchOptions): WorkbenchController 
         }),
       );
       await afterPageWrite();
+      // 两个页面必须都写成功才算「顺序已调整」；失败的那一半逐条列出原因。
+      // 刻意用独立语句而不是嵌套三元（S3358）：这里同时要拼文案与决定是否清空 error。
+      const reordered = first.ok && second.ok;
+      const failureText = [first, second]
+        .filter((item) => !item.ok)
+        .map((item) => item.message)
+        .join('');
+      const notice = reordered
+        ? `已调整「${page.name}」的顺序。`
+        : `顺序调整未完全成功（${failureText}）；已重新载入服务端顺序。`;
       update((current) => ({
         ...current,
-        notice:
-          first.ok && second.ok
-            ? `已调整「${page.name}」的顺序。`
-            : `顺序调整未完全成功（${first.ok ? '' : first.message}${second.ok ? '' : second.message}）；已重新载入服务端顺序。`,
-        error: first.ok && second.ok ? null : current.error,
+        notice,
+        error: reordered ? null : current.error,
       }));
     },
     [afterPageWrite, api, performWrite, update],
@@ -1344,6 +1360,19 @@ export function useWorkbench(options: UseWorkbenchOptions): WorkbenchController 
     [api, update],
   );
 
+  const discardImportPreview = useCallback((): void => {
+    update((current) => {
+      if (current.importPreview === null) {
+        return current;
+      }
+      return {
+        ...current,
+        importPreview: null,
+        notice: '导入模式或所选文件已改变：上一次预览的令牌已失效，请重新预览后再确认导入。',
+      };
+    });
+  }, [update]);
+
   const confirmImport = useCallback(async (): Promise<void> => {
     const pending = ref.current.importPreview;
     if (pending === null) {
@@ -1359,12 +1388,21 @@ export function useWorkbench(options: UseWorkbenchOptions): WorkbenchController 
         mode: pending.mode,
         document: pending.document,
         previewRevision: pending.preview.previewRevision,
+        // 原样回显预览令牌：服务端会重算比对，过期即 409；**不**自动重试，也**不**自行编造 token。
+        previewToken: pending.preview.previewToken,
         confirm: true,
         operationId: newOperationId(),
       }),
     );
     if (!outcome.ok) {
-      update((current) => ({ ...current, error: `导入失败：${outcome.message}` }));
+      update((current) => ({
+        ...current,
+        error: outcome.conflict
+          ? '预览已过期（工作台或相关模块在预览之后发生了变化），请重新预览后再确认导入；旧令牌已丢弃，不会自动重试。'
+          : `导入失败：${outcome.message}`,
+        // 令牌已作废：连预览结果一起丢掉，避免用户对着过期的影响范围再点一次「确认」。
+        importPreview: outcome.conflict ? null : current.importPreview,
+      }));
       return;
     }
     update((current) => ({ ...current, drafts: {}, conflict: null }));
@@ -1389,9 +1427,36 @@ export function useWorkbench(options: UseWorkbenchOptions): WorkbenchController 
 
   const restoreBackup = useCallback(
     async (backupId: string): Promise<void> => {
-      const outcome = await performWrite(() => api.restoreBackup(backupId, { operationId: newOperationId() }));
+      /**
+       * 恢复的准入条件：**用户点击「恢复」时**的工作台 revision。
+       *
+       * 拿不到（还没有快照）时先向服务端重新读一次，而不是用猜测值提交——
+       * 服务端在同一事务里比对它，因此一个「旧的」恢复请求不会静默覆盖刚发生的跨设备变更。
+       */
+      if (ref.current.snapshot === null) {
+        await loadSnapshot();
+        if (!mountedRef.current) {
+          return;
+        }
+      }
+      const expectedRevision = ref.current.snapshot?.revision;
+      if (expectedRevision === undefined) {
+        update((current) => ({
+          ...current,
+          error: '还没有读到工作台 revision，无法安全执行恢复；请先重新载入工作台。',
+        }));
+        return;
+      }
+      const outcome = await performWrite(() =>
+        api.restoreBackup(backupId, { operationId: newOperationId(), expectedRevision }),
+      );
       if (!outcome.ok) {
-        update((current) => ({ ...current, error: `恢复备份失败：${outcome.message}` }));
+        update((current) => ({
+          ...current,
+          // 409 = 工作台在「看到备份列表」之后变过：必须重新读取列表（与 revision）再决定，
+          // 绝不自动重试——那正是「用旧快照覆盖新数据」的入口。
+          error: outcome.conflict ? '工作台已变化，请重新读取备份列表' : `恢复备份失败：${outcome.message}`,
+        }));
         return;
       }
       update((current) => ({ ...current, drafts: {}, conflict: null }));
@@ -1403,7 +1468,7 @@ export function useWorkbench(options: UseWorkbenchOptions): WorkbenchController 
         error: null,
       }));
     },
-    [afterPageWrite, api, loadBackups, performWrite, update],
+    [afterPageWrite, api, loadBackups, loadSnapshot, performWrite, update],
   );
 
   // -------------------------------------------------------------------------
@@ -1551,6 +1616,10 @@ export function useWorkbench(options: UseWorkbenchOptions): WorkbenchController 
    * 「离开页面」的浏览器级兜底：草稿还在时阻止静默关闭标签页。
    * 应用内切换（切页 / 切断点 / 退出编辑）走的是可视确认横幅，
    * 浏览器级无法自绘界面，因此只做标准的 beforeunload 拦截。
+   *
+   * 只调用 `event.preventDefault()`：HTML 规范把「被取消的 beforeunload」当作
+   * 「可能丢失未保存改动」，现代浏览器据此显示确认对话框。
+   * 已废弃的 `event.returnValue = ''` 写法不再使用（它只是旧版浏览器的等价手段）。
    */
   useEffect(() => {
     if (!dirty || typeof window === 'undefined') {
@@ -1558,7 +1627,6 @@ export function useWorkbench(options: UseWorkbenchOptions): WorkbenchController 
     }
     const handler = (event: BeforeUnloadEvent): void => {
       event.preventDefault();
-      event.returnValue = '';
     };
     window.addEventListener('beforeunload', handler);
     return () => {
@@ -1655,6 +1723,7 @@ export function useWorkbench(options: UseWorkbenchOptions): WorkbenchController 
     loadBackups,
     exportBackup,
     previewImport,
+    discardImportPreview,
     confirmImport,
     cancelImport,
     restoreBackup,

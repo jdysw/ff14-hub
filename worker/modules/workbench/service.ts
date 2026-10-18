@@ -85,6 +85,7 @@ import {
 } from './internal';
 import {
   WORKBENCH_OP_KINDS,
+  fingerprintOf,
   guardedStatements,
   layoutSaveKind,
   readWorkbenchReplay,
@@ -250,6 +251,8 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
     readonly workspaceId: string;
     readonly operationId: string;
     readonly kind: string;
+    /** 请求指纹：同一个 operationId 换意图时必须拒绝（见 `fingerprintOf`）。 */
+    readonly requestFingerprint: string;
     readonly preconditionSql: string;
     readonly preconditionBinds: readonly unknown[];
     readonly build: (guard: IdempotencyGuard) => Statement[];
@@ -261,6 +264,7 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
       workspaceId: input.workspaceId,
       operationId: input.operationId,
       kind: input.kind,
+      requestFingerprint: input.requestFingerprint,
       now: now(),
       preconditionSql: input.preconditionSql,
       preconditionBinds: input.preconditionBinds,
@@ -268,6 +272,30 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
       result: input.result,
       explain: input.explain,
     });
+  }
+
+  /**
+   * 幂等入口守卫：先算本次意图的指纹，再看是否已有同 ID 的成功记录。
+   *
+   * 两件事必须成对出现——只查 ID 不查指纹会把「同 ID 换 body」当重放放行；
+   * 只算指纹不先短路会让「响应丢失后原样重试」被前置条件早退成 409。
+   */
+  async function replayGuard<T>(input: {
+    readonly workspaceId: string;
+    readonly operationId: string;
+    readonly kind: string;
+    /** 参与指纹的**请求意图**（目标 ID / 动作 / 正文 / 预期 revision），不含服务端观察到的状态。 */
+    readonly intent: unknown;
+  }): Promise<{ readonly fingerprint: string; readonly replay: WorkbenchResult<T> | null }> {
+    const fingerprint = await fingerprintOf(input.kind, input.intent);
+    const replay = await readWorkbenchReplay<T>({
+      db: deps.db,
+      workspaceId: input.workspaceId,
+      operationId: input.operationId,
+      kind: input.kind,
+      requestFingerprint: fingerprint,
+    });
+    return { fingerprint, replay };
   }
 
   /**
@@ -426,18 +454,18 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
     async createPage(input) {
       // 幂等短路必须在**任何前置读取之前**：首次提交成功后页面数量就变了，
       // 若先做新鲜度判断，重试会被早退成 409，客户端拿不到首次结果。
-      const replay = await readWorkbenchReplay<{
+      const guard = await replayGuard<{
         page: WorkspacePage;
         skipped: readonly TemplateSkip[];
         defaultPageId: string | null;
       }>({
-        db: deps.db,
         workspaceId: input.workspaceId,
         operationId: input.operationId,
         kind: WORKBENCH_OP_KINDS.pageCreate,
+        intent: { name: input.name, templateId: input.templateId ?? null },
       });
-      if (replay !== null) {
-        return replay;
+      if (guard.replay !== null) {
+        return guard.replay;
       }
       if (input.templateId !== undefined && findWorkbenchTemplate(input.templateId) === null) {
         return workbenchFailure('invalid_input', `未知模板：${input.templateId}`);
@@ -482,7 +510,7 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
         workspaceId: input.workspaceId,
         operationId: input.operationId,
         kind: WORKBENCH_OP_KINDS.pageCreate,
-        // 并发保护：页面数量必须仍等于我们读取时的值，否则说明有人同时在改工作台。
+        requestFingerprint: guard.fingerprint,
         preconditionSql: `${SQL_COUNT_ACTIVE_PAGES} = ? AND NOT EXISTS (SELECT 1 FROM workspace_pages s WHERE s.workspace_id = ? AND s.slug = ?)`,
         preconditionBinds: [input.workspaceId, pages.length, input.workspaceId, slug],
         build: () => [
@@ -517,14 +545,9 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
     },
 
     async updatePage(input) {
-      const replay = await readWorkbenchReplay<{ page: WorkspacePage; noop: boolean }>({
-        db: deps.db,
-        workspaceId: input.workspaceId,
-        operationId: input.operationId,
-        kind: WORKBENCH_OP_KINDS.pageUpdate,
-      });
-      if (replay !== null) {
-        return replay;
+      const guard = await replayGuard<{ page: WorkspacePage; noop: boolean }>({ workspaceId: input.workspaceId, operationId: input.operationId, kind: WORKBENCH_OP_KINDS.pageUpdate, intent: { pageId: input.pageId, expectedRevision: input.expectedRevision, name: input.name ?? null, sortOrder: input.sortOrder ?? null, isDefault: input.isDefault ?? null } });
+      if (guard.replay !== null) {
+        return guard.replay;
       }
       const current = await readPageRow(deps.db, input.workspaceId, input.pageId);
       if (current === null) {
@@ -560,6 +583,7 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
         workspaceId: input.workspaceId,
         operationId: input.operationId,
         kind: WORKBENCH_OP_KINDS.pageUpdate,
+        requestFingerprint: guard.fingerprint,
         preconditionSql: `EXISTS (SELECT 1 FROM workspace_pages p
                                    WHERE p.id = ? AND p.workspace_id = ? AND p.deleted_at IS NULL AND p.revision = ?)`,
         preconditionBinds: [input.pageId, input.workspaceId, input.expectedRevision],
@@ -603,14 +627,9 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
     },
 
     async deletePage(input) {
-      const replay = await readWorkbenchReplay<DeletePageResult>({
-        db: deps.db,
-        workspaceId: input.workspaceId,
-        operationId: input.operationId,
-        kind: WORKBENCH_OP_KINDS.pageDelete,
-      });
-      if (replay !== null) {
-        return replay;
+      const guard = await replayGuard<DeletePageResult>({ workspaceId: input.workspaceId, operationId: input.operationId, kind: WORKBENCH_OP_KINDS.pageDelete, intent: { pageId: input.pageId, expectedRevision: input.expectedRevision } });
+      if (guard.replay !== null) {
+        return guard.replay;
       }
       const [current, pages] = await Promise.all([
         readPageRow(deps.db, input.workspaceId, input.pageId),
@@ -642,6 +661,7 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
         workspaceId: input.workspaceId,
         operationId: input.operationId,
         kind: WORKBENCH_OP_KINDS.pageDelete,
+        requestFingerprint: guard.fingerprint,
         // 并发保护：页面集合必须仍等于读取时的状态（数量 + 目标页 revision）。
         preconditionSql: `EXISTS (SELECT 1 FROM workspace_pages p
                                    WHERE p.id = ? AND p.workspace_id = ? AND p.deleted_at IS NULL AND p.revision = ?)
@@ -664,14 +684,9 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
     },
 
     async restorePage(input) {
-      const replay = await readWorkbenchReplay<{ page: WorkspacePage; defaultPageId: string | null }>({
-        db: deps.db,
-        workspaceId: input.workspaceId,
-        operationId: input.operationId,
-        kind: WORKBENCH_OP_KINDS.pageRestore,
-      });
-      if (replay !== null) {
-        return replay;
+      const guard = await replayGuard<{ page: WorkspacePage; defaultPageId: string | null }>({ workspaceId: input.workspaceId, operationId: input.operationId, kind: WORKBENCH_OP_KINDS.pageRestore, intent: { pageId: input.pageId } });
+      if (guard.replay !== null) {
+        return guard.replay;
       }
       const [any, pages] = await Promise.all([
         readAnyPageRow(deps.db, input.workspaceId, input.pageId),
@@ -702,6 +717,7 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
         workspaceId: input.workspaceId,
         operationId: input.operationId,
         kind: WORKBENCH_OP_KINDS.pageRestore,
+        requestFingerprint: guard.fingerprint,
         preconditionSql: `EXISTS (SELECT 1 FROM workspace_pages p
                                    WHERE p.id = ? AND p.workspace_id = ? AND p.deleted_at IS NOT NULL)
                             AND ${SQL_COUNT_ACTIVE_PAGES} = ?`,
@@ -723,14 +739,9 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
     },
 
     async addWidget(input) {
-      const replay = await readWorkbenchReplay<{ instance: ReturnType<typeof toInstance> }>({
-        db: deps.db,
-        workspaceId: input.workspaceId,
-        operationId: input.operationId,
-        kind: WORKBENCH_OP_KINDS.widgetAdd,
-      });
-      if (replay !== null) {
-        return replay;
+      const guard = await replayGuard<{ instance: ReturnType<typeof toInstance> }>({ workspaceId: input.workspaceId, operationId: input.operationId, kind: WORKBENCH_OP_KINDS.widgetAdd, intent: { pageId: input.pageId, widgetType: input.widgetType, config: input.config ?? null, hidden: input.hidden ?? null } });
+      if (guard.replay !== null) {
+        return guard.replay;
       }
       const found = registry.findWidget(input.widgetType);
       const moduleId = moduleIdOfWidget(registry, input.widgetType);
@@ -738,11 +749,15 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
         return workbenchFailure('widget_unknown', WORKBENCH_MESSAGES.widget_unknown);
       }
       const allowMultiple = allowMultipleOfWidget(registry, input.widgetType) ?? false;
-      const [page, gate, installed, existingRects] = await Promise.all([
+      // 规划空位所依据的**一致快照**：实例集合 + 三个断点的布局修订号。
+      // 这些值会一起进入认领语句，因此「规划 → 提交」之间任何布局变更都会让本次写入 409，
+      // 而不是让两个并发请求各自选中同一空位、都提交成功、最后形成后端本应拒绝的重叠。
+      const [page, gate, installed, existingRects, layoutRevisions] = await Promise.all([
         readPageRow(deps.db, input.workspaceId, input.pageId),
         readModuleGate(deps.db, input.workspaceId, moduleId),
         readActiveInstances(deps.db, input.workspaceId, input.pageId),
         readLayoutRows(deps.db, input.pageId),
+        readLayoutRevisions(deps.db, input.pageId),
       ]);
       if (page === null) {
         return workbenchFailure('page_not_found', WORKBENCH_MESSAGES.page_not_found);
@@ -789,11 +804,16 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
         workspaceId: input.workspaceId,
         operationId: input.operationId,
         kind: WORKBENCH_OP_KINDS.widgetAdd,
+        requestFingerprint: guard.fingerprint,
         preconditionSql: [
           SQL_PAGE_ACTIVE,
           SQL_MODULE_ENABLED_AT_REVISION,
           SQL_MODULE_NOT_TRANSITIONING,
-          `${SQL_COUNT_PAGE_INSTANCES} < ?`,
+          // 实例集合必须与规划时完全相同（用 `=` 而不是 `< 上限`：新增/移除都会让数量变化）。
+          `${SQL_COUNT_PAGE_INSTANCES} = ?`,
+          // 三个断点的布局修订号必须仍是规划时的那一代：addWidget 自身会 bump 它们，
+          // 因此任何并发新增/移除/整页保存都会让这里失败，绝不会带着过期空位提交。
+          ...LAYOUT_BREAKPOINT_LIST.map(() => `${SQL_LAYOUT_REVISION} = ?`),
           ...(allowMultiple
             ? []
             : [
@@ -812,7 +832,12 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
           input.workspaceId,
           moduleId,
           input.pageId,
-          MAX_WIDGETS_PER_PAGE,
+          installed.length,
+          ...LAYOUT_BREAKPOINT_LIST.flatMap((breakpoint) => [
+            input.pageId,
+            breakpoint,
+            layoutRevisions.get(breakpoint) ?? 0,
+          ]),
           ...(allowMultiple ? [] : [input.workspaceId, input.widgetType]),
         ],
         build: () => [
@@ -853,20 +878,24 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
           if (!allowMultiple && (await findActiveInstanceOfType(deps.db, input.workspaceId, input.widgetType)) !== null) {
             return workbenchFailure('widget_single_instance', WORKBENCH_MESSAGES.widget_single_instance);
           }
+          // 布局修订号变了说明「规划空位所依据的矩形集合」已经过期：
+          // 这是并发新增/移除的同义词，必须让客户端重新读取后重试，而不是拿旧空位提交。
+          const latestRevisions = await readLayoutRevisions(deps.db, input.pageId);
+          const stale = LAYOUT_BREAKPOINT_LIST.some(
+            (breakpoint) => (latestRevisions.get(breakpoint) ?? 0) !== (layoutRevisions.get(breakpoint) ?? 0),
+          );
+          if (stale) {
+            return workbenchFailure('layout_revision_conflict', WORKBENCH_MESSAGES.layout_revision_conflict);
+          }
           return workbenchFailure('revision_conflict', WORKBENCH_MESSAGES.revision_conflict);
         },
       });
     },
 
     async duplicateWidget(input) {
-      const replay = await readWorkbenchReplay<{ instance: ReturnType<typeof toInstance> }>({
-        db: deps.db,
-        workspaceId: input.workspaceId,
-        operationId: input.operationId,
-        kind: WORKBENCH_OP_KINDS.widgetDuplicate,
-      });
-      if (replay !== null) {
-        return replay;
+      const guard = await replayGuard<{ instance: ReturnType<typeof toInstance> }>({ workspaceId: input.workspaceId, operationId: input.operationId, kind: WORKBENCH_OP_KINDS.widgetDuplicate, intent: { widgetId: input.widgetId } });
+      if (guard.replay !== null) {
+        return guard.replay;
       }
       const source = await readInstanceRow(deps.db, input.workspaceId, input.widgetId);
       if (source === null) {
@@ -878,10 +907,12 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
         return workbenchFailure('widget_unknown', WORKBENCH_MESSAGES.widget_unknown);
       }
       const allowMultiple = allowMultipleOfWidget(registry, source.widget_type) ?? false;
-      const [gate, siblings, existingRects] = await Promise.all([
+      // 与 `addWidget` 相同的一致快照：复制也依赖「实例集合 + 三个断点修订号」。
+      const [gate, siblings, existingRects, layoutRevisions] = await Promise.all([
         readModuleGate(deps.db, input.workspaceId, moduleId),
         readActiveInstances(deps.db, input.workspaceId, source.page_id),
         readLayoutRows(deps.db, source.page_id),
+        readLayoutRevisions(deps.db, source.page_id),
       ]);
       if (gate.status !== 'enabled') {
         return workbenchFailure('module_not_ready', moduleNotReadyDetail(gate));
@@ -926,11 +957,13 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
         workspaceId: input.workspaceId,
         operationId: input.operationId,
         kind: WORKBENCH_OP_KINDS.widgetDuplicate,
+        requestFingerprint: guard.fingerprint,
         preconditionSql: [
           SQL_INSTANCE_ACTIVE,
           SQL_MODULE_ENABLED_AT_REVISION,
           SQL_MODULE_NOT_TRANSITIONING,
-          `${SQL_COUNT_PAGE_INSTANCES} < ?`,
+          `${SQL_COUNT_PAGE_INSTANCES} = ?`,
+          ...LAYOUT_BREAKPOINT_LIST.map(() => `${SQL_LAYOUT_REVISION} = ?`),
         ].join(' AND '),
         preconditionBinds: [
           input.widgetId,
@@ -941,7 +974,12 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
           input.workspaceId,
           moduleId,
           source.page_id,
-          MAX_WIDGETS_PER_PAGE,
+          siblings.length,
+          ...LAYOUT_BREAKPOINT_LIST.flatMap((breakpoint) => [
+            source.page_id,
+            breakpoint,
+            layoutRevisions.get(breakpoint) ?? 0,
+          ]),
         ],
         build: () => [
           insertInstanceStatement({
@@ -972,20 +1010,22 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
           if (latestGate.status !== 'enabled') {
             return workbenchFailure('module_not_ready', moduleNotReadyDetail(latestGate));
           }
+          const latestRevisions = await readLayoutRevisions(deps.db, source.page_id);
+          const stale = LAYOUT_BREAKPOINT_LIST.some(
+            (breakpoint) => (latestRevisions.get(breakpoint) ?? 0) !== (layoutRevisions.get(breakpoint) ?? 0),
+          );
+          if (stale) {
+            return workbenchFailure('layout_revision_conflict', WORKBENCH_MESSAGES.layout_revision_conflict);
+          }
           return workbenchFailure('revision_conflict', WORKBENCH_MESSAGES.revision_conflict);
         },
       });
     },
 
     async updateWidget(input) {
-      const replay = await readWorkbenchReplay<{ instance: ReturnType<typeof toInstance>; noop: boolean }>({
-        db: deps.db,
-        workspaceId: input.workspaceId,
-        operationId: input.operationId,
-        kind: WORKBENCH_OP_KINDS.widgetUpdate,
-      });
-      if (replay !== null) {
-        return replay;
+      const guard = await replayGuard<{ instance: ReturnType<typeof toInstance>; noop: boolean }>({ workspaceId: input.workspaceId, operationId: input.operationId, kind: WORKBENCH_OP_KINDS.widgetUpdate, intent: { widgetId: input.widgetId, expectedRevision: input.expectedRevision, config: input.config ?? null, hidden: input.hidden ?? null } });
+      if (guard.replay !== null) {
+        return guard.replay;
       }
       const current = await readInstanceRow(deps.db, input.workspaceId, input.widgetId);
       if (current === null) {
@@ -1018,6 +1058,7 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
         workspaceId: input.workspaceId,
         operationId: input.operationId,
         kind: WORKBENCH_OP_KINDS.widgetUpdate,
+        requestFingerprint: guard.fingerprint,
         preconditionSql: [
           `EXISTS (SELECT 1 FROM widget_instances wi
                     JOIN workspace_pages p ON p.id = wi.page_id
@@ -1065,14 +1106,9 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
     },
 
     async deleteWidget(input) {
-      const replay = await readWorkbenchReplay<{ widgetId: string }>({
-        db: deps.db,
-        workspaceId: input.workspaceId,
-        operationId: input.operationId,
-        kind: WORKBENCH_OP_KINDS.widgetDelete,
-      });
-      if (replay !== null) {
-        return replay;
+      const guard = await replayGuard<{ widgetId: string }>({ workspaceId: input.workspaceId, operationId: input.operationId, kind: WORKBENCH_OP_KINDS.widgetDelete, intent: { widgetId: input.widgetId, expectedRevision: input.expectedRevision } });
+      if (guard.replay !== null) {
+        return guard.replay;
       }
       const current = await readInstanceRow(deps.db, input.workspaceId, input.widgetId);
       if (current === null) {
@@ -1087,6 +1123,7 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
         workspaceId: input.workspaceId,
         operationId: input.operationId,
         kind: WORKBENCH_OP_KINDS.widgetDelete,
+        requestFingerprint: guard.fingerprint,
         preconditionSql: [
           `EXISTS (SELECT 1 FROM widget_instances wi
                     JOIN workspace_pages p ON p.id = wi.page_id
@@ -1121,14 +1158,9 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
     },
 
     async saveLayout(input) {
-      const replay = await readWorkbenchReplay<{ layout: BreakpointLayout }>({
-        db: deps.db,
-        workspaceId: input.workspaceId,
-        operationId: input.operationId,
-        kind: layoutSaveKind(input.breakpoint),
-      });
-      if (replay !== null) {
-        return replay;
+      const guard = await replayGuard<{ layout: BreakpointLayout }>({ workspaceId: input.workspaceId, operationId: input.operationId, kind: layoutSaveKind(input.breakpoint), intent: { pageId: input.pageId, breakpoint: input.breakpoint, baseRevision: input.baseRevision, rects: input.rects } });
+      if (guard.replay !== null) {
+        return guard.replay;
       }
       const page = await readPageRow(deps.db, input.workspaceId, input.pageId);
       if (page === null) {
@@ -1182,6 +1214,7 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
         workspaceId: input.workspaceId,
         operationId: input.operationId,
         kind: layoutSaveKind(input.breakpoint),
+        requestFingerprint: guard.fingerprint,
         preconditionSql: [
           SQL_PAGE_ACTIVE,
           `${SQL_LAYOUT_REVISION} = ?`,
@@ -1231,17 +1264,29 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
     },
 
     async applyTemplate(input) {
+      // 请求指纹：三种模板模式共用同一份意图描述，避免两处各写一遍导致漂移。
       // `new_page` 复用 `createPage`（类别是 `page.create`），由那条路径自己做幂等短路；
       // 另外两种模式在这里短路，因为存入的结果本身就是 `ApplyTemplateResult`。
+      const templateIntent = {
+        templateId: input.templateId,
+        mode: input.mode,
+        pageName: input.pageName ?? null,
+        pageId: input.pageId ?? null,
+        expectedRevision: input.expectedRevision ?? null,
+      };
+      let templateFingerprint = '';
       if (input.mode !== 'new_page') {
+        const kind =
+          input.mode === 'replace_page'
+            ? WORKBENCH_OP_KINDS.templateReplacePage
+            : WORKBENCH_OP_KINDS.templateResetWorkspace;
+        templateFingerprint = await fingerprintOf(kind, templateIntent);
         const replay = await readWorkbenchReplay<ApplyTemplateResult>({
           db: deps.db,
           workspaceId: input.workspaceId,
           operationId: input.operationId,
-          kind:
-            input.mode === 'replace_page'
-              ? WORKBENCH_OP_KINDS.templateReplacePage
-              : WORKBENCH_OP_KINDS.templateResetWorkspace,
+          kind,
+          requestFingerprint: templateFingerprint,
         });
         if (replay !== null) {
           return replay;
@@ -1328,6 +1373,7 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
           workspaceId: input.workspaceId,
           operationId: input.operationId,
           kind: WORKBENCH_OP_KINDS.templateReplacePage,
+          requestFingerprint: templateFingerprint,
           preconditionSql: [
             `EXISTS (SELECT 1 FROM workspace_pages p
                       WHERE p.id = ? AND p.workspace_id = ? AND p.deleted_at IS NULL AND p.revision = ?)`,
@@ -1409,6 +1455,7 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
         workspaceId: input.workspaceId,
         operationId: input.operationId,
         kind: WORKBENCH_OP_KINDS.templateResetWorkspace,
+        requestFingerprint: templateFingerprint,
         preconditionSql: [`${SQL_COUNT_ACTIVE_PAGES} = ?`, ...(gateConditions.sql === '' ? [] : [gateConditions.sql])].join(
           ' AND ',
         ),

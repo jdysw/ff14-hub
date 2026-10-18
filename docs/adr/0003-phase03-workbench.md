@@ -211,6 +211,100 @@ token 守卫与语句影响行数**无关**，因此不存在这个失效模式�
 需要「彻底清空、不保留任何旧组件」的用户应走 `replace` 导入（那条路径会先自动写可撤销备份）。
 界面上重置与替换导入都必须显式确认，并提示可先导出备份。
 
+## D17. 复核修复（集中复核后的一轮加固）
+
+集中复核在阶段 03 的实现里发现六处语义缺口。以下逐条记录**修了什么、为什么这样修**，
+避免后续 Agent 把它们当成「可选优化」再改回去。
+
+### D17.1 并发新增/复制的空位必须与「规划时看到的矩形集合」绑定
+
+**缺陷**：`addWidget` / `duplicateWidget` 先用 `existingRects` 规划空位，再提交；认领语句只校验
+「页面活跃 + 模块门禁 + 实例数上限 + 单例」。两个**不同** `operationId` 的并发请求可以各自读到同一份
+矩形、各自选中同一个空位、都提交成功——形成服务端本应拒绝的重叠。
+
+**修复**：规划时同时读取 `page_layout_revisions` 的三个断点，并把
+`COUNT(活跃实例) = <观察值>` 与三个 `SQL_LAYOUT_REVISION = <观察值>` 一起放进**同一条认领语句**。
+`addWidget` 自身会 bump 三个断点，因此任何并发新增/移除/整页保存都会让其中一个条件不成立 → 409。
+`explain` 会进一步区分「布局修订号变了」(`layout_revision_conflict`) 与一般冲突。
+
+**为什么不是「在事务内重新规划」**：D1 的 batch 只能执行 SQL，不能运行规划逻辑；
+用「观察值等值」把规划的前提条件带进事务是同一语义的最小实现。
+独立断点的 `saveLayout` 语义不变（它本来就以 `baseRevision` 做等值校验）。
+
+### D17.2 导出必须来自一致快照
+
+**缺陷**：`buildDocument` 分多次 SELECT 读页面/实例/布局，可能导出「页面已删但布局还在」
+这类不可恢复的混合态。
+
+**修复**：四条 SELECT（页面、实例、布局、工作台 revision）放进**同一个 `db.batch`**——D1 的 batch
+是单个事务，因此必然同一时刻。导出结果还会用 `workbenchBackupDocumentSchema` 反校验一次；
+不合格就返回 `export_inconsistent` 而**不**产出文件。
+
+### D17.3 撤销点的消费与替换必须同事务
+
+**缺陷**：`restoreBackup` 先提交替换、再单独 `UPDATE consumed_at`。两个不同 `operationId`
+可以在标记前连续套用同一份撤销点；中途失败还会留下「已恢复但未消费」。
+
+**修复**：把「未消费校验」放进认领前置条件、把「标记消费」作为**同批语句**，与页面替换一起提交。
+对外语义：
+- 同一 `operationId` 重试 → 返回首次结果（`replayed: true`），不再写库；
+- 另一 `operationId` 用已消费的备份 → 409 `backup_consumed`；
+- 恢复必须带 `expectedRevision`（用户在界面上看到的工作台 revision），
+  与工作台 revision 不等 → 409 `backup_revision_conflict`，且**不会**消费该备份。
+
+### D17.4 导入确认必须绑定「预览时算出的计划」
+
+**缺陷**：`previewRevision` 只覆盖 `workspace_workbench_state`，而模块的 enable/disable/uninstall
+未必改变它；`apply` 时重新 `analyze`/`planImport` 还可能改变「哪些实例被跳过」。
+于是用户确认的预览与实际替换可以不同。
+
+**修复**：预览返回 `previewToken`（SHA-256），绑定
+`document + mode + 工作台 revision + 每个相关模块的门禁状态与 revision`。
+应用时必须原样回显并**先重算再比对**，任何一项变化 → 409 `import_preview_stale` 且零写入；
+同时认领语句里仍保留「工作台 revision 等值 + 模块门禁」的原子条件。
+因此「执行时再跳过一些实例」不再能事后改变用户确认过的结果——必须重新预览。
+恢复备份不使用该令牌（内容是服务端自己写下的快照），由 `expectedRevision` + 未消费语义承担。
+
+### D17.5 幂等键必须绑定请求意图
+
+**缺陷**：幂等只按 `(workspace, operationId, kind)` 判定。于是 `page.update` 对不同页、
+`layout.save` 对不同页的同一断点、以及「同一个 operationId 换一份 body」都会被当成重放返回旧结果。
+
+**修复**：新增 `request_fingerprint`（SHA-256，覆盖目标 ID / 动作 / 正文 / 预期 revision / 断点），
+入口短路与事务冲突路径使用**同一条**判据：
+完全相同的请求 → 返回首次结果；指纹不同 → 409 `operation_payload_mismatch` 且零写入。
+
+**存储位置**：单独一张 `workbench_operation_intents` 表，而不是给 `workbench_operations` 加列。
+原因见 D17.7。两份记录在同一个 batch 写入，因此不存在「有结果没指纹」的持久半状态；
+早期版本写入的行没有指纹，按「无法判定」保守处理（要求换新 operationId，不返回旧结果）。
+
+### D17.6 清理必须幂等：只推进「本次真正移除」的页面
+
+**缺陷**：`removeInstancesForModule` 的「删除布局行 / 补断点修订行 / bump 页面 revision /
+bump 工作台 revision」按**所有历史墓碑**过滤。于是「0 个新增墓碑」的重试也会再推一轮 revision，
+让 restore 之后的新布局草稿无端 409，清理本身也不幂等。
+
+**修复**：每次调用生成随机 `cleanupToken`，先把「本次将要墓碑化的实例」（与墓碑 UPDATE
+**完全相同的条件**、同一事务）写进 `widget_cleanup_marks`，后续所有语句都以该 token 过滤。
+0 个新增 → 后续语句全部 0 行 → **零 revision 变更**。刻意不用时间戳猜「本次」：
+同毫秒内的两次调用无法区分。标记表在事务末尾按 token 清理，不会无限增长。
+
+### D17.7 迁移只用 `CREATE ... IF NOT EXISTS`（不用 `ADD COLUMN`）
+
+上面两处都需要「给既有表加字段」，但 SQLite 不支持 `ADD COLUMN IF NOT EXISTS`，
+而本仓库的验收点（HUB-003）与测试都要求**迁移语句可逐条重放**。
+因此改用两张**只增不改**的配套表（`workbench_operation_intents`、`widget_cleanup_marks`）：
+语义等价、天然幂等，也不改动既有表结构。
+
+### D17.8 安全静态分析（SonarCloud）的两个真实问题
+
+- `Math.random` 曾被用作 `operationId` 的兜底生成器（前端）。已彻底移除：
+  只用 `crypto.randomUUID()` / `crypto.getRandomValues()`，两者都不可用时**抛错**而不是降级到弱随机。
+- `pickUniqueSlug` 里的 `/^-+|-+$/g` 属于「两侧锚点 + 量词 + 全局」写法，会对每个起始位置重试
+  （超线性回溯，Sonar 安全规则会标记）。已替换为一次线性扫描的 `stripEdgeDashes`，行为完全等价。
+- 同时把三处认知复杂度超标的函数按职责拆分（`validateLayoutRects`、`analyze` / `applyDocument` 等），
+  没有为了压指标而改变行为。
+
 ## D16. 明确推迟的东西（不要读成已实现）
 
 - **不实现跨设备增量同步**（HUB-051）：墓碑已按规划 5.3 保留，但没有同步水位、没有 GC、

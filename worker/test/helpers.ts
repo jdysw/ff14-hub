@@ -14,6 +14,7 @@ import {
   type WorkbenchSnapshot,
   type WorkspacePage,
 } from '@ff14-hub/shared';
+import { expect } from 'vitest';
 import { BOOTSTRAP_SECRET_HEADER } from '../api/v1/identity';
 import type { RuntimeEnv } from '../env';
 import { generateCredential, generateDeviceToken, hashCredential } from '../modules/identity/credentials';
@@ -199,6 +200,10 @@ export async function createPairingViaApi(
 export async function resetIdentityState(): Promise<void> {
   await env.DB.batch([
     // 阶段 03：工作台相关（子表在前，避免外键失败）。
+    // 0007 的两张配套表（幂等意图指纹 / 本次清理标记）也显式清空：
+    // 依赖 `workspaces` 的级联删除会把「清空顺序」变成隐含假设，而这两个用例都要求干净起点。
+    env.DB.prepare('DELETE FROM widget_cleanup_marks'),
+    env.DB.prepare('DELETE FROM workbench_operation_intents'),
     env.DB.prepare('DELETE FROM workbench_operations'),
     env.DB.prepare('DELETE FROM workbench_backups'),
     env.DB.prepare('DELETE FROM widget_layouts'),
@@ -237,6 +242,9 @@ const COUNTABLE_TABLES = [
   'workspace_workbench_state',
   'workbench_operations',
   'workbench_backups',
+  // 阶段 03 复核（迁移 0007）：幂等意图指纹与单次清理标记。
+  'workbench_operation_intents',
+  'widget_cleanup_marks',
 ] as const;
 
 export type CountableTable = (typeof COUNTABLE_TABLES)[number];
@@ -563,6 +571,53 @@ export async function readWorkbenchStateRow(
     .first<{ revision: number; updated_at: number }>();
 }
 
+/**
+ * 工作台级修订号的**数值**（行缺失等价于 0）。
+ *
+ * 恢复备份（`POST /me/workbench/backup/:id/restore`）要求客户端回显
+ * `expectedRevision`，测试里需要的就是这个数——单独给一个数值读取器，
+ * 免得每个用例都写 `?? 0`。
+ */
+export async function readWorkbenchStateRevision(workspaceId: string): Promise<number> {
+  return (await readWorkbenchStateRow(workspaceId))?.revision ?? 0;
+}
+
+// ---------------------------------------------------------------------------
+// 布局不变量：任意两个矩形不得重叠
+// ---------------------------------------------------------------------------
+
+/** 两个网格矩形是否重叠（半开区间：相邻不算重叠）。 */
+export function rectsOverlap(left: GridRect, right: GridRect): boolean {
+  return (
+    left.x < right.x + right.w &&
+    right.x < left.x + left.w &&
+    left.y < right.y + right.h &&
+    right.y < left.y + left.h
+  );
+}
+
+/**
+ * 布局不变量断言：一组矩形两两不重叠。
+ *
+ * 为什么集中在这里：并发新增/复制必须保证「两个请求不会选中同一个空位」，
+ * 而三个断点的矩形集合都要检查，写成散落的双重循环很容易漏掉某个断点。
+ */
+export function assertNoOverlap(rects: readonly GridRect[]): void {
+  for (let i = 0; i < rects.length; i += 1) {
+    for (let j = i + 1; j < rects.length; j += 1) {
+      const left = rects[i];
+      const right = rects[j];
+      if (left === undefined || right === undefined) {
+        continue;
+      }
+      expect(
+        rectsOverlap(left, right),
+        `矩形重叠：${JSON.stringify(left)} 与 ${JSON.stringify(right)}`,
+      ).toBe(false);
+    }
+  }
+}
+
 export interface WorkbenchOperationRowSnapshot {
   readonly kind: string;
   readonly result_json: string;
@@ -715,4 +770,99 @@ export async function saveLayoutRequest(
   body: { readonly breakpoint: LayoutBreakpoint; readonly baseRevision: number; readonly rects: readonly GridRect[]; readonly operationId: string },
 ): Promise<Response> {
   return await SELF.fetch(pageLayoutUrl(pageId), jsonPut(body, { Authorization: authorization }));
+}
+
+// ---------------------------------------------------------------------------
+// 导入：预览 → 应用（复核后 previewToken 成为必需字段）
+// ---------------------------------------------------------------------------
+
+/**
+ * 预览返回体。
+ *
+ * `previewToken` 是复核新增的字段：它绑定 `document + mode + 工作台 revision +
+ * 所有相关模块的门禁状态与 revision`，应用时必须原样回显，否则 409。
+ * 这里把它显式声明出来，避免调用方「以为拿到了令牌其实没有」。
+ */
+export interface WorkbenchImportPreviewPayload {
+  readonly importable: boolean;
+  readonly mode: string;
+  readonly schemaVersion: number | null;
+  readonly problems: readonly { readonly code: string; readonly detail: string; readonly path?: string }[];
+  readonly warnings: readonly { readonly code: string; readonly detail: string }[];
+  readonly unknownModules: readonly {
+    readonly moduleId: string;
+    readonly instanceCount: number;
+    readonly widgetTypes: readonly string[];
+    readonly registered: boolean;
+  }[];
+  readonly counts: {
+    readonly pagesNew: number;
+    readonly pagesReplaced: number;
+    readonly pagesSkipped: number;
+    readonly instancesNew: number;
+    readonly instancesReplaced: number;
+    readonly instancesSkipped: number;
+  };
+  readonly affectedPages: readonly string[];
+  readonly previewRevision: number;
+  readonly previewToken: string;
+  readonly confirmPrompt: string;
+}
+
+/** 发起一次导入预览（返回原始 Response 与已解析的 `preview`，便于断言两者）。 */
+export async function previewImportViaApi(
+  authorization: string,
+  input: { readonly document: unknown; readonly mode: 'merge' | 'replace' },
+): Promise<{ readonly status: number; readonly preview: WorkbenchImportPreviewPayload }> {
+  const response = await SELF.fetch(
+    URLS.workbenchImportPreview,
+    jsonPost({ mode: input.mode, document: input.document }, { Authorization: authorization }),
+  );
+  const body = await response.json<{ preview: WorkbenchImportPreviewPayload }>();
+  return { status: response.status, preview: body.preview };
+}
+
+/** 发起一次导入应用（必须回显预览令牌）。 */
+export function applyImportViaApi(
+  authorization: string,
+  input: {
+    readonly document: unknown;
+    readonly mode: 'merge' | 'replace';
+    readonly previewRevision: number;
+    readonly previewToken: string;
+    readonly operationId: string;
+    readonly confirm?: unknown;
+  },
+): Promise<Response> {
+  const body: Record<string, unknown> = {
+    document: input.document,
+    mode: input.mode,
+    previewRevision: input.previewRevision,
+    previewToken: input.previewToken,
+    operationId: input.operationId,
+  };
+  if (input.confirm !== undefined) {
+    body['confirm'] = input.confirm;
+  }
+  return SELF.fetch(URLS.workbenchImportApply, jsonPost(body, { Authorization: authorization }));
+}
+
+/** 「预览 → 应用」的完整成功路径（失败路径请直接用上面两个函数断言）。 */
+export async function previewThenApplyViaApi(
+  authorization: string,
+  input: { readonly document: unknown; readonly mode: 'merge' | 'replace'; readonly operationId: string },
+): Promise<{ readonly preview: WorkbenchImportPreviewPayload; readonly apply: Response }> {
+  const { preview } = await previewImportViaApi(authorization, {
+    document: input.document,
+    mode: input.mode,
+  });
+  const apply = await applyImportViaApi(authorization, {
+    document: input.document,
+    mode: input.mode,
+    previewRevision: preview.previewRevision,
+    previewToken: preview.previewToken,
+    operationId: input.operationId,
+    confirm: true,
+  });
+  return { preview, apply };
 }

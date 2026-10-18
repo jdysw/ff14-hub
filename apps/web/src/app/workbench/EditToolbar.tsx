@@ -25,7 +25,12 @@ export function EditToolbar(props: EditToolbarProps) {
 
   return (
     <div className="workbench__toolbar" data-testid="edit-toolbar">
-      <div className="workbench__toolbar-group" role="group" aria-label="编辑模式">
+      {/*
+        分组语义用原生 `<fieldset>` + `<legend>`（S6819：能用的标签就不要用 ARIA role）。
+        legend 视觉隐藏但可被无障碍树读取，样式与原来的 `<div role="group">` 完全一致。
+      */}
+      <fieldset className="workbench__toolbar-group">
+        <legend className="visually-hidden">编辑模式</legend>
         <button
           type="button"
           className="button"
@@ -86,9 +91,10 @@ export function EditToolbar(props: EditToolbarProps) {
         >
           重置整页
         </button>
-      </div>
+      </fieldset>
 
-      <div className="workbench__toolbar-group" role="group" aria-label="断点切换">
+      <fieldset className="workbench__toolbar-group">
+        <legend className="visually-hidden">断点切换</legend>
         {BREAKPOINTS.map((breakpoint) => {
           const active = state.activeBreakpoint === breakpoint;
           return (
@@ -107,35 +113,30 @@ export function EditToolbar(props: EditToolbarProps) {
             </button>
           );
         })}
-      </div>
+      </fieldset>
 
       {/*
         脏标记只在**确实有未保存改动**时可见（用 `hidden` 而不是不渲染：
         这样端到端测试的 `toBeVisible()` / `toBeHidden()` 与无障碍树都能得到确定答案）。
+        `role="status"` 用原生 `<output>` 表达（S6819）：它的隐式角色就是 `status`。
       */}
-      <p
+      <output
         className="workbench__status"
         data-testid="dirty-indicator"
         data-dirty={state.dirty ? 'true' : 'false'}
         hidden={!state.dirty}
-        role="status"
       >
         {state.dirty ? '当前断点有未保存的改动（草稿在本地）' : '当前断点与服务端一致'}
-      </p>
+      </output>
 
-      <p
-        className="workbench__status"
-        data-testid="breakpoint-dirty-indicator"
-        hidden={!state.dirty}
-        role="status"
-      >
+      <output className="workbench__status" data-testid="breakpoint-dirty-indicator" hidden={!state.dirty}>
         {BREAKPOINTS.map((breakpoint) => (
           <span key={breakpoint} className="workbench__status-item" data-breakpoint={breakpoint}>
             {BREAKPOINT_LABELS[breakpoint]}：
             {state.dirtyBreakpoints[breakpoint] ? '有未保存改动' : '已保存'}
           </span>
         ))}
-      </p>
+      </output>
 
       {state.editing ? (
         <p className="panel__muted">

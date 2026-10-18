@@ -28,6 +28,7 @@
  * 让**整个 batch** 回滚，因此不会留下半完成状态。测试用真实的约束冲突验证这一点。
  */
 import type { ApiErrorCode } from '@ff14-hub/shared';
+import { stableStringify } from '../../lib/util';
 
 /** 工作台写入被拒绝的原因（路由层映射成统一错误契约，服务层不关心 HTTP）。 */
 export type WorkbenchRejection =
@@ -44,12 +45,17 @@ export type WorkbenchRejection =
   | 'revision_conflict'
   | 'layout_invalid'
   | 'operation_id_reused'
+  /** 同一个 operationId 换了目标/正文：意图变了，必须拒绝且零写入。 */
+  | 'operation_payload_mismatch'
   | 'duplicate_slug'
   | 'backup_not_found'
+  | 'backup_consumed'
+  | 'backup_revision_conflict'
   | 'import_not_importable'
   | 'import_preview_stale'
   | 'import_too_large'
   | 'export_too_large'
+  | 'export_inconsistent'
   | 'invalid_input'
   | 'persist_failed';
 
@@ -68,12 +74,16 @@ export const ERROR_CODE_BY_WORKBENCH_REJECTION: Readonly<Record<WorkbenchRejecti
   revision_conflict: 'conflict',
   layout_invalid: 'validation_failed',
   operation_id_reused: 'conflict',
+  operation_payload_mismatch: 'conflict',
   duplicate_slug: 'conflict',
   backup_not_found: 'not_found',
+  backup_consumed: 'conflict',
+  backup_revision_conflict: 'conflict',
   import_not_importable: 'validation_failed',
   import_preview_stale: 'conflict',
   import_too_large: 'payload_too_large',
   export_too_large: 'payload_too_large',
+  export_inconsistent: 'conflict',
   invalid_input: 'validation_failed',
   persist_failed: 'internal_error',
 };
@@ -151,6 +161,24 @@ export function layoutSaveKind(breakpoint: string): string {
 }
 
 /**
+ * 计算一次「意图」的**请求指纹**。
+ *
+ * 为什么必须把意图绑进幂等键：只按 `(workspace, operationId, kind)` 判定重放是不够的——
+ * 同一个 `kind` 可以指向不同目标（`page.update` 对 A 页 / B 页）、
+ * `layout.save` 的 kind 只有断点（不含 page）、同一个 operationId 换一份 body 也会被当成重放。
+ * 指纹覆盖「目标 ID + 动作 + 正文 + 预期 revision + 断点」，因此：
+ * 完全相同的请求 → 返回首次结果；指纹不同 → 409 且**零写入**。
+ *
+ * 刻意使用 SHA-256（而不是自定义哈希）：这只是去重指纹、不含秘密，
+ * 但用标准摘要可以避免「弱哈希被误用于安全目的」这类隐患，也让跨进程结果必然一致。
+ */
+export async function fingerprintOf(kind: string, payload: unknown): Promise<string> {
+  const canonical = `${kind}\u0000${stableStringify(payload)}`;
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/**
  * 幂等**短路**：若同一个 operationId 已经成功提交过，直接返回首次结果。
  *
  * 为什么必须在方法入口做，而不能只依赖认领语句：
@@ -169,6 +197,8 @@ export async function readWorkbenchReplay<T>(input: {
   readonly workspaceId: string;
   readonly operationId: string;
   readonly kind: string;
+  /** 本次请求的指纹；与已存指纹不同即「同 ID 换了意图」，拒绝且零写入。 */
+  readonly requestFingerprint: string;
 }): Promise<WorkbenchResult<T> | null> {
   const existing = await readOperationRow(input.db, input.workspaceId, input.operationId);
   if (existing === null) {
@@ -176,6 +206,12 @@ export async function readWorkbenchReplay<T>(input: {
   }
   if (existing.kind !== input.kind) {
     return workbenchFailure('operation_id_reused', `operationId 已用于 ${existing.kind} 操作`);
+  }
+  if (!fingerprintMatches(existing.request_fingerprint, input.requestFingerprint)) {
+    return workbenchFailure(
+      'operation_payload_mismatch',
+      '同一 operationId 的请求内容与首次不同，已拒绝（零写入）',
+    );
   }
   if (existing.attempt_token !== null) {
     // batch 是原子的，因此外部不应观测到未收尾的行；观测到就如实报告，不猜结果。
@@ -190,20 +226,41 @@ export async function readWorkbenchReplay<T>(input: {
   return { ok: true, value: parsed as T, replayed: true };
 }
 
+/**
+ * 指纹比对。
+ *
+ * 空字符串表示「本迁移之前写入的旧行，没有指纹」：这时**不**当成匹配，
+ * 也不当成冲突的强证据——保守做法是要求客户端换一个新的 operationId 重试
+ * （旧行本来也没有可用的首次结果可以复用，因为它可能来自不同实现）。
+ */
+function fingerprintMatches(stored: string, provided: string): boolean {
+  return stored.length > 0 && stored === provided;
+}
+
 export interface OperationRow {
   readonly kind: string;
   readonly result_json: string;
   readonly attempt_token: string | null;
+  readonly request_fingerprint: string;
 }
 
-/** 读取幂等记录（用于判定「重放」与「operationId 类别冲突」）。 */
+/** 读取幂等记录（用于判定「重放」与「operationId 类别 / 意图冲突」）。 */
 export async function readOperationRow(
   db: D1Database,
   workspaceId: string,
   operationId: string,
 ): Promise<OperationRow | null> {
+  // 指纹单独一张表（见迁移 0007 的文件头说明：迁移必须可重放，因此不能给既有表加列）。
+  // 早期版本写入的行没有指纹 → COALESCE 成空串，服务层按「无法判定」保守处理。
   return await db
-    .prepare('SELECT kind, result_json, attempt_token FROM workbench_operations WHERE workspace_id = ? AND operation_id = ?')
+    .prepare(
+      `SELECT o.kind, o.result_json, o.attempt_token,
+              COALESCE(i.request_fingerprint, '') AS request_fingerprint
+         FROM workbench_operations o
+         LEFT JOIN workbench_operation_intents i
+                ON i.workspace_id = o.workspace_id AND i.operation_id = o.operation_id
+        WHERE o.workspace_id = ? AND o.operation_id = ?`,
+    )
     .bind(workspaceId, operationId)
     .first<OperationRow>();
 }
@@ -214,6 +271,8 @@ export interface IdempotentWriteInput<T> {
   readonly operationId: string;
   /** 操作类别。同一个 operationId 用于不同类别时判为冲突（不允许静默当重放）。 */
   readonly kind: string;
+  /** 请求指纹（见 `fingerprintOf`）：同一个 operationId 换意图时判为冲突。 */
+  readonly requestFingerprint: string;
   readonly now: number;
   /**
    * 认领语句的**前置条件**（不含前导 `WHERE`）。
@@ -256,6 +315,17 @@ export async function runIdempotentWrite<T>(input: IdempotentWriteInput<T>): Pro
     )
     .bind(input.workspaceId, input.operationId, input.kind, input.now, token, ...input.preconditionBinds);
 
+  // 指纹与认领**同批写入**（守卫绑定到本次 token）：
+  // 抢输/重放时守卫不成立，因此这一条不会覆盖已有指纹，也不会在重放时被重复插入。
+  const claimIntent = input.db
+    .prepare(
+      `INSERT INTO workbench_operation_intents
+              (workspace_id, operation_id, kind, request_fingerprint, created_at)
+       SELECT ?, ?, ?, ?, ?
+        WHERE ${GUARD_SQL}`,
+    )
+    .bind(input.workspaceId, input.operationId, input.kind, input.requestFingerprint, input.now, input.workspaceId, input.operationId, token);
+
   const finalize = input.db
     .prepare(
       `UPDATE workbench_operations SET result_json = ?, attempt_token = NULL
@@ -267,6 +337,7 @@ export async function runIdempotentWrite<T>(input: IdempotentWriteInput<T>): Pro
   try {
     batchResults = await input.db.batch([
       claim,
+      claimIntent,
       ...input.buildStatements({ sql: GUARD_SQL, binds: [input.workspaceId, input.operationId, token] }),
       finalize,
     ]);
@@ -286,11 +357,18 @@ export async function runIdempotentWrite<T>(input: IdempotentWriteInput<T>): Pro
     return { ok: true, value: input.result, replayed: false };
   }
 
-  // 认领失败：重放（同类别）或类别冲突，或前置条件不满足。
+  // 认领失败：重放（同类别同指纹）或类别/意图冲突，或前置条件不满足。
   const existing = await readOperationRow(input.db, input.workspaceId, input.operationId);
   if (existing !== null) {
     if (existing.kind !== input.kind) {
       return workbenchFailure('operation_id_reused', `operationId 已用于 ${existing.kind} 操作`);
+    }
+    // 与入口短路同一条判据：同一 ID 换了意图必须拒绝，绝不当成重放返回旧结果。
+    if (!fingerprintMatches(existing.request_fingerprint, input.requestFingerprint)) {
+      return workbenchFailure(
+        'operation_payload_mismatch',
+        '同一 operationId 的请求内容与首次不同，已拒绝（零写入）',
+      );
     }
     if (existing.attempt_token !== null) {
       // 事务是原子的，因此外部不应观测到未收尾的行。真观测到了就如实报告，不猜结果。

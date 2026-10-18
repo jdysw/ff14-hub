@@ -45,8 +45,10 @@ import { WorkbenchView } from '../src/app/workbench/WorkbenchView';
 import { useWorkbench } from '../src/app/workbench/use-workbench';
 import type {
   ApplyTemplateRequest,
+  BackupSummary,
   ImportApplyRequest,
   ImportPreviewRequest,
+  RestoreBackupRequest,
   SaveLayoutRequest,
   TemplateSummary,
   WorkbenchApi,
@@ -97,6 +99,24 @@ const EXPORT_DOCUMENT = {
   widgetConfigVersions: {},
   pages: [],
 };
+
+/** 预览令牌：服务端给出的计划摘要令牌，导入时必须**原样**回显（≥16 字符）。 */
+const PREVIEW_TOKEN = 'preview-token-0123456789abcdef';
+
+/** 快照 revision（替身固定为 1）：备份恢复必须把它作为 expectedRevision 提交。 */
+const SNAPSHOT_REVISION = 1;
+
+const MANUAL_BACKUP: BackupSummary = {
+  id: 'b-manual-1',
+  kind: 'manual',
+  schemaVersion: 1,
+  createdAt: 0,
+  consumedAt: null,
+};
+
+function importFile(name: string, body: unknown = EXPORT_DOCUMENT): File {
+  return new File([JSON.stringify(body)], name, { type: 'application/json' });
+}
 
 function page(id: string, name: string, overrides: Partial<WorkspacePage> = {}): WorkspacePage {
   return {
@@ -153,11 +173,25 @@ interface FakeCalls {
   readonly applyTemplate: ApplyTemplateRequest[];
   readonly previewImport: ImportPreviewRequest[];
   readonly applyImport: ImportApplyRequest[];
+  readonly restoreBackup: { backupId: string; request: RestoreBackupRequest }[];
   readonly createPage: { name: string; operationId: string }[];
+  /** 每次读取工作台快照追加一项：用于证明「读不到 revision 时会重新读一次」。 */
+  readonly readSnapshot: number[];
 }
 
 function createFake(
-  options: { readonly pages?: readonly WorkspacePage[]; readonly previewProblems?: boolean } = {},
+  options: {
+    readonly pages?: readonly WorkspacePage[];
+    readonly previewProblems?: boolean;
+    /** `GET /me/workbench/backups` 的返回（默认空列表）。 */
+    readonly backups?: readonly BackupSummary[];
+    /** 恢复备份返回 409：用于验证「工作台已变化」的处理与「不自动重试」。 */
+    readonly restoreBackupConflict?: boolean;
+    /** 应用导入返回 409：预览令牌过期，必须重新预览。 */
+    readonly applyImportConflict?: boolean;
+    /** 读取快照失败：用于验证「拿不到 revision 就拒绝恢复」，绝不用猜测值提交。 */
+    readonly snapshotFailure?: boolean;
+  } = {},
 ) {
   const pages = [...(options.pages ?? [page('p1', '日常', { isDefault: true }), page('p2', '钓鱼', { sortOrder: 1 })])];
   const instances = new Map<string, WidgetInstance[]>([
@@ -187,7 +221,17 @@ function createFake(
       ]),
     ],
   ]);
-  const calls: FakeCalls = { save: [], applyTemplate: [], previewImport: [], applyImport: [], createPage: [] };
+  const calls: FakeCalls = {
+    save: [],
+    applyTemplate: [],
+    previewImport: [],
+    applyImport: [],
+    restoreBackup: [],
+    createPage: [],
+    readSnapshot: [],
+  };
+  /** 备份列表是可变的：恢复会在同一事务里再写一份撤销点，列表因此会多一行。 */
+  const backups: BackupSummary[] = [...(options.backups ?? [])];
 
   const api: WorkbenchApi = {
     readProfile: () =>
@@ -201,15 +245,20 @@ function createFake(
           updatedAt: 0,
         }),
       ),
-    readSnapshot: () =>
-      Promise.resolve(
+    readSnapshot: () => {
+      calls.readSnapshot.push(1);
+      if (options.snapshotFailure === true) {
+        return Promise.resolve(failure('internal_error', 500, '数据库暂时不可用。'));
+      }
+      return Promise.resolve(
         ok({
           pages,
           defaultPageId: pages.find((candidate) => candidate.isDefault)?.id ?? null,
-          revision: 1,
+          revision: SNAPSHOT_REVISION,
           limits: { maxPages: 30, maxWidgetsPerPage: 40, maxWidgetConfigBytes: 4096 },
         }),
-      ),
+      );
+    },
     listPages: () => Promise.resolve(ok({ pages, defaultPageId: pages[0]?.id ?? null })),
     createPage: (request) => {
       calls.createPage.push({ name: request.name, operationId: request.operationId });
@@ -262,9 +311,21 @@ function createFake(
     },
     exportBackup: () =>
       Promise.resolve(ok({ backup: EXPORT_DOCUMENT, byteLength: 128, maxBytes: 49152 })),
-    listBackups: () => Promise.resolve(ok({ backups: [] })),
-    restoreBackup: () =>
-      Promise.resolve(
+    listBackups: () => Promise.resolve(ok({ backups: [...backups] })),
+    restoreBackup: (backupId, request) => {
+      calls.restoreBackup.push({ backupId, request });
+      if (options.restoreBackupConflict === true) {
+        return Promise.resolve(failure('conflict', 409, '工作台已被其他设备修改，请重新读取备份列表后再恢复。'));
+      }
+      // 真实服务端会在恢复的同一事务里再留一份撤销点，因此列表会多出一行。
+      backups.unshift({
+        id: 'b-pre-import-after-restore',
+        kind: 'pre_import',
+        schemaVersion: 1,
+        createdAt: 1,
+        consumedAt: null,
+      });
+      return Promise.resolve(
         ok({
           result: {
             mode: 'replace',
@@ -285,7 +346,8 @@ function createFake(
           notice: '已恢复到该备份的状态。',
           replayed: false,
         }),
-      ),
+      );
+    },
     previewImport: (request) => {
       calls.previewImport.push(request);
       return Promise.resolve(
@@ -316,6 +378,7 @@ function createFake(
             },
             affectedPages: ['日常', '钓鱼'],
             previewRevision: 12,
+            previewToken: PREVIEW_TOKEN,
             confirmPrompt: '确认后按上面的影响范围写入。',
           },
         }),
@@ -323,6 +386,9 @@ function createFake(
     },
     applyImport: (request) => {
       calls.applyImport.push(request);
+      if (options.applyImportConflict === true) {
+        return Promise.resolve(failure('conflict', 409, '预览之后工作台或相关模块状态已变化，请重新预览。'));
+      }
       return Promise.resolve(
         ok({
           result: {
@@ -666,14 +732,13 @@ describe('备份导出与导入', () => {
     expect(screen.getByTestId('backup-size').textContent).toContain('49152');
   });
 
-  it('导入走真实文件输入 → 预览 → 显式确认（confirm: true + previewRevision）', async () => {
+  it('导入走真实文件输入 → 预览 → 显式确认（confirm: true + previewRevision + previewToken）', async () => {
     const user = userEvent.setup();
     const { api, calls } = createFake();
     render(<Harness api={api} />);
     await openWorkbenchView();
 
-    const file = new File([JSON.stringify(EXPORT_DOCUMENT)], 'backup.json', { type: 'application/json' });
-    await user.upload(screen.getByTestId('backup-import-file'), file);
+    await user.upload(screen.getByTestId('backup-import-file'), importFile('backup.json'));
 
     await waitFor(() => {
       expect(calls.previewImport).toHaveLength(1);
@@ -694,8 +759,149 @@ describe('备份导出与导入', () => {
     });
     expect(calls.applyImport[0]?.confirm).toBe(true);
     expect(calls.applyImport[0]?.previewRevision).toBe(12);
+    // 预览令牌必须**原样**回显（服务端会重算比对）。
+    expect(calls.applyImport[0]?.previewToken).toBe(PREVIEW_TOKEN);
     expect(calls.applyImport[0]?.mode).toBe('merge');
     expect(calls.applyImport[0]?.document).toEqual(EXPORT_DOCUMENT);
+  });
+
+  it('预览之后改导入模式必须重新预览：旧令牌作废、确认入口消失', async () => {
+    const user = userEvent.setup();
+    const { api, calls } = createFake();
+    render(<Harness api={api} />);
+    await openWorkbenchView();
+
+    await user.upload(screen.getByTestId('backup-import-file'), importFile('mode-merge.json'));
+    await waitFor(() => {
+      expect(calls.previewImport).toHaveLength(1);
+    });
+    expect(screen.getByTestId('import-preview')).toBeDefined();
+
+    // 改模式：旧预览绑定的是 merge，必须整体作废（连同确认按钮）。
+    await user.click(screen.getByLabelText('替换导入（服务端会先自动留一份可恢复备份）'));
+    expect(screen.queryByTestId('import-preview')).toBeNull();
+    expect(screen.queryByTestId('import-confirm')).toBeNull();
+    expect(screen.getByTestId('workbench-notice').textContent).toContain('令牌已失效');
+    expect(calls.applyImport).toHaveLength(0);
+
+    // 重新选文件 → 用**新模式**重新预览；提交时用的是新令牌，不是上一次的。
+    await user.upload(screen.getByTestId('backup-import-file'), importFile('mode-replace.json'));
+    await waitFor(() => {
+      expect(calls.previewImport).toHaveLength(2);
+    });
+    expect(calls.previewImport[1]?.mode).toBe('replace');
+    await user.click(screen.getByTestId('import-confirm'));
+    await waitFor(() => {
+      expect(calls.applyImport).toHaveLength(1);
+    });
+    expect(calls.applyImport[0]?.mode).toBe('replace');
+    expect(calls.applyImport[0]?.previewToken).toBe(PREVIEW_TOKEN);
+  });
+
+  it('预览之后换了文件（解析失败）也会丢弃旧预览令牌', async () => {
+    const user = userEvent.setup();
+    const { api, calls } = createFake();
+    render(<Harness api={api} />);
+    await openWorkbenchView();
+
+    await user.upload(screen.getByTestId('backup-import-file'), importFile('good.json'));
+    await waitFor(() => {
+      expect(calls.previewImport).toHaveLength(1);
+    });
+    expect(screen.getByTestId('import-preview')).toBeDefined();
+
+    await user.upload(
+      screen.getByTestId('backup-import-file'),
+      new File(['{不是 JSON'], 'broken.json', { type: 'application/json' }),
+    );
+    expect(await screen.findByTestId('import-file-error')).toBeDefined();
+    // 旧预览必须消失：否则用户会对着「上一份文件」的影响范围点确认。
+    expect(screen.queryByTestId('import-preview')).toBeNull();
+    expect(calls.previewImport).toHaveLength(1);
+  });
+
+  it('导入遇到 409（预览过期）时要求重新预览，且不自动重试', async () => {
+    const user = userEvent.setup();
+    const { api, calls } = createFake({ applyImportConflict: true });
+    render(<Harness api={api} />);
+    await openWorkbenchView();
+
+    await user.upload(screen.getByTestId('backup-import-file'), importFile('stale.json'));
+    await screen.findByTestId('import-preview');
+    await user.click(screen.getByTestId('import-confirm'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workbench-error').textContent).toContain('请重新预览');
+    });
+    // 只提交了一次：过期令牌绝不自动重试。
+    expect(calls.applyImport).toHaveLength(1);
+    // 过期的预览结果被丢弃：不能再对着旧令牌点第二次确认。
+    expect(screen.queryByTestId('import-preview')).toBeNull();
+  });
+
+  it('恢复可恢复备份带上「点击时的工作台 revision」作为准入条件', async () => {
+    const user = userEvent.setup();
+    const { api, calls } = createFake({ backups: [MANUAL_BACKUP] });
+    render(<Harness api={api} />);
+    await openWorkbenchView();
+
+    await user.click(screen.getByRole('button', { name: '刷新可恢复备份' }));
+    const restore = await screen.findByTestId('backup-restore');
+    expect(restore.getAttribute('data-backup-id')).toBe(MANUAL_BACKUP.id);
+    await user.click(restore);
+
+    await waitFor(() => {
+      expect(calls.restoreBackup).toHaveLength(1);
+    });
+    expect(calls.restoreBackup[0]?.backupId).toBe(MANUAL_BACKUP.id);
+    // 快照 revision 原样提交（不是省略、不是猜一个值）。
+    expect(calls.restoreBackup[0]?.request.expectedRevision).toBe(SNAPSHOT_REVISION);
+    expect(calls.restoreBackup[0]?.request.operationId).toMatch(/^[A-Za-z0-9_-]{8,}$/);
+
+    // 恢复成功后必须重新读取备份列表：服务端在同一事务里多写了一份撤销点，
+    // 因此列表会多一行（渲染绝不能假设长度不变）。
+    await waitFor(() => {
+      expect(screen.getAllByTestId('backup-list-item').length).toBe(2);
+    });
+    expect(
+      screen
+        .getAllByTestId('backup-list-item')
+        .map((item) => item.getAttribute('data-backup-id')),
+    ).toContain('b-pre-import-after-restore');
+  });
+
+  it('恢复备份遇到 409 时提示重新读取备份列表，且不自动重试', async () => {
+    const user = userEvent.setup();
+    const { api, calls } = createFake({ backups: [MANUAL_BACKUP], restoreBackupConflict: true });
+    render(<Harness api={api} />);
+    await openWorkbenchView();
+
+    await user.click(screen.getByRole('button', { name: '刷新可恢复备份' }));
+    await user.click(await screen.findByTestId('backup-restore'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workbench-error').textContent).toContain('工作台已变化，请重新读取备份列表');
+    });
+    expect(calls.restoreBackup).toHaveLength(1);
+  });
+
+  it('拿不到工作台 revision 时先重读快照，仍然拿不到就拒绝恢复（绝不用猜测值提交）', async () => {
+    const user = userEvent.setup();
+    const { api, calls } = createFake({ backups: [MANUAL_BACKUP], snapshotFailure: true });
+    render(<Harness api={api} />);
+    await screen.findByTestId('workbench-error');
+    const readsBefore = calls.readSnapshot.length;
+
+    await user.click(screen.getByRole('button', { name: '刷新可恢复备份' }));
+    await user.click(await screen.findByTestId('backup-restore'));
+
+    await waitFor(() => {
+      // 先向服务端重新读一次快照，而不是直接放弃或用猜测值提交。
+      expect(calls.readSnapshot.length).toBeGreaterThan(readsBefore);
+    });
+    expect(screen.getByTestId('workbench-error').textContent).toContain('还没有读到工作台 revision');
+    // 一个写请求都没有发：拿不到准入条件就不恢复。
+    expect(calls.restoreBackup).toHaveLength(0);
   });
 
   it('预览存在致命问题时逐条展示 problem，且确认按钮不可用（服务端不会写入）', async () => {

@@ -35,6 +35,8 @@ import {
   readModuleRow,
   readModuleSettings,
   readPageRow,
+  readPageRows,
+  readWorkbenchStateRevision,
   resetIdentityState,
   seedWorkspaceWithDevice,
 } from './helpers';
@@ -427,5 +429,218 @@ describe('mid-transition：状态已提交但副作用未收尾时，工作台�
     expect(await readLayoutRows(page.page.id)).toHaveLength(0);
     expect(await countRows('widget_instances')).toBe(instancesBefore);
     expect(await countRows('workbench_operations')).toBe(operationsBefore);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B6：清理必须**幂等**，且只推进「本次真正移除」的影响范围（复核修复 D17.6）
+// ---------------------------------------------------------------------------
+
+/** 「这些页面的三个断点 revision + 工作台 revision」的可比较快照。 */
+async function cleanupRevisionSnapshot(pageIds: readonly string[], workspaceId: string): Promise<string> {
+  const pages: Record<string, Record<string, number>> = {};
+  for (const pageId of pageIds) {
+    pages[pageId] = Object.fromEntries(await readLayoutRevisions(pageId));
+  }
+  return JSON.stringify({ pages, workbench: await readWorkbenchStateRevision(workspaceId) });
+}
+
+describe('B6 清理幂等：0 个新增墓碑就零 revision 变更，部分命中只推进被影响的页面', () => {
+  it('卸载同一模块的两个页面：两个页面的三个断点各 +1、工作台 revision 恰好 +1', async () => {
+    const auth = await seedAuth();
+    await enableDemoModule(auth.authorization, DEMO_BASICS_MODULE_ID);
+    const pageA = await createPageViaApi(auth.authorization, { name: '甲页', operationId: opId('b6-page-a') });
+    const pageB = await createPageViaApi(auth.authorization, { name: '乙页', operationId: opId('b6-page-b') });
+    await addWidgetViaApi(auth.authorization, pageA.page.id, {
+      widgetType: DEMO_COUNTER,
+      operationId: opId('b6-widget-a'),
+    });
+    await addWidgetViaApi(auth.authorization, pageB.page.id, {
+      widgetType: DEMO_COUNTER,
+      operationId: opId('b6-widget-b'),
+    });
+    const pages = [pageA.page.id, pageB.page.id];
+    const revisionsBefore = await layoutRevisionSnapshot(pages);
+    const workbenchBefore = await readWorkbenchStateRevision(auth.workspaceId);
+
+    const uninstalled = await patchModule(auth.authorization, DEMO_BASICS_MODULE_ID, {
+      expectedRevision: 1,
+      action: 'uninstall',
+    });
+    expect(uninstalled.status).toBe(200);
+    expect((await uninstalled.json<{ effect: { instancesRemoved: number } }>()).effect.instancesRemoved).toBe(2);
+
+    // 每个受影响页面的**三个**断点都恰好 +1（不是「推两次」，也不是只推一个断点）。
+    for (const pageId of pages) {
+      const before = revisionsBefore.get(pageId);
+      const after = await readLayoutRevisions(pageId);
+      for (const breakpoint of BREAKPOINTS) {
+        expect(after.get(breakpoint), `${pageId}/${breakpoint}`).toBe((before?.get(breakpoint) ?? 0) + 1);
+      }
+    }
+    // 工作台 revision 恰好 +1（每个受影响页面都算同一次清理）。
+    expect(await readWorkbenchStateRevision(auth.workspaceId)).toBe(workbenchBefore + 1);
+    // 本次标记用完即清：表不会无限增长。
+    expect(await countRows('widget_cleanup_marks')).toBe(0);
+  });
+
+  it('同一 maxRevision 再清理一次：removed 0，且布局 revision 与工作台 revision 一个都不动', async () => {
+    const auth = await seedAuth();
+    const store = createD1InstanceStore({ db: env.DB });
+    await enableDemoModule(auth.authorization, DEMO_BASICS_MODULE_ID);
+    const page = await createPageViaApi(auth.authorization, { name: '幂等页', operationId: opId('b6-idem-page') });
+    const instance = await addWidgetViaApi(auth.authorization, page.page.id, {
+      widgetType: DEMO_COUNTER,
+      operationId: opId('b6-idem-widget'),
+    });
+    expect(instance.instance.createdRevision).toBe(1);
+
+    const uninstalled = await patchModule(auth.authorization, DEMO_BASICS_MODULE_ID, {
+      expectedRevision: 1,
+      action: 'uninstall',
+    });
+    expect(uninstalled.status).toBe(200);
+    expect((await readInstanceRow(auth.workspaceId, instance.instance.id))?.deleted_at).not.toBeNull();
+
+    const before = await cleanupRevisionSnapshot([page.page.id], auth.workspaceId);
+    const pagesBefore = JSON.stringify(await readPageRows(auth.workspaceId));
+    const instancesBefore = JSON.stringify(await readInstanceRows(page.page.id));
+
+    // 同一个代际上界重试：没有可墓碑化的行 → 0 行受影响 → 零 revision 变更。
+    const again = await store.removeInstancesForModule({
+      workspaceId: auth.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      reason: 'module_uninstalled',
+      maxRevision: 1,
+    });
+    expect(again.removed).toBe(0);
+    expect(await cleanupRevisionSnapshot([page.page.id], auth.workspaceId)).toBe(before);
+    expect(JSON.stringify(await readPageRows(auth.workspaceId))).toBe(pagesBefore);
+    expect(JSON.stringify(await readInstanceRows(page.page.id))).toBe(instancesBefore);
+    expect(await countRows('widget_cleanup_marks')).toBe(0);
+  });
+
+  it('旧代清理命中 0 个实例（restore 之后的新实例不在上界内）：removed 0 且零 revision 变更', async () => {
+    const auth = await seedAuth();
+    const store = createD1InstanceStore({ db: env.DB });
+    await enableDemoModule(auth.authorization, DEMO_BASICS_MODULE_ID);
+    const page = await createPageViaApi(auth.authorization, { name: '代际页', operationId: opId('b6-gen-page') });
+    const oldGeneration = await addWidgetViaApi(auth.authorization, page.page.id, {
+      widgetType: DEMO_COUNTER,
+      operationId: opId('b6-gen-old'),
+    });
+    expect(oldGeneration.instance.createdRevision).toBe(1);
+
+    // 卸载（revision 2）→ 恢复（revision 3）→ 新建第二代实例。
+    expect(
+      (
+        await patchModule(auth.authorization, DEMO_BASICS_MODULE_ID, {
+          expectedRevision: 1,
+          action: 'uninstall',
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await patchModule(auth.authorization, DEMO_BASICS_MODULE_ID, {
+          expectedRevision: 2,
+          action: 'restore',
+        })
+      ).status,
+    ).toBe(200);
+    const newGeneration = await addWidgetViaApi(auth.authorization, page.page.id, {
+      widgetType: DEMO_COUNTER,
+      operationId: opId('b6-gen-new'),
+    });
+    expect(newGeneration.instance.createdRevision).toBe(3);
+
+    const before = await cleanupRevisionSnapshot([page.page.id], auth.workspaceId);
+    const stale = await store.removeInstancesForModule({
+      workspaceId: auth.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      reason: 'module_uninstalled',
+      maxRevision: 2,
+    });
+    expect(stale.removed).toBe(0);
+    // 修复前：没有新增墓碑也会按**历史墓碑**再推一轮 revision，让新布局草稿无端 409。
+    expect(await cleanupRevisionSnapshot([page.page.id], auth.workspaceId)).toBe(before);
+    expect((await readInstanceRow(auth.workspaceId, newGeneration.instance.id))?.deleted_at).toBeNull();
+    expect(await countRows('widget_cleanup_marks')).toBe(0);
+  });
+
+  it('部分命中：只有甲页的三个断点 +1，乙/丙页不动，工作台 revision 恰好 +1', async () => {
+    const auth = await seedAuth();
+    const store = createD1InstanceStore({ db: env.DB });
+    await enableDemoModule(auth.authorization, DEMO_BASICS_MODULE_ID);
+    const pageA = await createPageViaApi(auth.authorization, { name: '甲页', operationId: opId('b6-partial-a') });
+    const pageB = await createPageViaApi(auth.authorization, { name: '乙页', operationId: opId('b6-partial-b') });
+    const pageC = await createPageViaApi(auth.authorization, { name: '丙页', operationId: opId('b6-partial-c') });
+
+    // 甲页实例属于第 1 代；换一代（停用 → 启用 = revision 3）后乙、丙页的实例属于第 3 代。
+    const instanceA = await addWidgetViaApi(auth.authorization, pageA.page.id, {
+      widgetType: DEMO_COUNTER,
+      operationId: opId('b6-partial-widget-a'),
+    });
+    expect(instanceA.instance.createdRevision).toBe(1);
+    expect(
+      (
+        await patchModule(auth.authorization, DEMO_BASICS_MODULE_ID, {
+          expectedRevision: 1,
+          action: 'disable',
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await patchModule(auth.authorization, DEMO_BASICS_MODULE_ID, {
+          expectedRevision: 2,
+          action: 'enable',
+        })
+      ).status,
+    ).toBe(200);
+    const instanceB = await addWidgetViaApi(auth.authorization, pageB.page.id, {
+      widgetType: DEMO_COUNTER,
+      operationId: opId('b6-partial-widget-b'),
+    });
+    const instanceC = await addWidgetViaApi(auth.authorization, pageC.page.id, {
+      widgetType: DEMO_COUNTER,
+      operationId: opId('b6-partial-widget-c'),
+    });
+    expect(instanceB.instance.createdRevision).toBe(3);
+    expect(instanceC.instance.createdRevision).toBe(3);
+
+    const pages = [pageA.page.id, pageB.page.id, pageC.page.id];
+    const revisionsBefore = await layoutRevisionSnapshot(pages);
+    const workbenchBefore = await readWorkbenchStateRevision(auth.workspaceId);
+
+    // 只清理第 1 代：命中的只有甲页那一个实例。
+    const removed = await store.removeInstancesForModule({
+      workspaceId: auth.workspaceId,
+      moduleId: DEMO_BASICS_MODULE_ID,
+      reason: 'module_uninstalled',
+      maxRevision: 1,
+    });
+    expect(removed.removed).toBe(1);
+
+    const beforeA = revisionsBefore.get(pageA.page.id);
+    const afterA = await readLayoutRevisions(pageA.page.id);
+    for (const breakpoint of BREAKPOINTS) {
+      expect(afterA.get(breakpoint), `甲页/${breakpoint}`).toBe((beforeA?.get(breakpoint) ?? 0) + 1);
+    }
+    // 乙、丙页**完全没被碰过**（连断点修订行都没动）。
+    for (const pageId of [pageB.page.id, pageC.page.id]) {
+      const before = revisionsBefore.get(pageId);
+      const after = await readLayoutRevisions(pageId);
+      for (const breakpoint of BREAKPOINTS) {
+        expect(after.get(breakpoint), `${pageId}/${breakpoint}`).toBe(before?.get(breakpoint) ?? 0);
+      }
+    }
+    // 一次清理只推进一次工作台 revision。
+    expect(await readWorkbenchStateRevision(auth.workspaceId)).toBe(workbenchBefore + 1);
+
+    expect((await readInstanceRow(auth.workspaceId, instanceA.instance.id))?.deleted_at).not.toBeNull();
+    expect((await readInstanceRow(auth.workspaceId, instanceB.instance.id))?.deleted_at).toBeNull();
+    expect((await readInstanceRow(auth.workspaceId, instanceC.instance.id))?.deleted_at).toBeNull();
+    expect(await countRows('widget_cleanup_marks')).toBe(0);
   });
 });

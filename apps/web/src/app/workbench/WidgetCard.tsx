@@ -24,7 +24,7 @@ import {
 import { resolveWidgetConfig, widgetComponentRegistry } from '../widgets/component-registry';
 import { WidgetHost } from '../widgets/WidgetHost';
 import type { ModuleAccess } from '../widgets/types';
-import { BREAKPOINT_LABELS, RECT_ACTIONS, type RectAction, type WorkbenchWidgetMeta } from './workbench-model';
+import { BREAKPOINT_LABELS, RECT_ACTIONS, type RectActionSpec, type RectAction, type WorkbenchWidgetMeta } from './workbench-model';
 
 export interface WidgetCardProps {
   readonly instance: WidgetInstance;
@@ -79,6 +79,20 @@ function toHostInstance(instance: WidgetInstance) {
   };
 }
 
+/**
+ * 「上移 / 下移 / …」按钮的 title：先用提前返回把三种原因分开，
+ * 而不是把它们叠成嵌套三元（S3358）。
+ */
+function moveActionTitle(spec: RectActionSpec, editing: boolean, allowed: boolean): string {
+  if (!editing) {
+    return '请先进入编辑模式';
+  }
+  if (!allowed) {
+    return '该操作会越界、超出尺寸约束，或与其它组件重叠';
+  }
+  return `${spec.label}（键盘替代拖拽）`;
+}
+
 export const WidgetCard = forwardRef<HTMLElement, WidgetCardProps>(function WidgetCard(props, ref) {
   const { instance, meta, rect, breakpoint, editing } = props;
   const [configOpen, setConfigOpen] = useState(false);
@@ -89,6 +103,15 @@ export const WidgetCard = forwardRef<HTMLElement, WidgetCardProps>(function Widg
     <article
       // react-grid-layout 传入的 ref：react-draggable 用它定位节点，不能丢。
       ref={ref}
+      /**
+       * 卡片外壳**本身不是交互元素**：它是网格项（拖动行为的宿主），
+       * 真正的交互入口是下方的拖动把手按钮与各个操作按钮。
+       * RGL 注入的 `onMouseDown` / `onMouseUp` / `onTouchEnd` 必须落在网格项根节点上，
+       * 但「收到鼠标事件」不等于「这个元素是按钮」，因此这里显式声明外壳是展示性容器，
+       * 交互语义全部由内部真正的控件承担（也避免给它一个假的 `role="button"`）。
+       * 卡片标题仍然通过内部的 `<h3>` 暴露给无障碍树。
+       */
+      role="presentation"
       // react-draggable 注入的拖动入口：必须落在真正的 DOM 节点上，否则拖动会静默失效。
       onMouseDown={props.onMouseDown}
       onMouseUp={props.onMouseUp}
@@ -105,25 +128,24 @@ export const WidgetCard = forwardRef<HTMLElement, WidgetCardProps>(function Widg
       data-instance-id={instance.id}
       data-widget-type={instance.widgetType}
       data-hidden={instance.hidden ? 'true' : 'false'}
-      aria-label={`组件卡片：${title}`}
     >
       <header className="widget-card__header">
         {/*
-          拖动把手是带 `role="button"` 的 `div` 而不是 `<button>`：
-          表单控件在部分浏览器/交互下会吞掉拖动起点（并且 disabled 语义会影响命中）。
-          键盘可达性不依赖它——每张卡片内部都有 8 个方向 / 尺寸按钮。
+          拖动把手是真正的 `<button>`：键盘可达、可被无障碍树描述、`disabled` 语义真实生效。
+          它仍然是 RGL `dragConfig.handle` 指向的选择器（`.widget-card__drag-handle`），
+          而 react-draggable 的 `cancel` 默认只含 `.react-resizable-handle`，
+          因此从把手按下的拖动不会被取消——拖动入口依然是根节点上注入的 `onMouseDown`。
         */}
-        <div
+        <button
+          type="button"
           className="widget-card__drag-handle"
           data-testid="widget-card__drag-handle"
-          role="button"
-          tabIndex={-1}
-          aria-disabled={!editing}
+          disabled={!editing}
           aria-label={`拖动「${title}」（键盘用户可用下方的方向与尺寸按钮）`}
           title={editing ? '按住拖动（也可用下方按钮）' : '进入编辑模式后可拖动'}
         >
           <span aria-hidden="true">⠿</span>
-        </div>
+        </button>
         <div className="widget-card__heading">
           <h3 className="widget-card__title">{title}</h3>
           <p className="widget-card__meta">
@@ -138,7 +160,8 @@ export const WidgetCard = forwardRef<HTMLElement, WidgetCardProps>(function Widg
         </div>
       </header>
 
-      <div className="widget-card__actions" role="group" aria-label={`「${title}」实例操作`}>
+      <fieldset className="widget-card__actions">
+        <legend className="visually-hidden">{`「${title}」实例操作`}</legend>
         <button
           type="button"
           className="button button--small"
@@ -197,13 +220,10 @@ export const WidgetCard = forwardRef<HTMLElement, WidgetCardProps>(function Widg
         >
           重置
         </button>
-      </div>
+      </fieldset>
 
-      <div
-        className="widget-card__actions widget-card__actions--move"
-        role="group"
-        aria-label={`「${title}」位置与尺寸（无需拖拽）`}
-      >
+      <fieldset className="widget-card__actions widget-card__actions--move">
+        <legend className="visually-hidden">{`「${title}」位置与尺寸（无需拖拽）`}</legend>
         {RECT_ACTIONS.map((spec) => {
           const allowed = editing && props.canMove(spec.action);
           return (
@@ -214,13 +234,7 @@ export const WidgetCard = forwardRef<HTMLElement, WidgetCardProps>(function Widg
               data-testid={spec.testId}
               aria-label={`${spec.label}「${title}」`}
               disabled={!allowed}
-              title={
-                !editing
-                  ? '请先进入编辑模式'
-                  : allowed
-                    ? `${spec.label}（键盘替代拖拽）`
-                    : '该操作会越界、超出尺寸约束，或与其它组件重叠'
-              }
+              title={moveActionTitle(spec, editing, allowed)}
               onClick={() => {
                 props.onMove(spec.action);
               }}
@@ -229,7 +243,7 @@ export const WidgetCard = forwardRef<HTMLElement, WidgetCardProps>(function Widg
             </button>
           );
         })}
-      </div>
+      </fieldset>
 
       {configOpen ? (
         <WidgetConfigEditor

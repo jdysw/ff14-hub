@@ -24,6 +24,7 @@ import {
   duplicateWidgetRequestSchema,
   operationIdSchema,
   restoreBackupRequestSchema,
+  restorePageRequestSchema,
   saveLayoutRequestSchema,
   updatePageRequestSchema,
   updateWidgetRequestSchema,
@@ -132,8 +133,8 @@ export function registerMeWorkbenchRoutes(me: Hono<AppBindings>): void {
   });
 
   /** POST /me/pages/:id/restore —— 从墓碑恢复页面（其内容随之回来）。 */
-  me.post('/pages/:id/restore', validateJsonBody(restoreBackupRequestSchema), async (c) => {
-    const body = parsedJsonBody(c, restoreBackupRequestSchema);
+  me.post('/pages/:id/restore', validateJsonBody(restorePageRequestSchema), async (c) => {
+    const body = parsedJsonBody(c, restorePageRequestSchema);
     const runtime = getModuleRuntime(c.env.DB);
     const outcome = await runtime.workbench.restorePage({
       workspaceId: c.get('workspaceId'),
@@ -368,6 +369,7 @@ export function registerMeWorkbenchRoutes(me: Hono<AppBindings>): void {
       rawDocument: body.document,
       mode: body.mode,
       previewRevision: body.previewRevision,
+      previewToken: body.previewToken,
       operationId: body.operationId,
     });
     if (!outcome.ok) {
@@ -384,6 +386,7 @@ export function registerMeWorkbenchRoutes(me: Hono<AppBindings>): void {
       workspaceId: c.get('workspaceId'),
       deviceId: c.get('deviceId'),
       backupId: c.req.param('id'),
+      expectedRevision: body.expectedRevision,
       operationId: body.operationId,
     });
     if (!outcome.ok) {
@@ -418,6 +421,8 @@ const importPreviewBodySchema = importEnvelopeSchema;
 const importApplyBodySchema = importEnvelopeSchema
   .extend({
     previewRevision: z.number().int().nonnegative(),
+    /** 预览时返回的计划摘要令牌：绑定 document / mode / 工作台 revision / 相关模块门禁。 */
+    previewToken: z.string().min(16).max(128),
     confirm: z.literal(true),
     operationId: operationIdSchema,
   })

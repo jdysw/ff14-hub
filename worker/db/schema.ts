@@ -353,6 +353,56 @@ export const workbenchOperations = sqliteTable(
   ],
 );
 
+/**
+ * 幂等记录的**请求意图指纹**（由 migrations/0007_workbench_hardening.sql 建立）。
+ *
+ * 单独一张表而不是给 `workbench_operations` 加列：SQLite 不支持
+ * `ADD COLUMN IF NOT EXISTS`，加列会破坏「迁移语句可逐条重放」的既定验收点。
+ * 两份记录在同一个 batch 里写入，因此不存在「有结果没指纹」的持久半状态。
+ */
+export const workbenchOperationIntents = sqliteTable(
+  'workbench_operation_intents',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    operationId: text('operation_id').notNull(),
+    kind: text('kind').notNull(),
+    requestFingerprint: text('request_fingerprint').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.operationId] }),
+    index('idx_workbench_operation_intents_created').on(table.createdAt),
+  ],
+);
+
+/**
+ * 清理的**本次影响标记**（由 migrations/0007_workbench_hardening.sql 建立）。
+ * 每次 `removeInstancesForModule` 用随机 token 收集「本次将要墓碑化」的实例，
+ * 后续语句全部按该 token 过滤，从而做到「0 个新增墓碑 → 零 revision 变更」。
+ */
+export const widgetCleanupMarks = sqliteTable(
+  'widget_cleanup_marks',
+  {
+    cleanupToken: text('cleanup_token').notNull(),
+    widgetId: text('widget_id').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    moduleId: text('module_id').notNull(),
+    pageId: text('page_id')
+      .notNull()
+      .references(() => workspacePages.id, { onDelete: 'cascade' }),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.cleanupToken, table.widgetId] }),
+    index('idx_widget_cleanup_marks_token').on(table.cleanupToken),
+    index('idx_widget_cleanup_marks_workspace').on(table.workspaceId, table.moduleId, table.cleanupToken),
+  ],
+);
+
 /** 替换导入前的可恢复备份（只含工作台配置，不含任何凭证）。 */
 export const workbenchBackups = sqliteTable(
   'workbench_backups',
@@ -389,5 +439,7 @@ export const schema = {
   pageLayoutRevisions,
   workspaceWorkbenchState,
   workbenchOperations,
+  workbenchOperationIntents,
+  widgetCleanupMarks,
   workbenchBackups,
 } as const;

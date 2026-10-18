@@ -44,6 +44,8 @@ const DEMO_COUNTER = DEMO_WIDGET_IDS.counter;
 const NOW = 1_760_000_000_000;
 /** 只在本文件里使用的回滚触发器名（每个用例结束都会 DROP）。 */
 const ROLLBACK_TRIGGER = 'test_force_rollback_guard';
+/** 结构合法但不对应任何真实预览的令牌（用于「先过 Schema，再被业务拒绝」的探针）。 */
+const SYNTHETIC_PREVIEW_TOKEN = 'synthetic-preview-token-0000000000000000';
 
 let operationCounter = 0;
 
@@ -121,9 +123,18 @@ function workbenchRouteProbes(id: string): RouteProbe[] {
     {
       label: 'POST /me/workbench/import/apply',
       url: URLS.workbenchImportApply,
-      init: jsonPost({ mode: 'merge', document: {}, previewRevision: 0, confirm: true, operationId }),
+      // 复核后 apply 必须回显预览令牌；这里给一个结构合法的合成值，
+      // 让鉴权用例拦在**认证**上，而不是被 Schema 层缺字段提前挡掉。
+      init: jsonPost({
+        mode: 'merge',
+        document: {},
+        previewRevision: 0,
+        previewToken: SYNTHETIC_PREVIEW_TOKEN,
+        confirm: true,
+        operationId,
+      }),
     },
-    { label: 'POST /me/workbench/backup/:id/restore', url: backupRestoreUrl(id), init: jsonPost({ operationId }) },
+    { label: 'POST /me/workbench/backup/:id/restore', url: backupRestoreUrl(id), init: jsonPost({ operationId, expectedRevision: 0 }) },
   ];
 }
 
@@ -308,7 +319,7 @@ describe('作用域与鉴权', () => {
       URLS.workbenchImportPreview,
       jsonPost({ mode: 'replace', document: replaceDocument }, { Authorization: b.authorization }),
     );
-    const previewBody = await preview.json<{ preview: { previewRevision: number } }>();
+    const previewBody = await preview.json<{ preview: { previewRevision: number; previewToken: string } }>();
     const imported = await SELF.fetch(
       URLS.workbenchImportApply,
       jsonPost(
@@ -316,6 +327,7 @@ describe('作用域与鉴权', () => {
           mode: 'replace',
           document: replaceDocument,
           previewRevision: previewBody.preview.previewRevision,
+          previewToken: previewBody.preview.previewToken,
           confirm: true,
           operationId: opId('b-import'),
         },
@@ -359,7 +371,7 @@ describe('作用域与鉴权', () => {
       { label: 'PATCH /me/widgets/:bWidget', url: widgetUrl(bWidget.instance.id), init: jsonPatch({ expectedRevision: 0, hidden: true, operationId: opId('x-widget-patch') }) },
       { label: 'DELETE /me/widgets/:bWidget', url: widgetUrl(bWidget.instance.id), init: jsonDelete({ expectedRevision: 0, operationId: opId('x-widget-delete') }) },
       { label: 'POST /me/widgets/:bWidget/duplicate', url: widgetDuplicateUrl(bWidget.instance.id), init: jsonPost({ operationId: opId('x-widget-dup') }) },
-      { label: 'POST /me/workbench/backup/:bBackup/restore', url: backupRestoreUrl(bBackupId), init: jsonPost({ operationId: opId('x-backup-restore') }) },
+      { label: 'POST /me/workbench/backup/:bBackup/restore', url: backupRestoreUrl(bBackupId), init: jsonPost({ operationId: opId('x-backup-restore'), expectedRevision: 0 }) },
     ];
     for (const probe of notFoundCases) {
       const response = await SELF.fetch(probe.url, {
@@ -583,7 +595,7 @@ describe('迁移级约束（真实 D1 原始 SQL）', () => {
     ).resolves.toBeDefined();
   });
 
-  it('阶段 03 的 7 张表与关键索引都已建立；迁移重放依然安全', async () => {
+  it('阶段 03 的 9 张表（7 张主表 + 0007 的 2 张配套表）与关键索引都已建立；迁移重放依然安全', async () => {
     for (const table of [
       'workspace_pages',
       'widget_instances',
@@ -592,6 +604,9 @@ describe('迁移级约束（真实 D1 原始 SQL）', () => {
       'workspace_workbench_state',
       'workbench_operations',
       'workbench_backups',
+      // 0007_workbench_hardening.sql：为了「原始语句重放仍然幂等」而选择的配套表。
+      'workbench_operation_intents',
+      'widget_cleanup_marks',
     ]) {
       expect(await tableExists(table), `缺少表 ${table}`).toBe(true);
     }
@@ -604,6 +619,9 @@ describe('迁移级约束（真实 D1 原始 SQL）', () => {
       'idx_widget_instances_workspace_widget',
       'idx_workbench_operations_created',
       'idx_workbench_backups_workspace',
+      'idx_workbench_operation_intents_created',
+      'idx_widget_cleanup_marks_token',
+      'idx_widget_cleanup_marks_workspace',
     ]) {
       expect(await indexExists(index), `缺少索引 ${index}`).toBe(true);
     }
@@ -634,9 +652,10 @@ describe('批次中途失败：整个事务回滚', () => {
       expect(response.status).toBe(500);
       expect(errorBodyOf(await response.text()).code).toBe('internal_error');
 
-      // 这一批里的**每一条**写入都没有持久化。
+      // 这一批里的**每一条**写入都没有持久化（含 0007 的意图指纹行）。
       expect(await countRows('workspace_pages')).toBe(0);
       expect(await countRows('workbench_operations')).toBe(0);
+      expect(await countRows('workbench_operation_intents')).toBe(0);
       expect(await readWorkbenchOperationRow(auth.workspaceId, operationId)).toBeNull();
       expect(await readWorkbenchStateRow(auth.workspaceId)).toBeNull();
     } finally {
@@ -665,13 +684,16 @@ describe('批次中途失败：整个事务回滚', () => {
       jsonPost({ mode: 'replace', document }, { Authorization: auth.authorization }),
     );
     expect(preview.status).toBe(200);
-    const previewBody = await preview.json<{ preview: { importable: boolean; previewRevision: number } }>();
+    const previewBody = await preview.json<{
+      preview: { importable: boolean; previewRevision: number; previewToken: string };
+    }>();
     expect(previewBody.preview.importable).toBe(true);
 
     await createRollbackTrigger();
     try {
       const operationId = opId('rollback-import');
       const operationsBefore = await countRows('workbench_operations');
+      const intentsBefore = await countRows('workbench_operation_intents');
       const response = await SELF.fetch(
         URLS.workbenchImportApply,
         jsonPost(
@@ -679,6 +701,7 @@ describe('批次中途失败：整个事务回滚', () => {
             mode: 'replace',
             document,
             previewRevision: previewBody.preview.previewRevision,
+            previewToken: previewBody.preview.previewToken,
             confirm: true,
             operationId,
           },
@@ -695,9 +718,10 @@ describe('批次中途失败：整个事务回滚', () => {
       // 2) 原有页面没有被墓碑化，revision 也没有被推进。
       expect(await readPageRow(auth.workspaceId, page.page.id)).toEqual(pageBefore);
       expect((await readPageRows(auth.workspaceId)).filter((row) => row.deleted_at === null)).toHaveLength(1);
-      // 3) 新页面没有留下，幂等记录与工作台修订号也没有变。
+      // 3) 新页面没有留下，幂等记录（含其指纹行）与工作台修订号也没有变。
       expect(await countRows('workspace_pages')).toBe(1);
       expect(await countRows('workbench_operations')).toBe(operationsBefore);
+      expect(await countRows('workbench_operation_intents')).toBe(intentsBefore);
       expect(await readWorkbenchOperationRow(auth.workspaceId, operationId)).toBeNull();
       expect(await readWorkbenchStateRow(auth.workspaceId)).toEqual(stateBefore);
     } finally {

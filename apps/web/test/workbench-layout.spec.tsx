@@ -398,6 +398,7 @@ function createFake(options: FakeOptions = {}) {
             },
             affectedPages: ['日常'],
             previewRevision: 2,
+            previewToken: 'preview-token-0123456789abcdef',
             confirmPrompt: '确认后才会写入。',
           },
         }),
@@ -836,6 +837,39 @@ describe('工作台：网格项与卡片的 DOM 契约', () => {
     expect(card.querySelector('[data-testid="widget-card__drag-handle"]')).not.toBeNull();
     // react-resizable 追加的缩放手柄也必须在卡片内部，否则「卡片作用域内定位手柄」会落空。
     expect(card.querySelector('.react-resizable-handle-se')).not.toBeNull();
+  });
+
+  /**
+   * 拖动把手从 `<div role="button">` 改成真正的 `<button>` 之后，**拖动必须还在**：
+   * RGL 的 `dragConfig.handle` 仍然指向 `.widget-card__drag-handle`，而 react-draggable 的
+   * `cancel` 默认只含 `.react-resizable-handle`，因此按钮本身不会被取消；
+   * 注入的 `onMouseDown` 依旧落在卡片根节点上，把手的 mousedown 会冒泡到它。
+   */
+  it('拖动把手是真正的 <button>，在它上面按下鼠标仍然会开始拖动', async () => {
+    const user = userEvent.setup();
+    const { api } = createFake();
+    render(<Harness api={api} />);
+    await openWorkbench();
+
+    // 非编辑模式：把手禁用（RGL 此时也没有启用拖动）。
+    const handleBefore = within(cardFor('w1')).getByTestId<HTMLButtonElement>('widget-card__drag-handle');
+    expect(handleBefore.tagName).toBe('BUTTON');
+    expect(handleBefore.type).toBe('button');
+    expect(handleBefore.disabled).toBe(true);
+
+    await user.click(screen.getByTestId('edit-toggle'));
+    const card = cardFor('w1');
+    const handle = within(card).getByTestId<HTMLButtonElement>('widget-card__drag-handle');
+    expect(handle.disabled).toBe(false);
+    // 把手必须在「拿到 RGL 注入事件」的卡片根节点内部：handle 选择器据此匹配。
+    expect(card.contains(handle)).toBe(true);
+
+    // 真实按下鼠标：DraggableCore 会挂上文档级 mousemove 监听 = 拖动真的开始了。
+    const addSpy = vi.spyOn(document, 'addEventListener');
+    fireEvent.mouseDown(handle, { button: 0, buttons: 1 });
+    const dragListeners = addSpy.mock.calls.filter((call) => call[0] === 'mousemove');
+    expect(dragListeners.length, '在拖动把手上按下鼠标必须让 react-draggable 开始拖动').toBeGreaterThan(0);
+    fireEvent.mouseUp(document);
   });
 });
 

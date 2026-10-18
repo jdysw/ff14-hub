@@ -128,7 +128,9 @@ export function PageManager(props: PageManagerProps) {
         })}
       </nav>
 
-      <div className="workbench__toolbar-group" role="group" aria-label="页面操作">
+      {/* 分组语义用原生 <fieldset> + <legend>（S6819），legend 视觉隐藏但可被读屏读取。 */}
+      <fieldset className="workbench__toolbar-group">
+        <legend className="visually-hidden">页面操作</legend>
         <button
           type="button"
           className="button button--small"
@@ -220,12 +222,12 @@ export function PageManager(props: PageManagerProps) {
         >
           恢复页面
         </button>
-      </div>
+      </fieldset>
 
       {pages.length >= state.limits.maxPages && state.limits.maxPages > 0 ? (
-        <p className="notice notice--warn" role="status">
-          页面数量已达上限（{state.limits.maxPages} 个）。
-        </p>
+        // 与工具栏的分组同理：`role="status"` 用原生 `<output>` 表达（S6819），
+        // `.notice` 自带 display/margin，视觉与原来的 <p> 一致。
+        <output className="notice notice--warn">页面数量已达上限（{state.limits.maxPages} 个）。</output>
       ) : null}
 
       {form === null ? null : (
