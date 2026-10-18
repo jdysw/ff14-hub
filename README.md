@@ -3,12 +3,14 @@
 FF14 个人导航与模块化工作台。默认面向国服玩家与个人自用，预留国际服扩展。
 
 **当前状态：阶段 01～04、05A/05B 与 06A/06B 已合并。工程、身份、模块化工作台、个人导航、
-活动、钓鱼/提醒框架、文件同步与本机凭证保险箱已实现；06C 补充 Hub 客户端端口、跨标签锁与多设备运行时验收。未部署。**
+活动、钓鱼/提醒框架、文件同步与本机凭证保险箱已实现；06C 补充 Hub 客户端端口、跨标签锁与多设备运行时验收。06G 已部署个人使用 alpha。**
 鱼类数据目前是明确标注的合成演示，具体模板内容留待单独开发。真实鱼糕存储适配、真实 WebDAV 联调、
 产品自动同步与云端发布恢复演练仍未完成；阶段边界以对应操作手册和 ADR 为准。
 
+正式入口：[FF14 Hub](https://ff14-hub.3347759490.workers.dev)。首次使用与验证范围见[alpha 上线记录](docs/releases/v0.1-alpha.md)。
+
 06D 已增加发布静态预检和**本地**整库备份/恢复演练：`pnpm run ops:preflight`、
-`pnpm run ops:rehearse`。06G 已配置独立云端 D1，发布准备见[alpha 上线记录](docs/releases/v0.1-alpha.md)；详见[维护手册](docs/operations-runbook.md)。
+`pnpm run ops:rehearse`。06G 使用独立的预览与生产云端 D1；详见[维护手册](docs/operations-runbook.md)。
 
 06E 增加调度运行记录、私有诊断接口和日志脱敏加固；固定告警代码只供查询，
 真实 Cron 与外部告警尚未启用，详见[观测边界](docs/adr/0011-operations-observability.md)。
