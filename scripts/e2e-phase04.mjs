@@ -30,8 +30,9 @@ const BASE_URL = process.env['E2E_BASE_URL'] ?? `http://127.0.0.1:${PORT}`;
 const FISHING = process.env['E2E_FISH'] === 'true';
 const REMINDERS = process.env['E2E_REMINDERS'] === 'true';
 const SYNC = process.env['E2E_SYNC'] === 'true';
-const PERSIST_DIR = SYNC ? '.wrangler/e2e-phase06a-state' : REMINDERS ? '.wrangler/e2e-phase05b-state' : FISHING ? '.wrangler/e2e-phase05-state' : '.wrangler/e2e-phase04-state';
-const CREDENTIALS_FILE = path.join(root, SYNC ? 'tests/e2e/.credentials.phase06a.json' : REMINDERS ? 'tests/e2e/.credentials.phase05b.json' : FISHING ? 'tests/e2e/.credentials.phase05.json' : 'tests/e2e/.credentials.phase04.json');
+const VAULT = process.env['E2E_VAULT'] === 'true';
+const PERSIST_DIR = VAULT ? '.wrangler/e2e-phase06b-state' : SYNC ? '.wrangler/e2e-phase06a-state' : REMINDERS ? '.wrangler/e2e-phase05b-state' : FISHING ? '.wrangler/e2e-phase05-state' : '.wrangler/e2e-phase04-state';
+const CREDENTIALS_FILE = path.join(root, VAULT ? 'tests/e2e/.credentials.phase06b.json' : SYNC ? 'tests/e2e/.credentials.phase06a.json' : REMINDERS ? 'tests/e2e/.credentials.phase05b.json' : FISHING ? 'tests/e2e/.credentials.phase05.json' : 'tests/e2e/.credentials.phase04.json');
 
 /** 真实业务模块与组件 ID（与 packages/shared 的 Manifest 常量保持一致）。 */
 const NAV_MODULE_ID = 'ff14.navigation';
@@ -247,9 +248,9 @@ async function main() {
       'utf8',
     );
 
-    log('运行 Playwright 阶段 04 验收链');
+    log(VAULT ? '运行 Playwright 阶段 06B 验收链' : '运行 Playwright 阶段 04 验收链');
     const playwright = await run(
-      SYNC ? 'pnpm exec playwright test phase06a-sync.spec.ts --config tests/e2e/playwright.config.ts' : REMINDERS ? 'pnpm exec playwright test phase05b-reminders.spec.ts --config tests/e2e/playwright.config.ts' : FISHING ? 'pnpm exec playwright test phase05-fishing.spec.ts --config tests/e2e/playwright.config.ts' : 'pnpm exec playwright test phase04-navigation.spec.ts --config tests/e2e/playwright.config.ts',
+      VAULT ? 'pnpm exec playwright test phase06b-vault.spec.ts --config tests/e2e/playwright.config.ts' : SYNC ? 'pnpm exec playwright test phase06a-sync.spec.ts --config tests/e2e/playwright.config.ts' : REMINDERS ? 'pnpm exec playwright test phase05b-reminders.spec.ts --config tests/e2e/playwright.config.ts' : FISHING ? 'pnpm exec playwright test phase05-fishing.spec.ts --config tests/e2e/playwright.config.ts' : 'pnpm exec playwright test phase04-navigation.spec.ts --config tests/e2e/playwright.config.ts',
     );
     if (playwright.code !== 0) {
       log(`验收链失败（退出码 ${String(playwright.code)}）`);

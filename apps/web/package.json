@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ff14-hub/fish-sync": "workspace:*",
     "@ff14-hub/shared": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:",

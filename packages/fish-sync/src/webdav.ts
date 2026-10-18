@@ -98,7 +98,8 @@ export function createWebDavClient(options:{baseUrl:string;hubOrigin:string;user
     if(!final.sidecarFresh||final.metadata?.transactionId!==pending.transactionId)throw new DavConflict('提交后检测到其他写入，请读取当前状态重新合并');
     return final;
   };
-  const commit=async(document:FishDocument,region:'cn'|'global',expected:DavPair,touched:ReadonlySet<string>=new Set()):Promise<DavPair>=>{
+  const commit=async(document:FishDocument,region:'cn'|'global',expected:DavPair,touched:ReadonlySet<string>=new Set(),transactionId:string=crypto.randomUUID()):Promise<DavPair>=>{
+    z.uuid().parse(transactionId);
     if(expected.metadata?.state==='prepared')throw new DavConflict('请先恢复上一次提交');
     if(expected.metadata!==null&&expected.metadata.region!==region)throw new DavConflict('WebDAV目录属于另一区服');
     if(!conditionalVerified)await probe();
@@ -111,7 +112,7 @@ export function createWebDavClient(options:{baseUrl:string;hubOrigin:string;user
     for(const key of changed)revisions.set(key,(revisions.get(key)??0)+1);
     if(revisions.size>20000)throw new RangeError('累计字段修订数量超出上限');
     const prepared:z.infer<typeof preparedSchema>={schemaVersion:1,state:'prepared',region,revision:(expected.metadata?.revision??0)+1,
-      transactionId:crypto.randomUUID(),beforeHash:expected.document===null?null:await documentHash(expected.document),
+      transactionId,beforeHash:expected.document===null?null:await documentHash(expected.document),
       beforeEtag:expected.fish.etag,beforeDocument:expected.document,document:verified,documentHash:await documentHash(verified),fieldRevisions:Object.fromEntries(revisions)};
     const tag=await put('fish.sync.json',JSON.stringify(preparedSchema.parse(prepared)),expected.sidecar.etag);
     return resume({...expected,metadata:prepared,sidecar:{exists:true,etag:tag,text:JSON.stringify(prepared)}});

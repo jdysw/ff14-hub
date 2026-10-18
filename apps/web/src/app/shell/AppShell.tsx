@@ -34,6 +34,7 @@ import { FISH_MODULE_ID } from '@ff14-hub/shared';
 import { REMINDER_MODULE_ID } from '@ff14-hub/shared';
 import { ReminderPage } from '../reminders/ReminderPanel';
 import { SYNC_MODULE_ID } from '@ff14-hub/shared';
+import { ClientVaultPanel } from '../fish-sync/ClientVaultPanel';
 import { SyncPage } from '../fish-sync/SyncPanel';
 import { createNavTransport, createSyncChangesApi, type SyncChangesApi } from '../nav/nav-api';
 import { useNav } from '../nav/use-nav';
@@ -151,6 +152,12 @@ function SessionWorkbench(props: SessionWorkbenchProps) {
   });
 
   /**
+   * 受信档案读取（06B 本机保险箱面板）：包一层**稳定引用**的箭头函数，
+   * 既避免把方法当成游离函数传递（丢失接收者），也避免每次渲染都换一个新引用而重复触发读取。
+   */
+  const readVaultProfile = useCallback(() => props.workbenchApi.readProfile(), [props.workbenchApi]);
+
+  /**
    * 模块数据端口（阶段 04）。
    *
    * 三条纪律：
@@ -221,7 +228,15 @@ function SessionWorkbench(props: SessionWorkbenchProps) {
       {props.view === 'nav' ? <NavView state={nav} /> : null}
       {props.view === 'fishing' ? <FishingPage dataPortFor={dataPortFor} status={moduleAccess(FISH_MODULE_ID).status}/> : null}
       {props.view === 'reminders' ? <ReminderPage dataPortFor={dataPortFor} status={moduleAccess(REMINDER_MODULE_ID).status}/> : null}
-      <div hidden={props.view !== 'sync'}><SyncPage dataPortFor={dataPortFor} status={moduleAccess(SYNC_MODULE_ID).status} active={props.view === 'sync'}/></div>
+      <div hidden={props.view !== 'sync'}>
+        <SyncPage dataPortFor={dataPortFor} status={moduleAccess(SYNC_MODULE_ID).status} active={props.view === 'sync'}/>
+        {/*
+          06B：本机 WebDAV 档案面板。刻意放在 SyncPage **下方**、WidgetHost 与模块数据端口**之外**：
+          它只调用受信 `GET /me/profile` 取当前工作空间标识，并用本机保险箱存取 DAV 凭证。
+          设备 Token 仍然只存在于 `getToken` 回调内部，绝不进入这个组件。
+        */}
+        <ClientVaultPanel readProfile={readVaultProfile} active={props.view === 'sync'}/>
+      </div>
 
       {props.view === 'workbench' ? (
         <WorkbenchView
