@@ -396,6 +396,31 @@ describe('2. 快照地板：游标必须等于快照 watermark，旧增量不得
 });
 
 describe('3. 普通 reload 抬地板', () => {
+  it.each([false, true])('交错请求按数据库水位发布，旧响应先到=%s', async (olderFirst) => {
+    const fake = fakeNavApi({ snapshot: baseSnapshot(10) });
+    const sync = fakeSyncApi();
+    const history = renderNav({ api: fake.api, syncApi: sync.api });
+    await waitFor(() => expect(latest(history).snapshot?.watermark).toBe(10));
+    await waitFor(() => expect(probeSyncing()).toBe(false));
+    const resolvers: ((value: Awaited<ReturnType<NavApi['readSnapshot']>>) => void)[] = [];
+    const api: NavApi = fake.api;
+    vi.spyOn(api, 'readSnapshot').mockImplementation(() => new Promise((resolve) => resolvers.push(resolve)));
+    let first: Promise<void>;
+    let second: Promise<void>;
+    act(() => { first = latest(history).reload(); second = latest(history).reload(); });
+    // 先发请求观察到较新状态；后发请求在数据库里反而先读到旧状态。
+    const newer = baseSnapshot(30);
+    const older = baseSnapshot(20);
+    const resolveAt = async (index: number, value: NavSnapshot): Promise<void> => {
+      await act(() => { resolvers[index]?.({ ok: true, data: value, status: 200 }); });
+    };
+    if (olderFirst) { await resolveAt(1, older); await resolveAt(0, newer); }
+    else { await resolveAt(0, newer); await resolveAt(1, older); }
+    await act(async () => { await Promise.all([first, second]); });
+    expect(latest(history).snapshot).toBe(newer);
+    await act(async () => { await latest(history).syncNow(); });
+    expect(sync.queries.at(-1)?.since).toBe(encodeSyncCursor(30));
+  });
   it('手动 reload 到新快照（watermark 55）后：游标 = v2:55，seq < 55 的旧增量不得回退', async () => {
     const user = userEvent.setup();
     const before = baseSnapshot(30);

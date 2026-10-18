@@ -1193,15 +1193,13 @@ export function useNav(options: UseNavOptions): NavController {
   const publishedWatermarkRef = useRef(0);
 
   /**
-   * 权威快照请求的**发起序号**与**最近一次落地序号**。
+   * 权威快照请求的**发起序号**：只用于「同一时刻多个失败里只显示最后发起那次的原因」。
    *
-   * 用途：快照是**整份替换**，因此「更早发起、更晚返回」的响应绝不能覆盖更新的那份
-   * （挂载时的刷新、写入后的刷新与同步轮询的读取天然并发）。规则是单调的：一旦有更新发起的
-   * 请求落地（`applied` 变大），更旧请求的结果就只用于回答「快照是否已可用」，
-   * 不再写状态，也**不**抬高已发布水位。
+   * **不**用它决定哪份快照内容可以落地（第五轮复核修正）：请求发起顺序不能证明数据库
+   * 观察顺序——后发起的请求完全可能在服务端**先**读到较旧状态，先发起的请求反而读到较新状态。
+   * 因此「谁更新」的唯一依据是快照自带的 `watermark`（事实），不是请求序号。
    */
   const snapshotRequestSeqRef = useRef(0);
-  const snapshotAppliedSeqRef = useRef(0);
 
   /**
    * 为什么用 `useEffect`（而不是渲染期赋值）同步 ref：渲染期写 ref 在并发渲染下
@@ -1266,6 +1264,7 @@ export function useNav(options: UseNavOptions): NavController {
    * （避免把界面标红）。
    */
   const readAuthoritativeSnapshot = useCallback(async (): Promise<number | null> => {
+    // 发起序号只用于「多个失败里显示最后发起那次的原因」，**不**参与「谁的内容更新」的判定。
     const requestSeq = snapshotRequestSeqRef.current + 1;
     snapshotRequestSeqRef.current = requestSeq;
     const result = await api.readSnapshot();
@@ -1278,18 +1277,26 @@ export function useNav(options: UseNavOptions): NavController {
       }
       return null;
     }
-    if (requestSeq < snapshotAppliedSeqRef.current) {
-      // 已有更新的快照落地：这份结果更旧，只回答「可用」，不覆盖状态、也不抬高水位。
-      return result.data.watermark;
+    const publishedWatermark = publishedWatermarkRef.current;
+    if (result.data.watermark < publishedWatermark) {
+      /**
+       * **按事实单调发布**（第五轮复核修正）：这份响应观察到的是**更旧**的数据库状态
+       * （并发下的两个请求在服务端可以任意交错：后发起的先读到旧状态、先发起的后读到新状态）。
+       * 因此：
+       * - 绝不覆盖本地内容（本地内容对应更高的水位）；
+       * - 对外**只回答已发布的水位**，绝不把这份「未发布的水位」交给轮询器——
+       *   否则游标会被设成一个本地状态并未覆盖到的位置，等于跳过变更。
+       */
+      return publishedWatermark;
     }
-    snapshotAppliedSeqRef.current = requestSeq;
     /**
      * 水位在**快照落地这一刻**抬高，只增不减。
      *
      * 它证明的是「本地这份状态已经覆盖到 `seq <= watermark`」——这正是游标可以设为该值的
      * 唯一依据；任何「请求发起的先后」都不构成这个证明。
+     * `watermark` 相等时两份内容语义一致（同一个 seq 对应同一个状态），因此允许落地以刷新派生提示。
      */
-    publishedWatermarkRef.current = Math.max(publishedWatermarkRef.current, result.data.watermark);
+    publishedWatermarkRef.current = result.data.watermark;
 
     const snapshot = result.data;
     const draftNotice = draftRemoteNoticeOf({ draft: draftRef.current, snapshot });
