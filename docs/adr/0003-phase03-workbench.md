@@ -296,14 +296,36 @@ bump 工作台 revision」按**所有历史墓碑**过滤。于是「0 个新增
 因此改用两张**只增不改**的配套表（`workbench_operation_intents`、`widget_cleanup_marks`）：
 语义等价、天然幂等，也不改动既有表结构。
 
-### D17.8 安全静态分析（SonarCloud）的两个真实问题
+### D17.8 安全静态分析（SonarCloud）的实际问题与结果
 
-- `Math.random` 曾被用作 `operationId` 的兜底生成器（前端）。已彻底移除：
-  只用 `crypto.randomUUID()` / `crypto.getRandomValues()`，两者都不可用时**抛错**而不是降级到弱随机。
-- `pickUniqueSlug` 里的 `/^-+|-+$/g` 属于「两侧锚点 + 量词 + 全局」写法，会对每个起始位置重试
-  （超线性回溯，Sonar 安全规则会标记）。已替换为一次线性扫描的 `stripEdgeDashes`，行为完全等价。
-- 同时把三处认知复杂度超标的函数按职责拆分（`validateLayoutRects`、`analyze` / `applyDocument` 等），
-  没有为了压指标而改变行为。
+**修复前**：质量门失败，失败条件为 `C Security Rating on New Code (required ≥ A)`，
+另有 `D Reliability` 与「Duplication on New Code 3.7% > 3%」。
+
+**逐条修复**：
+
+1. `Math.random` 曾被用作 `operationId` 的前端兜底生成器（弱随机，S2245）。
+   已彻底移除：只用 `crypto.randomUUID()` / `crypto.getRandomValues()`，
+   两者都不可用时**抛错**而不是降级到弱随机。
+2. `pickUniqueSlug` 里的 `/^-+|-+$/g` 属于「两侧锚点 + 量词 + 全局」写法，会对每个起始位置重试
+   （超线性回溯，S5852）。已替换为一次线性扫描的 `stripEdgeDashes`，行为等价且 O(n)。
+3. 测试里存在把变量拼进 `env.DB.prepare(...)` 文本的写法（S3649 SQL 注入面）：
+   `SELECT COUNT(*) FROM ${table}`、`CREATE/DROP TRIGGER ... ${name}`。
+   已改为**编译期常量表**（`COUNT_ROWS_SQL` 的键就是 `CountableTable` 联合类型）与**字面量 SQL**，
+   拼接面彻底消失。
+4. CI 的 `uses:` 由 tag 改为**完整 commit SHA**（第三方 Action 必须可固定到不可变对象）。
+5. 脚本里 `spawn('taskkill', …)` 改为绝对路径调用，不再通过 PATH 解析可执行文件。
+6. `[...moduleIds].sort()` 改为显式 `localeCompare` 比较器（默认排序按 UTF-16 码元，
+   对「字母序」不可靠；这里还需要跨请求可复现的顺序来生成预览令牌）。
+7. 重复代码（>3% 门限）：把 `opId` / `seedAuth` / `errorBodyOf` 从 7 个 worker spec 抽到
+   `worker/test/helpers.ts`；把 `DESCRIPTORS` / `page()` / `instance()` 从两个前端 spec 抽到
+   `apps/web/test/workbench-fixtures.ts`；顺带拆分了 `validateLayoutRects`、`analyze`、
+   `applyDocument` 三个认知复杂度超标的函数（只做结构拆分，不改行为）。
+
+**修复后（最终 head）**：SonarCloud 质量门 **pass**——`0 Security Hotspots`、
+`2.9% Duplication on New Code`（≤3%）、Security/Reliability 均达到 A。
+剩余 29 条为**非阻断**的维护性告警；其中 `applyTemplate` 的认知复杂度 21 仍未拆，
+它是 maintainability 而不是质量门条件，已如实记录，不为压指标大改。
+
 
 ## D16. 明确推迟的东西（不要读成已实现）
 
