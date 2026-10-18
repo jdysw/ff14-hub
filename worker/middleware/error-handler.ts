@@ -93,19 +93,20 @@ export function registerErrorHandlers(app: Hono<AppBindings>): void {
           logLine('error', 'api_error', {
             requestId,
             code: error.code,
-            detail: error.logDetail ?? '',
+            status: String(error.status),
           }),
         );
       }
-      return errorResponse(error.code, error.message, requestId, error.details);
+      return error.status>=500
+        ?errorResponse(error.code,error.code==='not_implemented'?error.message:DEFAULT_ERROR_MESSAGE[error.code],requestId)
+        :errorResponse(error.code,error.message,requestId,error.details);
     }
 
-    // 未预期异常：只记录脱敏后的名称与消息，绝不记录请求体或凭证。
+    // Arbitrary names/messages can contain private content without recognizable secret markers.
     console.error(
       logLine('error', 'unhandled_error', {
         requestId,
-        name: error instanceof Error ? error.name : 'UnknownError',
-        message: error instanceof Error ? error.message : String(error),
+        category: 'unexpected_exception',
       }),
     );
     return errorResponse('internal_error', DEFAULT_ERROR_MESSAGE.internal_error, requestId);

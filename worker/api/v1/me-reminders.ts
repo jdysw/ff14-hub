@@ -2,7 +2,8 @@ import { z } from 'zod';
 import type { Hono } from 'hono';
 import { ApiError,reminderRuleInputSchema,reminderDeleteSchema,pushSubscriptionInputSchema,reminderSnapshotSchema,fishRecordSchema } from '@ff14-hub/shared';
 import type { AppBindings } from '../../types';
-import { noStoreJson } from '../../lib/response';
+import { noStoreJson,rateLimited } from '../../lib/response';
+import { enforceRateLimits,RATE_LIMITS } from '../../lib/rate-limit';
 import { parsedJsonBody,validateJsonBody } from '../../middleware/validation';
 import { parseRule,requireReminders,RULE_COLUMNS,saveRule } from '../../modules/reminders/rules';
 import { planNotifications } from '../../modules/reminders/planner';
@@ -42,12 +43,19 @@ export function registerReminderRoutes(me:Hono<AppBindings>):void{
   });
   me.post('/reminders/reconcile',validateJsonBody(empty),async(c)=>{
     const workspace=c.get('workspaceId');await requireReminders(c.env.DB,workspace);
+    const decision=await enforceRateLimits(c.env.DB,[[`reminder-reconcile:${workspace}`,RATE_LIMITS.reminderReconcilePerWorkspace]]);
+    if(!decision.allowed)return rateLimited(c,decision);
     const planned=await planNotifications(c.env.DB,Date.now(),workspace);
     const processed=await runNotifications(c.env.DB,createPushTransport(c.env),Date.now,workspace);
     return noStoreJson(c,{planned,processed});
   });
   me.put('/reminders/push',validateJsonBody(pushSubscriptionInputSchema),async(c)=>{
     const workspace=c.get('workspaceId');await requireReminders(c.env.DB,workspace);
+    const decision=await enforceRateLimits(c.env.DB,[
+      [`push-register-workspace:${workspace}`,RATE_LIMITS.pushRegistrationPerWorkspace],
+      [`push-register-device:${c.get('deviceId')}`,RATE_LIMITS.pushRegistrationPerDevice],
+    ]);
+    if(!decision.allowed)return rateLimited(c,decision);
     const subscription=parsedJsonBody(c,pushSubscriptionInputSchema);
     try{
       const result=await c.env.DB.prepare(`INSERT INTO push_subscriptions(id,workspace_id,device_id,endpoint,subscription_json,active,updated_at)

@@ -17,6 +17,18 @@ import {
 
 const FAKE_TOKEN = `ffh_dev_${'A'.repeat(43)}`;
 
+it('does not let caller options re-enable redirect following, cookies or private caching',async()=>{
+  const fetchImpl=vi.fn<typeof fetch>((_input,init)=>{
+    expect(init).toMatchObject({redirect:'error',credentials:'omit',cache:'no-store'});
+    expect(new Headers(init?.headers).get('Authorization')).toBe(`Bearer ${FAKE_TOKEN}`);
+    return Promise.reject(new TypeError('simulated redirect failure'));
+  });
+  const api=createApiClient({getToken:()=>FAKE_TOKEN,fetchImpl});
+  const result=await api.request('/api/v1/me/profile',{redirect:'follow',credentials:'include',cache:'force-cache'});
+  expect(result.ok).toBe(false);expect(result.status).toBe(NETWORK_FAILURE_STATUS);
+  expect(JSON.stringify(result)).not.toContain(FAKE_TOKEN);expect(fetchImpl).toHaveBeenCalledOnce();
+});
+
 type FetchHandler = (url: string, init: RequestInit) => Response | Promise<Response>;
 
 /**

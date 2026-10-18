@@ -24,8 +24,8 @@ async function probeDatabase(db: D1Database): Promise<boolean> {
   try {
     const row = await db.prepare('SELECT 1 AS ok').first<{ ok: number }>();
     return row?.ok === 1;
-  } catch (error) {
-    console.error(logLine('error', 'health_db_probe_failed', { message: error }));
+  } catch {
+    console.error(logLine('error', 'health_db_probe_failed'));
     return false;
   }
 }

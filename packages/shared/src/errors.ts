@@ -85,7 +85,7 @@ export class ApiError extends Error {
     this.#logDetail = logDetail;
   }
 
-  /** 仅用于服务端日志；不会被序列化到响应或结构化日志之外的地方。 */
+  /** 内部诊断提示；不序列化到响应，通用错误处理器也不直接记录原文。 */
   get logDetail(): string | undefined {
     return this.#logDetail;
   }

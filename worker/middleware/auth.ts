@@ -22,7 +22,7 @@ function logAuthFailure(c: AppContext, reason: string): void {
     logLine('warn', 'device_auth_failed', {
       requestId: c.get('requestId'),
       reason,
-      path: new URL(c.req.url).pathname,
+      scope: 'private_api',
     }),
   );
 }

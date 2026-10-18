@@ -11,7 +11,7 @@ export const fishModulePortFactory: ModulePortFactory = (context) => {
     const response = await fetch(buildApiUrl(`/api/v1${path}`,context.apiBaseUrl),{
       method:body === undefined?'GET':'PUT',headers:{Authorization:`Bearer ${context.token}`,
         ...(body === undefined?{}:{'Content-Type':'application/json'})},
-      ...(body === undefined?{}:{body:JSON.stringify(body)}),cache:'no-store',
+      ...(body === undefined?{}:{body:JSON.stringify(body)}),cache:'no-store',redirect:'error',credentials:'omit',
     });
     if (response.status === 401) context.onUnauthorized?.();
     if (!response.ok) throw new Error(response.status === 409?'进度已被其他设备修改，请刷新后重试':`钓鱼数据请求失败（${String(response.status)}）`);

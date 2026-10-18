@@ -22,6 +22,10 @@ export interface RateLimitDecision {
 
 /** 各身份端点的限流策略。参数取保守值，避免被暴力枚举又不影响正常使用。 */
 export const RATE_LIMITS = {
+  /** Authenticated manual delivery can perform external IO; rotating devices must not bypass workspace quota. */
+  reminderReconcilePerWorkspace: { limit: 5, windowMs: 60 * 1000 },
+  pushRegistrationPerWorkspace: { limit: 20, windowMs: 10 * 60 * 1000 },
+  pushRegistrationPerDevice: { limit: 10, windowMs: 10 * 60 * 1000 },
   /** Bootstrap：初始化密钥可能被暴力猜测，窗口内次数要少。 */
   bootstrapPerClient: { limit: 10, windowMs: 5 * 60 * 1000 },
   bootstrapGlobal: { limit: 30, windowMs: 5 * 60 * 1000 },
