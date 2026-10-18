@@ -34,3 +34,13 @@ it('does not parse incomplete files as an empty progress overwrite',async()=>{
   await userEvent.click(screen.getByRole('button',{name:'预览导入'}));await screen.findByRole('alert');
   expect(call).toHaveBeenCalledTimes(1);
 });
+it('retains the draft while the session hides the view and pauses private reads',async()=>{
+  const call=vi.fn(()=>Promise.resolve({region:'cn',fields:[],watermark:0,lastSyncedAt:null,audits:[]}));
+  const data:ModuleDataPort={moduleId:SYNC_MODULE_ID,operations:['sync.snapshot'],call:<T,>()=>call() as Promise<T>};
+  const view=render(<SyncPanel data={data} active={false}/>);expect(call).not.toHaveBeenCalled();
+  view.rerender(<SyncPanel data={data} active/>);await waitFor(()=>expect(call).toHaveBeenCalledOnce());
+  fireEvent.change(screen.getByLabelText('鱼糕JSON内容'),{target:{value:'draft text'}});
+  view.rerender(<SyncPanel data={data} active={false}/>);
+  expect(screen.getByLabelText<HTMLTextAreaElement>('鱼糕JSON内容').value).toBe('draft text');
+  expect(call).toHaveBeenCalledOnce();
+});

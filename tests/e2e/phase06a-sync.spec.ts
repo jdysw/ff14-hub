@@ -18,7 +18,10 @@ async function confirm(page:Page):Promise<void>{
 test('三集合导入、未知字段保留、备份门禁、跨客户端和撤销',async({page,browser},info)=>{
   test.skip(info.project.name==='mobile-chromium','完整链路在桌面执行');await enter(page);
   const source={completed:[9000001,9999999],pinned:[9000001],alarmFish:[9999999],future:{note:'extension-marker'}};
-  await page.getByLabel('鱼糕JSON内容').fill(JSON.stringify(source));await page.getByRole('button',{name:'预览导入'}).click();
+  await page.getByLabel('鱼糕JSON内容').fill(JSON.stringify(source));
+  await page.getByRole('button',{name:/工作台概览/}).click();await page.getByRole('button',{name:/数据同步 鱼糕/}).click();
+  await expect(page.getByLabel('鱼糕JSON内容')).toHaveValue(JSON.stringify(source));
+  await page.getByRole('button',{name:'预览导入'}).click();
   await expect(page.getByRole('heading',{name:'变更预览：4项'})).toBeVisible();await confirm(page);
   expect(await download(page,'导出当前进度')).toEqual(source);
   const response=await page.request.get(`${credentials.baseUrl}/api/v1/me/fish-sync?region=cn`,{headers:{Authorization:`Bearer ${credentials.token}`}});

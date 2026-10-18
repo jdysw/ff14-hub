@@ -77,6 +77,8 @@ backup download and explicit confirmation before apply, preserves failed input, 
 monotonically by region watermark. It re-reads state after confirmed apply before announcing completion.
 Audit history shows the latest 20 operations. Freshness is labeled as last Hub import, not current DAV
 freshness. Client closure means the server cannot learn later DAV changes.
+The full-page import view stays mounted within its credential session; switching views preserves
+file/preview drafts while pausing its private polling. Credential generation changes still clear it.
 
 ## Reuse decision
 

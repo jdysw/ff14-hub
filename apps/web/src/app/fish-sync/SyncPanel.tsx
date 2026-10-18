@@ -9,8 +9,8 @@ function download(document:FishDocument,name:string):void{
   const url=URL.createObjectURL(new Blob([serializeFishDocument(document)],{type:'application/json'}));
   const link=window.document.createElement('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-export function SyncPanel({data,initialRegion='cn',ready,failed,refreshKey=0}:{data:ModuleDataPort|undefined;initialRegion?:FishRegion;
-  ready?:()=>void;failed?:(error:unknown)=>void;refreshKey?:number}){
+export function SyncPanel({data,initialRegion='cn',ready,failed,refreshKey=0,active=true}:{data:ModuleDataPort|undefined;initialRegion?:FishRegion;
+  ready?:()=>void;failed?:(error:unknown)=>void;refreshKey?:number;active?:boolean}){
   const [region,setRegion]=useState<FishRegion>(initialRegion);const [snapshot,setSnapshot]=useState<FishSyncSnapshot|null>(null);
   const [text,setText]=useState('');const [document,setDocument]=useState<FishDocument|null>(null);
   const [preview,setPreview]=useState<FishSyncPreview|null>(null);const [backup,setBackup]=useState<FishDocument|null>(null);
@@ -27,15 +27,16 @@ export function SyncPanel({data,initialRegion='cn',ready,failed,refreshKey=0}:{d
   useEffect(()=>registerPrivateDraftSource(()=>pending.current),[]);
   useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
   useEffect(()=>{
-    let active=true;let reading=false;
+    if(!active)return;
+    let current=true;let reading=false;
     const read=async():Promise<void>=>{if(data===undefined||reading)return;reading=true;
       try{const result=fishSyncSnapshotSchema.parse(await data.call('sync.snapshot',{region}));
-        if(!active)return;publish(result);loaded.current=true;callbacks.current.ready?.();
-      }catch(cause){if(active){setError(cause instanceof Error?cause.message:'读取失败');if(!loaded.current)callbacks.current.failed?.(cause);}}
+        if(!current)return;publish(result);loaded.current=true;callbacks.current.ready?.();
+      }catch(cause){if(current){setError(cause instanceof Error?cause.message:'读取失败');if(!loaded.current)callbacks.current.failed?.(cause);}}
       finally{reading=false;}
     };
-    void read();const timer=setInterval(()=>{void read();},30_000);return()=>{active=false;clearInterval(timer);};
-  },[data,region,version,refreshKey,publish]);
+    void read();const timer=setInterval(()=>{void read();},30_000);return()=>{current=false;clearInterval(timer);};
+  },[data,region,version,refreshKey,publish,active]);
   const run=useCallback(async(action:()=>Promise<void>):Promise<void>=>{
     if(busy||data===undefined)return;setBusy(true);setError(null);setNotice(null);
     try{await action();}catch(cause){if(alive.current)setError(cause instanceof z.ZodError?'文件格式不合法：请提供completed、pinned、alarmFish三个数字ID数组，并检查扩展字段':
@@ -93,6 +94,6 @@ export function SyncPanel({data,initialRegion='cn',ready,failed,refreshKey=0}:{d
 }
 export function SyncWidget(props:WidgetRuntimeProps){const config=syncWidgetConfigSchema.parse(props.config);return <SyncPanel data={props.data} initialRegion={config.region} ready={props.reportReady} failed={props.reportAsyncError} refreshKey={props.retryToken}/>;}
 export const syncWidgetComponents={[SYNC_WIDGET_ID]:SyncWidget};
-export function SyncPage({dataPortFor,status}:{dataPortFor:(id:string)=>ModuleDataPort|undefined;status:ModuleGateStatus}){
-  const data=useMemo(()=>dataPortFor(SYNC_MODULE_ID),[dataPortFor]);return status==='enabled'?<SyncPanel data={data}/>:<p>请在模块管理中启用数据同步和钓鱼手账。</p>;
+export function SyncPage({dataPortFor,status,active=true}:{dataPortFor:(id:string)=>ModuleDataPort|undefined;status:ModuleGateStatus;active?:boolean}){
+  const data=useMemo(()=>dataPortFor(SYNC_MODULE_ID),[dataPortFor]);return status==='enabled'?<SyncPanel data={data} active={active}/>:<p>请在模块管理中启用数据同步和钓鱼手账。</p>;
 }
