@@ -152,7 +152,12 @@ async function main() {
     );
 
     log('运行 Playwright 验收链');
-    const playwright = await run('pnpm exec playwright test --config tests/e2e/playwright.config.ts');
+    // 显式指定本阶段的用例文件：`playwright.config.ts` 的 testMatch 会匹配 `tests/e2e/` 下所有
+    // `*.spec.ts`，而两个阶段的服务准备条件不同（阶段 03 会预先启用演示模块，
+    // 阶段 02 的用例恰恰要从「未安装」开始断言）。不做限定就会互相破坏前提。
+    const playwright = await run(
+      'pnpm exec playwright test phase02-modules.spec.ts --config tests/e2e/playwright.config.ts',
+    );
     if (playwright.code !== 0) {
       log(`验收链失败（退出码 ${String(playwright.code)}）`);
       process.exitCode = playwright.code;

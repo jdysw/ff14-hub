@@ -11,11 +11,14 @@
  */
 import type {
   IdentityAuditEvent,
+  LayoutBreakpoint,
   ModulePersistedStatus,
   ModuleSupportedAction,
   Region,
+  WorkbenchBackupKind,
 } from '@ff14-hub/shared';
 import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
 
 /** 单个私有工作空间（INV-05：无传统账号，一个工作空间 + 多设备凭证）。 */
 export const workspaces = sqliteTable(
@@ -216,6 +219,208 @@ export const workspaceModuleOperationClaims = sqliteTable(
   (table) => [primaryKey({ columns: [table.workspaceId, table.moduleId] })],
 );
 
+/**
+ * 工作台页面（HUB-046，由 migrations/0006_workbench.sql 建立）。
+ *
+ * - `slug` 在**整个工作空间（含墓碑）**内唯一：这样恢复已删除页面永不与新页面撞 slug。
+ * - 「活跃页面中默认页至多一个」是数据库级硬约束（部分唯一索引
+ *   `idx_workspace_pages_single_default`）；「有活跃页面时恰好一个」由服务层事务补足，
+ *   并在测试中用真实 D1 并发验证。
+ * - `deleted_at` 是墓碑：本阶段不做硬删除，供后续跨设备同步使用。
+ */
+export const workspacePages = sqliteTable(
+  'workspace_pages',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    slug: text('slug').notNull(),
+    isDefault: integer('is_default').notNull(),
+    sortOrder: integer('sort_order').notNull(),
+    revision: integer('revision').notNull(),
+    deletedAt: integer('deleted_at'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('idx_workspace_pages_slug').on(table.workspaceId, table.slug),
+    uniqueIndex('idx_workspace_pages_single_default')
+      .on(table.workspaceId)
+      .where(sql`is_default = 1 AND deleted_at IS NULL`),
+    index('idx_workspace_pages_active').on(table.workspaceId, table.deletedAt, table.sortOrder),
+  ],
+);
+
+/**
+ * Widget 实例（HUB-045 / HUB-046）。
+ *
+ * `createdRevision` 是模块代际标记：卸载模块的清理 SQL 把
+ * 「workspace + module + created_revision <= 上界」作为同一原子条件，
+ * 因此被取代的旧执行者删不掉 restore 之后的新实例。
+ */
+export const widgetInstances = sqliteTable(
+  'widget_instances',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    pageId: text('page_id')
+      .notNull()
+      .references(() => workspacePages.id, { onDelete: 'cascade' }),
+    moduleId: text('module_id').notNull(),
+    widgetType: text('widget_type').notNull(),
+    configJson: text('config_json').notNull(),
+    configVersion: integer('config_version').notNull(),
+    isHidden: integer('is_hidden').notNull(),
+    revision: integer('revision').notNull(),
+    createdRevision: integer('created_revision').notNull(),
+    deletedAt: integer('deleted_at'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [
+    index('idx_widget_instances_page').on(table.pageId, table.deletedAt, table.createdAt),
+    index('idx_widget_instances_workspace_module').on(
+      table.workspaceId,
+      table.moduleId,
+      table.deletedAt,
+      table.createdRevision,
+    ),
+    index('idx_widget_instances_workspace_widget').on(table.workspaceId, table.widgetType, table.deletedAt),
+  ],
+);
+
+/** 「实例 × 断点」矩形。min/maxSize 来自静态注册表，不在数据库层表达。 */
+export const widgetLayouts = sqliteTable(
+  'widget_layouts',
+  {
+    widgetId: text('widget_id')
+      .notNull()
+      .references(() => widgetInstances.id, { onDelete: 'cascade' }),
+    breakpoint: text('breakpoint').$type<LayoutBreakpoint>().notNull(),
+    x: integer('x').notNull(),
+    y: integer('y').notNull(),
+    w: integer('w').notNull(),
+    h: integer('h').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.widgetId, table.breakpoint] })],
+);
+
+/** 「页面 × 断点」独立修订号（ADR-010）。行缺失等价于 revision = 0。 */
+export const pageLayoutRevisions = sqliteTable(
+  'page_layout_revisions',
+  {
+    pageId: text('page_id')
+      .notNull()
+      .references(() => workspacePages.id, { onDelete: 'cascade' }),
+    breakpoint: text('breakpoint').$type<LayoutBreakpoint>().notNull(),
+    revision: integer('revision').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.pageId, table.breakpoint] })],
+);
+
+/** 工作空间级工作台修订号：导入预览的新鲜度令牌 + 前端「有没有变」信号。 */
+export const workspaceWorkbenchState = sqliteTable('workspace_workbench_state', {
+  workspaceId: text('workspace_id')
+    .notNull()
+    .primaryKey()
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
+  revision: integer('revision').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+/** 幂等 operationId 的结果留痕（重放时直接返回已存结果，不重复施加副作用）。 */
+export const workbenchOperations = sqliteTable(
+  'workbench_operations',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    operationId: text('operation_id').notNull(),
+    kind: text('kind').notNull(),
+    resultJson: text('result_json').notNull(),
+    createdAt: integer('created_at').notNull(),
+    /** 本次尝试的随机标记；收尾后置空。守卫语句据此区分「本次尝试」与「重放」。 */
+    attemptToken: text('attempt_token'),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.operationId] }),
+    index('idx_workbench_operations_created').on(table.createdAt),
+  ],
+);
+
+/**
+ * 幂等记录的**请求意图指纹**（由 migrations/0007_workbench_hardening.sql 建立）。
+ *
+ * 单独一张表而不是给 `workbench_operations` 加列：SQLite 不支持
+ * `ADD COLUMN IF NOT EXISTS`，加列会破坏「迁移语句可逐条重放」的既定验收点。
+ * 两份记录在同一个 batch 里写入，因此不存在「有结果没指纹」的持久半状态。
+ */
+export const workbenchOperationIntents = sqliteTable(
+  'workbench_operation_intents',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    operationId: text('operation_id').notNull(),
+    kind: text('kind').notNull(),
+    requestFingerprint: text('request_fingerprint').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.operationId] }),
+    index('idx_workbench_operation_intents_created').on(table.createdAt),
+  ],
+);
+
+/**
+ * 清理的**本次影响标记**（由 migrations/0007_workbench_hardening.sql 建立）。
+ * 每次 `removeInstancesForModule` 用随机 token 收集「本次将要墓碑化」的实例，
+ * 后续语句全部按该 token 过滤，从而做到「0 个新增墓碑 → 零 revision 变更」。
+ */
+export const widgetCleanupMarks = sqliteTable(
+  'widget_cleanup_marks',
+  {
+    cleanupToken: text('cleanup_token').notNull(),
+    widgetId: text('widget_id').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    moduleId: text('module_id').notNull(),
+    pageId: text('page_id')
+      .notNull()
+      .references(() => workspacePages.id, { onDelete: 'cascade' }),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.cleanupToken, table.widgetId] }),
+    index('idx_widget_cleanup_marks_token').on(table.cleanupToken),
+    index('idx_widget_cleanup_marks_workspace').on(table.workspaceId, table.moduleId, table.cleanupToken),
+  ],
+);
+
+/** 替换导入前的可恢复备份（只含工作台配置，不含任何凭证）。 */
+export const workbenchBackups = sqliteTable(
+  'workbench_backups',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<WorkbenchBackupKind>().notNull(),
+    schemaVersion: integer('schema_version').notNull(),
+    payloadJson: text('payload_json').notNull(),
+    createdAt: integer('created_at').notNull(),
+    createdByDevice: text('created_by_device').references(() => devices.id, { onDelete: 'set null' }),
+    consumedAt: integer('consumed_at'),
+  },
+  (table) => [index('idx_workbench_backups_workspace').on(table.workspaceId, table.createdAt)],
+);
+
 /** 全部表的集合，供 drizzle 客户端与测试使用。 */
 export const schema = {
   workspaces,
@@ -228,4 +433,13 @@ export const schema = {
   workspaceModules,
   workspaceModuleOperations,
   workspaceModuleOperationClaims,
+  workspacePages,
+  widgetInstances,
+  widgetLayouts,
+  pageLayoutRevisions,
+  workspaceWorkbenchState,
+  workbenchOperations,
+  workbenchOperationIntents,
+  widgetCleanupMarks,
+  workbenchBackups,
 } as const;

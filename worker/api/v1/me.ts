@@ -9,6 +9,8 @@
  * - 撤销立即生效：认证中间件每个请求都查库，没有进程内令牌缓存，
  *   所以被撤销设备的下一次请求就会 401，无需等待缓存过期。
  * - 阶段 02 新增模块子树（HUB-050），见 `./me-modules.ts`；它同样挂在本中间件之后。
+ * - 阶段 03 新增工作台子树（HUB-045 / 046 / 049 / 054），见 `./me-workbench.ts`；
+ *   页面/实例/布局/模板/备份全部只按认证得到的 workspace 作用域读写。
  */
 import { ApiError, DEFAULT_ERROR_MESSAGE } from '@ff14-hub/shared';
 import { Hono } from 'hono';
@@ -17,6 +19,7 @@ import { deviceAuth } from '../../middleware/auth';
 import { methodNotAllowed } from '../../middleware/error-handler';
 import { noContent, noStoreJson } from '../../lib/response';
 import { registerMeModuleRoutes } from './me-modules';
+import { registerMeWorkbenchRoutes } from './me-workbench';
 import type { AppBindings } from '../../types';
 
 export const meRoutes = new Hono<AppBindings>();
@@ -57,6 +60,10 @@ meRoutes.delete('/devices/:id', async (c) => {
 // 阶段 02 / HUB-050：模块状态与生命周期变更（同样在 deviceAuth 之后）。
 registerMeModuleRoutes(meRoutes);
 
+// 阶段 03 / HUB-045 · HUB-046 · HUB-049 · HUB-054：工作台、模板与备份恢复。
+// 同样挂在 deviceAuth 之后，因此作用域只可能来自认证结果。
+registerMeWorkbenchRoutes(meRoutes);
+
 // 其他方法：结构化 405（同样先经过认证）。
 // 这里列出 /me 子树实际提供过的方法；具体路径仍按注册的处理器优先匹配。
-meRoutes.all('*', methodNotAllowed(['GET', 'PATCH', 'POST', 'DELETE']));
+meRoutes.all('*', methodNotAllowed(['GET', 'PATCH', 'POST', 'PUT', 'DELETE']));

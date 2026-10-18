@@ -140,7 +140,7 @@ ff14-hub/
 └── docs/                规划、安全边界、Module/Widget 边界、ADR
 ```
 
-## 6. API（阶段 02 实际可用范围）
+## 6. API（阶段 03 实际可用范围）
 
 | Method | Path | 说明 |
 |---|---|---|
@@ -157,6 +157,21 @@ ff14-hub/
 | GET | `/api/v1/me/modules/:id` | 单个模块状态；未注册模块返回 404 |
 | PATCH | `/api/v1/me/modules/:id` | 生命周期变更 / 设置写入；**必须带 `expectedRevision`**，不匹配返回 409 |
 | POST | `/api/v1/me/modules/:id/purge` | 清数据入口：本阶段**显式拒绝**（501），并明确说明没有删除任何数据 |
+| GET | `/api/v1/me/workbench` | 工作台快照：页面列表 + 默认页 + 工作台 revision + 容量上限 |
+| GET/POST | `/api/v1/me/pages` | 列出 / 新建页面（`POST` 可带 `templateId`；空白页合法） |
+| PATCH/DELETE | `/api/v1/me/pages/:id` | 改名 / 排序 / 设为默认页 / 删除（墓碑；必须带 `expectedRevision`） |
+| POST | `/api/v1/me/pages/:id/restore` | 从墓碑恢复页面（连同其组件实例与布局） |
+| GET/PUT | `/api/v1/me/pages/:id/layout` | 读取三断点布局 / 保存**单个**断点的整页布局（`baseRevision` 必填，陈旧写 409） |
+| GET/POST | `/api/v1/me/pages/:id/widgets` | 列出 / 添加组件实例（服务端校验模块门禁、单例约束与尺寸） |
+| PATCH/DELETE | `/api/v1/me/widgets/:id` | 改配置 / 隐藏 / 移除（隐藏 ≠ 移除，都不影响模块与个人数据） |
+| POST | `/api/v1/me/widgets/:id/duplicate` | 复制实例（独立配置与初始位置） |
+| GET | `/api/v1/me/workbench/templates` | 四种初始模板（含 `honestyNote` 诚实说明） |
+| POST | `/api/v1/me/workbench/apply-template` | 应用模板：`new_page` / `replace_page` / `reset_workspace` |
+| GET | `/api/v1/me/workbench/backup` | 导出工作台配置（`schemaVersion` 版本化 JSON，**不含任何凭证**） |
+| GET | `/api/v1/me/workbench/backups` | 可恢复备份列表（替换导入时自动生成的那份也在内） |
+| POST | `/api/v1/me/workbench/import/preview` | 预览导入：新增/替换/跳过计数、影响范围、未知模块、问题列表（**不写入**）；返回 `previewToken`（绑定 document + mode + 工作台 revision + 相关模块门禁） |
+| POST | `/api/v1/me/workbench/import/apply` | 显式确认（`confirm: true` + `previewRevision` + `previewToken`）后按 workspace 事务应用；令牌不匹配 → 409 要求重新预览 |
+| POST | `/api/v1/me/workbench/backup/:id/restore` | 用可恢复备份撤销一次替换导入（`expectedRevision` 必填；撤销点的消费与替换**同事务**，一份只能用一次） |
 
 统一错误结构：`{ "code": "...", "message": "...", "requestId": ... }`。
 `/api/*` 下的未知路径返回 JSON 404，不会回退成 SPA 的 HTML。
@@ -166,10 +181,17 @@ ff14-hub/
 
 | 操作 | 页面/实例 | 后台任务 | 个人数据与设置 |
 |---|---|---|---|
-| `hide` / `remove`（实例级） | 仅影响该实例（**纯客户端**） | 不受影响 | 保留 |
-| `disable` | 组件停用 + Host 降级显示 | 取消已排队任务 | 保留 |
-| `uninstall` | 移除该模块全部实例并停用 | 停止并取消任务 | **默认保留**，可 `restore` |
+| `hide`（实例级） | 该实例不再渲染 | 不受影响 | 保留 |
+| `remove`（实例级） | 该实例墓碑化，布局行删除 | 不受影响 | 保留 |
+| `disable`（模块级） | 组件停用 + Host 降级显示 | 取消已排队任务 | 保留 |
+| `uninstall`（模块级） | **该工作空间所有页面上**的该模块实例被墓碑化（带代际 fence） | 停止并取消任务 | **默认保留**，可 `restore` |
+| 删除页面 | 页面墓碑化；其下的实例与布局**保留**，可连同内容恢复 | 不受影响 | 保留 |
+| 重置工作台（模板） | 全部页面墓碑化 + 按模板重建；实例与布局保留，可逐页恢复 | 不受影响 | 保留 |
+| 导入替换 | 全部页面墓碑化 + 按备份重建；**同一事务**内先写可恢复备份 | 不受影响 | 不受影响（绝不隐式启停模块） |
 | `purge` | —— | —— | 本阶段**拒绝**（501） |
+
+实例清理真正发生在服务端：`workspace_id` + `module_id` + `created_revision <= 上界`
+是**同一条 UPDATE 的原子条件**，因此被取代的旧执行者删不掉 `restore` 之后创建的新实例。
 
 生命周期采用「**原子准入（含待完成标记与执行认领）→ 独占执行副作用（revision fence）→ 收尾**」协议：
 抢输的一方（409）在任何可变副作用之前退出；副作用失败时返回 200 +
@@ -188,8 +210,9 @@ ff14-hub/
 | 纯契约 | `packages/shared/test/` | Node |
 | 前端客户端逻辑 + 注册表/实例存储 | `apps/web/test/*.spec.ts` | Node |
 | React 组件渲染与交互（Host、错误隔离、模块管理） | `apps/web/test/*.spec.tsx` | jsdom + React Testing Library |
-| API / 认证 / 安全 / 迁移约束 / 模块生命周期 | `worker/test/` | **workerd + Miniflare D1**（`@cloudflare/vitest-pool-workers`） |
+| API / 认证 / 安全 / 迁移约束 / 模块生命周期 / 工作台与备份 | `worker/test/` | **workerd + Miniflare D1**（`@cloudflare/vitest-pool-workers`） |
 | 真实浏览器验收链（模块切换 → 实例表现，含窄屏与键盘） | `tests/e2e/phase02-modules.spec.ts` | Playwright（本地 `wrangler dev`） |
+| 真实浏览器验收链（工作台拖动/缩放、键盘替代、断点独立、导出导入 round-trip、双客户端并发冲突） | `tests/e2e/phase03-workbench.spec.ts` | Playwright（本地 `wrangler dev`） |
 
 **SQLite 单元测试不等同于 D1 运行时测试**，因此迁移与约束断言全部在 Workers 运行时执行。
 浏览器验收链的编排见 [`tests/e2e/README.md`](tests/e2e/README.md)；
@@ -197,12 +220,13 @@ ff14-hub/
 
 ## 8. CI
 
-`.github/workflows/ci.yml` 在 push 到 `main` 与所有 PR 上执行两个 job：
+`.github/workflows/ci.yml` 在 push 到 `main` 与所有 PR 上执行三个 job：
 
 1. `verify`：冻结安装 → 绑定类型与 wrangler 配置一致性 → lint → typecheck → test → build →
    本地 D1 迁移（全新 + 重复应用）+ 迁移清单。
 2. `e2e`：冻结安装 → 安装 Playwright chromium（含系统依赖）→ `pnpm run e2e:phase02`
    （本地 wrangler dev + 本地 D1，随机一次性初始化密钥，不写 `.dev.vars`）。
+3. `e2e-phase03`：同上，跑 `pnpm run e2e:phase03`（工作台布局编辑器与备份恢复链）。
 
 - 不使用 `continue-on-error`，不使用 `|| true`，不使用「无测试即通过」开关。
 - 全部 Cloudflare 操作都带 `--local`：CI **不部署、不创建远程资源、不读取仓库 Secrets**。
@@ -219,9 +243,13 @@ ff14-hub/
   没有后台自动重试或定时对账；租约过期后的抢占同样需要新请求触发。
 - **执行租约不保证旧执行者已停止**：`EXECUTION_LEASE_MS = 15s` 只提供崩溃后的活性，
   安全性依赖 token 条件写入与 revision fence（旧执行者删不掉新一代的实例与任务）。
-- **Widget 实例不持久**：`widget_instances` 表属于阶段 03，因此实例只存在于浏览器内存，
-  刷新即丢失；服务端卸载只能通过 `ModuleInstanceStore` 端口**请求**清理
-  （默认实现自报 `persistent: false`）。语义已被测试钉住，替换实现即可。
+- **Widget 实例已持久化**：`widget_instances` / `widget_layouts` / `workspace_pages` 于阶段 03 迁移。
+  实例清理端口已是真实 D1 实现（`persistent: true`），因此服务端卸载会真正墓碑化实例并删除其布局行。
+- **没有跨设备增量同步**（HUB-051）：墓碑已按规划 5.3 保留，但没有同步水位、没有 GC、
+  没有 `GET /me/sync/changes`；两台设备之间的「谁改了什么」只能靠 revision 冲突发现。
+- **备份上限 48 KiB**：导出与导入共用同一上限（且严格小于全局请求体上限 64 KiB）。
+  极端规模工作台（30 页 × 40 组件且配置接近上限）会**导出失败**并给出原因，而不是产出损坏文件。
+- **草稿只在前端内存**：服务端只接受整页保存，没有服务端草稿；刷新页面会丢失未保存的布局草稿。
 - **调度只有端口替身**：`ScheduledTaskStore` 是内存实现（`persistent: false`）。
   没有 Cron、没有 Web Push、没有真实通知派发；`wrangler.jsonc` 的 `triggers.crons` 保持为空。
 - **清数据未实现**：只提供显式拒绝（501）。将来必须做成「先备份 + 显式二次确认」的独立流程。

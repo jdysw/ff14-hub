@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "FF14 Hub 前端（React + Vite，阶段 01 仅结构化 App Shell）",
+  "description": "FF14 Hub 前端（React + Vite：App Shell、Widget Host、模块管理、阶段 03 工作台布局编辑器与备份恢复）",
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build",
@@ -15,6 +15,7 @@
     "@ff14-hub/shared": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-grid-layout": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

@@ -31,13 +31,13 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           # 与 package.json 的 engines 和 .nvmrc 保持同一来源，避免版本漂移。
           node-version-file: .nvmrc
@@ -81,13 +81,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -105,3 +105,35 @@ jobs:
       # → playwright test → 关闭服务并删除临时凭证文件。
       - name: 阶段 02 浏览器验收链（本地 wrangler dev + 本地 D1）
         run: pnpm run e2e:phase02
+
+  e2e-phase03:
+    name: 阶段 03 真实浏览器验收链
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: 冻结安装（frozen lockfile）
+        run: pnpm install --frozen-lockfile
+
+      # 与阶段 02 同理：整条链只用本地 wrangler dev + 本地 D1，
+      # 不部署、不创建远程资源、不读取仓库 Secrets。
+      - name: 安装 Playwright chromium（含系统依赖）
+        run: pnpm exec playwright install --with-deps chromium
+
+      # 编排脚本：清空专用本地 D1 → 构建前端 → 迁移 → 启动 wrangler dev
+      # （用随机的一次性初始化密钥）→ 通过真实 HTTP 端点初始化设备并启用演示模块
+      # → playwright test（桌面拖动/缩放、键盘替代、窄屏、导出导入 round-trip、双客户端并发冲突）
+      # → 关闭服务并删除临时凭证文件。
+      - name: 阶段 03 浏览器验收链（工作台布局与备份恢复）
+        run: pnpm run e2e:phase03

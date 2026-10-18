@@ -15,15 +15,22 @@
  */
 import type { ModuleSchedulerPort } from './ports';
 import { createModuleLifecycle, type ModuleLifecycle } from './lifecycle/module-lifecycle';
-import { createInMemoryScheduledTaskStore, createModuleScheduler, createNoopInstanceStore } from './lifecycle/scheduler';
+import { createInMemoryScheduledTaskStore, createModuleScheduler } from './lifecycle/scheduler';
 import { readModuleGateStatus } from './lifecycle/workspace-modules';
 import { builtinModuleRegistry } from './registry/builtin-modules';
 import type { ModuleRegistry } from './registry/module-registry';
+import { createD1InstanceStore } from './workbench/instance-store';
+import { createWorkbenchService, type WorkbenchService } from './workbench/service';
+import { createWorkbenchBackupService, type WorkbenchBackupService } from './workbench/backup';
 
 export interface ModuleRuntime {
   readonly registry: ModuleRegistry;
   readonly lifecycle: ModuleLifecycle;
   readonly scheduler: ModuleSchedulerPort;
+  /** 阶段 03：自定义工作台（页面 / 实例 / 布局 / 模板）。 */
+  readonly workbench: WorkbenchService;
+  /** 阶段 03：工作台配置备份与恢复。 */
+  readonly workbenchBackup: WorkbenchBackupService;
 }
 
 const runtimes = new WeakMap<D1Database, ModuleRuntime>();
@@ -39,10 +46,19 @@ export function createModuleRuntime(db: D1Database): ModuleRuntime {
   const lifecycle = createModuleLifecycle({
     db,
     registry: builtinModuleRegistry,
-    instanceStore: createNoopInstanceStore(),
+    // 阶段 03：实例清理改为**真实持久实现**。它把
+    // workspace + module + revision 上界作为同一个原子条件，
+    // 因此旧执行者删不掉 restore 之后创建的新实例。
+    instanceStore: createD1InstanceStore({ db }),
     scheduler,
   });
-  return { registry: builtinModuleRegistry, lifecycle, scheduler };
+  return {
+    registry: builtinModuleRegistry,
+    lifecycle,
+    scheduler,
+    workbench: createWorkbenchService({ db, registry: builtinModuleRegistry }),
+    workbenchBackup: createWorkbenchBackupService({ db, registry: builtinModuleRegistry }),
+  };
 }
 
 /** 取（或首次构造）该 D1 绑定的运行时。 */

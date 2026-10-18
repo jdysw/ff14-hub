@@ -139,7 +139,11 @@
 | `workspace_modules` | **已迁移**（`0003_modules.sql`）：状态、设置与版本、`revision` 乐观并发、安装/启停/卸载时间戳 |
 | `workspace_module_operations` | **已迁移**（`0004_module_operations.sql`）：待完成操作（`action`/`target_status`/`revision`/`attempts`/`last_error`），复合外键指向 `workspace_modules` 并级联删除 |
 | `workspace_module_operation_claims` | **已迁移**（`0005_module_operation_claims.sql`）：**独占执行认领**（`token`、`claimed_at`、`expires_at`），主键保证同一模块同时只有一个执行者；随 operations 行级联删除 |
-| `workspace_pages`、`widget_instances`、`widget_layouts` | 未迁移（阶段 03） |
+| `workspace_pages`、`widget_instances`、`widget_layouts` | **已迁移**（`0006_workbench.sql`，阶段 03）：多页面 + 墓碑 + 页面级 revision；实例带 `created_revision`（模块代际 fence）与墓碑；布局按「实例 × 断点」 |
+| `page_layout_revisions` | **已迁移**（`0006_workbench.sql`）：「页面 × 断点」**独立**修订号（ADR-010） |
+| `workspace_workbench_state` | **已迁移**（`0006_workbench.sql`）：工作台级修订号，用于导入预览的新鲜度令牌 |
+| `workbench_operations` | **已迁移**（`0006_workbench.sql`）：幂等 `operationId` 的结果留痕与「本次尝试 token」守卫 |
+| `workbench_backups` | **已迁移**（`0006_workbench.sql`）：替换导入前的可恢复备份（只含工作台配置） |
 | `nav_catalog_links` / `workspace_nav_links` 等 | 未迁移（阶段 04） |
 | `notification_jobs` 等 | 未迁移（阶段 05）；当前调度端口是内存替身，**没有 Cron** |
 
@@ -150,4 +154,42 @@
 ## 6. 相关决定
 
 阶段 02 的具体取舍（命名、执行顺序、端口替身、为什么 purge 用 501 等）
-记录在 `docs/adr/0002-phase02-module-runtime.md`。
+记录在 `docs/adr/0002-phase02-module-runtime.md`；
+阶段 03 的具体取舍（断点级修订、token 幂等守卫、页面墓碑与恢复、导入 ID 重映射、
+备份容量上限、`react-grid-layout` 版本选择、实例清理端口的三条件原子 fence 等）
+记录在 `docs/adr/0003-phase03-workbench.md`。
+
+## 7. 阶段 03 落地了什么（HUB-045 / HUB-046 / HUB-049 / HUB-054）
+
+Widget 实例从**浏览器内存**变成**服务端持久数据**，因此原先只在前端成立的几条规则现在由服务端强制。
+
+### 7.1 实例的归属与合法性由服务端权威判定
+
+- 组件类型必须存在于**静态注册表**（`registry.findWidget`）。服务端据此得出所属模块、
+  `allowMultiple`、`defaultSize`/`minSize`/`maxSize` 与配置 Schema；**不接受**客户端提交这些元数据。
+- 新建实例（含复制 / 模板 / 导入）在**认领语句的同一原子条件**里要求：
+  页面属于本工作空间且未删除、所属模块 `status = 'enabled'` 且 `revision` 与本次读取一致、
+  该模块没有待完成操作。因此不存在「读到 enabled 再被停用」的时间窗。
+- 编辑（改配置 / 隐藏 / 移除）只要求「没有待完成操作」：停用模块后其既有实例是被保留的
+  （停用 ≠ 删数据），此时编辑不产生任何执行，不该被禁止。
+- `allowMultiple = false` 的作用域是**整个工作空间**（跨活跃页面），并发添加也只会成功一次。
+
+### 7.2 卸载模块会真的清理持久实例，且带代际 fence
+
+阶段 02 的 `ModuleInstanceStore` 是 `persistent: false` 的 no-op 替身（服务端只能「请求清理」）。
+阶段 03 换成真实 D1 实现（`worker/modules/workbench/instance-store.ts`，`persistent: true`）：
+
+- 把 `workspace_id` + `module_id` + `created_revision <= 上界` 作为**同一条 UPDATE 的原子条件**；
+- 实例标记为墓碑（`deleted_at`），其布局行被删除，受影响页面的三个断点修订号 +1；
+- `workspace_modules` 一行都不动，因此模块设置与个人数据保留；
+- 旧执行者传入的是它自己的准入 revision，因此**删不掉 restore 之后创建的新实例**。
+
+### 7.3 系统级入口与「清空」语义
+
+- 用户可以删光所有页面的所有组件，也可以删掉所有页面。此时 Shell 的
+  `empty-recovery` 面板提供「新建页面 / 应用模板」；页面切换、组件库、设置、
+  导入恢复与设备入口始终可达。
+- 页面删除是**墓碑**，其下的实例与布局保持原样，因此
+  `POST /me/pages/:id/restore` 能把页面连同内容整体带回来。
+- 「隐藏实例」「移除实例」「停用模块」「卸载模块」「清空页面」「重置工作台」是六种不同动作，
+  各自的影响范围在 ADR-0003 与本文件中逐条写清，不得互相代替。

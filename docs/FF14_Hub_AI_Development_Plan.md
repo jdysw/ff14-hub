@@ -18,29 +18,64 @@ project:
   traditional_user_accounts: false
   customization: full_user_control
 current_execution:
-  phase: "01"
-  task_ids: [HUB-001, HUB-002, HUB-003, HUB-004, HUB-005, HUB-006]
+  phase: "03"
+  task_ids: [HUB-045, HUB-046, HUB-049, HUB-054]
   dispatch: "Codex -> codex-dsh-collab -> DSH Desktop（可用时）"
   repository_created: verified
   tasks_dispatched: true
   implementation_status: in_progress
   # 以下状态由执行 Agent 按真实证据维护；证据不足即不得上调。
   phase_01_task_status:
-    HUB-001: implemented_pending_review
-    HUB-002: implemented_pending_review
-    HUB-003: implemented_pending_review
-    HUB-004: implemented_pending_review
-    HUB-005: implemented_pending_review
-    HUB-006: implemented_pending_review
+    HUB-001: merged
+    HUB-002: merged
+    HUB-003: merged
+    HUB-004: merged
+    HUB-005: merged
+    HUB-006: merged
+  phase_02_task_status:
+    HUB-043: merged
+    HUB-044: merged
+    HUB-050: merged
+  phase_03_task_status:
+    HUB-045: implemented_pending_review
+    HUB-046: implemented_pending_review
+    HUB-049: implemented_pending_review
+    HUB-054: implemented_pending_review
   last_status_update: "2026-10-18"
   status_evidence: |
-    分支 codex/phase01-core（尚未合并，PR 为 draft）。
-    本地已实际通过：pnpm install --frozen-lockfile、pnpm lint、pnpm typecheck、pnpm test、pnpm build。
-    本地 D1：全新迁移成功、重复应用安全；同域静态页与 /api/v1/health 冒烟通过；
-    身份系统端到端冒烟（Bootstrap → 配对 → 恢复 → 撤销）通过。
-    Cloudflare 部署状态：未部署（未创建远程资源、未绑定域名）。
-    HUB-001～006 均为「已实现、待人工评审」，**不是** done；阶段 01 完成定义中的
-    「PR 合并」与「授权 E2E 可复现」尚未满足。
+    阶段 01：以 PR #1 squash 合并入 main（commit c65e29e），main CI run 39063324867 success；
+      阶段 01 完成定义中的「PR 合并」已满足。
+    阶段 02：PR #5 在 head eec978a5d4acd7cbb33568f1cf26ef44b6ce1bdb 上通过
+      CI run 39071393657（lint/typecheck/test/build 与真实浏览器链两项 success）、
+      工作树干净、mergeable CLEAN 后标 ready 并 squash 合并，
+      merge commit b9acfb2bc9c96c200ffdd6a7559f278bcf0dc897；
+      合并后 main CI run 39071908808 的两项 job 均 success；
+      已删除已合并远程分支 codex/phase02-modules。
+      Issues #2 / #3 / #4 由 PR 关联关闭。
+    阶段 03：分支 codex/phase03-workbench，Issues #6（HUB-045）/ #7（HUB-046）/
+      #8（HUB-049）/ #9（HUB-054）。四个任务均为「已实现、待人工评审」。
+    本地已实际通过：pnpm install --frozen-lockfile、pnpm lint、pnpm typecheck、
+      pnpm test、pnpm build、绑定类型一致性 check、D1 本地迁移（全新 + 重复应用）安全。
+    测试规模（全部实跑）：packages/shared 58 项、worker（真实 workerd + Miniflare D1）19 文件 345 项、
+      apps/web（jsdom + React Testing Library）9 文件 111 项；
+      真实浏览器验收链 phase03：3 passed / 3 skipped（桌面完整链路含真实拖动+缩放、双客户端并发 409、
+      窄屏键盘，7.0s），phase02 回归链：2 passed / 2 skipped。
+    另有独立黑盒冒烟：在本机真实 wrangler dev + 真实 D1 上直连工作台路由，
+      覆盖鉴权作用域、模块门禁、幂等重放、断点独立、非法布局、备份导出/预览/导入/撤销、
+      模板三种模式、页面删除/恢复，共 35 项断言全部通过。
+    本地 D1：0006_workbench.sql 在真实 workerd + D1 中实测（外键 / 部分唯一索引 / CHECK 生效）。
+    已知真实缺陷与取舍：RGL 2.3.0 的拖动入口依赖 DraggableCore 以 cloneElement 注入
+      onMouseDown，组件边界漏透传会让拖动**静默**失效；已修复并记录在 ADR-0003 D13.1。
+    集中复核后的一轮加固（ADR-0003 D17）：并发新增/复制的空位与「规划时看到的布局修订」绑定；
+      导出改为单 batch 一致快照并自校验；撤销点的未消费校验/标记消费与替换同事务且要求
+      expectedRevision；导入确认新增 previewToken（绑定 document+mode+revision+模块门禁）；
+      幂等键新增请求指纹（同 ID 换意图 409 且零写入）；实例清理用本次标记限定影响范围，
+      0 新增墓碑时零 revision 变更。迁移因此只用 CREATE ... IF NOT EXISTS（不改既有表结构）。
+    测试规模（加固后全部实跑）：packages/shared 58、worker 20 文件 366、apps/web 10 文件 123；
+      阶段 03 真实浏览器链 3 passed / 3 skipped，阶段 02 回归链 2 passed / 2 skipped。
+    SonarCloud 质量门：**pass**（0 Security Hotspots、Duplication on New Code 2.9% ≤ 3%）。
+    Cloudflare 部署状态：未部署（未创建远程资源、未绑定域名、未注册 Cron）。
+    HUB-045 / 046 / 049 / 054 均为「已实现、待人工评审」，**不是** done。
 ---
 
 # FF14 Hub — AI 开发主规划
@@ -61,24 +96,31 @@ current_execution:
 | HUB-004 API 基础与校验 | merged | `worker/api/`、`worker/middleware/`、`packages/shared/src/errors.ts`；401/404/405/409/413/415/422/500 路径均有测试 |
 | HUB-005 CI 与测试基础 | merged | `.github/workflows/ci.yml`、ESLint 扁平配置、Vitest Workers 池；同上合并与 CI 证据 |
 | HUB-006 单工作空间身份与设备管理 | merged | `worker/modules/identity/`、`worker/api/v1/identity.ts`、`migrations/0002_identity.sql`、`worker/lib/rate-limit.ts`；PR #1 合并（gpt 独立复核 51 项身份测试通过），`main` CI run `39063324867` success |
-| HUB-043 Module Registry | implemented_pending_review | `worker/modules/registry/`（注册表 + 内置演示模块）、`packages/shared/src/builtin-modules.ts`；`worker/test/module-registry.spec.ts` 30 项在真实 workerd 中通过 |
-| HUB-044 Widget Host | implemented_pending_review | `apps/web/src/app/widgets/`（Host、静态组件映射、实例存储、演示组件）、`apps/web/src/lib/RenderErrorBoundary.tsx`；`apps/web/test/widget-host.spec.tsx` 等 63 项通过；Playwright 验收链覆盖桌面与窄屏 |
-| HUB-050 模块生命周期与数据策略 | implemented_pending_review | `migrations/0003_modules.sql` + `0004_module_operations.sql` + `0005_module_operation_claims.sql`、`worker/modules/lifecycle/`、`worker/api/v1/{modules,me-modules}.ts`、`apps/web/src/app/modules/`；`worker/test/module-lifecycle.spec.ts`（52 项，含确定性交错/独占认领/租约抢占/revision fence 传播/快照一致性）+ `module-schema.spec.ts` 在真实 D1 中通过 |
+| HUB-043 Module Registry | merged | `worker/modules/registry/`（注册表 + 内置演示模块）、`packages/shared/src/builtin-modules.ts`；`worker/test/module-registry.spec.ts` 在真实 workerd 中通过；随 PR #5 合并（squash commit `b9acfb2`），`main` CI run `39071908808` 两项 job success |
+| HUB-044 Widget Host | merged | `apps/web/src/app/widgets/`（Host、静态组件映射、实例存储、演示组件）、`apps/web/src/lib/RenderErrorBoundary.tsx`；Playwright 验收链覆盖桌面与窄屏；同上合并与 CI 证据 |
+| HUB-050 模块生命周期与数据策略 | merged | `migrations/0003_modules.sql` + `0004_module_operations.sql` + `0005_module_operation_claims.sql`、`worker/modules/lifecycle/`、`worker/api/v1/{modules,me-modules}.ts`、`apps/web/src/app/modules/`；`module-lifecycle.spec.ts`（含确定性交错/独占认领/租约抢占/revision fence 传播/快照一致性）+ `module-schema.spec.ts` 在真实 D1 中通过；同上合并与 CI 证据 |
+| HUB-045 布局编辑器 | implemented_pending_review | `packages/shared/src/workbench-api.ts`（唯一布局校验实现）、`worker/modules/workbench/`（`tx.ts` 原子幂等事务、`service.ts`）、`migrations/0006_workbench.sql`、`apps/web/src/app/workbench/`；依赖锁定 `react-grid-layout@2.3.0`（见 ADR-0003 D13） |
+| HUB-046 多页面与独立断点 | implemented_pending_review | `workspace_pages` / `widget_instances` / `widget_layouts` / `page_layout_revisions`、`worker/api/v1/me-workbench.ts`、`docs/adr/0003-phase03-workbench.md` |
+| HUB-049 模板、空白页与重置 | implemented_pending_review | `BUILTIN_WORKBENCH_TEMPLATES`（四种模板 + `honestyNote` 诚实说明）、`apply-template` 三种模式、Shell 内 `empty-recovery` 恢复入口 |
+| HUB-054 工作台配置备份恢复 | implemented_pending_review | `worker/modules/workbench/backup.ts`（导出/预览/导入/恢复）、`workbench_backups` 表、导出与导入共用 `WORKBENCH_BACKUP_MAX_BYTES` |
 
 **明确未完成 / 未做（不要读成已完成）：**
 
-- 阶段 02 的工作位于分支 `codex/phase02-modules`，以**草稿 PR** 提交集中复核，**尚未合并**。
+- 阶段 03 的工作位于分支 `codex/phase03-workbench`，以**草稿 PR** 提交集中复核，**尚未合并**。
 - 未创建任何 Cloudflare 远程资源（无 D1 远程库、无 Worker 部署、无预览环境、无域名绑定、无 Cron）。
-- 阶段 03 的工作台与布局编辑器（多页面、`widget_instances` / `widget_layouts` 表、拖拽缩放、备份恢复）、
-  阶段 04 的导航业务、阶段 05 的鱼类/通知引擎、阶段 06 的 WebDAV 同步均未实现。
-- 阶段 02 的 Widget 实例只存在于**浏览器内存**：`widget_instances` 表未迁移，
-  服务端卸载只能通过 `ModuleInstanceStore` 端口请求清理（默认实现是标注 `persistent: false` 的替身）。
-- 阶段 02 的调度端口只有**内存**实现（`persistent: false`）：没有 Cron、没有 Web Push、没有真实通知派发；
-  `wrangler.jsonc` 的 `triggers.crons` 保持为空。
+- 阶段 04 的导航业务、阶段 05 的鱼类/通知引擎、阶段 06 的 WebDAV 同步均未实现。
+- 阶段 03 的**调度端口仍是内存实现**（`persistent: false`）：没有 Cron、没有 Web Push、
+  没有真实通知派发；`wrangler.jsonc` 的 `triggers.crons` 保持为空。
+  （实例清理端口已在阶段 03 换成真实 D1 实现，`persistent: true`。）
+- **跨设备增量同步（HUB-051）未实现**：墓碑已按规划 5.3 保留，但没有同步水位、没有 GC、
+  没有 `GET /me/sync/changes`。
 - 清数据（purge）**未实现**，只提供显式拒绝（501）；将来必须做成「先备份 + 二次确认」的独立流程。
 - 前端的完整身份界面（初始化向导、配对、设备管理 UI）未实现；阶段 02 只补了「会话内存凭证」这一最小入口。
 - 认证失败事件仍未落库（`identity_audit.workspace_id` 为 NOT NULL，无法承载无归属事件），只写脱敏日志。
-- 界面上的组件全部是 `demo.*` 演示组件，**没有任何游戏业务数据**。
+- 界面上的组件全部是 `demo.*` 演示组件，**没有任何游戏业务数据**；
+  四种初始模板只放置已注册的演示组件，并在界面上原样展示「真实模块见阶段 04–05」的诚实说明。
+- 备份上限为 48 KiB：极端规模（30 页 × 40 组件且配置接近上限）的工作台**无法导出**，
+  会收到明确失败而不是损坏文件（见 ADR-0003 D11）。
 
 ## 0. 给 AI Agent 的执行指令
 
@@ -772,3 +814,6 @@ before_reporting_done:
 | 2026-10-18 | 阶段 02 复核修复 | 按集中复核意见修正五个真实缺陷：① 生命周期改为「先原子准入提交状态 → 副作用 → 收尾」，CAS 输家在任何可变副作用前退出，副作用失败以 200 + `pending/failure` 如实暴露并持久化待完成操作（新增 `0004_module_operations.sql`），可用同动作 + 同 revision 幂等重试；② 模块服务端口改为闭包绑定作用域 + `scheduled:own` 执行期门禁，平台管理端口不交给模块，初始化豁免需数据库核对；③ 前端按不含明文凭证的会话代际隔离私有快照/Host 实例/在途响应；④ Widget Host 以注册表为归属权威，配置迁移抛错降级到本实例，report 回调按 attempt 隔离；⑤ Registry 补同 Manifest 内 route 重复检测，handler/组件表改用 `Object.hasOwn`。取舍记录在 ADR-0002（D4 重写、新增 D13–D17）。规划正文未做删改。 |
 | 2026-10-18 | 阶段 02 二次复核修复 | 按第二轮集中复核修正三处：① 生命周期增加**独占执行认领**（`workspace_module_operation_claims`，token + 租约），`attempts` 在认领事务内递增，收尾/失败写入以 token 为条件，端口清理加 revision fence（`maxRevision`/`upToRevision`）——被取代的旧执行者在副作用前退出，且删不掉 restore 之后的新实例/新任务（新增迁移 `0005`）；② 状态读取改为**单一 LEFT JOIN 快照**（`readStatus`/`listStatuses`/门禁/变更后读取同源），并把「该模块没有待完成操作」写进准入 CAS 的条件，避免「enabled 且无 pending」的假快照与标记被静默吞掉；③ 会话作用域容器改为**整个会话期间保持挂载**（只按 generation 重挂），切换视图不再丢实例，仅切换/清除凭证才清空，并新增前端「只接受不小于已知 revision 的写响应」fence。ADR-0002 的 D4 再次重写并新增 D18–D20。规划正文未做删改。 |
 | 2026-10-18 | 阶段 02 三次复核修复（fence 传播） | 把执行归属传入模块调度视图：`ModuleScopedScheduler` 绑定本次执行的 `token` + 准入 revision，`schedule`/`cancel` **每次可变调用前**都校验执行权并把该 revision 作为上界；`schedule` 校验 `expectedRevision` 且以它作为新任务的 `createdRevision`（拒绝过期执行者、不把旧代提升为新代），`insert` 在途发生接管/restore 时按旧代撤销自己的插入（`deleteByKey({ upToRevision: 旧代 })`）；单 key 取消也加 revision fence（不再只保护 `cancelAllForModule`）。新增真实 D1 + deferred handler/store 回归：handler 跨租约被取代后其内部 cancel/schedule 均为 `execution_superseded` 且新代任务不被删除/冒充；insert 在途（写入前/写入后）两种交错的迟到清理。ADR-0002 D4 阶段 3 与 D15 同步更新。规划正文未做删改。 |
+| 2026-10-18 | 阶段 02 合并 + 阶段 03 实施 | 阶段 02 在 head `eec978a5`、CI run `39071393657` 两项 success、工作树干净且 mergeable CLEAN 的条件下标 ready 并 squash 合并（merge commit `b9acfb2`，`main` CI run `39071908808` 两项 job success），已删除已合并远程分支 `codex/phase02-modules`，Issues #2/#3/#4 由 PR 关联关闭，HUB-043/044/050 状态改为 `merged`。阶段 03（HUB-045 / 046 / 049 / 054）在分支 `codex/phase03-workbench` 实施，Issues #6–#9，以**草稿 PR #10** 提交复核（未合并、未部署）：新增迁移 `0006_workbench.sql`（`workspace_pages` / `widget_instances` / `widget_layouts` / `page_layout_revisions` / `workspace_workbench_state` / `workbench_operations` / `workbench_backups`）、`worker/modules/workbench/`（原子幂等事务、页面/实例/布局/模板服务、备份恢复、真实 D1 实例清理端口）、`worker/api/v1/me-workbench.ts`、`packages/shared/src/workbench-api.ts`（唯一布局校验实现 + 模板 + 备份契约）与前端工作台视图；依赖锁定 `react-grid-layout@2.3.0`。复核期修掉 7 个真实缺陷（幂等短路时机、merge 默认页唯一性、导入 slug 冲突、首次 bump 偏移、模板/导入模块门禁时间窗、`:id` 路由 404 语义不一致、前端拖动因漏透传 `onMouseDown` 而静默失效）。取舍与边界记录在 `docs/adr/0003-phase03-workbench.md`（含 D13.1）。规划正文未做删改。 |
+| 2026-10-18 | 阶段 03 集中复核加固 | 按集中复核修复六处语义缺口与两处安全静态分析问题，记录在 ADR-0003 D17：① 并发新增/复制的空位与「规划时看到的三个断点布局修订号 + 实例数」一起进认领条件，杜绝两个不同 operationId 各自选中同一空位都提交；② 导出改为**单 batch 四条 SELECT**的一致快照并反校验文档；③ 撤销点的「未消费校验 + 标记消费」与页面替换同事务，恢复要求 `expectedRevision`，重复消费返回 409；④ 导入确认新增 `previewToken`（绑定 document + mode + 工作台 revision + 相关模块门禁），任何变化 409 要求重新预览，不再以「执行时跳过实例」事后改变用户确认；⑤ 幂等键新增请求指纹（同 ID 换目标/正文/预期 revision → 409 且零写入），入口短路与事务冲突路径同判据；⑥ 实例清理用本次随机标记限定影响范围，0 个新增墓碑时零 revision 变更。新增迁移 `0007_workbench_hardening.sql` 只用 `CREATE ... IF NOT EXISTS`（两张配套表），因 SQLite 不支持 `ADD COLUMN IF NOT EXISTS` 而「迁移语句可逐条重放」是既定验收点。安全侧：移除 `Math.random` 兜底、把超线性回溯正则换成线性扫描；同时拆分三处认知复杂度超标函数（不改行为）。规划正文未做删改。 |
+| 2026-10-18 | 阶段 03 质量门修复 | SonarCloud 质量门此前失败（C Security Rating / D Reliability / 重复率 3.7%）。逐条修复并复测：① `Math.random` 兜底移除（只用 WebCrypto，否则抛错）；② `/^-+|-+$/g` 超线性回溯换成线性扫描 `stripEdgeDashes`；③ 测试里把变量拼进 `prepare()` 文本的两处（`COUNT(*) FROM ${table}`、`CREATE/DROP TRIGGER ${name}`）改为编译期常量表与字面量 SQL；④ CI 的 `uses:` 固定到完整 commit SHA；⑤ 脚本系统调用改绝对路径（不经 PATH 解析）；⑥ 默认 `sort()` 改显式 `localeCompare`；⑦ 7 个 worker spec 的 `opId`/`seedAuth`/`errorBodyOf` 与两个前端 spec 的夹具抽到公共模块。结果：质量门 **pass**（0 Security Hotspots、Duplication 2.9% ≤ 3%），GitHub Actions 三项 job 全部 success。规划正文未做删改。 |

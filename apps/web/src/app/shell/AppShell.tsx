@@ -24,10 +24,14 @@ import { applyModuleMutationToHost } from '../modules/apply-module-mutation';
 import { createModulesApi, type ModulesApi } from '../modules/modules-api';
 import { ModuleManagerPanel } from '../modules/ModuleManagerPanel';
 import { createSessionCredentialStore, useSession } from '../modules/session-credentials';
-import { useModuleState } from '../modules/use-module-state';
+import { moduleAccessFrom, useModuleState } from '../modules/use-module-state';
 import { builtinWidgetLookup } from '../widgets/component-registry';
 import { createWidgetInstanceStore } from '../widgets/instance-store';
 import { WidgetAcceptancePanel } from '../widgets/WidgetAcceptancePanel';
+import { createWorkbenchApi, type WorkbenchApi } from '../workbench/workbench-api';
+import { useWorkbench } from '../workbench/use-workbench';
+import { createWidgetLookup } from '../workbench/widget-lookup';
+import { WorkbenchView } from '../workbench/WorkbenchView';
 import { HealthPanel } from './HealthPanel';
 import { SessionCredentialPanel } from './SessionCredentialPanel';
 import { StageNotice } from './StageNotice';
@@ -73,23 +77,41 @@ function ShellRegion(props: { readonly children: React.ReactNode }) {
 
 interface SessionWorkbenchProps {
   readonly api: ModulesApi;
+  readonly workbenchApi: WorkbenchApi;
   readonly authenticated: boolean;
   readonly view: ShellView;
   readonly onRequestCredential: () => void;
 }
 
 /**
- * 会话作用域的模块/组件视图。
+ * 会话作用域的模块/组件/工作台视图。
  *
  * 生命周期：它**在整个会话期间保持挂载**，只在凭证代际变化时（外层 `key={generation}`）重挂。
- * 切到概览或会话凭证视图时只是不再渲染模块/组件面板 —— 实例存储与模块状态快照都还在，
- * 因此「添加实例并改配置 → 去概览 → 回来」不会丢东西；只有切换/清除凭证才会清空。
+ * 切到概览或会话凭证视图时只是不再渲染这些面板 —— 实例存储、模块状态快照
+ * 以及**工作台草稿**都还在，因此「改布局 → 去概览 → 回来」不会丢东西；
+ * 只有切换/清除凭证才会清空（这是阶段 03「切断点/切页面不丢草稿」的实现基础）。
  */
 function SessionWorkbench(props: SessionWorkbenchProps) {
   const [instanceStore] = useState(() => createWidgetInstanceStore({ lookup: builtinWidgetLookup }));
   const [instanceNotice, setInstanceNotice] = useState<string | null>(null);
   const moduleState = useModuleState(props.api, props.authenticated);
   const showsModuleViews = props.view === 'modules' || props.view === 'widgets';
+
+  /**
+   * 工作台状态**挂在这一层**（而不是 `WorkbenchView` 内部）：
+   * 视图只是不渲染，状态与草稿因此跨视图切换保留；凭证代际变化时随本组件一起被丢弃。
+   */
+  const widgetOf = useMemo(() => createWidgetLookup(moduleState.catalog), [moduleState.catalog]);
+  const moduleAccess = useMemo(
+    () => moduleAccessFrom(moduleState.catalog, moduleState.statuses),
+    [moduleState.catalog, moduleState.statuses],
+  );
+  const workbench = useWorkbench({
+    api: props.workbenchApi,
+    enabled: props.view === 'workbench',
+    widgetOf,
+    moduleAccess,
+  });
 
   /**
    * 模块变更后的 Host 侧联动（语义集中定义在 apply-module-mutation.ts）：
@@ -122,6 +144,10 @@ function SessionWorkbench(props: SessionWorkbenchProps) {
       {showsModuleViews && props.view === 'widgets' ? (
         <WidgetAcceptancePanel moduleState={moduleState} store={instanceStore} />
       ) : null}
+
+      {props.view === 'workbench' ? (
+        <WorkbenchView state={workbench} />
+      ) : null}
     </>
   );
 }
@@ -133,6 +159,10 @@ export function AppShell() {
 
   const api = useMemo(
     () => createModulesApi(createApiClient({ getToken: () => credentialStore.get() })),
+    [credentialStore],
+  );
+  const workbenchApi = useMemo(
+    () => createWorkbenchApi(createApiClient({ getToken: () => credentialStore.get() })),
     [credentialStore],
   );
 
@@ -148,7 +178,7 @@ export function AppShell() {
             <p className="brand__subtitle">个人导航与模块化工作台 · 国服优先</p>
           </div>
         </div>
-        <p className="shell__stage">阶段 02 · 模块系统（HUB-043 / 044 / 050）</p>
+        <p className="shell__stage">阶段 03 · 自定义工作台（HUB-045 / 046 / 049 / 054）</p>
       </header>
 
       <SystemBar
@@ -168,6 +198,7 @@ export function AppShell() {
             // 会话代际作为 key：凭证切换/清除时整棵会话子树同步重挂。
             key={session.generation}
             api={api}
+            workbenchApi={workbenchApi}
             authenticated={session.authenticated}
             view={view}
             onRequestCredential={() => {
