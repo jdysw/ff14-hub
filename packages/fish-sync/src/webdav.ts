@@ -94,7 +94,9 @@ export function createWebDavClient(options:{baseUrl:string;hubOrigin:string;user
     const committed=z.object(committedSchema.shape).parse({schemaVersion:1,state:'committed',region:pending.region,revision:pending.revision,
       transactionId:pending.transactionId,document:pending.document,documentHash:pending.documentHash,fieldRevisions:pending.fieldRevisions,previousDocument:pending.beforeDocument});
     await put('fish.sync.json',JSON.stringify(committed),pair.sidecar.etag);
-    return readPair();
+    const final=await readPair();
+    if(!final.sidecarFresh||final.metadata?.transactionId!==pending.transactionId)throw new DavConflict('提交后检测到其他写入，请读取当前状态重新合并');
+    return final;
   };
   const commit=async(document:FishDocument,region:'cn'|'global',expected:DavPair,touched:ReadonlySet<string>=new Set()):Promise<DavPair>=>{
     if(expected.metadata?.state==='prepared')throw new DavConflict('请先恢复上一次提交');

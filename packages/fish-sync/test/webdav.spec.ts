@@ -4,6 +4,7 @@ import { touchedSince,type FishDocument } from '../src/index';
 const original:FishDocument={completed:[1],pinned:[],alarmFish:[9],future:{preserve:true}};
 function server(){
   const files=new Map<string,{text:string;etag:string}>();let seq=0;let ignoreConditions=false;let failFish=false;let loseFishResponse=false;
+  let afterCommit:FishDocument|null=null;
   const requests:{path:string;method:string;headers:Headers}[]=[];
   const write=(path:string,text:string)=>{const row={text,etag:`"${String(++seq)}"`};files.set(path,row);return row;};
   const network:typeof fetch=async(input,init)=>{
@@ -16,11 +17,12 @@ function server(){
     if(method==='DELETE'){files.delete(path);return new Response(null,{status:204});}
     if(path==='fish.json'&&failFish){failFish=false;throw new Error('interrupted');}
     const stored=write(path,typeof init?.body==='string'?init.body:await new Response(init?.body).text());
+    if(path==='fish.sync.json'&&afterCommit!==null&&stored.text.includes('"state":"committed"')){write('fish.json',JSON.stringify(afterCommit));afterCommit=null;}
     if(path==='fish.json'&&loseFishResponse){loseFishResponse=false;throw new Error('response lost');}
     return new Response(null,{status:201,headers:{ETag:stored.etag}});
   };
   const client=()=>createWebDavClient({baseUrl:'https://dav.test/private/',hubOrigin:'https://hub.test',username:'dav-user',password:'client-only',fetch:network});
-  return {files,requests,write,client,ignore:()=>{ignoreConditions=true;},interrupt:()=>{failFish=true;},lose:()=>{loseFishResponse=true;}};
+  return {files,requests,write,client,ignore:()=>{ignoreConditions=true;},interrupt:()=>{failFish=true;},lose:()=>{loseFishResponse=true;},afterCommit:(document:FishDocument)=>{afterCommit=document;}};
 }
 describe('conditional dual-file protocol',()=>{
   it('creates and updates both files with strong conditions and preserves data plus independent field revisions',async()=>{
@@ -61,5 +63,10 @@ describe('conditional dual-file protocol',()=>{
     const s=server();s.files.set('fish.json',{text:JSON.stringify(original),etag:'W/"weak"'});
     await expect(s.client().readPair()).rejects.toThrow('强ETag');
     expect(s.requests.some((r)=>r.method==='PUT'&&r.path==='fish.json')).toBe(false);
+  });
+  it('does not report a coherent commit when a legacy writer changes fish after its PUT',async()=>{
+    const s=server();const c=s.client();const other={...original,completed:[88]};s.afterCommit(other);
+    await expect(c.commit(original,'cn',await c.readPair())).rejects.toBeInstanceOf(DavConflict);
+    const final=await c.readPair();expect(final.document).toEqual(other);expect(final.sidecarFresh).toBe(false);
   });
 });

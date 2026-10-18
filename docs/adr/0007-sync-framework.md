@@ -46,6 +46,8 @@ before fish write resumes only if its before ETag/hash still match. A lost respo
 can finalize when the after hash matches. Unexpected third-party edits stop with conflict, preserving
 both the pending intent and current file for manual re-merge; they are never overwritten to force
 recovery. Read order sidecar→fish→sidecar detects a cooperative concurrent prepare; up to three reads.
+After finalization, the SDK re-reads and requires a matching transaction/hash; a legacy fish-only write
+in the finalization gap is reported as conflict rather than a successful coherent commit.
 Sidecar hashes, version, shape and JSON budget are checked. Unsupported future metadata is rejected.
 
 This is recovery of the two DAV files, not a distributed transaction with D1/local storage. The live
