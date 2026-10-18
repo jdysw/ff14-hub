@@ -23,7 +23,7 @@ describe('私有 API 未授权一律 401', () => {
     expect(response.headers.get('WWW-Authenticate')).toContain('Bearer');
     const body = await readErrorBody(response);
     expect(body.code).toBe('unauthorized');
-    expect(Object.keys(body).sort()).toEqual(['code', 'message', 'requestId']);
+    expect(Object.keys(body).sort((a, b) => a.localeCompare(b))).toEqual(['code', 'message', 'requestId']);
   });
 
   it('方案或形状非法 → 401', async () => {

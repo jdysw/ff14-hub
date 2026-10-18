@@ -15,6 +15,7 @@ import {
   DEMO_WIDGET_IDS,
   MAX_PAGES_PER_WORKSPACE,
   WORKBENCH_MESSAGES,
+  workbenchSnapshotSchema,
   type WorkspacePage,
 } from '@ff14-hub/shared';
 import { SELF, env } from 'cloudflare:test';
@@ -464,5 +465,64 @@ describe('页面数量上限', () => {
     expect(await countRows('workspace_pages')).toBe(MAX_PAGES_PER_WORKSPACE);
     expect(await readWorkbenchOperationRow(auth.workspaceId, overflowId)).toBeNull();
     await expectDefaultPageInvariant(auth.workspaceId);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 快照的原子水位（第四轮复核；与导航同一协议，见 nav-snapshot-watermark.spec.ts）
+// ---------------------------------------------------------------------------
+
+/**
+ * `GET /me/workbench` 的**一致**快照读数：过共享契约后取出 `watermark` / `revision`。
+ *
+ * `watermark` 在契约里是**可选**字段（兼容阶段 04 之前的服务端），因此这里显式断言服务端
+ * **确实**给出了它，并把「没有水位」与「水位是 0」区分开——前者会让这条用例失败。
+ */
+async function readWorkbenchSnapshotState(
+  authorization: string,
+): Promise<{ readonly watermark: number; readonly revision: number }> {
+  const response = await SELF.fetch(URLS.workbench, { headers: { Authorization: authorization } });
+  const text = await response.text();
+  expect(response.status, text).toBe(200);
+  const parsed = workbenchSnapshotSchema.safeParse(JSON.parse(text) as unknown);
+  if (!parsed.success) {
+    throw new Error(`工作台快照不符合 workbenchSnapshotSchema：${JSON.stringify(parsed.error.issues)}`);
+  }
+  const { watermark, revision } = parsed.data;
+  expect(watermark, '服务端必须给出快照水位（与页面内容同批读出的 MAX(seq)）').toBeTypeOf('number');
+  if (watermark === undefined) {
+    throw new Error('工作台快照缺少 watermark');
+  }
+  return { watermark, revision };
+}
+
+describe('工作台快照的原子水位', () => {
+  it('建页 / 加组件之后 reload：watermark 与 revision 都前进（只增不减）', async () => {
+    const auth = await seedAuth();
+    const empty = await readWorkbenchSnapshotState(auth.authorization);
+    // 没有任何变更时 `COALESCE(MAX(seq), 0)` 给出 0，客户端因此拿得到可用的游标。
+    expect(empty.watermark).toBe(0);
+    expect(empty.revision).toBe(0);
+
+    const page = await createPageViaApi(auth.authorization, {
+      name: '水位页',
+      operationId: opId('wm-page'),
+    });
+    const afterPage = await readWorkbenchSnapshotState(auth.authorization);
+    expect(afterPage.watermark).toBeGreaterThan(empty.watermark);
+    expect(afterPage.revision).toBeGreaterThan(empty.revision);
+
+    await enableDemoModule(auth.authorization, DEMO_BASICS_MODULE_ID);
+    const afterModule = await readWorkbenchSnapshotState(auth.authorization);
+    expect(afterModule.watermark).toBeGreaterThan(afterPage.watermark);
+
+    // `POST /me/pages/:id/widgets`（新增组件会同时写实例 + 布局 + 布局修订号）。
+    await addWidgetViaApi(auth.authorization, page.page.id, {
+      widgetType: DEMO_COUNTER,
+      operationId: opId('wm-widget'),
+    });
+    const afterWidget = await readWorkbenchSnapshotState(auth.authorization);
+    expect(afterWidget.watermark).toBeGreaterThan(afterModule.watermark);
+    expect(afterWidget.revision).toBeGreaterThan(afterModule.revision);
   });
 });

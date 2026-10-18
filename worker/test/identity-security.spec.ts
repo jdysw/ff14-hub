@@ -27,7 +27,7 @@ async function expectErrorShape(response: Response, status: number, code: string
   expect(response.status).toBe(status);
   const body = await response.json<Record<string, unknown>>();
   expect(apiErrorBodySchema.safeParse(body).success).toBe(true);
-  expect(Object.keys(body).sort()).toEqual(['code', 'message', 'requestId']);
+  expect(Object.keys(body).sort((a, b) => a.localeCompare(b))).toEqual(['code', 'message', 'requestId']);
   expect(body['code']).toBe(code);
 }
 

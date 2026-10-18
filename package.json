@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "FF14 Hub — FF14 工具导航 + 个人游戏信息中心 + 可自定义模块化工作台（阶段 03：自定义工作台、布局编辑与配置备份）",
+  "description": "FF14 Hub — FF14 工具导航 + 个人游戏信息中心 + 可自定义模块化工作台（阶段 04：自由导航、内置导航/活动模块、PWA 与跨设备同步）",
   "license": "UNLICENSED",
   "packageManager": "pnpm@11.22.0",
   "engines": {
@@ -30,6 +30,7 @@
     "smoke:identity": "node scripts/e2e-identity.mjs",
     "e2e:phase02": "node scripts/e2e-phase02.mjs",
     "e2e:phase03": "node scripts/e2e-phase03.mjs",
+    "e2e:phase04": "node scripts/e2e-phase04.mjs",
     "verify": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
   },
   "devDependencies": {

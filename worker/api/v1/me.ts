@@ -20,6 +20,10 @@ import { methodNotAllowed } from '../../middleware/error-handler';
 import { noContent, noStoreJson } from '../../lib/response';
 import { registerMeModuleRoutes } from './me-modules';
 import { registerMeWorkbenchRoutes } from './me-workbench';
+// 阶段 04：自由导航（HUB-047/048/007/008/009）、个人活动（HUB-011）与同步水位（HUB-051）。
+import { registerMeNavigationRoutes } from './me-navigation';
+import { registerMeEventRoutes } from './me-events';
+import { registerMeSyncRoutes } from './me-sync';
 import type { AppBindings } from '../../types';
 
 export const meRoutes = new Hono<AppBindings>();
@@ -63,6 +67,15 @@ registerMeModuleRoutes(meRoutes);
 // 阶段 03 / HUB-045 · HUB-046 · HUB-049 · HUB-054：工作台、模板与备份恢复。
 // 同样挂在 deviceAuth 之后，因此作用域只可能来自认证结果。
 registerMeWorkbenchRoutes(meRoutes);
+
+// 阶段 04 / HUB-047 · HUB-048 · HUB-007 · HUB-008 · HUB-009：个人导航。
+registerMeNavigationRoutes(meRoutes);
+
+// 阶段 04 / HUB-011：个人活动（人工维护；公共来源活动在公开 /api/v1/events）。
+registerMeEventRoutes(meRoutes);
+
+// 阶段 04 / HUB-051：跨设备变更/水位（只读）。
+registerMeSyncRoutes(meRoutes);
 
 // 其他方法：结构化 405（同样先经过认证）。
 // 这里列出 /me 子树实际提供过的方法；具体路径仍按注册的处理器优先匹配。

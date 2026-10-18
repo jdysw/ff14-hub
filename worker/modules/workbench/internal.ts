@@ -83,6 +83,23 @@ const INSTANCE_COLUMNS =
   'wi.id, wi.page_id, wi.module_id, wi.widget_type, wi.config_json, wi.config_version, ' +
   'wi.is_hidden, wi.revision, wi.created_revision, wi.created_at, wi.updated_at';
 
+/** 活跃页面列表（快照与列表接口共用**同一份** SQL 文本，避免两处排序/过滤漂移）。 */
+const ACTIVE_PAGES_SQL =
+  `SELECT ${PAGE_COLUMNS} FROM workspace_pages
+    WHERE workspace_id = ? AND deleted_at IS NULL
+    ORDER BY sort_order ASC, created_at ASC`;
+/** 工作空间级工作台修订号（行缺失等价于 0）。 */
+const WORKBENCH_REVISION_SQL = 'SELECT revision FROM workspace_workbench_state WHERE workspace_id = ?';
+/**
+ * 本工作空间变更流的**当前水位**（`MAX(seq)`；没有任何变更时为 0）。
+ *
+ * 与 `modules/sync/service.ts` 的 `WORKSPACE_WATERMARK_SQL`（reset 协议的 `meta.watermark`）
+ * 是同一个事实的第二个读取点；这里带 `COALESCE` 是因为快照的 `watermark` 若存在就必须是
+ * 非负整数（空工作空间 = 0），不接受 NULL。
+ */
+const WORKSPACE_MAX_SEQ_SQL =
+  'SELECT COALESCE(MAX(seq), 0) AS max_seq FROM workspace_changes WHERE workspace_id = ?';
+
 export function toPage(row: PageRow): WorkspacePage {
   return {
     id: row.id,
@@ -554,15 +571,48 @@ export function bumpWorkbenchRevisionStatements(input: {
 // ---------------------------------------------------------------------------
 
 export async function readActivePages(db: D1Database, workspaceId: string): Promise<PageRow[]> {
-  const result = await db
-    .prepare(
-      `SELECT ${PAGE_COLUMNS} FROM workspace_pages
-        WHERE workspace_id = ? AND deleted_at IS NULL
-        ORDER BY sort_order ASC, created_at ASC`,
-    )
-    .bind(workspaceId)
-    .all<PageRow>();
+  const result = await db.prepare(ACTIVE_PAGES_SQL).bind(workspaceId).all<PageRow>();
   return result.results;
+}
+
+/** 工作台快照的一致读取结果（页面 + 修订号 + 水位，全部来自同一批）。 */
+export interface WorkbenchSnapshotRead {
+  readonly pages: PageRow[];
+  readonly revision: number;
+  readonly watermark: number;
+}
+
+/**
+ * 读取 `GET /me/workbench` 快照所依据的**一致**状态：活跃页面 + 工作台修订号 + 变更流水位。
+ *
+ * 三条 SELECT 放进**同一个 `db.batch`**（D1 的 batch = 单个事务，因此只有一个观察时刻）：
+ *   - 「页面列表」与「修订号」此前是两次独立读，并发写入下可以组合出「新页面 + 旧 revision」；
+ *   - `watermark`（`workspace_changes` 的 `MAX(seq)`）必须与页面内容同批，否则客户端会拿着
+ *     「内容已更新」的快照配「更新之前的水位」——若这两次观察之间发生了
+ *     `delete(W+1) → 显式恢复(W+2)`，客户端就会把 W+1 的历史 `delete` 应用到已恢复的内容上
+ *     （导航快照的同一竞态，见 `modules/nav/service.ts` 的 `readSnapshotBatch`）。
+ *
+ * 原子性论证：迁移 0011 的 `AFTER INSERT/UPDATE` 触发器把变更行写进 `workspace_changes`，
+ * 与业务写入同事务提交；本批既然能看到页面的最新状态，产生该状态的变更行也必然可见，
+ * 且 `seq` 是只增不减的 AUTOINCREMENT 主键，故 `MAX(seq) ≥ 快照里任何一行的最新变更 seq`。
+ */
+export async function readWorkbenchSnapshotBatch(
+  db: D1Database,
+  workspaceId: string,
+): Promise<WorkbenchSnapshotRead> {
+  const results = await db.batch([
+    db.prepare(ACTIVE_PAGES_SQL).bind(workspaceId),
+    db.prepare(WORKBENCH_REVISION_SQL).bind(workspaceId),
+    db.prepare(WORKSPACE_MAX_SEQ_SQL).bind(workspaceId),
+  ]);
+  const revisionRow = ((results[1]?.results ?? []) as { revision: number }[])[0];
+  const watermarkRow = ((results[2]?.results ?? []) as { max_seq: number }[])[0];
+  return {
+    pages: (results[0]?.results ?? []) as PageRow[],
+    revision: revisionRow?.revision ?? 0,
+    // `COALESCE` 保证这一行一定存在；`?? 0` 只是防御（空工作空间的水位是 0）。
+    watermark: watermarkRow?.max_seq ?? 0,
+  };
 }
 
 export async function readPageRow(
@@ -722,7 +772,7 @@ export async function readPlanningSnapshot(
 
 export async function readWorkbenchRevision(db: D1Database, workspaceId: string): Promise<number> {
   const row = await db
-    .prepare('SELECT revision FROM workspace_workbench_state WHERE workspace_id = ?')
+    .prepare(WORKBENCH_REVISION_SQL)
     .bind(workspaceId)
     .first<{ revision: number }>();
   return row?.revision ?? 0;

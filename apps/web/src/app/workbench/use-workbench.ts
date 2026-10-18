@@ -240,6 +240,35 @@ export interface UseWorkbenchOptions {
   readonly moduleAccess: (moduleId: string) => ModuleAccess;
 }
 
+/**
+ * 「同步未完成」写闸门 —— 本文件与跨设备同步**唯一**的接触点。
+ *
+ * 为什么需要它：工作台的**全局 CAS 写**（保存整页布局 / 恢复备份 / 应用模板）提交的是
+ * 「我看到的整页或整份集合」。跨设备同步还没确认完成（权威快照未发布，或还有变更页没取完）
+ * 时提交，等于用一份可能不完整的本地集合覆盖服务端；**也绝不能**改用服务端最新 revision
+ * 提交——那等于按一个本地并未见过的修订号批准写入。
+ *
+ * 为什么状态由外部**注册**：轮询与 `syncing` 的唯一持有者是 `WorkbenchView`
+ * （它同时持有 `syncChangesApi`），而写入实现全在这里。因此本文件只暴露这一个入口，
+ * 不重复实现第二套同步状态；未注册时默认为「可以写」（阶段 03 的行为完全不变）。
+ */
+let workbenchSyncGate: () => boolean = () => false;
+
+/** 注册写闸门；返回注销函数（视图卸载时恢复为「可以写」）。 */
+export function setWorkbenchSyncGate(gate: () => boolean): () => void {
+  workbenchSyncGate = gate;
+  return () => {
+    if (workbenchSyncGate === gate) {
+      workbenchSyncGate = () => false;
+    }
+  };
+}
+
+/** 被写闸门拒绝时的可见说明（绝不静默丢弃用户的操作）。 */
+export const WORKBENCH_SYNCING_NOTICE =
+  '正在同步其它设备的改动：在权威快照发布并确认没有更多变更之前，整体写入（保存布局 / 恢复备份 / 应用模板）会被拒绝，' +
+  '以免用一份可能不完整的本地集合覆盖服务端。组件配置、隐藏、删除组件等行级操作不受影响。';
+
 interface WriteOutcome<T> {
   readonly ok: boolean;
   readonly stale: boolean;
@@ -263,6 +292,23 @@ export function useWorkbench(options: UseWorkbenchOptions): WorkbenchController 
     ref.current = next;
     setState(next);
   }, []);
+
+  /**
+   * **同步未完成**时的全局 CAS 写闸门（见 `setWorkbenchSyncGate`）：拒绝提交并给出可见提示。
+   *
+   * 只拦「整体写入」（保存整页布局 / 恢复备份 / 应用模板）：它们提交的是工作空间级
+   * `expectedRevision` 或整页矩形集合。行级写（组件配置 / 隐藏 / 删除组件 / 页面改名等）
+   * 用的是**行修订** CAS，与集合完整性无关，因此不受影响。
+   *
+   * 返回 `true` 表示「已拒绝」——调用方必须立刻返回，什么都不发。
+   */
+  const rejectGlobalWriteWhileSyncing = useCallback((): boolean => {
+    if (!workbenchSyncGate()) {
+      return false;
+    }
+    update((current) => ({ ...current, notice: WORKBENCH_SYNCING_NOTICE }));
+    return true;
+  }, [update]);
 
   const mountedRef = useRef(true);
   const loadedRef = useRef(false);
@@ -535,6 +581,10 @@ export function useWorkbench(options: UseWorkbenchOptions): WorkbenchController 
   // -------------------------------------------------------------------------
 
   const saveActive = useCallback(async (): Promise<SaveOutcome> => {
+    // 同步未完成时拒绝**整体写**（见 `setWorkbenchSyncGate`）：草稿保留，用户可稍后重试。
+    if (rejectGlobalWriteWhileSyncing()) {
+      return { ok: false, reason: 'stale' };
+    }
     const current = ref.current;
     const pageId = current.activePageId;
     if (pageId === null) {
@@ -629,7 +679,7 @@ export function useWorkbench(options: UseWorkbenchOptions): WorkbenchController 
       };
     });
     return { ok: true, saved: true };
-  }, [api, constraintOfInstance, update]);
+  }, [api, constraintOfInstance, rejectGlobalWriteWhileSyncing, update]);
 
   const save = useCallback(async (): Promise<void> => {
     await saveActive();
@@ -1248,6 +1298,10 @@ export function useWorkbench(options: UseWorkbenchOptions): WorkbenchController 
       readonly mode: 'new_page' | 'replace_page' | 'reset_workspace';
       readonly pageName?: string;
     }): Promise<void> => {
+      // 模板会整体重建页面 / 实例 / 布局：属于全局写，同步未完成时拒绝。
+      if (rejectGlobalWriteWhileSyncing()) {
+        return;
+      }
       const current = ref.current;
       const page = current.activePageId === null
         ? undefined
@@ -1282,7 +1336,7 @@ export function useWorkbench(options: UseWorkbenchOptions): WorkbenchController 
         error: null,
       }));
     },
-    [afterPageWrite, api, performWrite, update],
+    [afterPageWrite, api, performWrite, rejectGlobalWriteWhileSyncing, update],
   );
 
   // -------------------------------------------------------------------------
@@ -1428,6 +1482,13 @@ export function useWorkbench(options: UseWorkbenchOptions): WorkbenchController 
   const restoreBackup = useCallback(
     async (backupId: string): Promise<void> => {
       /**
+       * 恢复是**全局 CAS 写**（`expectedRevision` = 整份工作台 revision）：
+       * 同步未完成时拒绝，绝不用一份可能不完整的本地状态去恢复。
+       */
+      if (rejectGlobalWriteWhileSyncing()) {
+        return;
+      }
+      /**
        * 恢复的准入条件：**用户点击「恢复」时**的工作台 revision。
        *
        * 拿不到（还没有快照）时先向服务端重新读一次，而不是用猜测值提交——
@@ -1468,7 +1529,7 @@ export function useWorkbench(options: UseWorkbenchOptions): WorkbenchController 
         error: null,
       }));
     },
-    [afterPageWrite, api, loadBackups, loadSnapshot, performWrite, update],
+    [afterPageWrite, api, loadBackups, loadSnapshot, performWrite, rejectGlobalWriteWhileSyncing, update],
   );
 
   // -------------------------------------------------------------------------

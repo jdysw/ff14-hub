@@ -8,6 +8,9 @@
  * - 阶段 02 已实现：`GET /modules/catalog`（公开目录）、
  *   `GET/PATCH /me/modules`、`POST /me/modules/:id/purge`（**显式拒绝**，501）。
  * - 身份端点的请求/响应形状见 `./identity-api.ts`；模块端点的形状见 `./module-api.ts`。
+ * - 阶段 03 已实现：工作台页面/实例/布局/模板/备份与导入预览（形状见 `./workbench-api.ts`）。
+ * - 阶段 04 已实现：自由导航（形状见 `./nav-api.ts`）、手工活动（`./events-api.ts`）
+ *   与跨设备变更水位（`./sync-api.ts`）。
  * - 服务端返回体不得包含 token_hash / recovery_hash 等摘要，也不得包含 environment secrets。
  */
 import { z } from 'zod';
@@ -54,6 +57,34 @@ export const API_ROUTES = {
   meWorkbenchBackupById: `${API_V1_PREFIX}/me/workbench/backup/:id`,
   meWorkbenchImportPreview: `${API_V1_PREFIX}/me/workbench/import/preview`,
   meWorkbenchImportApply: `${API_V1_PREFIX}/me/workbench/import/apply`,
+  // ---------------------------------------------------------------------------
+  // 阶段 04（HUB-007 / 008 / 009 / 011 / 047 / 048 / 051）
+  // ---------------------------------------------------------------------------
+  /** 公开推荐目录（匿名只读；系统目录，用户不能通过任何端点修改它）。 */
+  navCatalog: `${API_V1_PREFIX}/navigation/catalog`,
+  /** 本工作空间的导航快照（链接 + 分组 + 成员关系 + revision）。 */
+  meNavigation: `${API_V1_PREFIX}/me/navigation`,
+  /** 服务端筛选/排序视图（与前端共用同一份纯函数，避免漂移）。 */
+  meNavigationLinks: `${API_V1_PREFIX}/me/navigation/links`,
+  meNavigationLinkById: `${API_V1_PREFIX}/me/navigation/links/:id`,
+  meNavigationLinksReorder: `${API_V1_PREFIX}/me/navigation/links/reorder`,
+  meNavigationLinkGroups: `${API_V1_PREFIX}/me/navigation/links/:id/groups`,
+  meNavigationGroups: `${API_V1_PREFIX}/me/navigation/groups`,
+  meNavigationGroupById: `${API_V1_PREFIX}/me/navigation/groups/:id`,
+  meNavigationGroupsReorder: `${API_V1_PREFIX}/me/navigation/groups/reorder`,
+  /** 从推荐目录导入（预览与落库分离；目录升级 ≠ 再导入）。 */
+  meNavigationImportPreview: `${API_V1_PREFIX}/me/navigation/import/preview`,
+  meNavigationImportApply: `${API_V1_PREFIX}/me/navigation/import/apply`,
+  meNavigationCatalogImport: `${API_V1_PREFIX}/me/navigation/catalog/import`,
+  /** 个人导航导出（可 roundtrip；不含任何凭证）。 */
+  meNavigationExport: `${API_V1_PREFIX}/me/navigation/export`,
+  /** 公开活动列表（只含公共来源行，不含个人活动）。 */
+  publicEvents: `${API_V1_PREFIX}/events`,
+  /** 个人活动（设备鉴权）。 */
+  meEvents: `${API_V1_PREFIX}/me/events`,
+  meEventById: `${API_V1_PREFIX}/me/events/:id`,
+  /** 跨设备变更/水位（认证）。 */
+  meSyncChanges: `${API_V1_PREFIX}/me/sync/changes`,
 } as const;
 
 /** 服务标识与版本，用于健康检查与 UA 判定。 */

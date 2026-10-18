@@ -21,16 +21,24 @@ import { logLine } from '../lib/redact';
 import type { AppBindings, AppContext } from '../types';
 
 /** 构造对外错误响应体。这是唯一允许的响应形状。 */
-export function errorBody(code: ApiErrorCode, message: string, requestId: string): ApiErrorBody {
-  return { code, message, requestId };
+export function errorBody(code: ApiErrorCode, message: string, requestId: string, details?: unknown): ApiErrorBody {
+  // 只有显式提供了 details 才带上该键：阶段 01–03 的既有响应形状因此保持不变。
+  return details === undefined ? { code, message, requestId } : { code, message, requestId, details };
 }
 
 /**
  * 构造错误响应。刻意手工构造 Response，以便：
  * 1) 精确控制状态码，不依赖 Hono 的状态码字面量类型；
  * 2) 统一附加 requestId 头与 401 的 WWW-Authenticate。
+ *
+ * `details`（阶段 04 起）只用于结构化冲突等**可安全回显**的细节，省略时响应体不含该键。
  */
-export function errorResponse(code: ApiErrorCode, message: string, requestId: string): Response {
+export function errorResponse(
+  code: ApiErrorCode,
+  message: string,
+  requestId: string,
+  details?: unknown,
+): Response {
   const headers = new Headers({
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
@@ -40,7 +48,7 @@ export function errorResponse(code: ApiErrorCode, message: string, requestId: st
     // 声明认证方案，但不透露任何关于凭证是否存在的信号。
     headers.set('WWW-Authenticate', 'Bearer realm="ff14-hub"');
   }
-  return new Response(JSON.stringify(errorBody(code, message, requestId)), {
+  return new Response(JSON.stringify(errorBody(code, message, requestId, details)), {
     status: HTTP_STATUS_BY_ERROR_CODE[code],
     headers,
   });
@@ -89,7 +97,7 @@ export function registerErrorHandlers(app: Hono<AppBindings>): void {
           }),
         );
       }
-      return errorResponse(error.code, error.message, requestId);
+      return errorResponse(error.code, error.message, requestId, error.details);
     }
 
     // 未预期异常：只记录脱敏后的名称与消息，绝不记录请求体或凭证。

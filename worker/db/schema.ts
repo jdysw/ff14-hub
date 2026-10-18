@@ -10,6 +10,7 @@
  *   不依赖 ORM 层的 `references()`。
  */
 import type {
+  CatalogRegion,
   IdentityAuditEvent,
   LayoutBreakpoint,
   ModulePersistedStatus,
@@ -421,6 +422,308 @@ export const workbenchBackups = sqliteTable(
   (table) => [index('idx_workbench_backups_workspace').on(table.workspaceId, table.createdAt)],
 );
 
+/**
+ * 系统推荐目录（HUB-047，由 migrations/0008_navigation.sql 建立）。
+ *
+ * 只读参考数据：只有 `worker/modules/nav/catalog.ts` 的版本化种子会写它，
+ * 没有任何用户 API 能修改；因此它**没有** `workspace_id`——目录不属于任何工作空间。
+ * `source_version` 单调递增（种子版本更大时才覆盖，永不降级）；
+ * `source_url` + `verified_at` 是「这条推荐来自哪里、何时核对过」的留痕。
+ * `region` 用 `CatalogRegion`（含 `both`）：目录条目可以同时适用于国服与国际服；
+ * 这与 `workspace_nav_links` 的 personal 副本一致，而 `events` 刻意不含 `both`。
+ * `verification_status` 只表示来源条目本身是否核对过，**不代表**网站当前在线状态
+ * （在线健康状态是 `workspace_nav_links.health`）。
+ */
+export const navCatalogLinks = sqliteTable('nav_catalog_links', {
+  id: text('id').primaryKey(),
+  sourceVersion: integer('source_version').notNull(),
+  title: text('title').notNull(),
+  url: text('url').notNull(),
+  description: text('description').notNull(),
+  category: text('category').notNull(),
+  tagsJson: text('tags_json').notNull(),
+  aliasesJson: text('aliases_json').notNull(),
+  icon: text('icon').notNull(),
+  openMode: text('open_mode').notNull(),
+  region: text('region').$type<CatalogRegion>().notNull(),
+  sortOrder: integer('sort_order').notNull(),
+  sourceUrl: text('source_url').notNull(),
+  sourceName: text('source_name').notNull(),
+  verifiedAt: integer('verified_at').notNull(),
+  verificationStatus: text('verification_status').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+/**
+ * 个人链接副本（HUB-048，由 migrations/0008_navigation.sql 建立）。
+ *
+ * 导入即**完全独立**：目录升级绝不覆盖用户修改，也绝不复活墓碑。
+ * `source_catalog_id` 是**弱关联**（刻意无外键）：目录条目被下线/改名后副本必须继续存在；
+ * 「至多一条活跃副本」由部分唯一索引 `idx_workspace_nav_links_catalog_active`
+ * （`source_catalog_id IS NOT NULL AND deleted_at IS NULL`）在数据库层保证，
+ * 墓碑行不受约束，因此「删除后再次显式导入」可以复用同一行。
+ * `health` 里没有 `blocked`：403 只能映射为 `maybe_blocked`，本阶段不做探测（默认 `unknown`）。
+ * 工作空间回溯（规划 5.1）：带 NOT NULL 的 `workspace_id` 外键，所有查询只取认证得到的工作空间。
+ */
+export const workspaceNavLinks = sqliteTable(
+  'workspace_nav_links',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    /** 弱关联：刻意无外键（目录条目可以下线；个人副本必须能活下去）。 */
+    sourceCatalogId: text('source_catalog_id'),
+    importedSourceVersion: integer('imported_source_version'),
+    title: text('title').notNull(),
+    url: text('url').notNull(),
+    description: text('description').notNull(),
+    tagsJson: text('tags_json').notNull(),
+    aliasesJson: text('aliases_json').notNull(),
+    icon: text('icon').notNull(),
+    openMode: text('open_mode').notNull(),
+    region: text('region').$type<CatalogRegion>().notNull(),
+    /** `active` / `archived` 的持久状态（CHECK 在迁移里，这里不重复声明）。 */
+    status: text('status').notNull(),
+    isFavorite: integer('is_favorite').notNull(),
+    sortOrder: integer('sort_order').notNull(),
+    health: text('health').notNull(),
+    healthCheckedAt: integer('health_checked_at'),
+    /** 乐观并发与同步水位：任何写入都必须 bump 它（ADR-0004 D7）。 */
+    revision: integer('revision').notNull(),
+    /** 墓碑：跨设备同步删除；本阶段不做 GC。 */
+    deletedAt: integer('deleted_at'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [
+    // 唯一性约束（不是性能索引）：数据库级的「每目录条目每工作空间至多一条活跃副本」。
+    uniqueIndex('idx_workspace_nav_links_catalog_active')
+      .on(table.workspaceId, table.sourceCatalogId)
+      .where(sql`source_catalog_id IS NOT NULL AND deleted_at IS NULL`),
+  ],
+);
+
+/**
+ * 个人分类 / 分组（HUB-048，由 migrations/0008_navigation.sql 建立）。
+ *
+ * 「分类」与「分组」是同一个用户产出物（ADR-0004 D2）：目录条目自带的 `category`
+ * 只在导入时用于创建/关联同名分组，此后完全由用户控制。
+ * 主键是稳定 ID，名称只作为可编辑字段——因此名称可以重复、可以随时改（没有名称唯一约束）。
+ * 工作空间回溯：带 NOT NULL 的 `workspace_id` 外键。
+ */
+export const workspaceNavGroups = sqliteTable('workspace_nav_groups', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id')
+    .notNull()
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  sortOrder: integer('sort_order').notNull(),
+  revision: integer('revision').notNull(),
+  deletedAt: integer('deleted_at'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+/**
+ * 链接 × 分组（多分组 + 组内顺序，HUB-048，由 migrations/0008_navigation.sql 建立）。
+ *
+ * 主键 `(link_id, group_id)`：同一对关系只有一行，删除是墓碑，因此「再次加入同一分组」
+ * 复用同一行而不产生重复。
+ * 工作空间回溯：`workspace_id` 是冗余列，同时外键到 `workspaces`；
+ * 它**不替代**服务层的三者一致性校验——`link_id` 与 `group_id` 各自的外键
+ * 无法证明这两行与本行的 `workspace_id` 相同，因此服务层必须在同一事务内校验三者相等。
+ */
+export const workspaceNavMemberships = sqliteTable(
+  'workspace_nav_memberships',
+  {
+    linkId: text('link_id')
+      .notNull()
+      .references(() => workspaceNavLinks.id, { onDelete: 'cascade' }),
+    groupId: text('group_id')
+      .notNull()
+      .references(() => workspaceNavGroups.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    sortOrder: integer('sort_order').notNull(),
+    deletedAt: integer('deleted_at'),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.linkId, table.groupId] })],
+);
+
+/** 工作空间级导航修订号（新鲜度令牌）。行缺失等价于 `revision = 0`（与工作台同构）。 */
+export const workspaceNavState = sqliteTable('workspace_nav_state', {
+  workspaceId: text('workspace_id')
+    .notNull()
+    .primaryKey()
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
+  revision: integer('revision').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+/**
+ * 导航写入的幂等 operationId 结果留痕（由 migrations/0008_navigation.sql 建立）。
+ *
+ * 与 `workbenchOperations` 是**同一套算法**的两份账本：算法只有一份实现
+ * （`worker/modules/idempotency/ledger.ts`），导航只是换成这张表
+ * （见 ADR-0004 D11）。拆表的理由是 kind 命名空间不同——混在一张表里会让
+ * 「同一 operationId 换意图」的判定跨域误伤。
+ * `attemptToken` 是本次尝试的随机标记，收尾后置空；守卫语句据此区分「本次尝试」与「重放」。
+ */
+export const navOperations = sqliteTable(
+  'nav_operations',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    operationId: text('operation_id').notNull(),
+    kind: text('kind').notNull(),
+    resultJson: text('result_json').notNull(),
+    createdAt: integer('created_at').notNull(),
+    attemptToken: text('attempt_token'),
+  },
+  (table) => [primaryKey({ columns: [table.workspaceId, table.operationId] })],
+);
+
+/**
+ * 导航幂等记录的**请求意图指纹**（由 migrations/0008_navigation.sql 建立）。
+ *
+ * 单独一张表的原因与 `workbenchOperationIntents` 相同：SQLite 不支持
+ * `ADD COLUMN IF NOT EXISTS`，给既有表加列会破坏「迁移语句可逐条重放」的验收点。
+ * 两份记录在同一个 batch 里写入，因此不存在「有结果没指纹」的持久半状态。
+ */
+export const navOperationIntents = sqliteTable(
+  'nav_operation_intents',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    operationId: text('operation_id').notNull(),
+    kind: text('kind').notNull(),
+    requestFingerprint: text('request_fingerprint').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.workspaceId, table.operationId] })],
+);
+
+/**
+ * 个人活动写入的幂等账本（HUB-011，由 migrations/0010_event_operations.sql 建立）。
+ *
+ * 与 `navOperations` / `workbenchOperations` 是**同一套算法、不同的账本表**：
+ * 拆表是为了让 `kind` 命名空间互不干扰（同一 operationId 换意图的判定不会跨域误伤），
+ * 算法实现只有 `worker/modules/idempotency/ledger.ts` 一份。
+ */
+export const eventOperations = sqliteTable(
+  'event_operations',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    operationId: text('operation_id').notNull(),
+    kind: text('kind').notNull(),
+    resultJson: text('result_json').notNull(),
+    createdAt: integer('created_at').notNull(),
+    attemptToken: text('attempt_token'),
+  },
+  (table) => [primaryKey({ columns: [table.workspaceId, table.operationId] })],
+);
+
+/** 活动幂等记录的请求意图指纹（由 migrations/0010_event_operations.sql 建立）。 */
+export const eventOperationIntents = sqliteTable(
+  'event_operation_intents',
+  {
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    operationId: text('operation_id').notNull(),
+    kind: text('kind').notNull(),
+    requestFingerprint: text('request_fingerprint').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.workspaceId, table.operationId] })],
+);
+
+/**
+ * 公共来源活动（HUB-011，由 migrations/0009_events.sql 建立）。
+ *
+ * **只读参考数据**，刻意**不带** `workspace_id`：它不属于任何工作空间，
+ * 公共接口只返回这张表的行，个人行（`workspaceEvents`）永不进入公共响应。
+ * `region` 只允许 `cn` / `global`：活动是分区服的事实（INV-08），
+ * 「通用活动」不是合法状态——宁可分别录两条，也不要一个含糊的 `both`。
+ * 本阶段这张表是**空表**：不捆绑任何未经核实的数据（ADR-0004 D9）。
+ */
+export const events = sqliteTable('events', {
+  id: text('id').primaryKey(),
+  region: text('region').$type<Region>().notNull(),
+  title: text('title').notNull(),
+  description: text('description').notNull(),
+  /** UTC 毫秒；显示时区由客户端决定（国服默认 Asia/Shanghai）。 */
+  startsAt: integer('starts_at').notNull(),
+  endsAt: integer('ends_at').notNull(),
+  sourceUrl: text('source_url').notNull(),
+  sourceName: text('source_name').notNull(),
+  verificationStatus: text('verification_status').notNull(),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+/**
+ * 个人活动（HUB-011，由 migrations/0009_events.sql 建立）。
+ *
+ * 与公共表分开：公共 API 只读 `events`，个人行永不泄露。
+ * `source_url` 可为 NULL（用户自己记的活动可能没有来源）；一旦填写就必须通过 https 校验。
+ * `region` 同样只允许 `cn` / `global`：个人活动不接受含糊的 `both`。
+ * `created_by_device` 在设备被删除时置空（保留活动本身），与审计表的做法一致。
+ * 工作空间回溯：带 NOT NULL 的 `workspace_id` 外键；删除工作空间时级联清理。
+ */
+export const workspaceEvents = sqliteTable('workspace_events', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id')
+    .notNull()
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  description: text('description').notNull(),
+  region: text('region').$type<Region>().notNull(),
+  startsAt: integer('starts_at').notNull(),
+  endsAt: integer('ends_at').notNull(),
+  sourceUrl: text('source_url'),
+  verificationStatus: text('verification_status').notNull(),
+  revision: integer('revision').notNull(),
+  deletedAt: integer('deleted_at'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  createdByDevice: text('created_by_device').references(() => devices.id, { onDelete: 'set null' }),
+});
+
+/**
+ * 跨设备同步的**单调变更流**（HUB-051 修正，由 migrations/0011_change_journal.sql 建立）。
+ *
+ * `seq` 是 AUTOINCREMENT 主键：严格递增、不随行删除而回退、与时钟无关。
+ * 它是同步游标与「墓碑/恢复先后」的**唯一**依据——`updated_at` 只作展示，
+ * 因为同一毫秒内完全可能既有删除又有恢复，时间无法表达先后。
+ *
+ * 本表的写入由**触发器**完成（不是各业务代码手写日志）：模块卸载清理、模板重置、
+ * 备份导入、墓碑化等所有既有写路径都在同一事务里自动落一条记录。
+ * 本文件只是类型化镜像（不参与建表，也不参与触发器定义）。
+ */
+export const workspaceChanges = sqliteTable(
+  'workspace_changes',
+  {
+    seq: integer('seq').primaryKey({ autoIncrement: true }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    entityType: text('entity_type').notNull(),
+    entityId: text('entity_id').notNull(),
+    op: text('op').notNull(),
+    revision: integer('revision').notNull(),
+    changedAt: integer('changed_at').notNull(),
+  },
+  (table) => [index('idx_workspace_changes_workspace_seq').on(table.workspaceId, table.seq)],
+);
+
 /** 全部表的集合，供 drizzle 客户端与测试使用。 */
 export const schema = {
   workspaces,
@@ -442,4 +745,16 @@ export const schema = {
   workbenchOperationIntents,
   widgetCleanupMarks,
   workbenchBackups,
+  // 阶段 04：自由导航（0008）与手工活动（0009）。
+  navCatalogLinks,
+  workspaceNavLinks,
+  workspaceNavGroups,
+  workspaceNavMemberships,
+  workspaceNavState,
+  navOperations,
+  navOperationIntents,
+  eventOperations,
+  eventOperationIntents,
+  events,
+  workspaceEvents,
 } as const;

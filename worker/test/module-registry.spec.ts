@@ -11,6 +11,7 @@ import {
   DEMO_FAULT_MODES,
   DEMO_SOLO_MODULE_ID,
   DEMO_WIDGET_IDS,
+  MODULE_CAPABILITIES,
   findWidgetConfigContract,
 } from '@ff14-hub/shared';
 import { describe, expect, it } from 'vitest';
@@ -136,10 +137,32 @@ describe('内置演示模块', () => {
     }
   });
 
-  it('演示模块不申请任何能力（不为演示放宽权限面）', () => {
+  /**
+   * 能力是**权限面**，因此两类模块的要求相反但同样严格：
+   * - 演示模块：一律不申请能力（不为演示放宽权限面）。
+   * - 真实业务模块（阶段 04 起）：必须**显式**声明它需要的能力，且必须落在白名单内，
+   *   并且注册表已经把它注册进去（注册表会校验「声明 ⊆ 授予」，缺一个就构建失败）。
+   * 这条用例在阶段 04 之前断言的是「所有内置模块都不申请能力」；现在内置模块里
+   * 既有演示模块也有真实模块，因此判定必须按类别分开——而不是放宽成"随便申请"。
+   */
+  it('演示模块不申请任何能力；真实模块声明的能力必须在白名单内且已注册', () => {
+    const demoModuleIds: readonly string[] = [DEMO_BASICS_MODULE_ID, DEMO_SOLO_MODULE_ID];
+    let realModuleCount = 0;
     for (const module of BUILTIN_MODULE_MANIFESTS) {
-      expect(module.capabilities).toEqual([]);
+      if (demoModuleIds.includes(module.id)) {
+        expect(module.capabilities, `演示模块不得申请能力：${module.id}`).toEqual([]);
+        continue;
+      }
+      realModuleCount += 1;
+      expect(module.capabilities.length, `真实模块必须显式声明能力：${module.id}`).toBeGreaterThan(0);
+      for (const capability of module.capabilities) {
+        expect(MODULE_CAPABILITIES, `能力未在白名单内：${capability}`).toContain(capability);
+      }
+      // 真实模块必须真的在注册表里（否则前端目录与生命周期都拿不到它）。
+      expect(builtinModuleRegistry.get(module.id), `未注册的内置模块：${module.id}`).toBeDefined();
     }
+    // 防止用例被"把所有模块都改成演示模块"绕过。
+    expect(realModuleCount).toBeGreaterThan(0);
   });
 
   it('演示 Widget 的配置契约与 Manifest 的 configSchemaVersion 一一对应', () => {

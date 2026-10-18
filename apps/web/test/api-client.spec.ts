@@ -84,6 +84,37 @@ describe('normalizeApiError', () => {
     expect(normalized.code).toBe('internal_error');
     expect(normalizeApiError(undefined).requestId).toBe('client-malformed');
   });
+
+  it('保留结构化的 details（阶段 04 的并发冲突必须能到达界面）', () => {
+    const conflict = {
+      reason: 'revision_conflict',
+      entityType: 'nav_link',
+      entityId: 'l-1',
+      field: null,
+      baseRevision: 3,
+      currentRevision: 4,
+      resolutionOptions: ['local', 'server'],
+    };
+    const normalized = normalizeApiError({
+      code: 'conflict',
+      message: '资源状态冲突。',
+      requestId: 'r-2',
+      details: { conflict },
+    });
+    expect(normalized.code).toBe('conflict');
+    expect(normalized.details).toEqual({ conflict });
+  });
+
+  it('details 不是对象时一律丢弃，不把任意响应体当结构化数据', () => {
+    expect(
+      normalizeApiError({ code: 'conflict', message: 'x', requestId: 'r-3', details: 'not-an-object' }).details,
+    ).toBeUndefined();
+    expect(
+      normalizeApiError({ code: 'conflict', message: 'x', requestId: 'r-4', details: null }).details,
+    ).toBeUndefined();
+    // 没有 details 时该键不存在（阶段 01–03 的响应形状不变）。
+    expect('details' in normalizeApiError({ code: 'conflict', message: 'x', requestId: 'r-5' })).toBe(false);
+  });
 });
 
 describe('createApiClient', () => {

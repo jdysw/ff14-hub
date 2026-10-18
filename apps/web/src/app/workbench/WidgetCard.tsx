@@ -23,7 +23,7 @@ import {
 } from 'react';
 import { resolveWidgetConfig, widgetComponentRegistry } from '../widgets/component-registry';
 import { WidgetHost } from '../widgets/WidgetHost';
-import type { ModuleAccess } from '../widgets/types';
+import type { ModuleAccess, ModuleDataPort } from '../widgets/types';
 import { BREAKPOINT_LABELS, RECT_ACTIONS, type RectActionSpec, type RectAction, type WorkbenchWidgetMeta } from './workbench-model';
 
 export interface WidgetCardProps {
@@ -34,6 +34,11 @@ export interface WidgetCardProps {
   readonly editing: boolean;
   /** Host 需要的访问判定（模块门禁 + 服务端授予的能力）。 */
   readonly accessOf: (moduleId: string) => ModuleAccess;
+  /**
+   * 模块数据端口（阶段 04）：由应用层构造并持有凭证，这里只做**透传**。
+   * 卡片本身不用它，也不允许把它存进 state（Token 不进 props/state 是硬约束）。
+   */
+  readonly dataPortFor?: ((moduleId: string) => ModuleDataPort | undefined) | undefined;
   readonly disabled: boolean;
   readonly canMove: (action: RectAction) => boolean;
   readonly onMove: (action: RectAction) => void;
@@ -264,7 +269,11 @@ export const WidgetCard = forwardRef<HTMLElement, WidgetCardProps>(function Widg
             该实例已隐藏：不执行组件，但<strong>保留网格位置</strong>，因此隐藏不会在布局里留下缺口。
           </p>
         ) : (
-          <WidgetHost instances={[toHostInstance(instance)]} access={props.accessOf} />
+          <WidgetHost
+            instances={[toHostInstance(instance)]}
+            access={props.accessOf}
+            dataPortFor={props.dataPortFor}
+          />
         )}
       </div>
 

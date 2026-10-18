@@ -30,6 +30,9 @@ export function buildContentSecurityPolicy(environment: EnvironmentName): string
     "img-src 'self' data:",
     "font-src 'self'",
     "connect-src 'self'",
+    // HUB-012（ADR-0004 D10）：PWA 需要同域 manifest 与 Service Worker。
+    // 这两条是**最小放行**——只允许同源的 `/manifest.webmanifest` 与 `/sw.js`，
+    // 不涉及 `script-src`；任何人都不得为了「让 PWA 生效」而放宽 script-src 或加入 unsafe-eval。
     "manifest-src 'self'",
     "worker-src 'self'",
     "object-src 'none'",

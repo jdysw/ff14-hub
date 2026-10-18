@@ -99,28 +99,64 @@ current_execution:
 | HUB-043 Module Registry | merged | `worker/modules/registry/`（注册表 + 内置演示模块）、`packages/shared/src/builtin-modules.ts`；`worker/test/module-registry.spec.ts` 在真实 workerd 中通过；随 PR #5 合并（squash commit `b9acfb2`），`main` CI run `39071908808` 两项 job success |
 | HUB-044 Widget Host | merged | `apps/web/src/app/widgets/`（Host、静态组件映射、实例存储、演示组件）、`apps/web/src/lib/RenderErrorBoundary.tsx`；Playwright 验收链覆盖桌面与窄屏；同上合并与 CI 证据 |
 | HUB-050 模块生命周期与数据策略 | merged | `migrations/0003_modules.sql` + `0004_module_operations.sql` + `0005_module_operation_claims.sql`、`worker/modules/lifecycle/`、`worker/api/v1/{modules,me-modules}.ts`、`apps/web/src/app/modules/`；`module-lifecycle.spec.ts`（含确定性交错/独占认领/租约抢占/revision fence 传播/快照一致性）+ `module-schema.spec.ts` 在真实 D1 中通过；同上合并与 CI 证据 |
-| HUB-045 布局编辑器 | implemented_pending_review | `packages/shared/src/workbench-api.ts`（唯一布局校验实现）、`worker/modules/workbench/`（`tx.ts` 原子幂等事务、`service.ts`）、`migrations/0006_workbench.sql`、`apps/web/src/app/workbench/`；依赖锁定 `react-grid-layout@2.3.0`（见 ADR-0003 D13） |
-| HUB-046 多页面与独立断点 | implemented_pending_review | `workspace_pages` / `widget_instances` / `widget_layouts` / `page_layout_revisions`、`worker/api/v1/me-workbench.ts`、`docs/adr/0003-phase03-workbench.md` |
-| HUB-049 模板、空白页与重置 | implemented_pending_review | `BUILTIN_WORKBENCH_TEMPLATES`（四种模板 + `honestyNote` 诚实说明）、`apply-template` 三种模式、Shell 内 `empty-recovery` 恢复入口 |
-| HUB-054 工作台配置备份恢复 | implemented_pending_review | `worker/modules/workbench/backup.ts`（导出/预览/导入/恢复）、`workbench_backups` 表、导出与导入共用 `WORKBENCH_BACKUP_MAX_BYTES` |
+| HUB-045 布局编辑器 | merged | `packages/shared/src/workbench-api.ts`（唯一布局校验实现）、`worker/modules/workbench/`（原子幂等事务、服务）、`migrations/0006_workbench.sql`、`apps/web/src/app/workbench/`；随 PR #10 合并（squash commit `c2d5ce8`），`main` 上 CI run `39089385696` 三项 job success |
+| HUB-046 多页面与独立断点 | merged | `workspace_pages` / `widget_instances` / `widget_layouts` / `page_layout_revisions`、`worker/api/v1/me-workbench.ts`、`docs/adr/0003-phase03-workbench.md`；同上合并与 CI 证据 |
+| HUB-049 模板、空白页与重置 | merged | `BUILTIN_WORKBENCH_TEMPLATES`（四种模板 + `honestyNote` 诚实说明）、`apply-template` 三种模式、Shell 内 `empty-recovery` 恢复入口；同上合并与 CI 证据 |
+| HUB-054 工作台配置备份恢复 | merged | `worker/modules/workbench/backup.ts`（导出/预览/导入/恢复）、`workbench_backups` 表、导出与导入共用 `WORKBENCH_BACKUP_MAX_BYTES`；同上合并与 CI 证据 |
+| HUB-047 推荐导航与个人副本分离 | implemented_pending_review | `migrations/0008_navigation.sql`（`nav_catalog_links` 只读目录 + `workspace_nav_links.source_catalog_id` 弱关联 + 部分唯一索引「至多一条活跃副本」）、`worker/modules/nav/catalog.ts`（版本化 upsert，只升不降）、`worker/test/nav-import.spec.ts`（「改副本 → 删除 → 再导入不覆盖不复活」真实 D1 断言）、`packages/shared/src/nav-api.ts` 的 `navCatalogEntryState` / `catalogUpgradePlan` / `decideCatalogImport` |
+| HUB-048 个人网站/分类/多分组 CRUD | implemented_pending_review | `workspace_nav_links` / `workspace_nav_groups` / `workspace_nav_memberships`（含墓碑与 revision）、`worker/modules/nav/service.ts`、`worker/api/v1/me-navigation.ts`（16 条路由）、`worker/test/nav-crud.spec.ts`、`nav-scope.spec.ts`（关联 ID 必须同 workspace，外键不能替代该校验）、`apps/web/src/app/nav/NavView.tsx` |
+| HUB-007 导航种子与分类 | implemented_pending_review | `worker/modules/nav/catalog.ts` 的 5 条种子（每条含 `url`/`sourceUrl`/`verifiedAt`/`region`/`sourceName`；本机复核 `ff.web.sdo.com`、`universalis.app`、`garlandtools.org`、`na.finalfantasyxiv.com/lodestone` 均返回 200）；可重入版本化导入；`worker/test/nav-catalog.spec.ts` |
+| HUB-008 导航搜索与筛选 | implemented_pending_review | `packages/shared/src/nav-api.ts` 的 `normalizeNavText` / `filterNavLinks` / `sortNavLinks` / `projectNavLinks`（**唯一实现**，服务端 `GET /me/navigation/links` 与前端 Widget 共用）；`packages/shared/test/nav-api.spec.ts`（85 项） |
+| HUB-009 收藏与个人排序 | implemented_pending_review | `is_favorite` / `sort_order` 持久化 + `POST /me/navigation/links/reorder`（整体替换、集合不符即拒绝且零改动）；跨设备一致由 HUB-051 水位端点承载（`worker/test/sync-changes.spec.ts`） |
+| HUB-010 首页与导航 Widget | implemented_pending_review | 真实模块 `ff14.navigation`（`packages/shared/src/nav-api.ts` 的 Manifest/契约 + `worker/modules/registry/builtin-modules.ts` 的 handler 表与能力授予）、Widget `nav-quick-links` / `nav-search`（`apps/web/src/app/nav/`）；首页仍是阶段 03 的可定制工作台；**模块数据端口**（`apps/web/src/app/widgets/module-data-ports.ts`：按模块声明操作名、每次调用前复检门禁、组件拿不到 Token/URL） |
+| HUB-011 手工活动与列表 | implemented_pending_review | `migrations/0009_events.sql` + `0010_event_operations.sql`（公共 `events` 与私有 `workspace_events` 分表；公共表**空表**，不捆绑未核实数据）、`worker/modules/events/`、`worker/api/v1/events.ts`（公开只读）与 `me-events.ts`、`apps/web/src/app/events/`（两个 Widget + 表单）；不做抓取/鱼类/提醒（ADR-0004 D9） |
+| HUB-012 响应式 PWA | implemented_pending_review | `apps/web/public/{manifest.webmanifest,sw.js,icons/*}`、`apps/web/src/app/pwa/`（缓存策略纯函数、离线/安装状态、注册与更新确认、`PwaStatusBar`）；`worker/test/static-assets-headers.spec.ts`（真实 workerd 断言 SW/manifest/图标的响应头）；缓存白名单**默认拒绝** `/api/v1/me/*` 与一切带 Authorization 的流量 |
+| HUB-051 布局/导航跨设备同步 | implemented_pending_review | `migrations/0011_change_journal.sql`（`workspace_changes` 单调序号 + **触发器**覆盖全部写路径）+ `worker/modules/sync/service.ts` + `worker/api/v1/me-sync.ts`（`GET /me/sync/changes`，游标 `v2:<seq>`、旧 `v1` 游标明确拒绝、每页 ≤ limit、payload/水位/meta 同一 D1 batch 快照、`meta.navRevision` 权威全局修订、墓碑传播、不做 GC）、`packages/shared/src/sync-api.ts`、`apps/web/src/app/nav/use-nav.ts` 的 `useSyncChangesPoller`（按 `seq` 排序/去重，墓碑不复活，有草稿只提示不覆盖）；`worker/test/sync-changes.spec.ts`（冻结同一毫秒、时钟回退、删除→恢复、分页期间持续写入、模块卸载写路径、作用域隔离） |
 
 **明确未完成 / 未做（不要读成已完成）：**
 
-- 阶段 03 的工作位于分支 `codex/phase03-workbench`，以**草稿 PR** 提交集中复核，**尚未合并**。
+- **第二轮集中复核（GPT）发现的 4 项 P1 功能/数据缺陷已修**（详见 ADR-0004 D15）：
+  ① 同步水位改为**数据库单调序号**（`migrations/0011_change_journal.sql` 的 `workspace_changes`
+  + 触发器覆盖全部写路径；游标 `v2:<seq>`，旧 `v1:<毫秒>` 明确拒绝并重建；payload/水位/meta
+  来自同一 D1 batch 快照；每页 ≤ limit）；
+  ② 导航修订号**全局与行级严格分离**（全局 CAS 只用 `meta.navRevision`，禁止用行修订推导，
+  因此远端改动后无需人工刷新即可重排/导入）；
+  ③ 导航读路径（快照/导出/导入规划/写路径前置条件）改为**单事务一致快照**，导出做引用完整性校验；
+  ④ 完整导航配置 **round-trip**：导入区分 `links` 与 `restore` 两种模式，`restore` 保留
+  分组/多对多/收藏/状态/顺序并重映射 ID，未来版本与危险 URL 明确拒绝。
+  证据：worker 510 项（含跨 workspace 导出→恢复、同毫秒删除→恢复、时钟回退、分页持续写入）、
+  shared 250 项、web 334 项（含 A 改动→B 自动同步后无需刷新即可重排、真并发 409 且草稿保留）。
+- 阶段 04 的工作位于分支 `codex/phase04-navigation`（PR #20 草稿），**尚未合并**。
+  该 head 的 GitHub Actions 四项 job 全部 success（CI run `39102921991`），
+  本地 frozen install / lint / typecheck（含 e2e）/ 单测 1057 项 / build / 迁移全新+重复应用 /
+  三条真实浏览器链（phase02 2 项、phase03 3 项、phase04 9 项）全部通过。
+- **SonarCloud 质量门延期统一修复（用户明确指示「sonar 报错先不管，之后统一修复」）**：
+  当前唯一失败条件是 `Security Rating on New Code = D`（要求 ≥ A），
+  `Reliability Rating` 已修到通过（S2871 无参 `sort()` 全仓 43 处已改显式比较函数）。
+  已定位的剩余项（GitHub 检查注解最多只回传 50 条，因此只列关键项）：
+  `packages/shared/src/nav-api.ts:1137`（认知复杂度 47）、`worker/modules/nav/service.ts:1337`（17）、
+  `worker/modules/sync/service.ts:634`（16）、`apps/web/src/app/workbench/WorkbenchView.tsx:82`（18）、
+  `migrations/0009_events.sql:39`（字面量重复 3 次）。
+  Security 评级的根因尚未定位到具体行（该项目为私有，`/api/hotspots/search` 需要 token）。
+  **处理方式**：作为进入下一轮集中验收前的独立待办（PR #20 描述 §6 有逐条步骤），
+  不关闭检查、不降低阈值、不批量标假阳性。
 - 未创建任何 Cloudflare 远程资源（无 D1 远程库、无 Worker 部署、无预览环境、无域名绑定、无 Cron）。
-- 阶段 04 的导航业务、阶段 05 的鱼类/通知引擎、阶段 06 的 WebDAV 同步均未实现。
-- 阶段 03 的**调度端口仍是内存实现**（`persistent: false`）：没有 Cron、没有 Web Push、
-  没有真实通知派发；`wrangler.jsonc` 的 `triggers.crons` 保持为空。
-  （实例清理端口已在阶段 03 换成真实 D1 实现，`persistent: true`。）
-- **跨设备增量同步（HUB-051）未实现**：墓碑已按规划 5.3 保留，但没有同步水位、没有 GC、
-  没有 `GET /me/sync/changes`。
-- 清数据（purge）**未实现**，只提供显式拒绝（501）；将来必须做成「先备份 + 二次确认」的独立流程。
-- 前端的完整身份界面（初始化向导、配对、设备管理 UI）未实现；阶段 02 只补了「会话内存凭证」这一最小入口。
-- 认证失败事件仍未落库（`identity_audit.workspace_id` 为 NOT NULL，无法承载无归属事件），只写脱敏日志。
-- 界面上的组件全部是 `demo.*` 演示组件，**没有任何游戏业务数据**；
-  四种初始模板只放置已注册的演示组件，并在界面上原样展示「真实模块见阶段 04–05」的诚实说明。
-- 备份上限为 48 KiB：极端规模（30 页 × 40 组件且配置接近上限）的工作台**无法导出**，
-  会收到明确失败而不是损坏文件（见 ADR-0003 D11）。
+- 阶段 05 的鱼类/活动自动数据/提醒引擎、阶段 06 的 WebDAV 同步均未实现。
+- **没有任何服务端 URL 探测**：导航 `health` 一律 `unknown`，界面显示「未探测」；
+  403 永远不会被判定为永久失效。也正因如此，导航 URL 不构成 SSRF 入口。
+- **公共活动表 `events` 是空表**：不捆绑未经核实的活动数据；抓取器属于阶段 05。
+- **墓碑不做 GC**：阶段 04 不删除任何墓碑（避免早于设备水位删除），代价是存储持续增长。
+- **同步水位是毫秒粒度**：与「快照权威」配合（挂载/focus 时以快照对齐），
+  存在 1 毫秒窗口（与快照之后同毫秒写入的行要等下一次对齐），不会永久丢失；
+  彻底消除需要给每行加单调变更序号（未做，不做假承诺）。
+- 调度端口仍为内存实现（`persistent: false`）：没有 Cron、没有 Web Push；
+  `wrangler.jsonc` 的 `triggers.crons` 保持为空。
+- 清数据（purge）**未实现**，只提供显式拒绝（501）。
+- 前端的完整身份界面（初始化向导、配对、设备管理 UI）未实现；只有「会话内存凭证」最小入口。
+- 认证失败事件仍未落库（`identity_audit.workspace_id` 为 NOT NULL），只写脱敏日志。
+- `demo.*` 演示组件刻意保留（作为配置迁移/错误隔离/单例约束的可复现夹具）；
+  真实业务数据只有导航与手工活动两类。
+- 备份上限为 48 KiB：极端规模工作台**无法导出**，会收到明确失败而不是损坏文件（ADR-0003 D11）。
 
 ## 0. 给 AI Agent 的执行指令
 

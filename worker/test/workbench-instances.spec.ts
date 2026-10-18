@@ -297,7 +297,9 @@ describe('添加实例：模块代际标记与初始布局', () => {
         .filter((row) => row.breakpoint === breakpoint)
         .map((row) => ({ i: row.widget_id, x: row.x, y: row.y, w: row.w, h: row.h }));
       expect(rects).toHaveLength(2);
-      expect(rects.map((rect) => rect.i).sort()).toEqual([first.instance.id, second.instance.id].sort());
+      expect(rects.map((rect) => rect.i).sort((a, b) => a.localeCompare(b))).toEqual(
+        [first.instance.id, second.instance.id].sort((a, b) => a.localeCompare(b)),
+      );
 
       // 用共享契约里**唯一**的校验实现来判合法性（服务端与导入路径也用它）。
       const counter = COUNTER_WIDGET;
@@ -805,7 +807,7 @@ describe('幂等 operationId', () => {
     const secondBody = await second.json<{ page: { id: string }; replayed: boolean }>();
     expect(firstBody.page.id).toBe(secondBody.page.id);
     // 恰好一个是「首次」、一个是「重放」。
-    expect([firstBody.replayed, secondBody.replayed].sort()).toEqual([false, true]);
+    expect([firstBody.replayed, secondBody.replayed].sort((a, b) => Number(a) - Number(b))).toEqual([false, true]);
 
     // 只有一个页面、一条幂等记录。
     expect(await countRows('workspace_pages')).toBe(2);

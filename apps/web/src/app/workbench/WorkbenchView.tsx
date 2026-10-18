@@ -11,8 +11,17 @@
  * - 未保存确认用**可视横幅**（`unsaved-banner`），不是 `window.confirm`。
  * - 冲突（409）横幅保留本地草稿，并提供「重新载入 / 比较 / 重新提交」三个显式出口。
  */
-import { BREAKPOINT_COLUMNS, LAYOUT_BREAKPOINTS, type LayoutBreakpoint } from '@ff14-hub/shared';
-import { useEffect, useMemo } from 'react';
+import {
+  BREAKPOINT_COLUMNS,
+  LAYOUT_BREAKPOINTS,
+  type LayoutBreakpoint,
+  type SyncEntityType,
+} from '@ff14-hub/shared';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ModuleDataPort } from '../widgets/types';
+import { registerPrivateDraftSource } from '../pwa/draft-registry';
+import type { SyncChangesApi } from '../nav/nav-api';
+import { useSyncChangesPoller } from '../nav/use-nav';
 import { BackupPanel } from './BackupPanel';
 import { EditToolbar } from './EditToolbar';
 import { LayoutGrid } from './LayoutGrid';
@@ -21,14 +30,166 @@ import { TemplatePicker } from './TemplatePicker';
 import { WidgetCard } from './WidgetCard';
 import { WidgetLibrary } from './WidgetLibrary';
 import { BREAKPOINT_LABELS } from './workbench-model';
-import type { WorkbenchController } from './use-workbench';
+import { setWorkbenchSyncGate, WORKBENCH_SYNCING_NOTICE, type WorkbenchController } from './use-workbench';
 
 export interface WorkbenchViewProps {
   readonly state: WorkbenchController;
+  /**
+   * 模块数据端口（阶段 04）：由应用层构造并持有凭证，这里只做**透传**到卡片与 Host。
+   * 卡片与本视图都不会把它存进 state。
+   */
+  readonly dataPortFor?: ((moduleId: string) => ModuleDataPort | undefined) | undefined;
+  /**
+   * 跨设备变更的 API（HUB-051）。未注入时**不做任何轮询**（因此阶段 03 的行为不变）。
+   */
+  readonly syncChangesApi?: SyncChangesApi | undefined;
+  /** 轮询间隔（毫秒）；测试可注入更短的值。 */
+  readonly syncIntervalMs?: number | undefined;
+}
+
+/**
+ * 工作台关心的变更实体类型。
+ *
+ * 与导航**同一套协议**（日志只作失效信号、状态只由原子快照发布），但各自只关心自己那几类
+ * 实体：别的设备改了一条导航链接不该让工作台重读快照，反之亦然。工作台按
+ * 「页面 × 断点布局 × 组件实例」组织，因此这三类变化都可能影响当前页面。
+ */
+export const WORKBENCH_SYNC_ENTITY_TYPES: readonly SyncEntityType[] = ['page', 'widget', 'layout'];
+
+/**
+ * 权威快照刷新完成后的可见提示（可见、不静默）。
+ *
+ * 编辑态下必须**明确说明草稿还在**：刷新只替换服务端快照与布局基线，绝不写 `drafts`。
+ */
+function refreshedNotice(count: number, editing: boolean): string {
+  const head =
+    count > 0
+      ? `已收到 ${String(count)} 条变更信号，并按服务端权威快照整体刷新工作台。`
+      : '已按服务端权威快照整体刷新工作台。';
+  return editing ? `${head}你的布局草稿仍然保留（不会被远端内容覆盖）。` : head;
 }
 
 export function WorkbenchView(props: WorkbenchViewProps) {
   const { state } = props;
+  const { dataPortFor, syncChangesApi, syncIntervalMs } = props;
+
+  /**
+   * 跨设备变更提示（只读文本，不参与布局计算的任何一步）。
+   *
+   * 语义刻意限定为**提示**：编辑态下它明确说明「草稿已保留」——刷新只替换快照与服务端布局
+   * 基线，**绝不**动 `drafts`（用户没点保存，草稿就不能被动过）。
+   */
+  const [remoteNotice, setRemoteNotice] = useState<string | null>(null);
+
+  /**
+   * 「同步未完成」：权威快照发布并确认没有更多变更之前为 true。
+   *
+   * 与导航同一套协议（见 `useSyncChangesPoller`）：这段时间里**全局 CAS 写**
+   * （保存整页布局 / 恢复备份 / 应用模板）一律被拒绝（见下面的 `setWorkbenchSyncGate`），
+   * 行级写（组件配置 / 隐藏 / 删除组件）不受影响。
+   */
+  const [syncing, setSyncing] = useState(false);
+
+  /** 已收到但还没被权威快照消费掉的失效信号条数（只用于可见文案）。 */
+  const pendingSignalsRef = useRef(0);
+
+  /**
+   * 本地**已经发布的**快照水位（只增不减）。
+   *
+   * 轮询器每轮开始会用它抬游标：同步路径发布过快照之后，不该把同一段变更再当一次新信号。
+   */
+  const publishedWatermarkRef = useRef(0);
+
+  /** 同步回调里需要读**最新**状态，但它本身要保持引用稳定（否则轮询定时器会被反复重建）。 */
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  });
+
+  /**
+   * 把「同步中」登记给 `use-workbench` 的写闸门（本视图与同步协议唯一的对外接触点）。
+   *
+   * 为什么用 ref 转发：轮询与 `syncing` 的持有者只在本视图（它同时持有 `syncChangesApi`），
+   * 而写入实现全在 `use-workbench` 里；`use-workbench.ts` 因此只增加**一个**入口
+   * （`setWorkbenchSyncGate`），不引入第二套同步状态。没有注入 `syncChangesApi` 时
+   * 轮询不启用、`syncing` 恒为 false，闸门因此恒为「可以写」（阶段 03 行为不变）。
+   */
+  const syncingRef = useRef(false);
+  useEffect(() => {
+    syncingRef.current = syncing;
+  }, [syncing]);
+  useEffect(() => setWorkbenchSyncGate(() => syncingRef.current), []);
+
+  /**
+   * 把「是否有未保存草稿」登记给 PWA 更新提示（HUB-012）。
+   *
+   * 判定口径：布局脏（`dirty`，来自真实坐标比较）或存在未决冲突（`conflict`，本地草稿还在）。
+   * 两者都意味着「现在重载页面会丢用户的东西」，因此都必须让 Service Worker 更新等一等。
+   */
+  useEffect(
+    () => registerPrivateDraftSource(() => stateRef.current.dirty || stateRef.current.conflict !== null),
+    [],
+  );
+
+  /**
+   * 权威快照读取（**唯一**的状态发布路径）：整份替换本地状态并返回该快照的同步水位。
+   *
+   * `state.reload()` 会替换快照与当前页的服务端布局，但**不动 `drafts`**：
+   * 因此「同步刷新把用户草稿清掉」在结构上不会发生（`loadPage` 只调整草稿的矩形覆盖，
+   * 不改草稿内容与 `baseRevision`）。
+   *
+   * 水位取值（工作台与导航的**唯一**差别，理由必须写清）：`WorkbenchController` 不暴露快照对象，
+   * 因此这里用轮询器给的日志下界 `knownWatermarkSeq`（排空到的最大 `seq`，含服务器在
+   * `resetRequired` 里给出的水位）。
+   *
+   * 为什么这在工作台是**安全**的：工作台从不把变更逐条应用到本地状态（快照永远整份发布），
+   * 所以「水位偏低」唯一的代价是多重读一次快照，**绝不会**跳过变更；而快照读取发生在排空
+   * **之后**，其真实水位必然 ≥ 这个下界。导航侧则不同——那里必须用快照自带的水位
+   * （`navSnapshotSchema.watermark` 是必填的）：只有「内容 + 水位同批读出」才能证明
+   * 「这份内容已经包含到 seq ≤ 水位」，否则会出现 P1-A 那类竞态。
+   *
+   * 读取失败（`loadSnapshot` 把状态置为 error）时返回 `null`：轮询器据此**不发布状态、
+   * 不推进游标、并保持「同步中」**。
+   */
+  const readAuthoritySnapshot = useCallback(
+    async (knownWatermarkSeq: number): Promise<number | null> => {
+      await stateRef.current.reload();
+      if (stateRef.current.status === 'error') {
+        return null;
+      }
+      const signals = pendingSignalsRef.current;
+      pendingSignalsRef.current = 0;
+      publishedWatermarkRef.current = Math.max(publishedWatermarkRef.current, knownWatermarkSeq);
+      setRemoteNotice(refreshedNotice(signals, stateRef.current.editing));
+      return publishedWatermarkRef.current;
+    },
+    [],
+  );
+
+  useSyncChangesPoller({
+    enabled: syncChangesApi !== undefined,
+    ...(syncChangesApi === undefined ? {} : { api: syncChangesApi }),
+    ...(syncIntervalMs === undefined ? {} : { intervalMs: syncIntervalMs }),
+    // 只有工作台实体的变更才是本视图的失效信号（导航的增删改不该让工作台重读快照）。
+    relevantEntityTypes: WORKBENCH_SYNC_ENTITY_TYPES,
+    readSnapshot: (knownWatermarkSeq) => readAuthoritySnapshot(knownWatermarkSeq),
+    publishedWatermark: () => publishedWatermarkRef.current,
+    onSyncingChange: (next) => {
+      setSyncing(next);
+      // 排空 / 刷新期间给出可见提示；排空完成时**只**清掉这一条，别的提示原样保留。
+      setRemoteNotice((previous) =>
+        next ? WORKBENCH_SYNCING_NOTICE : previous === WORKBENCH_SYNCING_NOTICE ? null : previous,
+      );
+    },
+    onInvalidated: (changeCount) => {
+      // 只记条数：**不**缓存 change 对象（它们的 payload 是当前内容，而日志条目是历史事件，
+      // 缓存下来只会诱导「稍后重放」这条已被删除的错误路径）。
+      pendingSignalsRef.current += changeCount;
+    },
+    onSettled: () => {
+      setRemoteNotice((previous) => (previous === WORKBENCH_SYNCING_NOTICE ? null : previous));
+    },
+  });
 
   /**
    * `layouts` 必须是**引用稳定**的对象。
@@ -80,6 +241,7 @@ export function WorkbenchView(props: WorkbenchViewProps) {
       className="panel workbench"
       data-testid="workbench-view"
       data-breakpoint={state.activeBreakpoint}
+      data-syncing={syncing ? 'true' : 'false'}
       aria-labelledby="workbench-title"
     >
       <h2 id="workbench-title">自定义工作台</h2>
@@ -201,6 +363,12 @@ export function WorkbenchView(props: WorkbenchViewProps) {
         </div>
       )}
 
+      {remoteNotice === null ? null : (
+        <p className="notice notice--warn" data-testid="workbench-remote-notice" role="status">
+          {remoteNotice}
+        </p>
+      )}
+
       {state.status === 'loading' ? (
         <p className="panel__muted" role="status">
           正在加载工作台…
@@ -259,6 +427,7 @@ export function WorkbenchView(props: WorkbenchViewProps) {
                     breakpoint={state.activeBreakpoint}
                     editing={state.editing}
                     accessOf={state.moduleAccess}
+                    dataPortFor={dataPortFor}
                     disabled={state.busy}
                     canMove={(action) => state.canMoveInstance(instance.id, action)}
                     onMove={(action) => {

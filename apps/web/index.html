@@ -5,8 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- 不在 Referer 中泄露内部路径；与 Worker 的 Referrer-Policy 头一致。 -->
     <meta name="referrer" content="no-referrer" />
-    <meta name="description" content="FF14 Hub — 个人导航与模块化工作台（阶段 01：核心工程与身份基础）" />
+    <meta
+      name="description"
+      content="FF14 Hub — 个人导航目录、活动列表与可自定义的模块化工作台（离线仅显示缓存的公开内容）"
+    />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- PWA（HUB-012）：同域 manifest 与图标。theme-color 与 manifest 的 theme_color 保持一致。 -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#12151c" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+    <!-- iOS 不支持 manifest 的 display，需要这两个非标准 meta 才有独立窗口体验。 -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="FF14 Hub" />
     <title>FF14 Hub</title>
   </head>
   <body>

@@ -29,7 +29,7 @@ describe('GET /api/v1/health', () => {
   it('响应字段集合固定，不泄露绑定名、数据库名或任何密钥', async () => {
     const response = await SELF.fetch(HEALTH_URL);
     const body = await response.json<Record<string, unknown>>();
-    expect(Object.keys(body).sort()).toEqual([
+    expect(Object.keys(body).sort((a, b) => a.localeCompare(b))).toEqual([
       'database',
       'environment',
       'nowUtcMs',

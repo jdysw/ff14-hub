@@ -320,7 +320,7 @@ describe('故障注入：消费标记与设备/审计一起回滚', () => {
       SELF.fetch(URLS.pairingClaim, jsonPost({ pairingCode: pairing.pairingCode, deviceName: '有效' })),
       SELF.fetch(URLS.pairingClaim, jsonPost({ pairingCode: unknownCode, deviceName: '无效' })),
     ]);
-    expect(responses.map((response) => response.status).sort()).toEqual([201, 401]);
+    expect(responses.map((response) => response.status).sort((a, b) => a - b)).toEqual([201, 401]);
 
     expect(await countRows('devices')).toBe(2);
     expect(await countRows('pairing_claims')).toBe(1);

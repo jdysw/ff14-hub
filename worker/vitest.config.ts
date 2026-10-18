@@ -43,6 +43,11 @@ export default defineConfig(async () => {
       // 不允许「没有测试也算通过」。
       passWithNoTests: false,
       setupFiles: ['./test/setup.ts'],
+      // 超时（阶段 04 起）：这些用例跑在真实 workerd + Miniflare D1 里，且大量用例会
+      // 真实迁移、真实 HTTP 往返、并发抢锁。默认 5 秒在 2 核 CI runner 上会因为机器忙而假红，
+      // 掩盖真正的回归；放宽到 30 秒不跳过任何断言、不放宽任何检查。
+      testTimeout: 30_000,
+      hookTimeout: 30_000,
     },
   };
 });

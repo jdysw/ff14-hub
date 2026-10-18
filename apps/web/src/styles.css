@@ -1085,3 +1085,169 @@ code {
     flex: 1 1 auto;
   }
 }
+
+/*
+ * 阶段 04 追加：个人导航视图、推荐目录/导入预览与两个导航 Widget。
+ *
+ * 只沿用既有变量（--border / --bg-elevated / --text-muted / --radius 等）
+ * 与既有类（.button / .tag / .notice / .field），因此视觉基线与阶段 03 一致；
+ * 这里不重写任何既有规则，只补充导航特有的容器与列表布局。
+ */
+
+/* 「个人导航」系统级入口：与 SystemBar 同级同款，只是少一段说明文字。 */
+.system-bar--nav .system-bar__list {
+  margin-top: 0;
+}
+
+.nav {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.nav__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.nav__filters,
+.nav__form,
+.nav__groups,
+.nav__empty,
+.nav__catalog,
+.nav__import-file,
+.nav__export {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+
+.nav__banner {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  min-width: 0;
+}
+
+.nav__banner-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.nav__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.nav__item {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  /* 长 URL / 长标题不得把窄屏撑出横向滚动。 */
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.nav__item-title {
+  margin: 0;
+  font-weight: 600;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.nav__item-meta,
+.nav__item-tags {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 0.92em;
+}
+
+.nav__item-description {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.nav__icon {
+  font-size: 1.05em;
+}
+
+.nav__preview {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+
+/* 多选分组：给一个可见的最小高度，避免它在某些浏览器里塌成一条线。 */
+.nav__group-select {
+  min-height: 5.5rem;
+}
+
+/* 两个导航 Widget 的内容区（卡片外壳由 Host 提供）。 */
+.nav-widget {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.nav-widget__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.nav-widget__item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.nav-widget__host {
+  font-size: 0.85em;
+}
+
+/* 360px 宽度：导航面板收紧内边距，控件整行排列（与阶段 03 的处理一致）。 */
+@media (max-width: 360px) {
+  .nav__filters,
+  .nav__form,
+  .nav__groups,
+  .nav__empty,
+  .nav__catalog,
+  .nav__import-file,
+  .nav__export {
+    padding: 8px 6px;
+  }
+
+  .nav__toolbar {
+    min-width: 100%;
+  }
+}

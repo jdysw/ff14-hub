@@ -92,4 +92,18 @@ export default tseslint.config(
       '@typescript-eslint/no-namespace': 'off',
     },
   },
+
+  // Service Worker（HUB-012：apps/web/public/sw.js）是经典脚本，运行在
+  // ServiceWorkerGlobalScope 里，且**刻意**不属于 apps/web 的 tsconfig 项目
+  // （它必须是可直接发布的静态文件，不经构建）。因此与上面的 *.d.ts / scripts 同款处理：
+  // 关闭类型感知规则、给出 Worker/ServiceWorker 全局变量。
+  // 注意：这里不放宽任何规则集，只是让 self / caches / clients / fetch 等真实全局可识别。
+  {
+    files: ['apps/web/public/**/*.js'],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: {
+      ...tseslint.configs.disableTypeChecked.languageOptions,
+      globals: { ...globals.worker, ...globals.serviceworker },
+    },
+  },
 );
