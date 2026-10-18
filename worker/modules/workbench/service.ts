@@ -65,6 +65,7 @@ import {
   readAnyPageRow,
   readInstanceRow,
   readLayoutRevisions,
+  readPlanningSnapshot,
   readLayoutRows,
   readModuleGate,
   readPageRow,
@@ -749,16 +750,18 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
         return workbenchFailure('widget_unknown', WORKBENCH_MESSAGES.widget_unknown);
       }
       const allowMultiple = allowMultipleOfWidget(registry, input.widgetType) ?? false;
-      // 规划空位所依据的**一致快照**：实例集合 + 三个断点的布局修订号。
-      // 这些值会一起进入认领语句，因此「规划 → 提交」之间任何布局变更都会让本次写入 409，
-      // 而不是让两个并发请求各自选中同一空位、都提交成功、最后形成后端本应拒绝的重叠。
-      const [page, gate, installed, existingRects, layoutRevisions] = await Promise.all([
-        readPageRow(deps.db, input.workspaceId, input.pageId),
+      // 规划空位所依据的**一致快照**：页面 + 活跃实例集合 + 矩形 + 三个断点修订号，
+      // 四条 SELECT 在同一个 `db.batch`（同一事务）里读出，因此不可能出现
+      // 「按旧矩形规划、却拿到新 revision」的组合（那会让前置条件全成立但提交出重叠）。
+      // 模块门禁单独读，但它在认领语句里以等值条件被钉住，不会与规划依据错配。
+      const [snapshot, gate] = await Promise.all([
+        readPlanningSnapshot(deps.db, input.workspaceId, input.pageId),
         readModuleGate(deps.db, input.workspaceId, moduleId),
-        readActiveInstances(deps.db, input.workspaceId, input.pageId),
-        readLayoutRows(deps.db, input.pageId),
-        readLayoutRevisions(deps.db, input.pageId),
       ]);
+      const page = snapshot.page;
+      const installed = snapshot.instances;
+      const existingRects = snapshot.rects;
+      const layoutRevisions = snapshot.layoutRevisions;
       if (page === null) {
         return workbenchFailure('page_not_found', WORKBENCH_MESSAGES.page_not_found);
       }
@@ -907,13 +910,15 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
         return workbenchFailure('widget_unknown', WORKBENCH_MESSAGES.widget_unknown);
       }
       const allowMultiple = allowMultipleOfWidget(registry, source.widget_type) ?? false;
-      // 与 `addWidget` 相同的一致快照：复制也依赖「实例集合 + 三个断点修订号」。
-      const [gate, siblings, existingRects, layoutRevisions] = await Promise.all([
+      // 与 `addWidget` 相同的一致快照（同一个 batch 里的四条 SELECT）：
+      // 复制同样依赖「实例集合 + 矩形 + 三个断点修订号」来自同一时刻。
+      const [snapshot, gate] = await Promise.all([
+        readPlanningSnapshot(deps.db, input.workspaceId, source.page_id),
         readModuleGate(deps.db, input.workspaceId, moduleId),
-        readActiveInstances(deps.db, input.workspaceId, source.page_id),
-        readLayoutRows(deps.db, source.page_id),
-        readLayoutRevisions(deps.db, source.page_id),
       ]);
+      const siblings = snapshot.instances;
+      const existingRects = snapshot.rects;
+      const layoutRevisions = snapshot.layoutRevisions;
       if (gate.status !== 'enabled') {
         return workbenchFailure('module_not_ready', moduleNotReadyDetail(gate));
       }
@@ -1346,10 +1351,7 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
         if (page.revision !== expectedRevision) {
           return workbenchFailure('revision_conflict', WORKBENCH_MESSAGES.revision_conflict);
         }
-        const [pages, revisions] = await Promise.all([
-          readActivePages(deps.db, input.workspaceId),
-          readLayoutRevisions(deps.db, pageId),
-        ]);
+        const pages = await readActivePages(deps.db, input.workspaceId);
 
         // 替换页面内容：墓碑旧实例（保留模块数据）→ 写入模板实例与布局 → 页面 revision +1。
         const content = pageContentStatements({
@@ -1359,10 +1361,6 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
           now: timestamp,
         });
         const nextPageRevision = page.revision + 1;
-        const nextLayoutRevisions = new Map<LayoutBreakpoint, number>();
-        for (const breakpoint of LAYOUT_BREAKPOINT_LIST) {
-          nextLayoutRevisions.set(breakpoint, (revisions.get(breakpoint) ?? 0) + 1);
-        }
         const updatedPage: WorkspacePage = {
           ...toPage(page),
           revision: nextPageRevision,
@@ -1398,13 +1396,11 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
                      WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL AND revision = ?`,
               binds: [timestamp, pageId, input.workspaceId, expectedRevision],
             },
+            // 用「+1」而不是「读取值 + 1」：后者的读取可能已经过期，
+            // 并发保存会让它把修订号写回一个更小的绝对值（客户端看到的 revision 倒退）。
+            // +1 完全在 SQL 里计算，单调且无需可信的预读。
             ...LAYOUT_BREAKPOINT_LIST.flatMap((breakpoint) =>
-              setLayoutRevisionStatements({
-                pageId,
-                breakpoint,
-                revision: nextLayoutRevisions.get(breakpoint) ?? 1,
-                now: timestamp,
-              }),
+              bumpLayoutRevisionStatements({ pageId, breakpoint, now: timestamp }),
             ),
             ...bumpWorkbenchRevisionStatements({ workspaceId: input.workspaceId, now: timestamp }),
           ],

@@ -52,7 +52,7 @@ import {
   insertInstanceStatement,
   insertLayoutStatement,
   insertPageStatement,
-  moduleGateConditions,
+  moduleGateSnapshotConditions,
   moduleIdOfWidget,
   normalizeWidgetConfig,
   pickUniqueSlug,
@@ -1154,11 +1154,16 @@ export function createWorkbenchBackupService(deps: WorkbenchBackupDeps): Workben
     if (!prepared.ok) {
       return prepared;
     }
-    const gateConditions = moduleGateConditions({
+    // 关键：把**所有相关模块**（含被预览跳过的 disabled / not_installed 模块）
+    // 的门禁观察值原样钉进同一事务。只绑定「会被写入的模块」是不够的：
+    // 被跳过的模块若在 token 校验之后、认领之前被启用，事务就拦不住，
+    // 于是「相关门禁变化必须 409 重新预览」的承诺会被绕过。
+    const gateConditions = moduleGateSnapshotConditions({
       workspaceId: input.workspaceId,
-      modules: [...prepared.value.createdRevisionByModule.entries()].map(([moduleId, revision]) => ({
-        moduleId,
-        revision,
+      gates: prepared.value.plan.gates.map((entry) => ({
+        moduleId: entry.moduleId,
+        status: entry.gate.status,
+        revision: entry.gate.revision,
       })),
     });
 

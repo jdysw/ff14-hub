@@ -144,6 +144,69 @@ export const SQL_MODULE_ENABLED_AT_REVISION = `EXISTS (SELECT 1 FROM workspace_m
 export const SQL_MODULE_NOT_TRANSITIONING = `NOT EXISTS (SELECT 1 FROM workspace_module_operations o
                                                           WHERE o.workspace_id = ? AND o.module_id = ?)`;
 
+/**
+ * 模块状态与 revision 与**观察值**一致（任何状态都适用）。
+ * 绑定：[workspaceId, moduleId, status, revision]。
+ *
+ * 与 `SQL_MODULE_ENABLED_AT_REVISION` 的区别：后者只能表达「必须是 enabled」，
+ * 而导入/模板需要能钉住「预览时它是 disabled / uninstalled」这一事实——
+ * 否则被预览跳过的模块在提交前被启用，事务也拦不住。
+ */
+export const SQL_MODULE_STATUS_AT_REVISION = `EXISTS (SELECT 1 FROM workspace_modules m
+                                                      WHERE m.workspace_id = ? AND m.module_id = ?
+                                                        AND m.status = ? AND m.revision = ?)`;
+
+/** 模块行仍然**不存在**（观察时是 `not_installed`，由行缺失派生）。绑定：[workspaceId, moduleId]。 */
+export const SQL_MODULE_ABSENT = `NOT EXISTS (SELECT 1 FROM workspace_modules m
+                                               WHERE m.workspace_id = ? AND m.module_id = ?)`;
+
+/** 该模块**仍有**待完成操作（观察时是 `transitioning`，即有一次进行中的生命周期变更）。绑定：[workspaceId, moduleId]。 */
+export const SQL_MODULE_TRANSITIONING = `EXISTS (SELECT 1 FROM workspace_module_operations o
+                                                  WHERE o.workspace_id = ? AND o.module_id = ?)`;
+
+/**
+ * 把「一组模块的门禁观察值」原样钉成同一个事务的前置条件。
+ *
+ * 语义（复核要求：**所有相关模块**的门禁变化都要 409 重新预览，而不只是会被写入的那些）：
+ * - `not_installed` → 模块行必须**仍然缺失**；
+ * - `enabled` / `disabled` / `uninstalled` → 状态与 revision 必须与观察值一致，且**没有**待完成操作；
+ * - `transitioning` → revision 一致且**仍有**待完成操作（钉住同一次进行中的变更）。
+ *
+ * 它**只读**这些模块的状态，不会启用/停用任何模块。
+ */
+export function moduleGateSnapshotConditions(input: {
+  readonly workspaceId: string;
+  readonly gates: readonly { readonly moduleId: string; readonly status: ModuleGateStatus; readonly revision: number }[];
+}): { readonly sql: string; readonly binds: readonly unknown[] } {
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  const binds: unknown[] = [];
+  const ordered = [...input.gates].sort((a, b) => a.moduleId.localeCompare(b.moduleId));
+  for (const gate of ordered) {
+    if (seen.has(gate.moduleId)) {
+      continue;
+    }
+    seen.add(gate.moduleId);
+    if (gate.status === 'not_installed') {
+      parts.push(`(${SQL_MODULE_ABSENT})`);
+      binds.push(input.workspaceId, gate.moduleId);
+      continue;
+    }
+    if (gate.status === 'transitioning') {
+      parts.push(
+        `(EXISTS (SELECT 1 FROM workspace_modules m
+                   WHERE m.workspace_id = ? AND m.module_id = ? AND m.revision = ?)
+          AND ${SQL_MODULE_TRANSITIONING})`,
+      );
+      binds.push(input.workspaceId, gate.moduleId, gate.revision, input.workspaceId, gate.moduleId);
+      continue;
+    }
+    parts.push(`(${SQL_MODULE_STATUS_AT_REVISION} AND ${SQL_MODULE_NOT_TRANSITIONING})`);
+    binds.push(input.workspaceId, gate.moduleId, gate.status, gate.revision, input.workspaceId, gate.moduleId);
+  }
+  return { sql: parts.length === 0 ? '' : parts.join(' AND '), binds };
+}
+
 /** 该页面活跃实例数。绑定：[pageId]。 */
 export const SQL_COUNT_PAGE_INSTANCES = `(SELECT COUNT(*) FROM widget_instances wi
                                           WHERE wi.page_id = ? AND wi.deleted_at IS NULL)`;
@@ -584,6 +647,77 @@ export async function readLayoutRevisions(
     map.set(row.breakpoint, row.revision);
   }
   return map;
+}
+
+/** 规划新实例所依据的**一致快照**：页面 + 活跃实例集合 + 矩形 + 三个断点修订号。 */
+export interface PlanningSnapshot {
+  readonly page: PageRow | null;
+  readonly instances: InstanceRow[];
+  readonly rects: LayoutRow[];
+  readonly layoutRevisions: Map<LayoutBreakpoint, number>;
+}
+
+/**
+ * 读取「规划空位」所依据的一致快照。
+ *
+ * **四条 SELECT 放进同一个 `db.batch`**：D1 的 batch 是单个事务，因此
+ * 「页面 / 实例集合 / 矩形 / 三断点修订号」必然来自同一时刻。
+ *
+ * 为什么这很重要（复核给出的确定性反例）：
+ * 若分四次独立读，A 可能先读到「组件在 x=0」，随后 B 把它移到 x=4 并把 revision 升到 2，
+ * A 再读到 revision=2；A 按**旧矩形**把新实例规划到 x=4，而它记录的 revision 恰好等于当前值，
+ * 于是前置条件全部成立、提交后形成重叠。快照化之后，矩形与 revision 只能来自同一时刻，
+ * 规划与前置条件因此不可能互相矛盾。
+ *
+ * 模块门禁不在这条快照里：它在认领语句中以**等值条件**被钉住（状态 + revision），
+ * 单独读取不会造成「规划依据」与「提交条件」错配。
+ */
+export async function readPlanningSnapshot(
+  db: D1Database,
+  workspaceId: string,
+  pageId: string,
+): Promise<PlanningSnapshot> {
+  const results = await db.batch([
+    db
+      .prepare(
+        `SELECT ${PAGE_COLUMNS} FROM workspace_pages
+          WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL`,
+      )
+      .bind(pageId, workspaceId),
+    db
+      .prepare(
+        `SELECT ${INSTANCE_COLUMNS}
+           FROM widget_instances wi
+           JOIN workspace_pages p ON p.id = wi.page_id
+          WHERE wi.page_id = ? AND p.workspace_id = ? AND wi.deleted_at IS NULL AND p.deleted_at IS NULL
+          ORDER BY wi.created_at ASC, wi.id ASC`,
+      )
+      .bind(pageId, workspaceId),
+    db
+      .prepare(
+        `SELECT wl.widget_id, wl.breakpoint, wl.x, wl.y, wl.w, wl.h
+           FROM widget_layouts wl
+           JOIN widget_instances wi ON wi.id = wl.widget_id
+          WHERE wi.page_id = ? AND wi.deleted_at IS NULL`,
+      )
+      .bind(pageId),
+    db
+      .prepare('SELECT breakpoint, revision FROM page_layout_revisions WHERE page_id = ?')
+      .bind(pageId),
+  ]);
+
+  const revisionRows = (results[3]?.results ?? []) as { breakpoint: LayoutBreakpoint; revision: number }[];
+  const layoutRevisions = new Map<LayoutBreakpoint, number>();
+  for (const row of revisionRows) {
+    layoutRevisions.set(row.breakpoint, row.revision);
+  }
+
+  return {
+    page: ((results[0]?.results ?? []) as PageRow[])[0] ?? null,
+    instances: (results[1]?.results ?? []) as InstanceRow[],
+    rects: (results[2]?.results ?? []) as LayoutRow[],
+    layoutRevisions,
+  };
 }
 
 export async function readWorkbenchRevision(db: D1Database, workspaceId: string): Promise<number> {
