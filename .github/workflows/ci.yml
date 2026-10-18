@@ -25,6 +25,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  recovery-rehearsal:
+    name: 阶段 06D 本地整库备份恢复演练
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test:ops
+      # Generated isolated local configs only. No default development state, cloud APIs or real secrets.
+      # SQL and diagnostics stay ignored/private; do not upload raw database artifacts.
+      - run: pnpm run ops:rehearse
   e2e-phase06c:
     name: 阶段 06C 客户端运行时浏览器验收链
     runs-on: ubuntu-latest
@@ -135,6 +151,9 @@ jobs:
 
       - name: Build（前端产物 + Worker 打包干跑）
         run: pnpm run build
+
+      - name: 预览与生产配置分别打包干跑（不部署）
+        run: pnpm run validate:config
 
       # 迁移门槛：先全新应用一次，再重复应用一次。
       # 第二次必须是安全的空操作——这正是 HUB-003「重复应用安全」的验收点。

@@ -815,6 +815,9 @@ export function createSyncCoordinator(ports: CoordinatorPorts): SyncCoordinator 
           throw new CoordinatorError('pending-operation',`存在未完成的同步操作（${checkpoint.pending.stage}），请先恢复或显式归档`,checkpoint.pending.operationId);
         }
         const reading = await readAll(profile.region);
+        if(checkpoint?.baseline!=null && reading.hub.watermark<checkpoint.baseline.hubWatermark){
+          throw new CoordinatorError('checkpoint-unavailable','Hub水位低于上次同步记录，可能发生数据库回退；请人工核对基线，已停止同步');
+        }
         const result = await buildPlan(profile,reading,checkpoint?.baseline ?? null,resolutions ?? {});
         if(result.state==='ready'){
           if(previews.size>=30){const oldest=previews.keys().next().value;if(oldest!==undefined)previews.delete(oldest);}

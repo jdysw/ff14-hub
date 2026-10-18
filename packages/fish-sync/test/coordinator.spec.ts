@@ -363,6 +363,12 @@ const putCount = (events: readonly string[]): number => events.filter((event) =>
 // ---------------------------------------------------------------------------
 
 describe('sync coordinator', () => {
+  it('stops before preview or writes if a database restore regresses the Hub watermark',async()=>{
+    const s=setup();s.checkpoints.seed(baselineOf(doc([1]),{'completed:1':4},100));
+    s.local.seed(doc([1]),{'completed:1':4});
+    await expect(s.coordinator.preview({profile:PROFILE})).rejects.toMatchObject({code:'checkpoint-unavailable'});
+    expect(s.events).not.toContain('hub:preview');expect(putCount(s.events)).toBe(0);expect(s.checkpoints.writes).toHaveLength(0);
+  });
   it('merges three replicas, writes DAV → Hub → Local, and only sends the minimal Hub intent', async () => {
     const { events,local,dav,hub,checkpoints,coordinator } = setup();
     checkpoints.seed(baselineOf(doc([1]),{ 'completed:1': 1 },2));
