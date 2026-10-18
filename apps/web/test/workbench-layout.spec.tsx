@@ -9,12 +9,10 @@
 // @vitest-environment jsdom
 import {
   BREAKPOINT_COLUMNS,
-  BUILTIN_MODULE_MANIFESTS,
   type ApiErrorBody,
   type BreakpointLayout,
   type GridRect,
   type LayoutBreakpoint,
-  type ModuleDescriptor,
   type WidgetInstance,
   type WorkspacePage,
 } from '@ff14-hub/shared';
@@ -33,6 +31,7 @@ import type {
 } from '../src/app/workbench/workbench-api';
 import { createWidgetLookup } from '../src/app/workbench/widget-lookup';
 import { planRectAction, resolveOverlaps, validateRectsWith } from '../src/app/workbench/workbench-model';
+import { DESCRIPTORS, instance, page } from './workbench-fixtures';
 
 afterEach(() => {
   cleanup();
@@ -42,16 +41,6 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 // 测试用契约数据（全部来自共享包，不手写第二份常量）
 // ---------------------------------------------------------------------------
-
-const DESCRIPTORS: readonly ModuleDescriptor[] = BUILTIN_MODULE_MANIFESTS.map((manifest) => ({
-  id: manifest.id,
-  version: manifest.version,
-  displayName: manifest.displayName,
-  capabilities: [...manifest.capabilities],
-  widgets: manifest.widgets.map((widget) => ({ ...widget })),
-  routes: (manifest.routes ?? []).map((route) => ({ ...route })),
-  settingsSchemaVersion: manifest.settingsSchemaVersion,
-}));
 
 const LOOKUP = createWidgetLookup(DESCRIPTORS);
 
@@ -68,42 +57,6 @@ const TEMPLATES: readonly TemplateSummary[] = [
     widgetCount: 1,
   },
 ];
-
-function page(id: string, name: string, overrides: Partial<WorkspacePage> = {}): WorkspacePage {
-  return {
-    id,
-    name,
-    slug: id,
-    isDefault: false,
-    sortOrder: 0,
-    revision: 0,
-    createdAt: 0,
-    updatedAt: 0,
-    ...overrides,
-  };
-}
-
-function instance(
-  id: string,
-  widgetType: string,
-  pageId: string,
-  overrides: Partial<WidgetInstance> = {},
-): WidgetInstance {
-  return {
-    id,
-    pageId,
-    moduleId: 'demo.basics',
-    widgetType,
-    config: { step: 1, label: '演示计数', initDelayMs: 0 },
-    configVersion: 1,
-    hidden: false,
-    revision: 1,
-    createdRevision: 0,
-    createdAt: 0,
-    updatedAt: 0,
-    ...overrides,
-  };
-}
 
 function layoutOf(
   breakpoint: LayoutBreakpoint,

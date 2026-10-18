@@ -21,13 +21,11 @@
 import {
   API_ROUTES,
   BREAKPOINT_COLUMNS,
-  BUILTIN_MODULE_MANIFESTS,
   BUILTIN_WORKBENCH_TEMPLATES,
   type ApiErrorBody,
   type BreakpointLayout,
   type GridRect,
   type LayoutBreakpoint,
-  type ModuleDescriptor,
   type WidgetInstance,
   type WorkspacePage,
 } from '@ff14-hub/shared';
@@ -53,6 +51,7 @@ import type {
   TemplateSummary,
   WorkbenchApi,
 } from '../src/app/workbench/workbench-api';
+import { DESCRIPTORS, instance, page } from './workbench-fixtures';
 import { createWidgetLookup } from '../src/app/workbench/widget-lookup';
 
 afterEach(() => {
@@ -64,16 +63,6 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 // 共用：契约数据与替身
 // ---------------------------------------------------------------------------
-
-const DESCRIPTORS: readonly ModuleDescriptor[] = BUILTIN_MODULE_MANIFESTS.map((manifest) => ({
-  id: manifest.id,
-  version: manifest.version,
-  displayName: manifest.displayName,
-  capabilities: [...manifest.capabilities],
-  widgets: manifest.widgets.map((widget) => ({ ...widget })),
-  routes: (manifest.routes ?? []).map((route) => ({ ...route })),
-  settingsSchemaVersion: manifest.settingsSchemaVersion,
-}));
 
 const LOOKUP = createWidgetLookup(DESCRIPTORS);
 
@@ -116,37 +105,6 @@ const MANUAL_BACKUP: BackupSummary = {
 
 function importFile(name: string, body: unknown = EXPORT_DOCUMENT): File {
   return new File([JSON.stringify(body)], name, { type: 'application/json' });
-}
-
-function page(id: string, name: string, overrides: Partial<WorkspacePage> = {}): WorkspacePage {
-  return {
-    id,
-    name,
-    slug: id,
-    isDefault: false,
-    sortOrder: 0,
-    revision: 0,
-    createdAt: 0,
-    updatedAt: 0,
-    ...overrides,
-  };
-}
-
-function instance(id: string, widgetType: string, pageId: string, overrides: Partial<WidgetInstance> = {}): WidgetInstance {
-  return {
-    id,
-    pageId,
-    moduleId: 'demo.basics',
-    widgetType,
-    config: { step: 1, label: '演示计数', initDelayMs: 0 },
-    configVersion: 1,
-    hidden: false,
-    revision: 1,
-    createdRevision: 0,
-    createdAt: 0,
-    updatedAt: 0,
-    ...overrides,
-  };
 }
 
 function layoutOf(breakpoint: LayoutBreakpoint, revision: number, rects: readonly GridRect[]): BreakpointLayout {

@@ -68,7 +68,9 @@ function killTree(child) {
     return;
   }
   if (process.platform === 'win32') {
-    spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    // 用**绝对路径**调用系统工具：不通过 PATH 解析可执行文件，
+    // 避免 PATH 被意外改写时执行到同名的其它程序（静态分析也会标记纯名字调用）。
+    spawn('C:\\Windows\\System32\\taskkill.exe', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
     return;
   }
   child.kill('SIGTERM');
