@@ -48,6 +48,16 @@ export const apiErrorBodySchema = z.object({
   code: z.enum(API_ERROR_CODES),
   message: z.string().min(1).max(500),
   requestId: z.string().min(1).max(128),
+  /**
+   * 可选的结构化细节（阶段 04 起）。
+   *
+   * 用途只有一个：让**并发冲突**可被客户端程序化处理（哪个实体、哪个字段、
+   * 本地基数与服务器当前 revision、可选的处理方式），而不是逼客户端解析 message 文案。
+   *
+   * 硬约束：调用方必须只放「可安全回显」的字段——不得放凭证、Token、SQL、内部路径。
+   * 省略时该键**不存在**于响应体（保持阶段 01–03 的既有响应形状不变）。
+   */
+  details: z.unknown().optional(),
 });
 
 export type ApiErrorBody = z.infer<typeof apiErrorBodySchema>;
@@ -62,13 +72,16 @@ export type ApiErrorBody = z.infer<typeof apiErrorBodySchema>;
 export class ApiError extends Error {
   readonly code: ApiErrorCode;
   readonly status: number;
+  /** 可安全回显的结构化细节（见 `apiErrorBodySchema.details`）；undefined 时响应体不含该键。 */
+  readonly details: unknown;
   readonly #logDetail: string | undefined;
 
-  constructor(code: ApiErrorCode, message: string, logDetail?: string) {
+  constructor(code: ApiErrorCode, message: string, logDetail?: string, details?: unknown) {
     super(message);
     this.name = 'ApiError';
     this.code = code;
     this.status = HTTP_STATUS_BY_ERROR_CODE[code];
+    this.details = details;
     this.#logDetail = logDetail;
   }
 

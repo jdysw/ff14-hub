@@ -243,8 +243,52 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains   ← 仅在请�
 - **陈旧写一律 409**：页面/实例用自身 revision，布局用「页面 + 断点」的独立 revision；
   没有任何「省略即覆盖」的入口。
 - **仍然未做的安全项**（不要读成已完成）：清数据仍为 501；没有 WebDAV 凭证处理；
-  没有服务端外发请求（因此也没有 SSRF 面）；没有 URL 协议白名单（阶段 04 导航才需要）；
-  备份上限为 48 KiB，极端规模工作台会导出失败而不是产出损坏文件。
+  没有服务端外发请求（因此也没有 SSRF 面）；备份上限为 48 KiB，极端规模工作台会导出失败
+  而不是产出损坏文件。
+
+## 9.2 自由导航与活动（阶段 04 / HUB-007～012 · 047 · 048 · 051）
+
+- **URL 协议白名单，默认拒绝**：`validateNavUrl` 是唯一实现（`navUrlSchema` 也调用它），
+  **只放行 `https:`**，并且要求主机存在、不得内嵌 `user:pass@`、长度 ≤ 2048、不含控制字符/空白。
+  `http:` 与 `javascript:` / `data:` / `file:` / `blob:` / `vbscript:` 一律拒绝。
+  本阶段**不授予任何 http 例外**；将来若确有理由放行某站点，必须在 ADR 里逐条记录，
+  不允许在代码里偷偷放宽。活动来源 URL 走同一套规则。
+- **没有 SSRF 面**：阶段 04 **没有**任何服务端 URL 探测/抓取。导航 URL 从不交给服务端 `fetch`，
+  因此它不可能是内网探测入口。也因为没有探测，健康状态一律 `unknown`（`403` 永远只映射为
+  `maybe_blocked`，绝不写成永久失效）。
+- **图标是纯文本**：`sanitizeNavIcon` 只做 trim/去控制字符/截断/回落默认图标；
+  前端按文本渲染，不使用 `dangerouslySetInnerHTML`，因此图标字段不是注入点。
+- **导入是严格解析数据，不执行外来 HTML**：书签 HTML 用手写 tokenizer
+  （`parseBookmarkHtml`）只识别 `<a href>` 与 `<h3>` 文件夹名，`script`/`style` 内容整体丢弃，
+  实体被解码成**数据**。服务端在 apply 时**重新校验**逐项内容，绝不相信客户端传来的
+  「已校验」结果；跳过项必须逐项给出原因（不允许静默丢弃）。
+- **导出不含凭证**：`buildNavExportDocument` 只输出活跃的链接/分组/成员关系，
+  有测试对导出 JSON 字符串搜索敏感键名。
+- **作用域与关联范围**：所有 `/me/navigation*`、`/me/events*` 只取认证得到的 `workspaceId`；
+  关联 ID（目录条目、链接、分组）也必须在同一工作空间内校验。外键**不能**替代该校验：
+  `workspace_nav_memberships` 同时外键到链接与分组，若只靠外键就可能把 A 的链接挂到 B 的分组上
+  ——因此服务层在同一事务里校验三者 `workspace_id` 相等，并有「跨工作空间关联必须零写入」的测试。
+- **幂等与冲突**：导航/活动写入复用**同一份**幂等算法（`worker/modules/idempotency/ledger.ts`），
+  请求指纹覆盖「目标 ID + 动作 + 正文 + 预期 revision」；同一 `operationId` 换意图 → 409 且零写入。
+  同一行并发编辑返回**结构化 409**（`details` 里含 `entityType`/`entityId`/`baseRevision`/
+  `currentRevision`/`resolutionOptions`），客户端可程序化处理，服务端绝不静默覆盖。
+  `details` 只允许放可安全回显的字段（无凭证、无 SQL、无内部路径）；省略时该键不存在。
+- **公共接口不泄露私有数据**：`GET /api/v1/events` 只读公共表 `events`（本阶段为空），
+  个人活动在 `workspace_events`，有测试断言公共响应的键集合与内容都不含个人数据。
+- **删除是墓碑**：链接/分组/成员关系/个人活动删除一律 `deleted_at`，跨设备同步且**不 GC**。
+- **PWA 缓存隐私（硬约束）**：`cache-policy.ts` 与 `sw.js` 共用同一份白名单，**默认拒绝**：
+  任何带 `Authorization` 的请求与响应、`/api/v1/me/*` 全部子路径、非 GET、跨域、
+  非 http(s)、白名单外路径都不缓存；响应侧再拒非 200、`no-store`/`private`、
+  未知/敏感 content-type。允许缓存的只有公开静态资源与三个公开目录
+  （`/api/v1/health`、`/api/v1/modules/catalog`、`/api/v1/navigation/catalog`、`/api/v1/events`）。
+  测试读取 `sw.js` 文本与策略清单做双向一致性断言，并在 `node:vm` 里真实执行 `sw.js`
+  断言私有请求**不会** `respondWith`。
+- **SW 更新不偷偷重载**：`install` 里**没有** `skipWaiting`；激活必须由页面在
+  「没有未保存草稿」时才发消息触发。退出/切换凭证调用 `clearPrivateCaches()` 清理私有缓存。
+- **仍然未做的安全项（阶段 04）**：没有服务端 URL 探测与健康检查；
+  没有公共活动数据源（`events` 为空表，不伪造）；
+  没有墓碑 GC（因此不存在"提前删除仍要同步的墓碑"的风险）；
+  同步水位是毫秒粒度（与快照对齐配合，见 ADR-0004 D7）。
 
 ## 10. 明确未做的安全项（不要读成已完成）
 

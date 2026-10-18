@@ -1,10 +1,13 @@
 /**
- * 内置**演示模块**与 Widget 配置契约（阶段 02 验收用）。
+ * 内置模块与 Widget 配置契约。
  *
- * 重要声明：这里的模块与组件**没有任何游戏业务语义**，名字一律以 `demo.` 前缀标注，
- * 不得被当成真实鱼类 / 活动 / 导航数据。它们的唯一目的是证明：
- *   多实例配置互不串扰、加载/空/错误态、配置版本迁移、错误隔离、模块启停联动。
- * 真实业务模块（ff14.fishing / ff14.navigation 等）属于阶段 04–05。
+ * 两类内容刻意放在一起但**明确区分**：
+ * - **演示模块**（`demo.*`）：没有任何游戏业务语义，只用于验证多实例配置互不串扰、
+ *   加载/空/错误态、配置版本迁移、错误隔离、模块启停联动。
+ * - **真实业务模块**（阶段 04 起）：`ff14.navigation`（自由导航）与 `ff14.events`
+ *   （手工维护的活动）。它们的 Manifest 与 Widget 配置契约定义在各自的契约文件里
+ *   （`nav-api.ts` / `events-api.ts`），这里只做**静态汇总**，避免两处各写一份清单。
+ *   阶段 05 的鱼类模块（`ff14.fishing`）届时同样在这里追加。
  *
  * 与「可执行组件」的边界：
  * - 本文件只放**纯契约**（Manifest 常量 + Zod 配置 Schema + 显式迁移函数），无 React、无 DOM、无 D1。
@@ -13,7 +16,12 @@
  *   三者都不允许按不可信字符串动态加载或执行远程 JS。
  */
 import { z } from 'zod';
+import {
+  EVENTS_MODULE_MANIFEST,
+  EVENTS_WIDGET_CONFIG_CONTRACTS,
+} from './events-api';
 import type { ModuleManifest } from './module-manifest';
+import { NAV_MODULE_MANIFEST, NAV_WIDGET_CONFIG_CONTRACTS } from './nav-api';
 
 /** 演示模块 ID（`demo.` 前缀即「非游戏业务」的可见标记）。 */
 export const DEMO_BASICS_MODULE_ID = 'demo.basics';
@@ -89,8 +97,8 @@ export type DemoCounterConfig = z.infer<typeof demoCounterConfigSchema>;
 export type DemoFaultConfig = z.infer<typeof demoFaultConfigSchema>;
 export type DemoSoloConfig = z.infer<typeof demoSoloConfigSchema>;
 
-/** 全部内置 Widget 配置契约（前端静态映射与服务端 Manifest 的一致性基线）。 */
-export const BUILTIN_WIDGET_CONFIG_CONTRACTS: readonly WidgetConfigContract[] = [
+/** 演示组件的配置契约（阶段 02 的验收基线）。 */
+const DEMO_WIDGET_CONFIG_CONTRACTS: readonly WidgetConfigContract[] = [
   {
     widgetId: DEMO_WIDGET_IDS.counter,
     configSchemaVersion: DEMO_COUNTER_CONFIG_VERSION,
@@ -125,12 +133,25 @@ export const BUILTIN_WIDGET_CONFIG_CONTRACTS: readonly WidgetConfigContract[] = 
   },
 ];
 
+/**
+ * 全部内置 Widget 配置契约（前端静态映射与服务端 Manifest 的一致性基线）。
+ *
+ * 顺序：演示组件在前（保持阶段 02/03 的既有顺序），真实业务模块随后。
+ * 新增真实模块时在这里追加它的契约数组即可，不要在别处再写一份清单。
+ */
+export const BUILTIN_WIDGET_CONFIG_CONTRACTS: readonly WidgetConfigContract[] = [
+  ...DEMO_WIDGET_CONFIG_CONTRACTS,
+  // 阶段 04：真实业务模块的组件契约（各自的契约文件是唯一来源）。
+  ...NAV_WIDGET_CONFIG_CONTRACTS,
+  ...EVENTS_WIDGET_CONFIG_CONTRACTS,
+];
+
 export function findWidgetConfigContract(widgetId: string): WidgetConfigContract | null {
   return BUILTIN_WIDGET_CONFIG_CONTRACTS.find((contract) => contract.widgetId === widgetId) ?? null;
 }
 
 /**
- * 内置演示模块 Manifest。
+ * 内置模块 Manifest（演示模块 + 阶段 04 起真实业务模块）。
  * 这些常量会被 `worker/modules/registry` 用 Zod **真实校验**一遍后注册；
  * 校验失败即应用启动期失败，而不是「约定俗成」。
  */
@@ -190,4 +211,8 @@ export const BUILTIN_MODULE_MANIFESTS: readonly ModuleManifest[] = [
     // 刻意不给生命周期 handler：证明 handler 是可选的，不会因此被注册表拒绝。
     lifecycle: {},
   },
+  // 阶段 04：真实业务模块。它们的 Manifest 定义在各自的契约文件里（唯一来源），
+  // 这里只做静态汇总，因此「有哪些内置模块」只需要看这一处。
+  NAV_MODULE_MANIFEST,
+  EVENTS_MODULE_MANIFEST,
 ];

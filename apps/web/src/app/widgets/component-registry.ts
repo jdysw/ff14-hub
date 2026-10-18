@@ -19,6 +19,8 @@ import {
 } from '@ff14-hub/shared';
 import type { ComponentType } from 'react';
 import type { ZodType } from 'zod';
+import { eventsWidgetComponents } from '../events/events-widget-components';
+import { navWidgetComponents } from '../nav/nav-widget-components';
 import { DemoCounterWidget, DemoFaultWidget, DemoSoloWidget } from './demo-widgets';
 import type { WidgetLookupEntry } from './instance-store';
 import type { WidgetRuntimeProps } from './types';
@@ -43,11 +45,21 @@ export interface WidgetComponentRegistry {
   entries(): readonly WidgetComponentEntry[];
 }
 
-/** 演示组件映射：`widgetId → React 组件`。写死，不做任何动态解析。 */
-const BUILTIN_WIDGET_COMPONENTS: Readonly<Record<string, ComponentType<WidgetRuntimeProps>>> = {
+/**
+ * 演示组件映射：`widgetId → React 组件`。写死，不做任何动态解析。
+ * 阶段 04 起，真实业务模块的组件表分散在各自目录（导航 / 活动），在这里静态合并：
+ * 合并的是「静态对象字面量」，因此仍然不存在按不可信字符串执行代码的路径。
+ */
+const DEMO_WIDGET_COMPONENTS: Readonly<Record<string, ComponentType<WidgetRuntimeProps>>> = {
   [DEMO_WIDGET_IDS.counter]: DemoCounterWidget,
   [DEMO_WIDGET_IDS.fault]: DemoFaultWidget,
   [DEMO_WIDGET_IDS.solo]: DemoSoloWidget,
+};
+
+const BUILTIN_WIDGET_COMPONENTS: Readonly<Record<string, ComponentType<WidgetRuntimeProps>>> = {
+  ...DEMO_WIDGET_COMPONENTS,
+  ...navWidgetComponents,
+  ...eventsWidgetComponents,
 };
 
 export interface ComponentRegistryInput {

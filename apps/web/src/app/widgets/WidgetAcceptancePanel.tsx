@@ -14,12 +14,22 @@ import { MODULE_STATUS_LABELS } from '@ff14-hub/shared';
 import { resolveWidgetConfig, widgetComponentRegistry } from '../widgets/component-registry';
 import type { WidgetInstanceStore } from '../widgets/instance-store';
 import { WidgetHost } from '../widgets/WidgetHost';
+import type { ModuleDataPort } from '../widgets/types';
 import { effectiveStatusOf, moduleAccessFrom, type ModuleState } from '../modules/use-module-state';
 
 export interface WidgetAcceptancePanelProps {
   readonly moduleState: ModuleState;
   readonly store: WidgetInstanceStore;
   readonly loadingTimeoutMs?: number | undefined;
+  /**
+   * 模块数据端口提供者（阶段 04）。
+   *
+   * 为什么这个面板也需要它：面板列出的是**全部已注册组件**，因此导航与活动这两个真实业务模块的
+   * Widget 也会出现在这里。如果这里不给端口，它们只会显示「缺少模块数据端口」降级卡片——
+   * 那是真话，但会让「组件验收」变成误导：看起来像组件坏了，实际是调用点没接线。
+   * 端口本身仍然由 AppShell（唯一持有会话凭证的地方）构造，本面板只是透传。
+   */
+  readonly dataPortFor?: ((moduleId: string) => ModuleDataPort | undefined) | undefined;
 }
 
 export function WidgetAcceptancePanel(props: WidgetAcceptancePanelProps) {
@@ -134,6 +144,7 @@ export function WidgetAcceptancePanel(props: WidgetAcceptancePanelProps) {
       <WidgetHost
         instances={instances}
         access={access}
+        {...(props.dataPortFor === undefined ? {} : { dataPortFor: props.dataPortFor })}
         onRemoveInstance={(instanceId) => {
           store.remove(instanceId);
           setMessage('实例已移除。注意：这只是实例级操作，模块状态与个人数据没有变化。');

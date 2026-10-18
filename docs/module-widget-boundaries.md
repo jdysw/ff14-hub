@@ -144,7 +144,8 @@
 | `workspace_workbench_state` | **已迁移**（`0006_workbench.sql`）：工作台级修订号，用于导入预览的新鲜度令牌 |
 | `workbench_operations` | **已迁移**（`0006_workbench.sql`）：幂等 `operationId` 的结果留痕与「本次尝试 token」守卫 |
 | `workbench_backups` | **已迁移**（`0006_workbench.sql`）：替换导入前的可恢复备份（只含工作台配置） |
-| `nav_catalog_links` / `workspace_nav_links` 等 | 未迁移（阶段 04） |
+| `nav_catalog_links`、`workspace_nav_links`、`workspace_nav_groups`、`workspace_nav_memberships`、`workspace_nav_state`、`nav_operations`、`nav_operation_intents` | **已迁移**（`0008_navigation.sql`，阶段 04）：只读推荐目录（带来源与核对时间）、个人副本（弱关联 + 墓碑 + revision）、个人分组与多分组（含组内顺序与墓碑）、导航修订号、幂等账本 |
+| `events`、`workspace_events`、`event_operations`、`event_operation_intents` | **已迁移**（`0009_events.sql` + `0010_event_operations.sql`，阶段 04）：公共来源活动（本阶段**空表**）与个人活动（墓碑 + revision + 区服 CHECK）分表；活动写入的幂等账本 |
 | `notification_jobs` 等 | 未迁移（阶段 05）；当前调度端口是内存替身，**没有 Cron** |
 
 迁移时必须遵守既定不变量：私有表带 `workspace_id` 或可通过受约束 FK 回溯、
@@ -193,3 +194,62 @@ Widget 实例从**浏览器内存**变成**服务端持久数据**，因此原�
   `POST /me/pages/:id/restore` 能把页面连同内容整体带回来。
 - 「隐藏实例」「移除实例」「停用模块」「卸载模块」「清空页面」「重置工作台」是六种不同动作，
   各自的影响范围在 ADR-0003 与本文件中逐条写清，不得互相代替。
+
+## 8. 阶段 04 落地了什么（HUB-007～012 / 047 / 048 / 051）
+
+### 8.1 真实业务模块（不再是 `demo.*` 独占界面）
+
+| 模块 | Manifest/契约 | 服务端 handler 表 | 前端组件表 | 授予能力 |
+|---|---|---|---|---|
+| `ff14.navigation` | `packages/shared/src/nav-api.ts` | `worker/modules/registry/builtin-modules.ts` | `apps/web/src/app/nav/nav-widget-components.ts` | `storage:own`、`navigation:read-catalog` |
+| `ff14.events` | `packages/shared/src/events-api.ts` | 同上 | `apps/web/src/app/events/events-widget-components.ts` | `storage:own` |
+
+三处仍然是**分离且静态**的：契约（共享包）→ 服务端 handler（静态表）→ 前端组件（静态映射）。
+新增真实模块只需要在这三处各加一项，**不需要**改注册表、不需要改 Shell，
+也不存在按不可信字符串动态加载组件的路径。
+
+Widget 配置契约与 Manifest 的 `configSchemaVersion` 由 `worker/test/module-registry.spec.ts`
+与 `apps/web/test/component-registry.spec.ts` 双向盯住（缺契约或版本不一致即失败）。
+
+### 8.2 模块数据端口：Widget 拿不到凭证，也拿不到任意 URL
+
+阶段 04 新增 `ModuleDataPort`（`apps/web/src/app/widgets/types.ts` + `module-data-ports.ts`）。
+它是 Widget 与「本模块数据」之间的**唯一信道**：
+
+| 规则 | 实现位置 | 违反时的表现 |
+|---|---|---|
+| 组件只能按**声明过的操作名**调用（没有 URL、header、workspace 参数） | `createModuleDataPort()` | 未声明的操作名 → 抛错，且**不发生任何网络请求** |
+| Token 只存在于端口实现内部（闭包） | `app/nav/nav-data-port.ts`、`app/events/events-data-port.ts` | 组件 props 里没有 Token，URL 中也不会有 |
+| 每次调用前**复检模块门禁**（`transitioning`/停用/卸载即拒绝） | `module-data-ports.ts` | 抛错；**不回退**生命周期 pending/执行 token/`created_revision` fence |
+| 输入与响应都用共享 Schema 校验 | 各模块端口 | 契约不符 → 抛错，不返回半可信数据 |
+| 端口不做乐观本地写入 | 同上 | 离线时不会假装服务端已保存 |
+
+### 8.3 导航的数据边界（HUB-047 / 048）
+
+- **系统目录只读**：`nav_catalog_links` 只有种子代码写入；没有任何用户端点能改它。
+  目录升级（`source_version` 变大）只更新目录表。
+- **导入即独立副本**：`workspace_nav_links.source_catalog_id` 是弱关联（刻意无外键），
+  用户可改、可删、可重排。目录升级**不覆盖**用户改动（`user_modified` → skip），
+  **不复活**已删除条目（`tombstoned` → 只有显式再次导入才 `restore_tombstone`）。
+- **作用域**：所有私有读写只取认证得到的 `workspaceId`；关联 ID（目录条目、链接、分组）
+  也必须在同一工作空间内校验——`workspace_nav_memberships` 的外键**不能**替代该校验
+  （有专门测试：把 A 的链接加入 B 的分组必须失败且零写入）。
+- **删除是墓碑**，跨设备传播；本阶段**不做 GC**。
+
+### 8.4 活动模块的数据边界（HUB-011）
+
+- 公共来源活动（`events`）与个人活动（`workspace_events`）**分表**：
+  公开接口只读公共表，个人行永不进入公共响应（有测试断言响应只有 `events`/`serverTimeMs` 两个键）。
+- 阶段 04 只做**人工维护**：不做抓取器、不做鱼类计算、不做提醒调度（留阶段 05）。
+- 个人活动的 `verification_status` **恒为 `unverified`**：用户自述来源不会被服务端"升级"为已核实，
+  界面必须原样标注。
+
+### 8.5 同步水位与墓碑（HUB-051）
+
+- `GET /me/sync/changes` 是**认证、只读**的水位端点；覆盖页面/实例/布局/导航链接/分组/
+  成员关系/模块/个人活动。
+- 变更来源是**按行扫描 `updated_at`**，而不是「在 CRUD 里记日志」：模块卸载清理、模板重置、
+  备份导入、墓碑化等写路径都会更新 `updated_at`，因此天然进入同步流（有测试用真实 HTTP
+  卸载模块后断言实例以 `op:'delete'` 出现）。
+- 客户端规则：**快照权威、增量通知**；收到 `page` 的 delete 时本地一并移除该页的 widget/layout；
+  有未保存草稿时保留草稿并提示冲突，绝不静默覆盖；`delete` 墓碑一旦应用，任何合并都不得复活它。

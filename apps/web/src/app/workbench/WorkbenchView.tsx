@@ -11,8 +11,17 @@
  * - 未保存确认用**可视横幅**（`unsaved-banner`），不是 `window.confirm`。
  * - 冲突（409）横幅保留本地草稿，并提供「重新载入 / 比较 / 重新提交」三个显式出口。
  */
-import { BREAKPOINT_COLUMNS, LAYOUT_BREAKPOINTS, type LayoutBreakpoint } from '@ff14-hub/shared';
-import { useEffect, useMemo } from 'react';
+import {
+  BREAKPOINT_COLUMNS,
+  LAYOUT_BREAKPOINTS,
+  type LayoutBreakpoint,
+  type SyncChange,
+} from '@ff14-hub/shared';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ModuleDataPort } from '../widgets/types';
+import { registerPrivateDraftSource } from '../pwa/draft-registry';
+import type { SyncChangesApi } from '../nav/nav-api';
+import { useSyncChangesPoller } from '../nav/use-nav';
 import { BackupPanel } from './BackupPanel';
 import { EditToolbar } from './EditToolbar';
 import { LayoutGrid } from './LayoutGrid';
@@ -25,10 +34,132 @@ import type { WorkbenchController } from './use-workbench';
 
 export interface WorkbenchViewProps {
   readonly state: WorkbenchController;
+  /**
+   * 模块数据端口（阶段 04）：由应用层构造并持有凭证，这里只做**透传**到卡片与 Host。
+   * 卡片与本视图都不会把它存进 state。
+   */
+  readonly dataPortFor?: ((moduleId: string) => ModuleDataPort | undefined) | undefined;
+  /**
+   * 跨设备变更的 API（HUB-051）。未注入时**不做任何轮询**（因此阶段 03 的行为不变）。
+   */
+  readonly syncChangesApi?: SyncChangesApi | undefined;
+  /** 轮询间隔（毫秒）；测试可注入更短的值。 */
+  readonly syncIntervalMs?: number | undefined;
+}
+
+/** 该变更是否可能影响**当前页面**（页面本身 / 本页的实例 / 本页布局）。 */
+function touchesActivePage(change: SyncChange, activePageId: string, instanceIds: ReadonlySet<string>): boolean {
+  if (change.entityType === 'page') {
+    return change.entityId === activePageId;
+  }
+  if (change.entityType === 'widget') {
+    return instanceIds.has(change.entityId);
+  }
+  if (change.entityType === 'layout') {
+    // 布局实体的 ID 由服务端定义（页面 + 断点）。服务端没有把「哪个页面」单独给出来，
+    // 因此这里刻意**保守**：一律视为与当前页相关。代价是最多多刷新一次，
+    // 而漏掉本页的布局变化会让用户看到过期布局——两者相比后者严重得多。
+    return true;
+  }
+  return false;
+}
+
+/**
+ * 已知的该实体修订号（用于「避免无谓刷新」）。
+ *
+ * 拿不到就返回 null：调用方会退化为「每个 (实体, 修订) 只刷新一次」的去重。
+ */
+function knownRevisionOf(change: SyncChange, state: WorkbenchController): number | null {
+  if (change.entityType === 'page') {
+    return state.pages.find((page) => page.id === change.entityId)?.revision ?? null;
+  }
+  if (change.entityType === 'widget') {
+    return state.instances.find((instance) => instance.id === change.entityId)?.revision ?? null;
+  }
+  return null;
 }
 
 export function WorkbenchView(props: WorkbenchViewProps) {
   const { state } = props;
+  const { dataPortFor, syncChangesApi, syncIntervalMs } = props;
+
+  /**
+   * 跨设备变更提示（只读文本，不参与布局计算的任何一步）。
+   *
+   * 语义刻意限定为**提示**：编辑态下它替代「自动刷新」，因为刷新会覆盖草稿，
+   * 而那正是阶段 03 明确不允许的（用户没点保存，草稿就不能被动过）。
+   */
+  const [remoteNotice, setRemoteNotice] = useState<string | null>(null);
+
+  /**
+   * 已处理的 `(实体, 修订)` 集合：避免同一条变更在每次轮询里都触发一次刷新。
+   * 放在 ref 里而不是 state：它是去重簿记，不需要触发渲染。
+   */
+  const handledRef = useRef(new Set<string>());
+
+  /** 同步回调里需要读**最新**状态，但它本身要保持引用稳定（否则轮询定时器会被反复重建）。 */
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  });
+
+  /**
+   * 把「是否有未保存草稿」登记给 PWA 更新提示（HUB-012）。
+   *
+   * 判定口径：布局脏（`dirty`，来自真实坐标比较）或存在未决冲突（`conflict`，本地草稿还在）。
+   * 两者都意味着「现在重载页面会丢用户的东西」，因此都必须让 Service Worker 更新等一等。
+   */
+  useEffect(
+    () => registerPrivateDraftSource(() => stateRef.current.dirty || stateRef.current.conflict !== null),
+    [],
+  );
+
+  const onSyncChanges = useCallback((changes: readonly SyncChange[]): void => {
+    const current = stateRef.current;
+    const activePageId = current.activePageId;
+    if (activePageId === null) {
+      return;
+    }
+    const instanceIds = new Set(current.instances.map((instance) => instance.id));
+    const relevant = changes.filter((change) => touchesActivePage(change, activePageId, instanceIds));
+    if (relevant.length === 0) {
+      return;
+    }
+    const fresh = relevant.filter((change) => {
+      const known = knownRevisionOf(change, current);
+      if (known !== null && change.revision <= known) {
+        // 修订号不比已知的新：这次刷新不会有任何新信息。
+        return false;
+      }
+      const key = `${change.entityType}:${change.entityId}:${String(change.revision)}`;
+      if (handledRef.current.has(key)) {
+        return false;
+      }
+      handledRef.current.add(key);
+      return true;
+    });
+    if (fresh.length === 0) {
+      return;
+    }
+    if (current.editing) {
+      setRemoteNotice(
+        `其它设备也改动了当前页面（${String(fresh.length)} 项）。你的布局草稿已保留，本视图**不会**自动刷新或覆盖草稿；` +
+          '要取服务端版本请先退出编辑并重新载入。',
+      );
+      return;
+    }
+    setRemoteNotice(null);
+    void current.reload();
+  }, []);
+
+  useSyncChangesPoller({
+    enabled: syncChangesApi !== undefined,
+    ...(syncChangesApi === undefined ? {} : { api: syncChangesApi }),
+    ...(syncIntervalMs === undefined ? {} : { intervalMs: syncIntervalMs }),
+    onChanges: (changes) => {
+      onSyncChanges(changes);
+    },
+  });
 
   /**
    * `layouts` 必须是**引用稳定**的对象。
@@ -201,6 +332,12 @@ export function WorkbenchView(props: WorkbenchViewProps) {
         </div>
       )}
 
+      {remoteNotice === null ? null : (
+        <p className="notice notice--warn" data-testid="workbench-remote-notice" role="status">
+          {remoteNotice}
+        </p>
+      )}
+
       {state.status === 'loading' ? (
         <p className="panel__muted" role="status">
           正在加载工作台…
@@ -259,6 +396,7 @@ export function WorkbenchView(props: WorkbenchViewProps) {
                     breakpoint={state.activeBreakpoint}
                     editing={state.editing}
                     accessOf={state.moduleAccess}
+                    dataPortFor={dataPortFor}
                     disabled={state.busy}
                     canMove={(action) => state.canMoveInstance(instance.id, action)}
                     onMove={(action) => {

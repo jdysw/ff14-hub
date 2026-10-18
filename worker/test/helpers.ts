@@ -55,6 +55,21 @@ export const URLS = {
   workbenchBackups: `${TEST_BASE_URL}/api/v1/me/workbench/backups`,
   workbenchImportPreview: `${TEST_BASE_URL}/api/v1/me/workbench/import/preview`,
   workbenchImportApply: `${TEST_BASE_URL}/api/v1/me/workbench/import/apply`,
+  // 阶段 04：自由导航（HUB-047 / HUB-048 / HUB-007 / HUB-008 / HUB-009）。
+  navCatalog: `${TEST_BASE_URL}/api/v1/navigation/catalog`,
+  meNavigation: `${TEST_BASE_URL}/api/v1/me/navigation`,
+  meNavigationLinks: `${TEST_BASE_URL}/api/v1/me/navigation/links`,
+  meNavigationLinksReorder: `${TEST_BASE_URL}/api/v1/me/navigation/links/reorder`,
+  meNavigationGroups: `${TEST_BASE_URL}/api/v1/me/navigation/groups`,
+  meNavigationGroupsReorder: `${TEST_BASE_URL}/api/v1/me/navigation/groups/reorder`,
+  meNavigationCatalogImport: `${TEST_BASE_URL}/api/v1/me/navigation/catalog/import`,
+  meNavigationImportPreview: `${TEST_BASE_URL}/api/v1/me/navigation/import/preview`,
+  meNavigationImportApply: `${TEST_BASE_URL}/api/v1/me/navigation/import/apply`,
+  meNavigationExport: `${TEST_BASE_URL}/api/v1/me/navigation/export`,
+  // 阶段 04：活动（HUB-011）与同步水位（HUB-051）。
+  publicEvents: `${TEST_BASE_URL}/api/v1/events`,
+  meEvents: `${TEST_BASE_URL}/api/v1/me/events`,
+  meSyncChanges: `${TEST_BASE_URL}/api/v1/me/sync/changes`,
 } as const;
 
 /** 单个模块状态端点。 */
@@ -99,6 +114,43 @@ export function widgetUrl(widgetId: string): string {
 /** 复制 Widget 实例的端点。 */
 export function widgetDuplicateUrl(widgetId: string): string {
   return `${widgetUrl(widgetId)}/duplicate`;
+}
+
+// ---------------------------------------------------------------------------
+// 导航 / 活动 / 同步端点（阶段 04）
+// ---------------------------------------------------------------------------
+
+/** 单个个人链接端点（PATCH / DELETE）。 */
+export function navLinkUrl(linkId: string): string {
+  return `${URLS.meNavigationLinks}/${linkId}`;
+}
+
+/** 链接的分组归属端点（PUT 整体替换）。 */
+export function navLinkGroupsUrl(linkId: string): string {
+  return `${navLinkUrl(linkId)}/groups`;
+}
+
+/** 单个分组端点（PATCH / DELETE）。 */
+export function navGroupUrl(groupId: string): string {
+  return `${URLS.meNavigationGroups}/${groupId}`;
+}
+
+/** 单个个人活动端点（PATCH / DELETE）。 */
+export function eventUrl(eventId: string): string {
+  return `${URLS.meEvents}/${eventId}`;
+}
+
+/** 变更水位端点（带 since / limit 查询参数）。 */
+export function syncChangesUrl(since?: string, limit?: number): string {
+  const params = new URLSearchParams();
+  if (since !== undefined) {
+    params.set('since', since);
+  }
+  if (limit !== undefined) {
+    params.set('limit', String(limit));
+  }
+  const query = params.toString();
+  return query.length === 0 ? URLS.meSyncChanges : `${URLS.meSyncChanges}?${query}`;
 }
 
 /** 用可恢复备份撤销一次替换导入的端点。 */

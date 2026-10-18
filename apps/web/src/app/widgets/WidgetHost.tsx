@@ -26,13 +26,24 @@ import {
 } from './component-registry';
 import type { WidgetInstance } from './instance-store';
 import { isModuleUsableForRendering } from './instance-store';
-import type { ModuleAccess, WidgetErrorKind, WidgetPhase } from './types';
+import type { ModuleAccess, ModuleDataPort, WidgetErrorKind, WidgetPhase } from './types';
 
 export interface WidgetHostProps {
   readonly instances: readonly WidgetInstance[];
   /** 访问判定：模块有效状态 + 服务端授予的能力。 */
   readonly access: (moduleId: string) => ModuleAccess;
   readonly registry?: WidgetComponentRegistry;
+  /**
+   * 模块数据端口（阶段 04 新增，可选）。
+   *
+   * 由**应用层**构造并持有会话凭证：Host 只是把它转发给组件，自己既不知道 Token
+   * 也不知道 API 地址。没有该 prop 时组件拿到的 `data` 为 undefined，
+   * 必须自行降级（见 `WidgetRuntimeProps.data`）。
+   *
+   * 为什么是「按模块 ID 取端口」的函数而不是一张现成表：端口需要在渲染时按需构造
+   * （凭证与模块状态都可能已经变化），而 Host 不希望把「哪个模块有端口」写死在这里。
+   */
+  readonly dataPortFor?: ((moduleId: string) => ModuleDataPort | undefined) | undefined;
   /** 实例级操作：只影响该实例，**不改变模块状态**。 */
   readonly onRemoveInstance?: ((instanceId: string) => void) | undefined;
   readonly onToggleHidden?: ((instanceId: string, hidden: boolean) => void) | undefined;
@@ -111,6 +122,13 @@ interface WidgetSlotProps {
   readonly registry: WidgetComponentRegistry;
   readonly access: ModuleAccess;
   readonly loadingTimeoutMs: number;
+  /**
+   * 该实例所属模块的数据端口（未注册端口时为 undefined）。
+   *
+   * 只在**未被门禁拦下**时才会被真正取用：端口本身还会在每次 `call` 前复查模块门禁，
+   * 因此这里不会绕过 `blocked` 判定（也不放宽任何既有降级逻辑）。
+   */
+  readonly data?: ModuleDataPort | undefined;
   readonly onRemoveInstance?: ((instanceId: string) => void) | undefined;
   readonly onToggleHidden?: ((instanceId: string, hidden: boolean) => void) | undefined;
 }
@@ -344,6 +362,7 @@ function WidgetSlot(props: WidgetSlotProps) {
                   widgetId={instance.widgetId}
                   config={resolution.config}
                   retryToken={state.retryToken}
+                  data={props.data}
                   reportReady={reportReady}
                   reportEmpty={reportEmpty}
                   reportAsyncError={reportAsyncError}
@@ -365,6 +384,33 @@ export function WidgetHost(props: WidgetHostProps) {
   const registry = props.registry ?? widgetComponentRegistry;
   const loadingTimeoutMs = props.loadingTimeoutMs ?? DEFAULT_LOADING_TIMEOUT_MS;
   const visible = props.instances.filter((instance) => !instance.hidden);
+  const dataPortFor = props.dataPortFor;
+
+  /**
+   * 端口缓存（模块 ID → 端口）。
+   *
+   * 为什么必须缓存：`createModuleDataPort` 每次调用都会构造一个新的操作表与 API 客户端，
+   * 如果每次渲染都新建，组件里 `useEffect(..., [data])` 会不断重跑加载逻辑。
+   *
+   * 依赖是「涉及到的模块 ID 序列」这个**字符串**：`instances` 每次渲染都是新数组，
+   * 直接依赖它会让记忆化失效；而模块集合不变时端口必须复用。
+   */
+  const moduleIdsKey = [...new Set(props.instances.map((instance) => instance.moduleId))].sort().join('|');
+  const ports = useMemo(() => {
+    const map = new Map<string, ModuleDataPort>();
+    if (dataPortFor === undefined) {
+      return map;
+    }
+    for (const moduleId of moduleIdsKey.length === 0 ? [] : moduleIdsKey.split('|')) {
+      const port = dataPortFor(moduleId);
+      if (port !== undefined) {
+        map.set(moduleId, port);
+      }
+    }
+    return map;
+  }, [dataPortFor, moduleIdsKey]);
+
+  const portFor = useCallback((moduleId: string): ModuleDataPort | undefined => ports.get(moduleId), [ports]);
 
   if (visible.length === 0) {
     return (
@@ -386,6 +432,7 @@ export function WidgetHost(props: WidgetHostProps) {
           registry={registry}
           access={props.access(instance.moduleId)}
           loadingTimeoutMs={loadingTimeoutMs}
+          data={portFor(instance.moduleId)}
           onRemoveInstance={props.onRemoveInstance}
           onToggleHidden={props.onToggleHidden}
         />

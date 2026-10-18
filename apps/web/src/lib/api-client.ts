@@ -70,7 +70,13 @@ export function buildApiUrl(path: string, baseUrl = ''): string {
   return `${baseUrl.replace(/\/+$/, '')}${path}`;
 }
 
-/** 只接受符合共享契约的错误体；其余一律降级为固定文案。 */
+/**
+ * 只接受符合共享契约的错误体；其余一律降级为固定文案。
+ *
+ * 阶段 04 起**保留 `details`**（可选）：并发冲突的结构化信息（`details.conflict`）必须能到达界面，
+ * 否则界面只能解析文案来判断「服务器上是第几版」。`details` 本身由服务端保证只含可安全回显的字段，
+ * 因此这里原样透传；不是对象时一律丢弃（避免把任意响应体当作结构化数据使用）。
+ */
 export function normalizeApiError(payload: unknown): ApiErrorBody {
   if (payload === null || typeof payload !== 'object') {
     return MALFORMED_ERROR;
@@ -87,7 +93,14 @@ export function normalizeApiError(payload: unknown): ApiErrorBody {
     typeof requestId === 'string' &&
     requestId.length > 0
   ) {
-    return { code: code as ApiErrorBody['code'], message, requestId };
+    const details = candidate['details'];
+    const hasDetails = typeof details === 'object' && details !== null;
+    return {
+      code: code as ApiErrorBody['code'],
+      message,
+      requestId,
+      ...(hasDetails ? { details } : {}),
+    };
   }
   return MALFORMED_ERROR;
 }

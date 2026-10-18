@@ -16,6 +16,8 @@ import {
   BUILTIN_MODULE_MANIFESTS,
   DEMO_BASICS_MODULE_ID,
   DEMO_SOLO_MODULE_ID,
+  EVENTS_MODULE_ID,
+  NAV_MODULE_ID,
   type ModuleCapability,
 } from '@ff14-hub/shared';
 import { z } from 'zod';
@@ -80,6 +82,55 @@ function manifestOf(moduleId: string): unknown {
 /** 演示模块刻意不申请任何能力（不为演示放宽权限面）。 */
 const NO_CAPABILITIES: readonly ModuleCapability[] = [];
 
+/**
+ * 阶段 04 的真实业务模块设置：本阶段没有模块级设置项。
+ * 用 `.strict()` 明确拒绝未知字段，而不是静默丢弃（宁可让用户看到「这个字段不支持」）。
+ */
+const noSettingsSchema = z.object({}).strict();
+
+/**
+ * 导航模块的生命周期 handler（服务端权威）。
+ *
+ * 这里**刻意只做可观测的日志**：启用/停用不搬动任何用户数据——导航链接属于用户，
+ * 停用模块只是让它的组件与入口暂停（INV-04：停用 ≠ 删除）。卸载同理：个人导航数据保留，
+ * 用户重新启用后立即回来。真正需要后台任务的模块（阶段 05 的提醒）才需要在这里取消任务。
+ */
+const navigationHandlerTable: Readonly<Record<string, ModuleLifecycleHandler>> = {
+  'ff14.navigation.enable': (context) => {
+    logHandler('module_handler_enable', context);
+  },
+  'ff14.navigation.disable': async (context) => {
+    const pending = await context.services.scheduler.listPending();
+    logHandler('module_handler_disable', context, { pendingTasks: String(pending.length) });
+  },
+  'ff14.navigation.uninstall': async (context) => {
+    const pending = await context.services.scheduler.listPending();
+    logHandler('module_handler_uninstall', context, { pendingTasks: String(pending.length) });
+  },
+};
+
+/** 活动模块的生命周期 handler。语义同上：停用/卸载都不删除个人活动数据。 */
+const eventsHandlerTable: Readonly<Record<string, ModuleLifecycleHandler>> = {
+  'ff14.events.enable': (context) => {
+    logHandler('module_handler_enable', context);
+  },
+  'ff14.events.disable': async (context) => {
+    const pending = await context.services.scheduler.listPending();
+    logHandler('module_handler_disable', context, { pendingTasks: String(pending.length) });
+  },
+  'ff14.events.uninstall': async (context) => {
+    const pending = await context.services.scheduler.listPending();
+    logHandler('module_handler_uninstall', context, { pendingTasks: String(pending.length) });
+  },
+};
+
+/**
+ * 授予的能力必须**显式列出**，且必须覆盖 Manifest 声明的全部能力
+ * （注册表会校验「声明 ⊆ 授予」，缺一个就构建失败）。
+ */
+const NAVIGATION_CAPABILITIES: readonly ModuleCapability[] = ['storage:own', 'navigation:read-catalog'];
+const EVENTS_CAPABILITIES: readonly ModuleCapability[] = ['storage:own'];
+
 const REGISTRATIONS: readonly ModuleRegistrationInput[] = [
   {
     manifest: manifestOf(DEMO_BASICS_MODULE_ID),
@@ -95,6 +146,21 @@ const REGISTRATIONS: readonly ModuleRegistrationInput[] = [
     settingsSchema: demoSoloSettingsSchema,
     settingsSchemaVersion: 1,
     grantedCapabilities: NO_CAPABILITIES,
+  },
+  // 阶段 04：真实业务模块（HUB-010 / HUB-011）。
+  {
+    manifest: manifestOf(NAV_MODULE_ID),
+    handlerTable: navigationHandlerTable,
+    settingsSchema: noSettingsSchema,
+    settingsSchemaVersion: 1,
+    grantedCapabilities: NAVIGATION_CAPABILITIES,
+  },
+  {
+    manifest: manifestOf(EVENTS_MODULE_ID),
+    handlerTable: eventsHandlerTable,
+    settingsSchema: noSettingsSchema,
+    settingsSchemaVersion: 1,
+    grantedCapabilities: EVENTS_CAPABILITIES,
   },
 ];
 
