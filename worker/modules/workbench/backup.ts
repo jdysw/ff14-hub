@@ -662,7 +662,10 @@ export function createWorkbenchBackupService(deps: WorkbenchBackupDeps): Workben
       }
     }
     const gates = new Map<string, ModuleGate>();
-    for (const moduleId of [...moduleIds].sort()) {
+    // 显式 localeCompare 比较器：默认的 Array#sort 按 UTF-16 码元排序，
+    // 对「字母序」并不可靠（Sonar 可靠性规则会标记）；这里只需要稳定的确定性顺序，
+    // 以便预览令牌在不同请求之间可复现。
+    for (const moduleId of [...moduleIds].sort((a, b) => a.localeCompare(b))) {
       gates.set(moduleId, await readModuleGate(deps.db, workspaceId, moduleId));
     }
     return gates;

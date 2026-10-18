@@ -39,9 +39,10 @@ import {
   readWorkbenchOperationRow,
   readWorkbenchStateRow,
   resetIdentityState,
-  seedWorkspaceWithDevice,
   widgetDuplicateUrl,
   widgetUrl,
+  opId,
+  seedAuth,
 } from './helpers';
 
 const DEMO_COUNTER = DEMO_WIDGET_IDS.counter;
@@ -51,23 +52,6 @@ const DEMO_SOLO = DEMO_WIDGET_IDS.solo;
 const COUNTER_WIDGET = BUILTIN_MODULE_MANIFESTS.flatMap((manifest) => manifest.widgets).find(
   (widget) => widget.id === DEMO_COUNTER,
 );
-
-let operationCounter = 0;
-
-function opId(label: string): string {
-  operationCounter += 1;
-  return `op-${label}-${String(operationCounter).padStart(4, '0')}`;
-}
-
-interface AuthedWorkspace {
-  readonly workspaceId: string;
-  readonly authorization: string;
-}
-
-async function seedAuth(): Promise<AuthedWorkspace> {
-  const { workspace, device } = await seedWorkspaceWithDevice();
-  return { workspaceId: workspace.workspaceId, authorization: device.authorization };
-}
 
 function errorBodyOf(text: string): { code: string; message: string } {
   return JSON.parse(text) as { code: string; message: string };

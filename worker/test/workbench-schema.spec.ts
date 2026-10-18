@@ -38,6 +38,8 @@ import {
   seedWorkspaceWithDevice,
   widgetDuplicateUrl,
   widgetUrl,
+  opId,
+  seedAuth,
 } from './helpers';
 
 const DEMO_COUNTER = DEMO_WIDGET_IDS.counter;
@@ -46,23 +48,6 @@ const NOW = 1_760_000_000_000;
 const ROLLBACK_TRIGGER = 'test_force_rollback_guard';
 /** 结构合法但不对应任何真实预览的令牌（用于「先过 Schema，再被业务拒绝」的探针）。 */
 const SYNTHETIC_PREVIEW_TOKEN = 'synthetic-preview-token-0000000000000000';
-
-let operationCounter = 0;
-
-function opId(label: string): string {
-  operationCounter += 1;
-  return `op-${label}-${String(operationCounter).padStart(4, '0')}`;
-}
-
-interface AuthedWorkspace {
-  readonly workspaceId: string;
-  readonly authorization: string;
-}
-
-async function seedAuth(): Promise<AuthedWorkspace> {
-  const { workspace, device } = await seedWorkspaceWithDevice();
-  return { workspaceId: workspace.workspaceId, authorization: device.authorization };
-}
 
 function errorBodyOf(text: string): { code: string; message: string } {
   return JSON.parse(text) as { code: string; message: string };

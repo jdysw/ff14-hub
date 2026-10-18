@@ -336,6 +336,39 @@ export async function seedWorkspaceWithDevice(
   return { workspace, device };
 }
 
+/** 工作台测试通用的「已鉴权工作空间」形状（含设备凭证与恢复密钥，便于断言与二次配对）。 */
+export interface AuthedWorkspace {
+  readonly workspaceId: string;
+  readonly deviceId: string;
+  readonly deviceToken: string;
+  readonly recoveryKey: string;
+  readonly authorization: string;
+}
+
+/** 直接种一个带设备的工作空间并返回可用的 Authorization 头值。 */
+export async function seedAuth(): Promise<AuthedWorkspace> {
+  const { workspace, device } = await seedWorkspaceWithDevice();
+  return {
+    workspaceId: workspace.workspaceId,
+    deviceId: device.deviceId,
+    deviceToken: device.token,
+    recoveryKey: workspace.recoveryKey,
+    authorization: device.authorization,
+  };
+}
+
+let operationCounter = 0;
+
+/**
+ * 生成测试用 operationId。
+ * 每个测试文件由 Vitest 独立加载模块，因此计数器天然按文件隔离；
+ * 即使在同文件内也保证单调唯一，便于断言「同 ID 换意图」与「真重放」。
+ */
+export function opId(label: string): string {
+  operationCounter += 1;
+  return `op-${label}-${String(operationCounter).padStart(4, '0')}`;
+}
+
 /** 读取设备的 token_hash（用于断言响应体从未泄露它）。 */
 export async function readTokenHash(deviceId: string): Promise<string | null> {
   const row = await env.DB.prepare('SELECT token_hash FROM devices WHERE id = ?')

@@ -50,17 +50,11 @@ import {
   readWorkbenchStateRow,
   resetIdentityState,
   saveLayoutRequest,
-  seedWorkspaceWithDevice,
+  opId,
+  seedAuth,
 } from './helpers';
 
 const DEMO_COUNTER = DEMO_WIDGET_IDS.counter;
-
-let operationCounter = 0;
-
-function opId(label: string): string {
-  operationCounter += 1;
-  return `op-${label}-${String(operationCounter).padStart(4, '0')}`;
-}
 
 /**
  * 结构上合法（长度落在 schema 的 16..128 内）但**不是**任何一次真实预览产出的令牌。
@@ -69,25 +63,6 @@ function opId(label: string): string {
  * 而不是被「缺少 previewToken」这类结构问题提前挡掉——后者会让断言变得空洞。
  */
 const SYNTHETIC_PREVIEW_TOKEN = 'synthetic-preview-token-0000000000000000';
-
-interface AuthedWorkspace {
-  readonly workspaceId: string;
-  readonly deviceId: string;
-  readonly deviceToken: string;
-  readonly recoveryKey: string;
-  readonly authorization: string;
-}
-
-async function seedAuth(): Promise<AuthedWorkspace> {
-  const { workspace, device } = await seedWorkspaceWithDevice();
-  return {
-    workspaceId: workspace.workspaceId,
-    deviceId: device.deviceId,
-    deviceToken: device.token,
-    recoveryKey: workspace.recoveryKey,
-    authorization: device.authorization,
-  };
-}
 
 function errorBodyOf(text: string): { code: string; message: string } {
   return JSON.parse(text) as { code: string; message: string };
