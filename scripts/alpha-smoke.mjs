@@ -7,7 +7,8 @@ import {fileURLToPath} from 'node:url';
 const environment=process.argv[2];
 if(!['preview','production'].includes(environment))throw new Error('Choose preview or production');
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const baseUrl=`https://${environment==='preview'?'ff14-hub-preview':'ff14-hub'}.3347759490.workers.dev`;
+const baseUrl=`https://${environment==='preview'?'ff14-preview':'ff14'}.zhixia.uk`;
+const legacyBaseUrl=`https://${environment==='preview'?'ff14-hub-preview':'ff14-hub'}.3347759490.workers.dev`;
 const directory=path.join(root,'.wrangler','release');await mkdir(directory,{recursive:true,mode:0o700});
 const ownerFile=path.join(directory,`access.${environment}.json`);
 const reportFile=path.join(directory,`smoke.${environment}.json`);
@@ -48,7 +49,12 @@ async function main(){
     // Save immediately before any later mutation. Never print credential-bearing API responses.
     await writeFile(ownerFile,JSON.stringify(owner,null,2),{flag:'wx',mode:0o600});
   }
-  check(owner.baseUrl===baseUrl,'credential target matches environment');const token=owner.deviceToken;
+  check(owner.baseUrl===baseUrl||owner.baseUrl===legacyBaseUrl,'credential target matches environment');
+  if(owner.baseUrl===legacyBaseUrl){
+    owner.baseUrl=baseUrl;
+    await writeFile(ownerFile,JSON.stringify(owner,null,2),{mode:0o600});
+  }
+  const token=owner.deviceToken;
   const profile=await api('/me/profile',{token});check(profile.id===owner.workspaceId,'owner authenticated');
   for(const id of ['ff14.navigation','ff14.events']){
     const current=(await api(`/me/modules/${id}`,{token})).module;

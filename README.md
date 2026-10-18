@@ -7,7 +7,7 @@ FF14 个人导航与模块化工作台。默认面向国服玩家与个人自用
 鱼类数据目前是明确标注的合成演示，具体模板内容留待单独开发。真实鱼糕存储适配、真实 WebDAV 联调、
 产品自动同步与云端发布恢复演练仍未完成；阶段边界以对应操作手册和 ADR 为准。
 
-正式入口：[FF14 Hub](https://ff14-hub.3347759490.workers.dev)。首次使用与验证范围见[alpha 上线记录](docs/releases/v0.1-alpha.md)。
+正式入口：[FF14 Hub](https://ff14.zhixia.uk)。首次使用与验证范围见[alpha 上线记录](docs/releases/v0.1-alpha.md)。
 
 06D 已增加发布静态预检和**本地**整库备份/恢复演练：`pnpm run ops:preflight`、
 `pnpm run ops:rehearse`。06G 使用独立的预览与生产云端 D1；详见[维护手册](docs/operations-runbook.md)。
