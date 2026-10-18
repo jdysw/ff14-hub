@@ -1,0 +1,1 @@
+{"name":"@ff14-hub/fish-sync","version":"0.0.0","private":true,"type":"module","exports":{".":"./src/index.ts","./webdav":"./src/webdav.ts"},"scripts":{"typecheck":"tsc -p tsconfig.json","test":"vitest run"},"dependencies":{"zod":"catalog:"},"devDependencies":{"typescript":"catalog:","vitest":"catalog:"}}

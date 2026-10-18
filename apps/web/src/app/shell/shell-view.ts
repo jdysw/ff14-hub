@@ -4,12 +4,13 @@
  * 阶段 03 追加真实的「自定义工作台」视图（HUB-045 / 046 / 049 / 054），
  * 阶段 04 追加真实的「个人导航」视图（HUB-007 / 008 / 009 / 047 / 048）。
  */
-export type ShellView = 'overview' | 'nav' | 'workbench' | 'modules' | 'widgets' | 'credentials' | 'fishing' | 'reminders';
+export type ShellView = 'overview' | 'nav' | 'workbench' | 'modules' | 'widgets' | 'credentials' | 'fishing' | 'reminders' | 'sync';
 
 export const SHELL_VIEW_TITLES: Readonly<Record<ShellView, string>> = {
   overview: '工作台概览',
   fishing:'钓鱼手账',
   reminders:'提醒管理',
+  sync:'数据同步',
   nav: '个人导航',
   workbench: '自定义工作台',
   modules: '模块管理',

@@ -4,6 +4,7 @@
 .fishing-panel input{min-width:0;width:100%}.fishing-panel a{color:var(--accent)}.fishing-panel p,.fishing-windows span{color:var(--text-muted)}
 .fishing-panel input[type=checkbox]{width:auto;min-height:auto}.fishing-toolbar label{white-space:nowrap}
 .fishing-toolbar label{max-width:100%}.fishing-toolbar select{min-width:0;max-width:100%}
+.fishing-panel textarea{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.5rem}
 .fishing-header,.fishing-toolbar,.fishing-actions{display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
 .fishing-header{justify-content:space-between}.fishing-header h2{margin-bottom:.25rem}
 .fishing-toolbar{padding-block:1rem;border-block:1px solid var(--border)}

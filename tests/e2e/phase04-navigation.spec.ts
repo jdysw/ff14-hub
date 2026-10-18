@@ -450,6 +450,14 @@ async function findLatestSyncChange(
   return latest;
 }
 
+/** Optimistic DOM changes do not prove a committed write; synchronize on its actual response. */
+async function mutateNavLinkViaUi(page: Page, id: string, action: 'delete' | 'toggle-favorite', status = 200): Promise<void> {
+  const response = page.waitForResponse((item) => new URL(item.url()).pathname === `/api/v1/me/navigation/links/${id}` &&
+    item.request().method() === (action === 'delete' ? 'DELETE' : 'PATCH'));
+  await linkRow(page, id).getByTestId(`nav-link-${action}`).click();
+  expect((await response).status(), '先确认写入结果，再读取服务端/同步事实').toBe(status);
+}
+
 /** 预置链接（编排脚本预置）必须存在且是收藏：`nav-quick-links` 默认只显示收藏。 */
 async function ensurePresetFavoriteLink(page: Page, request: APIRequestContext): Promise<NavLink> {
   let snapshot = await readSnapshot(request);
@@ -465,7 +473,7 @@ async function ensurePresetFavoriteLink(page: Page, request: APIRequestContext):
     // 用界面真实入口改收藏（行级 CAS 是正确实现的路径），并断言界面与快照都变了。
     const row = linkRow(page, link.id);
     await expect(row).toBeVisible();
-    await row.getByTestId('nav-link-toggle-favorite').click();
+    await mutateNavLinkViaUi(page, link.id, 'toggle-favorite');
     await expect(row.getByTestId('nav-link-favorite-mark')).toBeVisible();
   }
   snapshot = await readSnapshot(request);
@@ -668,7 +676,7 @@ test.describe('阶段 04：自由导航（HUB-047 / 048 / 007 / 008）', () => {
     await expect(catalogRow(page, first.id)).toHaveAttribute('data-catalog-state', 'user_modified');
 
     // 3) 删除第二条 = 墓碑。
-    await linkRow(page, deletedCopy.id).getByTestId('nav-link-delete').click();
+    await mutateNavLinkViaUi(page, deletedCopy.id, 'delete');
     await expect(linkRow(page, deletedCopy.id), '墓碑行必须从界面消失').toHaveCount(0);
     const afterDelete = await readSnapshot(request);
     expect(afterDelete.links.some((link) => link.id === deletedCopy.id)).toBe(false);
@@ -1299,14 +1307,14 @@ test.describe('阶段 04：跨设备同步（HUB-051）', () => {
       const rowB = linkRow(pageB, conflictLink.id);
       await expect(rowA).toBeVisible();
       await expect(rowB).toBeVisible();
-      await rowA.getByTestId('nav-link-toggle-favorite').click();
+      await mutateNavLinkViaUi(pageA, conflictLink.id, 'toggle-favorite');
       await expect(rowA.getByTestId('nav-link-favorite-mark')).toBeVisible();
       const afterAWrite = await readSnapshot(request);
       const linkAfterA = afterAWrite.links.find((link) => link.id === conflictLink.id);
       expect(linkAfterA?.isFavorite).toBe(true);
       expect(linkAfterA?.revision).toBe(conflictLink.revision + 1);
 
-      await rowB.getByTestId('nav-link-delete').click();
+      await mutateNavLinkViaUi(pageB, conflictLink.id, 'delete', 409);
       // 服务端 409 的文案是 `资源状态冲突。（nav_link 的修订号已从 R 变为 R+1）`：
       // 界面必须把**新旧修订号**与冲突码一起呈现出来（这就是「结构化冲突提示」的可读形态）。
       const conflictError = pageB.getByTestId('nav-error');
@@ -1350,7 +1358,7 @@ test.describe('阶段 04：跨设备同步（HUB-051）', () => {
       await expect(pageB.getByTestId('nav-link-form')).toHaveAttribute('data-mode', 'edit');
       await pageB.getByTestId('nav-link-title').fill(draftTitle);
 
-      await linkRow(pageA, otherLink.id).getByTestId('nav-link-delete').click();
+      await mutateNavLinkViaUi(pageA, otherLink.id, 'delete');
       await expect(linkRow(pageA, otherLink.id)).toHaveCount(0);
 
       await pageB.getByTestId('nav-sync-now').click();
@@ -1360,7 +1368,7 @@ test.describe('阶段 04：跨设备同步（HUB-051）', () => {
         draftTitle,
       );
       // (c) 无草稿路径的墓碑传播：A 删除 conflictLink，B 同步后该行消失，再同步也不会回来。
-      await linkRow(pageA, conflictLink.id).getByTestId('nav-link-delete').click();
+      await mutateNavLinkViaUi(pageA, conflictLink.id, 'delete');
       await expect(linkRow(pageA, conflictLink.id)).toHaveCount(0);
       const tombstone = await findLatestSyncChange(request, 'nav_link', conflictLink.id);
       expect(tombstone, '删除必须进入同步流').not.toBeNull();
@@ -1372,7 +1380,7 @@ test.describe('阶段 04：跨设备同步（HUB-051）', () => {
 
       // (d) 编辑中的草稿遇到远端墓碑（D7 最后一条）：保留草稿 + 结构化冲突横幅；
       //     用户显式「放弃草稿并重新载入」后，墓碑才落到列表上。
-      await linkRow(pageA, draftLink.id).getByTestId('nav-link-delete').click();
+      await mutateNavLinkViaUi(pageA, draftLink.id, 'delete');
       await expect(linkRow(pageA, draftLink.id)).toHaveCount(0);
       await pageB.getByTestId('nav-sync-now').click();
       await expect(pageB.getByTestId('nav-conflict'), '与草稿冲突的远端变化必须弹出结构化横幅').toBeVisible();

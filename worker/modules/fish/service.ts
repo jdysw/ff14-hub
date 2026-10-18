@@ -27,7 +27,9 @@ export async function readFish(db: D1Database, region: FishRegion) {
 export async function readProgress(db: D1Database, workspaceId: string, region: FishRegion) {
   await requireFishing(db,workspaceId);
   const results = await db.batch<Record<string,unknown>>([
-    db.prepare('SELECT region,fish_id AS fishId,field,value,revision,updated_at AS updatedAt FROM fish_state_fields WHERE workspace_id=? AND region=? ORDER BY fish_id,field LIMIT 15001').bind(workspaceId,region),
+    db.prepare(`SELECT region,fish_id AS fishId,field,value,revision,updated_at AS updatedAt FROM
+      (SELECT * FROM fish_state_fields UNION ALL SELECT * FROM fish_external_fields)
+      WHERE workspace_id=? AND region=? ORDER BY fish_id,field LIMIT 15001`).bind(workspaceId,region),
     db.prepare('SELECT COALESCE(MAX(seq),0) AS watermark FROM fish_progress_changes WHERE workspace_id=? AND region=?').bind(workspaceId,region),
   ]);
   if ((results[0]?.results.length ?? 0) > 15000) throw new ApiError('validation_failed','进度数据超出读取上限');
@@ -48,8 +50,9 @@ export async function writeProgress(db: D1Database, workspaceId: string, input: 
   // CAS, module gate and identity existence are rechecked inside the atomic claim.
   return ledger.runIdempotentWrite({...meta,now,
     preconditionSql:`EXISTS(SELECT 1 FROM fish_catalog WHERE region=? AND fish_id=?) AND ${gateSql}
-      AND COALESCE((SELECT revision FROM fish_state_fields WHERE workspace_id=? AND region=? AND fish_id=? AND field=?),0)=?`,
-    preconditionBinds:[input.region,input.fishId,workspaceId,...ids,input.expectedRevision],
+      AND COALESCE((SELECT revision FROM fish_state_fields WHERE workspace_id=? AND region=? AND fish_id=? AND field=?),0)=?
+      AND (? > 0 OR (SELECT COUNT(*) FROM (SELECT * FROM fish_state_fields UNION ALL SELECT * FROM fish_external_fields) WHERE workspace_id=? AND region=?)<15000)`,
+    preconditionBinds:[input.region,input.fishId,workspaceId,...ids,input.expectedRevision,input.expectedRevision,workspaceId,input.region],
     buildStatements:(guard) => [db.prepare(`INSERT INTO fish_state_fields(workspace_id,region,fish_id,field,value,revision,updated_at)
       SELECT ?,?,?,?,?,?,? WHERE ${guard.sql}
       ON CONFLICT(workspace_id,region,fish_id,field) DO UPDATE SET value=excluded.value,revision=excluded.revision,updated_at=excluded.updated_at`)

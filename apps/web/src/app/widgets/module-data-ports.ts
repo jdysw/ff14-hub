@@ -24,6 +24,8 @@ import { fishModulePortFactory } from '../fish/fish-data-port';
 import { FISH_MODULE_ID } from '@ff14-hub/shared';
 import { REMINDER_MODULE_ID } from '@ff14-hub/shared';
 import { reminderPortFactory } from '../reminders/data-port';
+import { SYNC_MODULE_ID } from '@ff14-hub/shared';
+import { fishSyncPortFactory } from '../fish-sync/data-port';
 
 /** 端口工厂拿到的上下文：只有这一层看得见凭证。 */
 export interface ModulePortContext {
@@ -56,6 +58,7 @@ export type ModulePortFactory = (context: ModulePortContext) => ModulePortOperat
 export const MODULE_PORT_FACTORIES: Readonly<Record<string, ModulePortFactory>> = {
   [FISH_MODULE_ID]:fishModulePortFactory,
   [REMINDER_MODULE_ID]:reminderPortFactory,
+  [SYNC_MODULE_ID]:fishSyncPortFactory,
   [NAV_MODULE_ID]: navModulePortFactory,
   [EVENTS_MODULE_ID]: eventsModulePortFactory,
 };

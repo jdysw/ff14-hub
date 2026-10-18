@@ -19,6 +19,7 @@ import {
   EVENTS_MODULE_ID,
   FISH_MODULE_ID,
   REMINDER_MODULE_ID,
+  SYNC_MODULE_ID,
   NAV_MODULE_ID,
   type ModuleCapability,
 } from '@ff14-hub/shared';
@@ -134,6 +135,7 @@ const NAVIGATION_CAPABILITIES: readonly ModuleCapability[] = ['storage:own', 'na
 const EVENTS_CAPABILITIES: readonly ModuleCapability[] = ['storage:own'];
 
 const REGISTRATIONS: readonly ModuleRegistrationInput[] = [
+  {manifest:manifestOf(SYNC_MODULE_ID),handlerTable:{},settingsSchema:noSettingsSchema,settingsSchemaVersion:1,grantedCapabilities:['storage:own']},
   { manifest:manifestOf(REMINDER_MODULE_ID),handlerTable:{},settingsSchema:noSettingsSchema,
     settingsSchemaVersion:1,grantedCapabilities:['storage:own','scheduled:own'] },
   { manifest: manifestOf(FISH_MODULE_ID), handlerTable: {}, settingsSchema: noSettingsSchema,

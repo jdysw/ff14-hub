@@ -33,6 +33,7 @@
     "e2e:phase04": "node scripts/e2e-phase04.mjs",
     "e2e:phase05": "node scripts/e2e-phase05.mjs",
     "e2e:phase05b": "node scripts/e2e-phase05b.mjs",
+    "e2e:phase06a": "node scripts/e2e-phase06a.mjs",
     "verify": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run build"
   },
   "devDependencies": {

@@ -29,6 +29,7 @@ interface SystemEntry {
 const SYSTEM_ENTRIES: readonly SystemEntry[] = [
   {id:'fishing',label:'钓鱼手账',hint:'天气窗口与独立进度',stage:'阶段 05A',view:'fishing'},
   {id:'reminders',label:'提醒管理',hint:'规则、设备与投递记录',stage:'阶段 05B',view:'reminders'},
+  {id:'sync',label:'数据同步',hint:'鱼糕文件与导入恢复',stage:'阶段 06A',view:'sync'},
   {
     id: 'workbench',
     label: '自定义工作台',
