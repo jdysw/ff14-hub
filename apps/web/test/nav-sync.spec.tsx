@@ -412,7 +412,10 @@ describe('3. 普通 reload 抬地板', () => {
     const newer = baseSnapshot(30);
     const older = baseSnapshot(20);
     const resolveAt = async (index: number, value: NavSnapshot): Promise<void> => {
-      await act(() => { resolvers[index]?.({ ok: true, data: value, status: 200 }); });
+      await act(async () => {
+        resolvers[index]?.({ ok: true, data: value, status: 200 });
+        await Promise.resolve();
+      });
     };
     if (olderFirst) { await resolveAt(1, older); await resolveAt(0, newer); }
     else { await resolveAt(0, newer); await resolveAt(1, older); }
