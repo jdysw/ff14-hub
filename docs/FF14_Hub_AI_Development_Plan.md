@@ -18,8 +18,8 @@ project:
   traditional_user_accounts: false
   customization: full_user_control
 current_execution:
-  phase: "05B"
-  task_ids: [HUB-020, HUB-021, HUB-022, HUB-023, HUB-024, HUB-025, HUB-026]
+  phase: "06A"
+  task_ids: [HUB-028, HUB-029, HUB-030, HUB-031, HUB-033, HUB-034]
   dispatch: "Codex 直接实现（用户2026-10-18明确接管要求，DSH会话已中止）"
   repository_created: verified
   tasks_dispatched: true
@@ -43,7 +43,9 @@ current_execution:
     HUB-054: merged
   phase_04_status: merged
   phase_05a_framework_status: merged
-  phase_05b_framework_status: implemented_pending_review
+  phase_05b_framework_status: merged
+  phase_06a_framework_status: implemented_pending_review
+  phase_06_remaining: [HUB-032, live_three_replica_coordinator, credential_vault, release_security_audit, deployment_rehearsal]
   phase_05b_remaining: [production_cron_activation, real_device_receipt, notification_templates, HUB-027]
   phase_05a_task_status:
     HUB-013: partial_dataset_coverage
@@ -102,6 +104,7 @@ current_execution:
 ### 2026-10-18 最新事实（覆盖下方保留的历史快照）
 
 - 用户最新范围调整：本轮先交付可运行框架与示例占位；具体模板内容后续单独开发，不以真实数据/历史内容未齐阻塞本轮框架交付。
+- 05B框架已由PR #22合并（a718788）。06A已实现鱼糕三集合/未知字段适配、显式三方冲突核心、客户端WebDAV条件写与双文件恢复、最小数据同步API、导入审计与回滚、页面/Widget；见ADR-0007。真实鱼糕脚本与三副本联动尚未交付，不把框架测试通过记成真实WebDAV同步完成。
 - 05A框架已由PR #21合并（c1126c9）。05B提醒框架已实现：规则CAS/幂等、有界任务规划/去重、租约与投递前重验、独立设备订阅/记录、管理页面与Widget。复用MIT WebCrypto推送库，许可证保留，见ADR-0006和phase05b-user-guide。
 - 05B只完成本地可运行框架；未配置生产Cron、未配置VAPID密钥、未验证真实设备收件。模板仍用通用占位文案。HUB-027摘要/免打扰明确延期，不能读成提醒系统已生产上线。
 

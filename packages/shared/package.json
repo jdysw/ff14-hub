@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@ff14-hub/fish-engine": "workspace:*",
+    "@ff14-hub/fish-sync": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

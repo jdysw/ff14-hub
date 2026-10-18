@@ -33,6 +33,8 @@ import { FishingPage } from '../fish/FishingPanel';
 import { FISH_MODULE_ID } from '@ff14-hub/shared';
 import { REMINDER_MODULE_ID } from '@ff14-hub/shared';
 import { ReminderPage } from '../reminders/ReminderPanel';
+import { SYNC_MODULE_ID } from '@ff14-hub/shared';
+import { SyncPage } from '../fish-sync/SyncPanel';
 import { createNavTransport, createSyncChangesApi, type SyncChangesApi } from '../nav/nav-api';
 import { useNav } from '../nav/use-nav';
 import { builtinWidgetLookup } from '../widgets/component-registry';
@@ -219,6 +221,7 @@ function SessionWorkbench(props: SessionWorkbenchProps) {
       {props.view === 'nav' ? <NavView state={nav} /> : null}
       {props.view === 'fishing' ? <FishingPage dataPortFor={dataPortFor} status={moduleAccess(FISH_MODULE_ID).status}/> : null}
       {props.view === 'reminders' ? <ReminderPage dataPortFor={dataPortFor} status={moduleAccess(REMINDER_MODULE_ID).status}/> : null}
+      {props.view === 'sync' ? <SyncPage dataPortFor={dataPortFor} status={moduleAccess(SYNC_MODULE_ID).status}/> : null}
 
       {props.view === 'workbench' ? (
         <WorkbenchView

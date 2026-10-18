@@ -13,6 +13,7 @@ export * from './builtin-modules';
 export * from './errors';
 export * from './events-api';
 export * from './fish-api';
+export * from './fish-sync-api';
 export * from './reminder-api';
 export * from './identity';
 export * from './identity-api';
