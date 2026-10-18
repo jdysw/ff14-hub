@@ -177,6 +177,17 @@ async function createGroupViaApi(auth: AuthedWorkspace, name: string): Promise<N
 }
 
 beforeEach(async () => {
+  // 与 nav-import.spec.ts 同一处理：迁移 0011 的 DELETE 触发器会在工作空间级联删除过程中
+  // 往 `workspace_changes` 插一行（外键指向 `workspaces`），此时父行已不在 → 外键失败。
+  // 因此先在工作空间还在时删掉导航行，再走 `resetIdentityState()`。
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM workspace_nav_memberships'),
+    env.DB.prepare('DELETE FROM workspace_nav_links'),
+    env.DB.prepare('DELETE FROM workspace_nav_groups'),
+    env.DB.prepare('DELETE FROM workspace_nav_state'),
+    env.DB.prepare('DELETE FROM nav_operations'),
+    env.DB.prepare('DELETE FROM nav_operation_intents'),
+  ]);
   await resetIdentityState();
 });
 

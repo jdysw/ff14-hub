@@ -84,6 +84,16 @@ export function NavView(props: NavViewProps) {
           {state.notice}
         </p>
       )}
+      {/*
+        同步机制的可恢复提示（当前只有「服务端拒绝本地游标 → 已丢弃并从头完整同步」）。
+        刻意用独立一行而不是 `nav-error`：这不是失败，而是**已经自动恢复**的事实；
+        但它必须可见——静默重来会让用户以为「本地数据一直是最新的」。
+      */}
+      {state.syncNotice === null ? null : (
+        <p className="notice notice--warn" data-testid="nav-sync-notice" role="status">
+          {state.syncNotice}
+        </p>
+      )}
 
       <ConflictBanner state={state} />
 

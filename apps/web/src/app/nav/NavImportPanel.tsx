@@ -1,25 +1,29 @@
 /**
  * 导航导入 / 导出面板（阶段 04 / HUB-007 · 008 · 047）。
  *
- * 四条不可含糊的事实必须在界面上看得见：
+ * 五条不可含糊的事实必须在界面上看得见：
  * 1. **目录升级 ≠ 再导入**：每条目录条目都显示它相对「我的副本」的状态
  *    （`new` / `unchanged` / `user_modified` / `tombstoned`，用共享 `catalogUpgradePlan` +
  *    `navCatalogEntryState` 计算）。`tombstoned` 的条目**默认不勾选**，只有用户点
  *    「显式再次导入」时才可能恢复；`user_modified` 的条目默认不可被覆盖，
  *    除非用户另行勾选「覆盖我的修改」。
- * 2. **本地解析先行**：书签 HTML / JSON 一律先在本地用共享纯函数
- *    （`parseBookmarkHtml` / `parseNavImportJson`）解析成 `items` 与 `skipped`，
- *    逐项给出跳过原因，再由用户确认 apply。**外来 HTML 从不进入 DOM**：
- *    渲染出来的始终是解析后的**文本**。
- * 3. **文本里可能带着标签残片**：被跳过的条目会把原始 URL / 标题回显出来，
+ * 2. **本地解析先行**：书签 HTML / 链接 JSON / 版本化配置一律先在本地用共享纯函数
+ *    （`parseBookmarkHtml` / `parseNavImportDocument`）解析，逐项给出跳过原因，
+ *    再由用户确认 apply。**外来 HTML 从不进入 DOM**：渲染出来的始终是解析后的**文本**。
+ * 3. **普通链接导入 ≠ 恢复完整配置**（复核发现的真实缺陷）：带 `schemaVersion` 的导出文档
+ *    走「恢复完整配置」——展示摘要（链接 / 分组 / 关系数量、导出时间、schemaVersion），
+ *    经 preview → apply 提交**原样文档**，保留分组、多对多归属、收藏、状态与顺序。
+ *    解析失败（未来版本 / 引用不完整 / 危险 URL）时**明确展示原因**，
+ *    绝不降级成 links 导入（降级会静默丢掉分组与关系）。
+ * 4. **文本里可能带着标签残片**：被跳过的条目会把原始 URL / 标题回显出来，
  *    因此这里把 `<` / `>` 转成全角字符再渲染 —— 即使某段文本里含有标签，
  *    页面上也不会出现任何真实的 HTML 标签文本。
- * 4. **导出可往返**：导出用共享 `buildNavExportDocument` 的形状，并把
+ * 5. **导出可往返**：导出用共享 `buildNavExportDocument` 的形状，并把
  *    「读回校验」入口（共享 `parseNavExportDocument`）也做出来，证明往返稳定。
  */
 import type { NavRegion } from '@ff14-hub/shared';
 import { useMemo, useState, type ChangeEvent } from 'react';
-import type { NavController, NavCatalogRow } from './use-nav';
+import type { NavController, NavCatalogRow, NavLocalImport, NavRestoreSummary } from './use-nav';
 
 export interface NavImportPanelProps {
   readonly state: NavController;
@@ -50,6 +54,14 @@ const SKIP_REASON_LABELS: Readonly<Record<string, string>> = {
   missing_title: '缺少标题',
   too_many_items: '超过单次导入上限',
   duplicate: '同一地址重复出现',
+  unsupported_document: '完整配置不能用普通链接导入',
+};
+
+/** 导入来源的可读名称。 */
+const IMPORT_KIND_LABELS: Readonly<Record<NavLocalImport['kind'], string>> = {
+  bookmarks: '书签 HTML',
+  json: '结构化 JSON',
+  restore: '完整导航配置（恢复）',
 };
 
 /**
@@ -339,7 +351,7 @@ function CatalogRowItem(props: {
   );
 }
 
-/** 书签 HTML / JSON 导入：本地解析 → 逐项预览（含跳过原因）→ 确认 apply。 */
+/** 书签 HTML / 链接 JSON / 完整配置恢复：本地解析 → 逐项预览（含跳过原因）→ 确认 apply。 */
 function BookmarkImportSection(props: {
   readonly state: NavController;
   readonly jsonText: string;
@@ -350,6 +362,8 @@ function BookmarkImportSection(props: {
   const { state } = props;
   const local = state.localImport;
   const preview = state.importPreview;
+  const isRestore = local?.kind === 'restore';
+  const parseFailed = local !== null && local.error !== null;
 
   /** 读文件：解析失败只显示可读提示，绝不抛异常，也绝不把文件内容插进 DOM。 */
   async function handleFile(event: ChangeEvent<HTMLInputElement>): Promise<void> {
@@ -372,15 +386,17 @@ function BookmarkImportSection(props: {
   return (
     <section className="nav__import-file" data-testid="nav-import-file" aria-labelledby="nav-import-file-title">
       <h4 className="subsection-title" id="nav-import-file-title">
-        书签 HTML / JSON 导入（先预览，再确认）
+        导入：书签 / 链接 JSON / 恢复完整配置（先预览，再确认）
       </h4>
       <p className="panel__muted">
         解析在你的浏览器里完成：只把 <code>&lt;A HREF&gt;</code> 与文件夹名当**数据**读，
         其余标签一律忽略，脚本块整体丢弃。<strong>预览不会写入任何数据</strong>。
+        本应用导出的 JSON（带 schemaVersion）会被识别为**完整导航配置**，
+        走恢复流程以保留分组、多对多归属、收藏、状态与顺序。
       </p>
 
       <label className="field">
-        <span className="field__label">选择书签文件（.html / .htm）或结构化 JSON（.json）</span>
+        <span className="field__label">选择书签文件（.html / .htm）或 JSON（.json，链接列表或完整配置）</span>
         <input
           type="file"
           className="field__input"
@@ -398,7 +414,9 @@ function BookmarkImportSection(props: {
       )}
 
       <label className="field">
-        <span className="field__label">或者直接粘贴 JSON（{'{ "links": [ … ] }'} 或裸数组）</span>
+        <span className="field__label">
+          或者直接粘贴 JSON（{'{ "links": [ … ] }'} / 裸数组 / 本应用导出的完整配置）
+        </span>
         <textarea
           className="field__input field__input--code"
           data-testid="nav-import-json-text"
@@ -434,25 +452,28 @@ function BookmarkImportSection(props: {
         </button>
       </div>
 
-      <label className="field">
-        <span className="field__label">导入到分组（可选）</span>
-        <select
-          className="field__input"
-          data-testid="nav-import-target-group"
-          value={state.importTargetGroupId ?? ''}
-          onChange={(event) => {
-            const value = event.target.value;
-            state.setImportTargetGroup(value.length === 0 ? null : value);
-          }}
-        >
-          <option value="">不指定（用条目自带的分组名）</option>
-          {state.activeGroups.map((group) => (
-            <option key={group.id} value={group.id}>
-              {group.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      {/* 目标分组只对**普通链接导入**有意义：恢复完整配置自带分组归属，指定目标分组会扭曲它。 */}
+      {isRestore ? null : (
+        <label className="field">
+          <span className="field__label">导入到分组（可选）</span>
+          <select
+            className="field__input"
+            data-testid="nav-import-target-group"
+            value={state.importTargetGroupId ?? ''}
+            onChange={(event) => {
+              const value = event.target.value;
+              state.setImportTargetGroup(value.length === 0 ? null : value);
+            }}
+          >
+            <option value="">不指定（用条目自带的分组名）</option>
+            {state.activeGroups.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
 
       <LocalImportPreview state={state} />
 
@@ -462,12 +483,16 @@ function BookmarkImportSection(props: {
             type="button"
             className="button"
             data-testid="nav-import-preview"
-            disabled={state.busy || local.items.length === 0}
+            // 解析失败（未来版本 / 引用不完整 / 危险 URL）时**禁止**进入预览：
+            // 唯一正确的出路是让用户看到原因并改用正确的导入方式。
+            disabled={state.busy || parseFailed || (!isRestore && local.items.length === 0)}
             onClick={() => {
               void state.previewImport();
             }}
           >
-            提交服务端预览（{local.items.length} 条）
+            {isRestore && local.summary !== null
+              ? `提交服务端预览（恢复完整配置：${String(local.summary.linkCount)} 条链接 / ${String(local.summary.groupCount)} 个分组 / ${String(local.summary.membershipCount)} 条关系）`
+              : `提交服务端预览（${String(local.items.length)} 条）`}
           </button>
         </div>
       )}
@@ -485,12 +510,13 @@ function BookmarkImportSection(props: {
               type="button"
               className="button button--danger"
               data-testid="nav-import-apply"
-              disabled={state.busy || preview.preview.items.length === 0}
+              // restore 模式按「完整文档」落地：items 为空是正常的（它本来就不走 items）。
+              disabled={state.busy || (!isRestore && preview.preview.items.length === 0)}
               onClick={() => {
                 void state.applyImport();
               }}
             >
-              确认导入（{preview.preview.items.length} 条）
+              {isRestore ? '确认恢复完整配置（保留分组 / 关系 / 收藏 / 状态 / 顺序）' : `确认导入（${String(preview.preview.items.length)} 条）`}
             </button>
             <button
               type="button"
@@ -509,7 +535,7 @@ function BookmarkImportSection(props: {
   );
 }
 
-/** 本地解析结果：逐项列出会被导入的条目与**被跳过**的条目（含原因）。 */
+/** 本地解析结果：完整配置显示摘要；链接列表逐项列出条目与**被跳过**的条目（含原因）。 */
 function LocalImportPreview(props: { readonly state: NavController }) {
   const local = props.state.localImport;
   if (local === null) {
@@ -519,30 +545,71 @@ function LocalImportPreview(props: { readonly state: NavController }) {
       </p>
     );
   }
+  const isRestore = local.kind === 'restore';
   return (
     <div className="nav__preview" data-testid="nav-import-local">
       <p className="nav__item-meta" data-testid="nav-import-local-summary">
-        来源：{local.sourceName}（{local.kind === 'bookmarks' ? '书签 HTML' : '结构化 JSON'}）· 可导入{' '}
-        <code>{local.items.length}</code> 条 · 跳过 <code>{local.skipped.length}</code> 条
+        来源：{local.sourceName}（{IMPORT_KIND_LABELS[local.kind]}）
+        {isRestore ? '' : ` · 可导入 ${String(local.items.length)} 条 · 跳过 ${String(local.skipped.length)} 条`}
       </p>
-      <h5 className="subsection-title">将被导入</h5>
-      {local.items.length === 0 ? (
-        <p className="panel__muted">没有任何条目可导入。</p>
-      ) : (
-        <ul className="nav__list" data-testid="nav-import-item-list">
-          {local.items.map((item) => (
-            <li className="nav__item" key={item.url} data-testid="nav-import-item">
-              <p className="nav__item-title">{neutralizeAngleBrackets(item.title)}</p>
-              <p className="nav__item-meta">
-                <code>{neutralizeAngleBrackets(item.url)}</code>
-                {item.groupName === undefined ? null : <span className="tag">{item.groupName}</span>}
-              </p>
-            </li>
-          ))}
-        </ul>
+
+      {local.error === null ? null : (
+        <p className="notice notice--error" role="alert" data-testid="nav-import-local-error">
+          这份输入不能用于导入：{neutralizeAngleBrackets(local.error)}。
+          {isRestore ? '' : '它不会被降级成普通链接导入（那会静默丢掉分组与归属关系）。'}
+        </p>
       )}
-      <h5 className="subsection-title">被跳过（逐项说明原因）</h5>
-      <SkippedList skipped={local.skipped} testId="nav-import-local-skipped" />
+
+      {local.summary === null ? null : <RestoreSummary summary={local.summary} />}
+
+      {isRestore ? null : (
+        <>
+          <h5 className="subsection-title">将被导入</h5>
+          {local.items.length === 0 ? (
+            <p className="panel__muted">没有任何条目可导入。</p>
+          ) : (
+            <ul className="nav__list" data-testid="nav-import-item-list">
+              {local.items.map((item) => (
+                <li className="nav__item" key={item.url} data-testid="nav-import-item">
+                  <p className="nav__item-title">{neutralizeAngleBrackets(item.title)}</p>
+                  <p className="nav__item-meta">
+                    <code>{neutralizeAngleBrackets(item.url)}</code>
+                    {item.groupName === undefined ? null : <span className="tag">{item.groupName}</span>}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+          <h5 className="subsection-title">被跳过（逐项说明原因）</h5>
+          <SkippedList skipped={local.skipped} testId="nav-import-local-skipped" />
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 完整配置的摘要：数量 / 导出时间 / schemaVersion。
+ *
+ * 这些数字全部来自**文档本身**（不是推断）：恢复前让用户看清「要恢复什么」，
+ * 以及「保留哪些语义」（分组、多对多、收藏、状态、顺序）。
+ */
+function RestoreSummary(props: { readonly summary: NavRestoreSummary }) {
+  const summary = props.summary;
+  return (
+    <div className="nav__restore" data-testid="nav-restore-summary">
+      <p className="nav__item-meta" data-testid="nav-restore-counts">
+        完整导航配置：链接 <code>{summary.linkCount}</code> 条 · 分组 <code>{summary.groupCount}</code> 个 ·
+        成员关系 <code>{summary.membershipCount}</code> 条
+      </p>
+      <p className="panel__muted" data-testid="nav-restore-meta">
+        schemaVersion <code>{summary.schemaVersion}</code> · 导出时间{' '}
+        <code>{new Date(summary.exportedAt).toISOString()}</code>
+      </p>
+      <p className="panel__muted">
+        恢复会保留分组、多对多归属、收藏、状态与自定义顺序；服务端会把文档里的 ID
+        重新映射到当前工作空间，因此不会与其它工作空间的数据串在一起。
+      </p>
     </div>
   );
 }

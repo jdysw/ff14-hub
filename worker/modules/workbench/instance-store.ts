@@ -104,14 +104,22 @@ export function createD1InstanceStore(deps: D1InstanceStoreDeps): ModuleInstance
                 AND EXISTS (SELECT 1 FROM widget_cleanup_marks WHERE cleanup_token = ?)`,
           )
           .bind(timestamp, input.workspaceId, cleanupToken),
-        // 7) 本次标记用完即清（表不会无限增长；重试会用新 token 重新收集）。
+        // 7) 在清理标记**删除之前**数一次本次的墓碑数：
+        //    不能用第 2 条语句的 `meta.changes` 计数——D1 的 `meta.changes` 会计入触发器写入
+        //    （widget_instances 上的同步变更日志触发器会再加 1 行），那样会把数量算成两倍。
+        //    这条 SELECT 与后续语句在同一个 batch（同一事务）里，因此读到的是权威值。
+        deps.db
+          .prepare('SELECT COUNT(*) AS count FROM widget_cleanup_marks WHERE cleanup_token = ?')
+          .bind(cleanupToken),
+        // 8) 本次标记用完即清（表不会无限增长；重试会用新 token 重新收集）。
         deps.db
           .prepare('DELETE FROM widget_cleanup_marks WHERE cleanup_token = ?')
           .bind(cleanupToken),
       ]);
 
-      // 第 2 条语句的 changes 就是本次真正新增的墓碑数；0 表示本次没有任何变化。
-      return { removed: results[1]?.meta.changes ?? 0 };
+      // 第 7 条语句（SELECT COUNT(*)）的结果就是本次真正新增的墓碑数；0 表示本次没有任何变化。
+      const removedRows = results[results.length - 2]?.results as { count: number }[] | undefined;
+      return { removed: removedRows?.[0]?.count ?? 0 };
     },
 
     async countInstancesForModule(input) {

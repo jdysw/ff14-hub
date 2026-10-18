@@ -65,10 +65,20 @@ export const SYNC_ENTITY_TYPES = [
 export type SyncEntityType = (typeof SYNC_ENTITY_TYPES)[number];
 
 /**
- * 游标前缀（含冒号）。版本化游标：将来改变语义（例如换成复合键游标）时必须换前缀，
- * 好让老客户端**明确**收到 `unsupported_version`，而不是把新值当旧值用错。
+ * 游标前缀。**v2 的语义是「数据库单调变更序号」**，不是时间戳。
+ *
+ * 复核修正（真实缺陷）：v1 把 `updated_at` 当游标（`v1:<毫秒>`），隐含三个错误假设：
+ * 同一毫秒内的后续写入/删除/显式恢复会被 `lastTs + 1` 永久跳过；多 Worker 时钟可能回退；
+ * 墓碑与「同毫秒的合法新 revision」只能靠时间比较先后。因此 v2 改为
+ * `v2:<workspace_changes.seq>`——由数据库 AUTOINCREMENT 保证严格递增且与时钟无关。
+ *
+ * 版本化前缀的意义：客户端拿着旧版本游标来请求时，服务端**明确拒绝**（`unsupported_version`），
+ * 由客户端丢弃本地游标做一次全量重建；绝不把 v1 的毫秒值当 seq 解释（那会静默漏掉或重放变更）。
  */
-export const SYNC_CURSOR_PREFIX = 'v1:';
+export const SYNC_CURSOR_PREFIX = 'v2:';
+
+/** v1（时间戳游标）的前缀：只用于**识别并拒绝**旧游标，禁止再产生。 */
+export const LEGACY_SYNC_CURSOR_PREFIX = 'v1:';
 
 /** 默认页大小。取 200：一次响应在 64 KiB 响应预算内、且远小于「要求客户端频繁往返」的规模。 */
 export const SYNC_DEFAULT_LIMIT = 200;
@@ -111,9 +121,13 @@ export const syncConflictResolutionSchema = z.enum(SYNC_CONFLICT_RESOLUTIONS);
 /**
  * 单条变更。
  *
- * - `revision` 是该行**当前**的 revision（删除时是墓碑那一次的 revision）；
- *   客户端据此判断「我手上的版本是否已经落后」。
- * - `updatedAt` 是水位字段：它与游标同一单位（UTC 毫秒），也就是排序键。
+ * - `seq` 是**数据库单调变更序号**（`workspace_changes.seq`，AUTOINCREMENT）：
+ *   它是排序与去重的唯一依据，也是「谁更新」的唯一判据。**不要**再用 `updatedAt` 比较新旧：
+ *   同一毫秒内完全可能既有删除又有恢复，时间无法表达先后，而 seq 可以。
+ * - `revision` 是该行**当前**的 revision（墓碑时是墓碑那一次的 revision）；
+ *   客户端据此判断「我手上的版本是否已经落后」。注意：它**不能**用来推导工作空间级修订号
+ *   （那是响应 `meta` 里的字段）——行修订与全局修订是两个不同的计数器。
+ * - `updatedAt` 仅作**展示/诊断**用（UTC 毫秒），不参与排序、去重或新旧判断。
  * - `payload` 是**已通过服务端校验的**实体快照（`op: 'upsert'` 时），
  *   `op: 'delete'` 时为 `null`（墓碑只带身份与修订，不重复传内容）。
  *   刻意用 `unknown`：本文件不重复定义 7 种实体的形状（那是各模块契约的事），
@@ -136,6 +150,8 @@ export const SYNC_ENTITY_ID_MAX_LENGTH = 96;
 
 export const syncChangeSchema = z
   .object({
+    /** 单调变更序号：排序、去重、墓碑先后的**唯一**依据。 */
+    seq: z.number().int().positive(),
     entityType: syncEntityTypeSchema,
     entityId: z.string().min(1).max(SYNC_ENTITY_ID_MAX_LENGTH),
     op: syncChangeOpSchema,
@@ -147,12 +163,35 @@ export const syncChangeSchema = z
 
 export type SyncChange = z.infer<typeof syncChangeSchema>;
 
+/**
+ * 与变更流同一快照读出的**权威工作空间级修订号**。
+ *
+ * 为什么必须由服务端显式给出（复核发现的真实缺陷）：客户端的导航界面曾用
+ * `Math.max(snapshot.revision, change.revision)` 推导全局修订号，而 `change.revision`
+ * 是**行**修订（成员关系甚至恒为 0）。于是远端每次新增/编辑之后，
+ * 客户端手上的全局修订号都落后真实值，下一次重排/导入必然 409——除非用户手动刷新。
+ *
+ * 规则：**全局 CAS 只用这里的值；行 CAS 只用各行自己的 revision；两者不可互相推导。**
+ */
+export const syncMetaSchema = z
+  .object({
+    /** 导航工作空间修订号（`workspace_nav_state.revision`），缺失行时为 0。 */
+    navRevision: z.number().int().nonnegative(),
+    /** 工作台工作空间修订号（`workspace_workbench_state.revision`），缺失行时为 0。 */
+    workbenchRevision: z.number().int().nonnegative(),
+    /** 本页水位（最后一条返回变更的 seq；没有变更时为请求游标）。 */
+    watermark: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export type SyncMeta = z.infer<typeof syncMetaSchema>;
+
 /** `GET /me/sync/changes` 的响应（设备鉴权）。 */
 export const syncChangesResponseSchema = z
   .object({
     changes: z.array(syncChangeSchema),
     /**
-     * 下一轮要传回来的游标，**由 `advanceCursor` 产出**（唯一实现）。
+     * 下一轮要传回来的游标（`v2:<seq>`），**由 `nextSyncCursor` 产出**（唯一实现）。
      * 为 `null` 只表示「本次没有下一轮」（`hasMore === false` 的一种表达），
      * 而不是「以后都不用同步了」。
      */
@@ -167,6 +206,14 @@ export const syncChangesResponseSchema = z
      * 进而做出错误的本地清理。
      */
     entityTypes: z.array(syncEntityTypeSchema),
+    /**
+     * 与变更流**同一快照**读出的权威工作空间级修订号（见 `syncMetaSchema`）。
+     *
+     * 硬规则：客户端更新「全局 CAS 基数」只能用它；**不得**用 `Math.max(snapshot.revision,
+     * change.revision)` 之类的方式从行修订推导全局修订（那是复核发现的真实缺陷：
+     * 远端每次新增/编辑后客户端全局修订落后，下一次重排/导入必然 409）。
+     */
+    meta: syncMetaSchema,
   })
   .strict();
 
@@ -207,103 +254,87 @@ export type SyncConflict = z.infer<typeof syncConflictSchema>;
 export type SyncCursorDecodeFailure = 'malformed' | 'unsupported_version';
 
 export type SyncCursorDecodeResult =
-  | { readonly ok: true; readonly updatedAtMs: number }
+  | { readonly ok: true; readonly seq: number }
   | { readonly ok: false; readonly reason: SyncCursorDecodeFailure };
 
-/** 十进制非负整数，**且不接受前导零**（保证一个时间戳只有一种规范写法）。 */
+/** 十进制非负整数，**且不接受前导零**（保证一个序号只有一种规范写法）。 */
 const CURSOR_DIGITS_PATTERN = /^(0|[1-9]\d*)$/;
-/** 形如 `v<数字>:` 的前缀：用于区分「未来版本」与「损坏输入」。 */
+/** 形如 `v<数字>:` 的前缀：用于区分「其他版本」与「损坏输入」。 */
 const ANY_CURSOR_VERSION_PATTERN = /^v\d+:/;
 
 /**
- * 编码水位游标：`v1:<UTC 毫秒>`。
+ * 编码水位游标：`v2:<单调变更序号>`。
  *
- * 非「非负安全整数」一律**抛错**而不是夹到 0：游标偏小会导致重复扫描（可恢复），
- * 但一个静默变成 0 的游标会让调用方以为自己拿到了合法值，掩盖真实的上游 bug。
- * 用 `Number.isSafeInteger` 而不是 `Number.isInteger`：`2**53` 之后的整数无法精确表示，
- * 放进游标会导致「编码后再解码得到不等于原值」的往返破坏。
+ * 语义是「我已经消费到 seq < N 的全部变更」，因此下一轮只需 `seq >= N`。
+ * 非「非负安全整数」一律**抛错**而不是夹到 0：一个静默变成 0 的游标会让调用方
+ * 以为自己拿到了合法值，掩盖真实的上游 bug（并可能静默重放整个变更流）。
  */
-export function encodeSyncCursor(updatedAtMs: number): string {
-  if (!Number.isSafeInteger(updatedAtMs) || updatedAtMs < 0) {
-    throw new RangeError('encodeSyncCursor: updatedAtMs 必须是非负安全整数（UTC 毫秒）');
+export function encodeSyncCursor(seq: number): string {
+  if (!Number.isSafeInteger(seq) || seq < 0) {
+    throw new RangeError('encodeSyncCursor: seq 必须是非负安全整数（数据库单调变更序号）');
   }
-  return `${SYNC_CURSOR_PREFIX}${String(updatedAtMs)}`;
+  return `${SYNC_CURSOR_PREFIX}${String(seq)}`;
 }
 
 /**
  * 解码水位游标（**唯一实现**）。非法输入必须**明确拒绝**，绝不猜成 0。
  *
- * 为什么「猜成 0」是严重错误：0 等价于「从时间原点重新全量同步」。用户一旦传进一个
- * 打错的游标，把 0 猜出来就等于悄悄触发全量拉取；更糟的是若客户端把它写回本地水位，
- * 每次同步都会重来一遍，且表越大越慢。宁可返回 `malformed` 让调用方显式处理。
- *
- * `unsupported_version` 与 `malformed` 刻意分开：
- * - `v2:...` 是**未来版本**（升级过的客户端/回滚的服务端）→ 应提示升级或拒绝，不是数据损坏；
- * - `abc` / `v1:-1` / `v1:1.5` / `v1:abc` / `v1:` / `v1:007` 是**损坏或伪造**输入 → 必须重新全量引导。
+ * 三种失败刻意分开处理：
+ * - `v1:<毫秒>` → `unsupported_version`：**旧版时间戳游标**。把毫秒值当 seq 解释会造成
+ *   静默漏变更或重放，因此这里明确拒绝，由客户端丢弃本地游标做一次全量重建
+ *   （服务端也可以用 `since` 缺省表达同样的「从头开始」）。
+ * - `v3:` 等其他版本 → `unsupported_version`：升级过的客户端/回滚的服务端，应提示升级。
+ * - `abc` / `v2:-1` / `v2:1.5` / `v2:` / `v2:007` → `malformed`：损坏或伪造输入。
  */
 export function decodeSyncCursor(raw: unknown): SyncCursorDecodeResult {
   if (typeof raw !== 'string') {
     return { ok: false, reason: 'malformed' };
   }
+  if (raw.startsWith(LEGACY_SYNC_CURSOR_PREFIX)) {
+    // 时间戳游标：语义已经变了，绝不当成 seq 继续用。
+    return { ok: false, reason: 'unsupported_version' };
+  }
   if (!raw.startsWith(SYNC_CURSOR_PREFIX)) {
-    // 前缀不是 v1：——只有形如 `v<数字>:` 才可能是「未来版本」，其余一律当作损坏输入。
     return { ok: false, reason: ANY_CURSOR_VERSION_PATTERN.test(raw) ? 'unsupported_version' : 'malformed' };
   }
   const digits = raw.slice(SYNC_CURSOR_PREFIX.length);
   if (!CURSOR_DIGITS_PATTERN.test(digits)) {
     return { ok: false, reason: 'malformed' };
   }
-  const updatedAtMs = Number.parseInt(digits, 10);
-  if (!Number.isSafeInteger(updatedAtMs)) {
+  const seq = Number.parseInt(digits, 10);
+  if (!Number.isSafeInteger(seq)) {
     return { ok: false, reason: 'malformed' };
   }
-  return { ok: true, updatedAtMs };
+  return { ok: true, seq };
 }
 
 // ---------------------------------------------------------------------------
 // 排序与分页推进（唯一实现）
 // ---------------------------------------------------------------------------
 
-/** 数值升序（不用减法：大时间戳相减会损失精度）。 */
-function compareNumbers(a: number, b: number): number {
-  if (a === b) {
-    return 0;
-  }
-  return a < b ? -1 : 1;
-}
-
-/** 字符串按 UTF-16 码元比较：与 locale 无关，因此跨设备顺序完全一致。 */
-function compareStrings(a: string, b: string): number {
-  if (a === b) {
-    return 0;
-  }
-  return a < b ? -1 : 1;
-}
-
 /**
- * 变更的稳定排序键：`(updatedAt, entityType, entityId)`。
+ * 变更的稳定排序键：**只有 seq**。
  *
- * 为什么必须有完整的次序（而不是只比 `updatedAt`）：同一毫秒内可能有多行（同一事务里
- * 改了多个实体、或模板一次性重置整页）。只按时间排序时，两次扫描（服务端一次、客户端
- * 重放一次）在同一毫秒上的相对顺序不确定，分页边界就会漂移：
- * 可能出现「某行在第一轮被跳过、在第二轮也因为边界错过」的丢行。
- * 加上 `entityType` 与 `entityId` 后，整序唯一，`>= cursor` 的重复扫描一定收敛。
+ * 为什么不再用 `(updatedAt, entityType, entityId)`：seq 由数据库 AUTOINCREMENT 分配，
+ * 全局唯一且严格递增，因此它本身就是全序——不需要、也不应该再用时间做次级排序。
+ * 同一毫秒内的多条变更、时钟回退、系统休眠都不会破坏这个次序。
  */
 export function compareSyncChanges(a: SyncChange, b: SyncChange): number {
-  return (
-    compareNumbers(a.updatedAt, b.updatedAt) ||
-    compareStrings(a.entityType, b.entityType) ||
-    compareStrings(a.entityId, b.entityId)
-  );
+  if (a.seq === b.seq) {
+    return 0;
+  }
+  return a.seq < b.seq ? -1 : 1;
 }
 
 export interface SyncCursorAdvanceInput {
-  /** 本轮实际返回给客户端的行数（<= `limit`）。 */
+  /** 本页实际返回的变更条数。 */
   readonly returned: number;
-  /** 本轮请求的页大小（> 0）。 */
+  /** 本页请求的 limit（服务端每请求的工作量上限）。 */
   readonly limit: number;
-  /** 本轮返回的**最后一行**的 `updatedAt`；`returned === 0` 时没有意义但必须给（沿用本轮起点）。 */
-  readonly lastUpdatedAtMs: number;
+  /** 本页最后一条变更的 seq；没有变更时为 null。 */
+  readonly lastSeq: number | null;
+  /** 请求里带的游标（没有则为 null）；没有变更时用它原样回传。 */
+  readonly requestSeq: number | null;
 }
 
 export interface SyncCursorAdvance {
@@ -311,48 +342,34 @@ export interface SyncCursorAdvance {
   readonly hasMore: boolean;
 }
 
-function isNonNegativeSafeInteger(value: number): boolean {
-  return Number.isSafeInteger(value) && value >= 0;
-}
-
 /**
- * 计算下一轮游标与 `hasMore`（**唯一实现**，最容易被写错的一段）。
+ * 推进游标（唯一实现）。
  *
- * 三种情形（ADR-0004 D7 的硬规则）：
- * 1. `returned === 0`：没有行 → `hasMore: false`，游标前移到 `lastUpdatedAtMs + 1`
- *    （不能停在原处，否则空轮之后每次都会重新扫同一个毫秒区间）。
- * 2. `returned === limit`：**刚好装满** → `hasMore: true`，且游标**停在最后一个时间戳**
- *    （即 `lastUpdatedAtMs`，不 +1）。查询用的是 `updated_at >= cursor`（**含**边界），
- *    所以下一轮会**重复**返回这同一毫秒的行；这样做是**故意的**：我们无法知道
- *    「同一毫秒里是否还有没返回的行」，只有停在原地再扫一次才能保证不漏。
- *    重复由客户端按**实体 ID 幂等去重**（同一 entityType + entityId 后到的覆盖先到的），
- *    因此重复是免费且安全的，漏行才是不可恢复的。
- * 3. `0 < returned < limit`：这一毫秒及之前的行已经全部返回 → `hasMore: false`，
- *    游标前移到 `lastUpdatedAtMs + 1`，下一轮从更晚的时间开始。
+ * 语义（与 seq 水位一致，**没有**「停在同毫秒重复扫描」这种技巧）：
+ * - 没有变更 → 游标不变，`hasMore = false`；
+ * - 有变更但没填满一页 → 游标 = 最后一条 seq，`hasMore = false`；
+ * - 填满一页 → 游标 = 最后一条 seq，`hasMore = true`（还有 seq 更大的变更）。
  *
- * 输入不合法一律抛错（不猜）：`returned > limit` 说明调用方计数与查询不一致，
- * 静默修正只会把「丢行」掩盖过去。
+ * 因为 seq 严格递增且每页恰好取 `limit` 条，工作量上限是**真实**的：
+ * 不存在「同一个时间戳的行太多导致一页无限扩张」的情况。
  */
-export function advanceCursor(input: SyncCursorAdvanceInput): SyncCursorAdvance {
-  const { returned, limit, lastUpdatedAtMs } = input;
-  if (!isNonNegativeSafeInteger(returned) || !isNonNegativeSafeInteger(lastUpdatedAtMs)) {
-    throw new RangeError('advanceCursor: returned 与 lastUpdatedAtMs 必须是非负安全整数');
+export function nextSyncCursor(input: SyncCursorAdvanceInput): SyncCursorAdvance {
+  if (!Number.isSafeInteger(input.limit) || input.limit <= 0) {
+    throw new RangeError('nextSyncCursor: limit 必须是正整数');
   }
-  if (!Number.isSafeInteger(limit) || limit <= 0) {
-    throw new RangeError('advanceCursor: limit 必须是正整数');
+  if (!Number.isInteger(input.returned) || input.returned < 0) {
+    throw new RangeError('nextSyncCursor: returned 必须是非负整数');
   }
-  if (returned > limit) {
-    throw new RangeError(
-      `advanceCursor: returned(${String(returned)}) 不得大于 limit(${String(limit)})`,
-    );
+  if (input.returned > input.limit) {
+    throw new RangeError('nextSyncCursor: returned 不能大于 limit（服务端必须按 limit 截断）');
   }
-  if (returned === 0) {
-    return { nextCursor: encodeSyncCursor(lastUpdatedAtMs + 1), hasMore: false };
+  if (input.returned === 0) {
+    return { nextCursor: encodeSyncCursor(input.requestSeq ?? 0), hasMore: false };
   }
-  if (returned === limit) {
-    return { nextCursor: encodeSyncCursor(lastUpdatedAtMs), hasMore: true };
+  if (input.lastSeq === null) {
+    throw new RangeError('nextSyncCursor: 有变更时必须给出 lastSeq');
   }
-  return { nextCursor: encodeSyncCursor(lastUpdatedAtMs + 1), hasMore: false };
+  return { nextCursor: encodeSyncCursor(input.lastSeq), hasMore: input.returned === input.limit };
 }
 
 // ---------------------------------------------------------------------------

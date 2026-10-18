@@ -8,12 +8,18 @@
  * - 这是**只读**端点：不写任何表、不施加任何副作用、不做墓碑 GC。
  *
  * 契约：响应严格符合 `syncChangesResponseSchema`（每条 change 恰好
- * `{entityType, entityId, op, revision, updatedAt, payload}`，`payload` 显式给出，
- * 墓碑时为 `null`）。构造后立即用 Schema 解析一次：若失败说明服务端有契约 bug，
- * 宁可 500 也不要发出一个客户端解析不了的半成品响应。
+ * `{seq, entityType, entityId, op, revision, updatedAt, payload}`，`payload` 显式给出，
+ * 墓碑时为 `null`；并带同一快照读出的 `meta`）。构造后立即用 Schema 解析一次：
+ * 若失败说明服务端有契约 bug，宁可 500 也不要发出一个客户端解析不了的半成品响应。
  *
- * 游标：`since` 缺失 = 首次全量（从 0 开始）；非法游标返回 **422**（`validation_failed`），
- * 绝不「猜成 0」——那会静默触发一次全量拉取，并被客户端写回本地水位。
+ * 游标（v2 = **数据库单调变更序号**，不是时间戳）：
+ * - `since` 缺省 = 首次全量（从 seq 0 开始）；
+ * - `since=v2:<seq>` = 只取 seq **大于**该值的变更；
+ * - `since=v1:<毫秒>` = **422 `cursor_version_unsupported`**：旧版时间戳游标的语义已经变了，
+ *   把毫秒值当 seq 解释会静默漏变更或重放，因此明确要求客户端丢弃本地游标做一次全量重建
+ *   （也可以直接不传 `since`）；
+ * - 其他损坏输入（`v2:abc` / `abc` / 空串 …）= **422 `cursor_malformed`**。
+ * 两者都绝不「猜成 0」——那会静默触发一次全量拉取，并被客户端写回本地水位。
  */
 import {
   ApiError,
@@ -31,6 +37,12 @@ import type { AppBindings } from '../../types';
 
 /** 只接受十进制数字串（不接受 `1.5` / `1e2` / `+1` / 空串 / 负号）。 */
 const LIMIT_PATTERN = /^\d+$/;
+
+/** 游标问题的结构化原因（放进 422 的 `details.reason`，客户端据此程序化处理）。 */
+const CURSOR_REASON = {
+  unsupported_version: 'cursor_version_unsupported',
+  malformed: 'cursor_malformed',
+} as const;
 
 /**
  * 解析 `limit` 查询参数。
@@ -67,7 +79,7 @@ export function registerMeSyncRoutes(me: Hono<AppBindings>): void {
     const rawSince = c.req.query('since');
     const limit = parseLimit(c.req.query('limit'));
 
-    // 游标解析放在路由层：只有这里能把它变成 422（服务层拿到的是已解析的时间戳）。
+    // 游标解析放在路由层：只有这里能把它变成 422（服务层拿到的是已解析的 seq）。
     let cursor: number | null = null;
     if (rawSince !== undefined) {
       const decoded = decodeSyncCursor(rawSince);
@@ -80,9 +92,10 @@ export function registerMeSyncRoutes(me: Hono<AppBindings>): void {
           'validation_failed',
           `${DEFAULT_ERROR_MESSAGE.validation_failed}（${message}）`,
           `sync_cursor_${decoded.reason}`,
+          { reason: CURSOR_REASON[decoded.reason] },
         );
       }
-      cursor = decoded.updatedAtMs;
+      cursor = decoded.seq;
     }
 
     const service = createSyncService({ db: c.env.DB });

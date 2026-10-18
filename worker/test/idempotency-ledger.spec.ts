@@ -395,7 +395,9 @@ describe('guardedStatements 的绑定顺序', () => {
     //（这一条同时钉住两件事：守卫绑定顺序，以及语句绑定先于守卫绑定）。
     const liveGuard = navLedger.idempotencyGuard({ workspaceId, operationId, token: 'token-live' });
     const applied = await env.DB.batch(guardedStatements(env.DB, liveGuard, [updateStatement]));
-    expect(applied[0]?.meta.changes).toBe(1);
+    // 注意（阶段 04 起）：`workspace_nav_links` 上有同步变更日志触发器，D1 的 `meta.changes`
+    // 会把触发器里的 DML 计入，因此生效时读到 2（1 行业务 + 1 行日志）。判据仍是「0 = 未生效」。
+    expect(applied[0]?.meta.changes ?? 0).toBeGreaterThanOrEqual(1);
     expect(await linkTitle(workspaceId, linkId)).toBe('守卫生效后的标题');
   });
 });

@@ -28,12 +28,16 @@ import {
   navFilterSchema,
   navImportApplyRequestSchema,
   navImportPreviewRequestSchema,
+  parseNavImportDocument,
   reorderNavGroupsRequestSchema,
   reorderNavLinksRequestSchema,
   setNavLinkGroupsRequestSchema,
   updateNavGroupRequestSchema,
   updateNavLinkRequestSchema,
+  type NavExportDocument,
   type NavFilter,
+  type NavImportItem,
+  type NavImportMode,
 } from '@ff14-hub/shared';
 // 这里只把 Hono 当作类型使用（路由注册进传入的实例）。
 import type { Hono } from 'hono';
@@ -87,6 +91,57 @@ function navFilterFromQuery(url: string): NavFilter {
     );
   }
   return parsed.data;
+}
+
+/**
+ * 导航导入的两种模式（**服务端**判定，绝不按客户端的自称走）：
+ *
+ * - `links`：普通链接列表 / 浏览器书签（只有标题 + URL 与少量可选字段）；
+ * - `restore`：本应用导出的**版本化完整配置**（`schemaVersion` + links + groups + memberships）。
+ *
+ * 判定入口是共享 `parseNavImportDocument`：版本化文档一律走 `restore`，
+ * 数组 / `{links:[...]}` 一律走 `links`。**不允许**把版本化文档「降级」成 links 数组——
+ * 那会静默丢掉分组、多对多归属、收藏、状态与自定义顺序（复核发现的真实缺陷）。
+ * 未来版本、损坏 JSON、引用不完整的文档一律 `error` → 422，不做任何猜测。
+ */
+type ResolvedNavImport =
+  | { readonly mode: 'links'; readonly items: readonly NavImportItem[] }
+  | { readonly mode: 'restore'; readonly document: NavExportDocument };
+
+function resolveNavImport(input: {
+  readonly mode: NavImportMode | undefined;
+  readonly items: readonly NavImportItem[] | undefined;
+  readonly document: NavExportDocument | undefined;
+}): { readonly ok: true; readonly value: ResolvedNavImport } | { readonly ok: false; readonly reason: string } {
+  // 显式 `mode:'restore'`：文档已经在请求体里过了共享 `navExportDocumentSchema`。
+  // 仍然用 `parseNavImportDocument` 再走一遍**同一个**解析入口（含引用完整性判定），
+  // 保证「路由接受的文档」与「服务层规划的文档」是同一份判定结果。
+  if (input.mode === 'restore') {
+    const parsed = parseNavImportDocument(input.document);
+    if (parsed.kind !== 'restore') {
+      return { ok: false, reason: parsed.kind === 'error' ? parsed.reason : '请求体不是完整的版本化配置文档' };
+    }
+    return { ok: true, value: { mode: 'restore', document: parsed.document } };
+  }
+  // 未显式给 mode（或给了 links）：由**内容**判定，而不是按缺省值硬当成 links。
+  // 一份带 `schemaVersion` 的完整配置落进这条分支时必须走 restore——把它当链接列表
+  // 处理会静默丢掉分组、多对多归属、收藏、状态与顺序（复核发现的真实缺陷）。
+  if (input.document !== undefined) {
+    const parsed = parseNavImportDocument(input.document);
+    if (parsed.kind === 'restore') {
+      return { ok: true, value: { mode: 'restore', document: parsed.document } };
+    }
+    if (parsed.kind === 'error') {
+      return { ok: false, reason: parsed.reason };
+    }
+  }
+  if (input.items !== undefined) {
+    return { ok: true, value: { mode: 'links', items: input.items } };
+  }
+  return {
+    ok: false,
+    reason: 'links 模式必须提供 items（版本化完整配置请用 mode=restore 与 document）',
+  };
 }
 
 /** 在 /me 子树里注册导航路由（扁平注册，避免子应用路由优先级带来的歧义）。 */
@@ -290,19 +345,47 @@ export function registerMeNavigationRoutes(me: Hono<AppBindings>): void {
 
   /**
    * POST /me/navigation/import/preview —— 服务端**重新校验**客户端解析结果（不写入任何数据）。
-   * 返回服务端自己的 accepted / skipped（含「与现有 URL 重复」）与预览修订号。
+   *
+   * `links` 模式：返回服务端自己的 accepted / skipped（含「与现有 URL 重复」）与预览修订号。
+   * `restore` 模式：用共享 `parseNavImportDocument` / `validateNavExportIntegrity` 再校验一次
+   * （绝不相信客户端「已校验」），返回计数 + 冲突 + 期望修订号，**仍然不写入**。
    */
   me.post('/navigation/import/preview', validateJsonBody(navImportPreviewRequestSchema), async (c) => {
     const body = parsedJsonBody(c, navImportPreviewRequestSchema);
-    const outcome = await navOf(c).previewImport({
-      workspaceId: c.get('workspaceId'),
-      items: body.items,
+    const resolved = resolveNavImport({ mode: body.mode, items: body.items, document: body.document });
+    if (!resolved.ok) {
+      throw new ApiError(
+        'validation_failed',
+        `${DEFAULT_ERROR_MESSAGE.validation_failed}（${resolved.reason}）`,
+        `nav_import_document_invalid:${resolved.reason}`,
+      );
+    }
+    const service = navOf(c);
+    const workspaceId = c.get('workspaceId');
+    if (resolved.value.mode === 'restore') {
+      const outcome = await service.previewRestore({ workspaceId, document: resolved.value.document });
+      if (!outcome.ok) {
+        throw navigationError(outcome);
+      }
+      return noStoreJson(c, {
+        mode: 'restore',
+        links: outcome.value.links,
+        groups: outcome.value.groups,
+        memberships: outcome.value.memberships,
+        conflicts: outcome.value.conflicts,
+        expectedRevision: outcome.value.expectedRevision,
+      });
+    }
+    const outcome = await service.previewImport({
+      workspaceId,
+      items: resolved.value.items,
       ...(body.targetGroupId === undefined ? {} : { targetGroupId: body.targetGroupId }),
     });
     if (!outcome.ok) {
       throw navigationError(outcome);
     }
     return noStoreJson(c, {
+      mode: 'links',
       items: outcome.value.items,
       skipped: outcome.value.skipped,
       revision: outcome.value.revision,
@@ -311,14 +394,47 @@ export function registerMeNavigationRoutes(me: Hono<AppBindings>): void {
 
   /**
    * POST /me/navigation/import/apply —— 导入落地。
-   * `expectedRevision` 必须回显预览时的修订号，否则 409 `import_preview_stale`（不按旧预览覆盖）。
+   *
+   * 两种模式都要求 `expectedRevision` 回显预览时的修订号，否则 409 `import_preview_stale`
+   * （不按旧预览覆盖），并且都以 `operationId` 幂等（重放不产生第二份数据）。
    */
   me.post('/navigation/import/apply', validateJsonBody(navImportApplyRequestSchema), async (c) => {
     const body = parsedJsonBody(c, navImportApplyRequestSchema);
-    const outcome = await navOf(c).importItems({
-      workspaceId: c.get('workspaceId'),
+    const resolved = resolveNavImport({ mode: body.mode, items: body.items, document: body.document });
+    if (!resolved.ok) {
+      throw new ApiError(
+        'validation_failed',
+        `${DEFAULT_ERROR_MESSAGE.validation_failed}（${resolved.reason}）`,
+        `nav_import_document_invalid:${resolved.reason}`,
+      );
+    }
+    const service = navOf(c);
+    const workspaceId = c.get('workspaceId');
+    if (resolved.value.mode === 'restore') {
+      const outcome = await service.importRestoreItems({
+        workspaceId,
+        operationId: body.operationId,
+        document: resolved.value.document,
+        expectedRevision: body.expectedRevision,
+      });
+      if (!outcome.ok) {
+        throw navigationError(outcome);
+      }
+      return noStoreJson(c, {
+        mode: 'restore',
+        importedLinks: outcome.value.importedLinks,
+        importedGroups: outcome.value.importedGroups,
+        importedMemberships: outcome.value.importedMemberships,
+        skipped: outcome.value.skipped,
+        idMaps: outcome.value.idMaps,
+        revision: outcome.value.revision,
+        replayed: outcome.replayed,
+      });
+    }
+    const outcome = await service.importItems({
+      workspaceId,
       operationId: body.operationId,
-      items: body.items,
+      items: resolved.value.items,
       expectedRevision: body.expectedRevision,
       ...(body.targetGroupId === undefined ? {} : { targetGroupId: body.targetGroupId }),
     });
@@ -326,6 +442,7 @@ export function registerMeNavigationRoutes(me: Hono<AppBindings>): void {
       throw navigationError(outcome);
     }
     return noStoreJson(c, {
+      mode: 'links',
       importedCount: outcome.value.importedCount,
       importedLinkIds: outcome.value.importedLinkIds,
       skipped: outcome.value.skipped,
@@ -334,9 +451,17 @@ export function registerMeNavigationRoutes(me: Hono<AppBindings>): void {
     });
   });
 
-  /** GET /me/navigation/export —— 导出文档（只含活跃行、不含任何凭证；可被读回）。 */
+  /**
+   * GET /me/navigation/export —— 导出文档（只含活跃行、不含任何凭证；可被读回）。
+   *
+   * 文档由**同一个** batch 读出的行构造，并先过共享 `validateNavExportIntegrity`：
+   * 一旦自检不通过就如实失败（`export_integrity_failed` → 500），不产出悬空成员关系的文档。
+   */
   me.get('/navigation/export', async (c) => {
-    const document = await navOf(c).exportDocument(c.get('workspaceId'));
-    return noStoreJson(c, { document, exportedAt: document.exportedAt });
+    const outcome = await navOf(c).exportDocument(c.get('workspaceId'));
+    if (!outcome.ok) {
+      throw navigationError(outcome);
+    }
+    return noStoreJson(c, { document: outcome.value, exportedAt: outcome.value.exportedAt });
   });
 }

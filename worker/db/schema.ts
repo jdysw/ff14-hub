@@ -697,6 +697,33 @@ export const workspaceEvents = sqliteTable('workspace_events', {
   createdByDevice: text('created_by_device').references(() => devices.id, { onDelete: 'set null' }),
 });
 
+/**
+ * 跨设备同步的**单调变更流**（HUB-051 修正，由 migrations/0011_change_journal.sql 建立）。
+ *
+ * `seq` 是 AUTOINCREMENT 主键：严格递增、不随行删除而回退、与时钟无关。
+ * 它是同步游标与「墓碑/恢复先后」的**唯一**依据——`updated_at` 只作展示，
+ * 因为同一毫秒内完全可能既有删除又有恢复，时间无法表达先后。
+ *
+ * 本表的写入由**触发器**完成（不是各业务代码手写日志）：模块卸载清理、模板重置、
+ * 备份导入、墓碑化等所有既有写路径都在同一事务里自动落一条记录。
+ * 本文件只是类型化镜像（不参与建表，也不参与触发器定义）。
+ */
+export const workspaceChanges = sqliteTable(
+  'workspace_changes',
+  {
+    seq: integer('seq').primaryKey({ autoIncrement: true }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    entityType: text('entity_type').notNull(),
+    entityId: text('entity_id').notNull(),
+    op: text('op').notNull(),
+    revision: integer('revision').notNull(),
+    changedAt: integer('changed_at').notNull(),
+  },
+  (table) => [index('idx_workspace_changes_workspace_seq').on(table.workspaceId, table.seq)],
+);
+
 /** 全部表的集合，供 drizzle 客户端与测试使用。 */
 export const schema = {
   workspaces,

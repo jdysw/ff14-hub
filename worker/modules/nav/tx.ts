@@ -52,6 +52,8 @@ export type NavRejection =
   | 'reorder_set_mismatch'
   /** 导入预览已过期（工作空间导航修订号已经变化）。 */
   | 'import_preview_stale'
+  /** 导出数据自检未通过（宁可这次导出失败，也不产出悬空成员关系的文档）。 */
+  | 'export_integrity_failed'
   | 'invalid_input'
   /** URL 不满足 `validateNavUrl`（非 https / 含凭证 / 无 host / 超长）。 */
   | 'invalid_url'
@@ -75,6 +77,7 @@ export const NAV_REJECTIONS = [
   'revision_conflict',
   'reorder_set_mismatch',
   'import_preview_stale',
+  'export_integrity_failed',
   'invalid_input',
   'invalid_url',
   'operation_id_reused',
@@ -105,6 +108,9 @@ export const ERROR_CODE_BY_NAV_REJECTION: Readonly<Record<NavRejection, ApiError
   revision_conflict: 'conflict',
   reorder_set_mismatch: 'conflict',
   import_preview_stale: 'conflict',
+  // 导出自检失败是**服务端数据不一致**（不是用户输入问题）：如实 500，并给出可读诊断，
+  // 绝不返回一份自相矛盾的导出文档。
+  export_integrity_failed: 'internal_error',
   invalid_input: 'validation_failed',
   invalid_url: 'validation_failed',
   operation_id_reused: 'conflict',
@@ -178,6 +184,11 @@ export const NAV_OP_KINDS = {
   groupReorder: 'nav.group.reorder',
   catalogImport: 'nav.catalog.import',
   importApply: 'nav.import.apply',
+  /**
+   * `restore`（完整配置恢复）**刻意**与 `importApply`（链接列表导入）用不同的 kind：
+   * 两者是不同的操作，共用 kind 会让「同一 operationId 先导入链接、再恢复配置」被当成重放。
+   */
+  importRestore: 'nav.import.restore',
 } as const;
 
 /** 账本失败 → 导航失败（唯一的收窄点）。 */

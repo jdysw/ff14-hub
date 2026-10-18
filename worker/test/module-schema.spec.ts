@@ -192,7 +192,10 @@ describe('workspace_modules 约束', () => {
     )
       .bind('disabled', 'ws-conditional', 'demo.basics', 1)
       .run();
-    expect(first.meta.changes).toBe(1);
+    // 注意（阶段 04 起）：`workspace_modules` 上有同步变更日志的 AFTER 触发器，而 D1/SQLite 的
+    // `meta.changes` **会把触发器里的 DML 计入**，因此「一行 CAS 更新生效」在这里读到的是 2
+    // （1 行业务 + 1 行变更日志）。判定语义没有变：0 仍然表示「条件没命中」。
+    expect(first.meta.changes ?? 0).toBeGreaterThanOrEqual(1);
 
     // 同一个（已经过期的）revision 再来一次：必须影响 0 行。
     const second = await env.DB.prepare(

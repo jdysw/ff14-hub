@@ -15,12 +15,22 @@
  *    恢复成操作前的**同一个对象引用**，界面立刻回到事实状态。
  * 4. **409 冲突不盲重试、不静默覆盖**：服务端结构化冲突（`details.conflict`）被解析出来，
  *    记进 `conflict` 供界面显示 `baseRevision` / `currentRevision` 并让用户显式决定。
- * 5. **导入先预览、再显式 apply**：本地解析（书签 HTML / JSON）用共享纯函数；
+ * 5. **导入先预览、再显式 apply**：本地解析（书签 HTML / 版本化配置 / 链接 JSON）用共享纯函数；
  *    apply 回显预览时的工作空间修订，期间数据被改动则由服务端 409 拒绝。
+ *
+ * ── 变更应用的两条复核修正（P1）──────────────────────────────────────────────
+ * A. **排序/去重/墓碑一律只看 `seq`**（数据库单调变更序号）。`updatedAt` 不再参与任何
+ *    新旧判断：同一毫秒内完全可能既有删除又有恢复，时间表达不了先后。每个实体维护
+ *    `lastAppliedSeq`，墓碑表也存 `seq`，因此「删除后到达的更旧 upsert」在结构上无法复活它。
+ * B. **工作空间级修订号只来自服务端 `meta.navRevision`**。早先这里用
+ *    `Math.max(snapshot.revision, change.revision)` 从**行**修订推导全局修订，导致远端
+ *    每次新增/编辑之后本地全局修订恒落后，下一次重排/导入必然 409——除非用户手动刷新。
+ *    `change.revision` 现在只用于**行级**判断（草稿是否落后于该行）。
  */
 import {
   buildNavExportDocument,
   catalogUpgradePlan,
+  compareSyncChanges,
   decodeSyncCursor,
   decideCatalogImport,
   encodeSyncCursor,
@@ -30,7 +40,7 @@ import {
   navMembershipSchema,
   navUrlSchema,
   parseBookmarkHtml,
-  parseNavImportJson,
+  parseNavImportDocument,
   parseNavExportDocument,
   projectNavLinks,
   SYNC_DEFAULT_LIMIT,
@@ -38,6 +48,7 @@ import {
   NAV_DEFAULT_ICON,
   type NavCatalogEntry,
   type NavCatalogEntryState,
+  type NavExportDocument,
   type NavFilter,
   type NavGroup,
   type NavImportItem,
@@ -52,6 +63,7 @@ import {
   type SyncChange,
   type SyncConflict,
   type SyncEntityType,
+  type SyncMeta,
 } from '@ff14-hub/shared';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -59,9 +71,12 @@ import {
   createNavTransport,
   createSyncChangesApi,
   describeNavError,
+  describeSyncCursorReset,
   newOperationId,
+  parseSyncCursorFailure,
   type NavApi,
   type NavApiErrorInfo,
+  type NavImportApplyResponse,
   type NavRequester,
   type NavResult,
   type SyncChangesApi,
@@ -128,12 +143,36 @@ export interface NavCatalogRow {
   readonly selectable: boolean;
 }
 
-/** 本地解析出的待导入内容（来自书签文件或粘贴的 JSON 文本）。 */
+/** 本地解析出的待导入内容（来自书签文件、链接 JSON 或本应用的版本化导出文档）。 */
 export interface NavLocalImport {
-  readonly kind: 'bookmarks' | 'json';
+  /**
+   * 三种来源，**必须区分**（复核发现的真实缺陷）：
+   * - `bookmarks`：Netscape 书签 HTML（只有标题 / URL / 文件夹名）；
+   * - `json`：普通链接数组或 `{ links: [...] }`；
+   * - `restore`：本应用导出的**版本化完整配置**——保留分组、多对多归属、收藏、状态与顺序。
+   */
+  readonly kind: 'bookmarks' | 'json' | 'restore';
   readonly sourceName: string;
   readonly items: readonly NavImportItem[];
   readonly skipped: readonly NavImportSkipped[];
+  /** `kind === 'restore'` 时**原样**保留的完整文档（绝不拆成 items 提交）。 */
+  readonly document: NavExportDocument | null;
+  /** `kind === 'restore'` 时的可见摘要（数量 / 导出时间 / schemaVersion）。 */
+  readonly summary: NavRestoreSummary | null;
+  /**
+   * 整份输入不可用时的原因（未来版本 / 引用不完整 / 危险 URL / 非法 JSON）。
+   * 非空时预览与导入一律不发生——**绝不**降级成「只取 links 数组」。
+   */
+  readonly error: string | null;
+}
+
+/** 完整配置恢复前展示的摘要（全部来自文档本身，不是推断）。 */
+export interface NavRestoreSummary {
+  readonly schemaVersion: number;
+  readonly exportedAt: number;
+  readonly linkCount: number;
+  readonly groupCount: number;
+  readonly membershipCount: number;
 }
 
 /** 服务端预览结果 + apply 需要的一切（修订与目标分组）。 */
@@ -143,7 +182,7 @@ export interface NavImportPreviewState {
     readonly skipped: readonly NavImportSkipped[];
     readonly revision: number;
   };
-  /** 预览时的工作空间修订；apply 必须回显它。 */
+  /** 预览时的工作空间修订（服务端回传的权威值）；apply 必须回显它。 */
   readonly expectedRevision: number;
   readonly source: NavLocalImport;
   readonly targetGroupId: string | null;
@@ -167,6 +206,13 @@ export interface NavController {
    * 与 `conflict` 分开：那个是服务端 409 的结构化冲突，这个是**收到远端变更**的事实。
    */
   readonly draftRemoteNotice: string | null;
+  /**
+   * 同步机制本身的可恢复异常提示（当前只有「服务端拒绝本地游标 → 已丢弃并从头完整同步」）。
+   *
+   * 与 `error` 分开：这不是失败，而是**已经自动恢复**的事实，必须让用户看得见
+   * （静默丢游标会让用户以为「数据一直是最新的」）。下一轮同步成功后自动清除。
+   */
+  readonly syncNotice: string | null;
   readonly lastDeletedLinkId: string | null;
   readonly catalog: readonly NavCatalogEntry[] | null;
   readonly catalogRows: readonly NavCatalogRow[];
@@ -230,6 +276,7 @@ interface NavState {
   readonly importPreview: NavImportPreviewState | null;
   readonly conflict: NavConflictState | null;
   readonly draftRemoteNotice: string | null;
+  readonly syncNotice: string | null;
   readonly lastDeletedLinkId: string | null;
   readonly exportedJson: string | null;
   readonly exportNotice: string | null;
@@ -248,6 +295,7 @@ const INITIAL_STATE: NavState = {
   importPreview: null,
   conflict: null,
   draftRemoteNotice: null,
+  syncNotice: null,
   lastDeletedLinkId: null,
   exportedJson: null,
   exportNotice: null,
@@ -364,13 +412,15 @@ function triggerDownload(text: string): void {
 // ---------------------------------------------------------------------------
 // 跨设备变更（HUB-051）：纯判定 + 轮询
 //
-// 三条硬规则（都在下面用纯函数表达，便于单测与双上下文验收）：
-// 1. **删除即删除**：`op:'delete'` 必须移除本地对应的行/关系，并被记进墓碑表；
-//    任何**晚到的旧 upsert**（`updatedAt <= 墓碑时间`）都被丢弃，
-//    因此不存在「因为增量里没出现就复活」的路径。
-// 2. **草稿优先于远端**：正在编辑的实体收到远端变化时**不动本地、不丢草稿**，
+// 四条硬规则（都在下面用纯函数表达，便于单测与双上下文验收）：
+// 1. **顺序与去重只看 `seq`**：`seq` 是数据库单调变更序号，全局唯一且严格递增，
+//    因此它是「谁更新」的唯一判据。同一毫秒内的删除与恢复靠它正确落地，
+//    `updatedAt` 只作展示/诊断（绝不再参与新旧判断）。
+// 2. **删除即删除**：`op:'delete'` 移除本地行/关系并把该键的墓碑记为**这次删除的 seq**；
+//    任何 seq 更小的 upsert 都被 `lastAppliedSeq` / 墓碑双重拦下，不存在复活路径。
+// 3. **草稿优先于远端**：正在编辑的实体收到远端变化时**不动本地、不丢草稿**，
 //    只产生一条明确的提示，由用户决定放弃草稿或重新载入。
-// 3. **不做无谓刷新**：只有真正需要应用的变更才会产生新快照。
+// 4. **不做无谓刷新**：只有真正需要应用的变更才会产生新快照。
 // ---------------------------------------------------------------------------
 
 /** 导航关心的变更实体类型（其余类型不由本模块处理）。 */
@@ -473,62 +523,99 @@ export function describeRemoteDraftConflict(input: {
 
 export interface NavSyncApplyResult {
   readonly snapshot: NavSnapshot;
+  /** 每个实体（`类型:ID`）已应用过的最大 `seq`（活跃与已删除实体都记）。 */
+  readonly appliedSeq: Readonly<Record<string, number>>;
+  /** 墓碑表：`类型:ID` → 该实体被删除那一次的 `seq`。 */
   readonly tombstones: Readonly<Record<string, number>>;
-  /** 因形状不符或晚于已知墓碑而被丢弃的变更条数（界面据此诚实说明）。 */
+  /** 因重复序号、形状不符或已删除而被丢弃的变更条数（界面据此诚实说明）。 */
   readonly ignored: number;
 }
 
 /**
  * 把变更应用到快照（**纯函数**）。
  *
- * 只有 `upsert` 会新增行；`delete` 与「墓碑形状的 upsert」都会移除行**并记墓碑**。
- * 墓碑表随结果返回，由调用方在下一轮继续带上，因此「删除后又被旧增量加回来」
- * 在结构上不可能发生。
+ * 规则（每一条都对应一个复核缺陷）：
+ * - **按 `seq` 升序处理**（共享 `compareSyncChanges` 是唯一排序实现）：同一毫秒内的
+ *   「删除 → 恢复」因此能按真实先后落地，不再被 `updatedAt` 误判成旧数据而丢掉。
+ * - **`seq <= 已应用序号` 一律丢弃**：重复投递与「墓碑之后才到达的更旧 upsert」都在这里被拦下。
+ * - **墓碑表也存 `seq`**：即使某次全量重建丢了 `appliedSeq`，墓碑仍是第二道闸门。
+ * - **绝不改 `snapshot.revision`**：全局修订只由服务端 `meta.navRevision` 给出（见调用方）。
+ *   行修订与全局修订是两个计数器，互相推导必然产生恒 409。
+ * - `upsert` 的 payload 必须是该实体的**活跃快照**；`deletedAt` 非空的 payload 按墓碑处理
+ *   （服务端也可能用 upsert 表达「这一行已被删除」这个事实）。
  */
 export function applyNavSyncChanges(input: {
   readonly snapshot: NavSnapshot;
   readonly changes: readonly SyncChange[];
+  readonly appliedSeq: Readonly<Record<string, number>>;
   readonly tombstones: Readonly<Record<string, number>>;
 }): NavSyncApplyResult {
   let links = [...input.snapshot.links];
   let groups = [...input.snapshot.groups];
   let memberships = [...input.snapshot.memberships];
+  const appliedSeq: Record<string, number> = { ...input.appliedSeq };
   const tombstones: Record<string, number> = { ...input.tombstones };
   let ignored = 0;
-  let revision = input.snapshot.revision;
 
-  /** 同毫秒内也要有确定顺序：先按 `updatedAt`，再按 `entityId`（与服务端排序同源）。 */
-  const ordered = [...input.changes].sort((a, b) =>
-    a.updatedAt !== b.updatedAt ? a.updatedAt - b.updatedAt : a.entityId < b.entityId ? -1 : a.entityId > b.entityId ? 1 : 0,
-  );
+  /** 记「这个键已消费到 seq」；能走到这里的 `seq` 必然大于既有值。 */
+  const markApplied = (key: string, seq: number): void => {
+    appliedSeq[key] = seq;
+  };
 
-  for (const change of ordered) {
-    const key = syncTombstoneKey(change);
-    const tombstonedAt = tombstones[key];
+  /** 记墓碑：墓碑序号只增不减（一次更早的删除不能把墓碑拨回去）。 */
+  const markTombstone = (key: string, seq: number): void => {
+    tombstones[key] = Math.max(tombstones[key] ?? 0, seq);
+    appliedSeq[key] = Math.max(appliedSeq[key] ?? 0, seq);
+  };
 
-    if (change.op === 'delete') {
-      tombstones[key] = Math.max(tombstonedAt ?? 0, change.updatedAt);
-      if (change.entityType === 'nav_link') {
-        links = links.filter((link) => link.id !== change.entityId);
-        // 链接被删 → 它的成员关系也一并移除（服务端同样会墓碑化它们）。
-        memberships = memberships.filter((membership) => membership.linkId !== change.entityId);
-      } else if (change.entityType === 'nav_group') {
-        groups = groups.filter((group) => group.id !== change.entityId);
-        memberships = memberships.filter((membership) => membership.groupId !== change.entityId);
-      } else if (change.entityType === 'nav_membership') {
-        const parts = membershipPartsOf(change.entityId);
-        memberships = memberships.filter(
-          (membership) =>
-            parts === null || membership.linkId !== parts.linkId || membership.groupId !== parts.groupId,
-        );
+  /**
+   * 级联移除成员关系，并把它们也记在**同一次删除的 seq** 上。
+   *
+   * 为什么必须一起记：链接/分组被删时服务端会一并墓碑化它的成员关系。若这里只删本地行、
+   * 不记序号，那么一次从头全量重建里那条**更早**的成员关系 upsert 就会把它加回来，
+   * 快照里便出现一条指向已删实体的悬空关系。
+   * （诚实记录：只覆盖本地已知的关系；从未同步过的关系无法在此登记，但它指向的链接/分组
+   * 在本地已经不存在，投影与界面都不会把它当成有效归属。）
+   */
+  const cascadeDeleteMemberships = (match: (membership: NavMembership) => boolean, seq: number): void => {
+    for (const membership of memberships) {
+      if (!match(membership)) {
+        continue;
       }
-      revision = Math.max(revision, change.revision);
+      const membershipKey = `nav_membership:${membership.linkId}:${membership.groupId}`;
+      tombstones[membershipKey] = Math.max(tombstones[membershipKey] ?? 0, seq);
+      appliedSeq[membershipKey] = Math.max(appliedSeq[membershipKey] ?? 0, seq);
+    }
+    memberships = memberships.filter((membership) => !match(membership));
+  };
+
+  for (const change of [...input.changes].sort(compareSyncChanges)) {
+    const key = syncTombstoneKey(change);
+    const appliedSoFar = appliedSeq[key] ?? 0;
+    const tombstoneSeq = tombstones[key] ?? 0;
+    if (change.seq <= appliedSoFar || change.seq <= tombstoneSeq) {
+      // 重复投递、或墓碑之后才到达的更旧 upsert：一律丢弃（这是「不复活删除」的闸门）。
+      ignored += 1;
       continue;
     }
 
-    if (tombstonedAt !== undefined && change.updatedAt <= tombstonedAt) {
-      // 墓碑之后到达的旧 upsert 一律丢弃：这是「不复活删除」的第二道闸门。
-      ignored += 1;
+    if (change.op === 'delete') {
+      markTombstone(key, change.seq);
+      if (change.entityType === 'nav_link') {
+        links = links.filter((link) => link.id !== change.entityId);
+        // 链接被删 → 它的成员关系也一并移除（服务端同样会墓碑化它们）。
+        cascadeDeleteMemberships((membership) => membership.linkId === change.entityId, change.seq);
+      } else if (change.entityType === 'nav_group') {
+        groups = groups.filter((group) => group.id !== change.entityId);
+        cascadeDeleteMemberships((membership) => membership.groupId === change.entityId, change.seq);
+      } else if (change.entityType === 'nav_membership') {
+        const parts = membershipPartsOf(change.entityId);
+        if (parts !== null) {
+          memberships = memberships.filter(
+            (membership) => membership.linkId !== parts.linkId || membership.groupId !== parts.groupId,
+          );
+        }
+      }
       continue;
     }
 
@@ -540,15 +627,15 @@ export function applyNavSyncChanges(input: {
       }
       const row = parsed.data;
       if (row.deletedAt !== null) {
-        tombstones[key] = Math.max(tombstonedAt ?? 0, change.updatedAt);
+        markTombstone(key, change.seq);
         links = links.filter((link) => link.id !== row.id);
-        memberships = memberships.filter((membership) => membership.linkId !== row.id);
+        cascadeDeleteMemberships((membership) => membership.linkId === row.id, change.seq);
       } else {
         links = links.some((link) => link.id === row.id)
           ? links.map((link) => (link.id === row.id ? row : link))
           : [...links, row];
+        markApplied(key, change.seq);
       }
-      revision = Math.max(revision, change.revision);
       continue;
     }
 
@@ -560,15 +647,15 @@ export function applyNavSyncChanges(input: {
       }
       const row = parsed.data;
       if (row.deletedAt !== null) {
-        tombstones[key] = Math.max(tombstonedAt ?? 0, change.updatedAt);
+        markTombstone(key, change.seq);
         groups = groups.filter((group) => group.id !== row.id);
-        memberships = memberships.filter((membership) => membership.groupId !== row.id);
+        cascadeDeleteMemberships((membership) => membership.groupId === row.id, change.seq);
       } else {
         groups = groups.some((group) => group.id === row.id)
           ? groups.map((group) => (group.id === row.id ? row : group))
           : [...groups, row];
+        markApplied(key, change.seq);
       }
-      revision = Math.max(revision, change.revision);
       continue;
     }
 
@@ -591,7 +678,7 @@ export function applyNavSyncChanges(input: {
       continue;
     }
     if (row.deletedAt !== null) {
-      tombstones[key] = Math.max(tombstonedAt ?? 0, change.updatedAt);
+      markTombstone(key, change.seq);
       memberships = memberships.filter(
         (membership) => membership.linkId !== row.linkId || membership.groupId !== row.groupId,
       );
@@ -603,12 +690,14 @@ export function applyNavSyncChanges(input: {
             membership.linkId === row.linkId && membership.groupId === row.groupId ? row : membership,
           )
         : [...memberships, row];
+      markApplied(key, change.seq);
     }
-    revision = Math.max(revision, change.revision);
   }
 
+  // 刻意**不**在这里碰 `snapshot.revision`：全局修订只能来自服务端 `meta.navRevision`。
   return {
-    snapshot: { ...input.snapshot, links, groups, memberships, revision },
+    snapshot: { ...input.snapshot, links, groups, memberships },
+    appliedSeq,
     tombstones,
     ignored,
   };
@@ -625,9 +714,22 @@ export interface SyncChangesPollerOptions {
   /** 轮询间隔；`<= 0` 表示只在挂载与窗口获得焦点时同步。 */
   readonly intervalMs?: number | undefined;
   readonly limit?: number | undefined;
-  readonly onChanges: (changes: readonly SyncChange[], serverTimeMs: number) => void;
+  /**
+   * 应用一轮变更。
+   *
+   * `meta` 是与变更流**同一快照**读出的权威工作空间修订（`syncMetaSchema`）；
+   * 调用方只能用它更新全局 CAS 基数，绝不能用 `change.revision` 推导。
+   */
+  readonly onChanges: (changes: readonly SyncChange[], serverTimeMs: number, meta: SyncMeta) => void;
   readonly onUnauthorized?: (() => void) | undefined;
   readonly onError?: ((message: string) => void) | undefined;
+  /**
+   * 服务端**拒绝本地游标**（`422` + `details.reason`）时的可见回调。
+   *
+   * 为什么单列一条：这不是失败而是**已自动恢复**（游标已丢弃，下一轮从头全量同步），
+   * 必须让用户看得见；静默重来会让用户误以为「本地数据一直是最新的」。
+   */
+  readonly onCursorReset?: ((message: string) => void) | undefined;
 }
 
 export interface SyncChangesPoller {
@@ -646,15 +748,25 @@ export interface SyncChangesPoller {
  * **再**用 `encodeSyncCursor` 编回去（往返一次，证明拿到的确实是本版本能理解的游标）。
  * 解析失败（损坏或来自更新的版本）时把游标清空，下一轮做一次完整同步——
  * 这比「猜一个值继续增量」安全：漏掉的变更不会自己回来。
+ * 服务端**拒绝**我们的游标（`422` + `details.reason`）时同样丢弃本地游标并从头同步，
+ * 但会额外给出一条可见提示（`onCursorReset`），不静默。
  */
 export function useSyncChangesPoller(options: SyncChangesPollerOptions): SyncChangesPoller {
   const cursorRef = useRef<string | null>(null);
   const inFlightRef = useRef(false);
-  const handlersRef = useRef({ onChanges: options.onChanges, onError: options.onError });
+  const handlersRef = useRef({
+    onChanges: options.onChanges,
+    onError: options.onError,
+    onCursorReset: options.onCursorReset,
+  });
   const unauthorizedRef = useRef(options.onUnauthorized);
 
   useEffect(() => {
-    handlersRef.current = { onChanges: options.onChanges, onError: options.onError };
+    handlersRef.current = {
+      onChanges: options.onChanges,
+      onError: options.onError,
+      onCursorReset: options.onCursorReset,
+    };
     unauthorizedRef.current = options.onUnauthorized;
   });
 
@@ -697,6 +809,18 @@ export function useSyncChangesPoller(options: SyncChangesPollerOptions): SyncCha
           unauthorizedRef.current?.();
           return;
         }
+        /**
+         * 服务端拒绝本地游标（`422` + `details.reason`）：
+         * 丢掉本地游标 → 下一轮从最早的变更开始完整同步 → 给出可见提示。
+         * 只认**结构化原因**（`parseSyncCursorFailure`），原因未知时按普通失败处理——
+         * 绝不在不明原因时擅自丢弃水位。
+         */
+        const cursorFailure = result.status === 422 ? parseSyncCursorFailure(result.error.details) : null;
+        if (cursorFailure !== null) {
+          cursorRef.current = null;
+          handlersRef.current.onCursorReset?.(describeSyncCursorReset(cursorFailure));
+          return;
+        }
         handlersRef.current.onError?.(`同步变更失败：${describeNavError(result.error)}`);
         return;
       }
@@ -711,12 +835,13 @@ export function useSyncChangesPoller(options: SyncChangesPollerOptions): SyncCha
         cursorRef.current = null;
       } else {
         const decoded = decodeSyncCursor(response.nextCursor);
-        cursorRef.current = decoded.ok ? encodeSyncCursor(decoded.updatedAtMs) : null;
+        // 游标语义是「数据库单调变更序号」，因此推进用的是 `seq`（不是任何时间戳）。
+        cursorRef.current = decoded.ok ? encodeSyncCursor(decoded.seq) : null;
         if (!decoded.ok) {
-          handlersRef.current.onError?.('同步游标不可用，下一轮将做一次完整同步。');
+          handlersRef.current.onCursorReset?.('同步游标不可用，下一轮将做一次完整同步。');
         }
       }
-      handlersRef.current.onChanges(response.changes, response.serverTimeMs);
+      handlersRef.current.onChanges(response.changes, response.serverTimeMs, response.meta);
     } finally {
       inFlightRef.current = false;
     }
@@ -755,6 +880,112 @@ export function useSyncChangesPoller(options: SyncChangesPollerOptions): SyncCha
 }
 
 // ---------------------------------------------------------------------------
+// 导入解析与结果文案（纯函数；界面与测试复用同一份判定）
+// ---------------------------------------------------------------------------
+
+const EMPTY_LOCAL_IMPORT = {
+  items: [] as readonly NavImportItem[],
+  skipped: [] as readonly NavImportSkipped[],
+  document: null,
+  summary: null,
+  error: null,
+} as const;
+
+/**
+ * 本地解析导入输入（**唯一入口**，用共享 `parseNavImportDocument` 判定类型）。
+ *
+ * 三种结果必须分开对待：
+ * - `restore`：带 `schemaVersion` 的版本化配置 → 保留完整文档（分组 / 多对多 / 收藏 /
+ *   状态 / 顺序都在里面），走 restore 预览与 apply；
+ * - `links`：数组或 `{ links: [...] }` → 普通链接列表（逐项跳过原因照旧展示）；
+ * - `error`：未来版本、引用不完整、危险 URL、非法 JSON → **明确展示原因**，
+ *   绝不降级成「只取 links 数组」（那会静默丢掉分组与关系）。
+ *
+ * 书签 HTML 仍走共享 `parseBookmarkHtml`（只把 `<A HREF>` 与文件夹名当**数据**读）。
+ */
+export function parseLocalImport(input: {
+  readonly kind: 'bookmarks' | 'json';
+  readonly sourceName: string;
+  readonly text: string;
+}): NavLocalImport {
+  if (input.kind === 'bookmarks') {
+    const parsed = parseBookmarkHtml(input.text);
+    return {
+      ...EMPTY_LOCAL_IMPORT,
+      kind: 'bookmarks',
+      sourceName: input.sourceName,
+      items: parsed.items,
+      skipped: parsed.skipped,
+    };
+  }
+  const parsed = parseNavImportDocument(input.text);
+  if (parsed.kind === 'links') {
+    return {
+      ...EMPTY_LOCAL_IMPORT,
+      kind: 'json',
+      sourceName: input.sourceName,
+      items: parsed.items,
+      skipped: parsed.skipped,
+    };
+  }
+  if (parsed.kind === 'restore') {
+    return {
+      ...EMPTY_LOCAL_IMPORT,
+      kind: 'restore',
+      sourceName: input.sourceName,
+      document: parsed.document,
+      summary: {
+        schemaVersion: parsed.document.schemaVersion,
+        exportedAt: parsed.document.exportedAt,
+        linkCount: parsed.document.links.length,
+        groupCount: parsed.document.groups.length,
+        membershipCount: parsed.document.memberships.length,
+      },
+    };
+  }
+  return {
+    ...EMPTY_LOCAL_IMPORT,
+    kind: 'json',
+    sourceName: input.sourceName,
+    error: parsed.reason,
+  };
+}
+
+/** 普通链接导入完成后的提示（数字全部来自服务端响应）。 */
+export function describeLinkImportOutcome(data: {
+  readonly importedCount: number;
+  readonly skipped: readonly NavImportSkipped[];
+}): string {
+  return `导入完成：写入 ${String(data.importedCount)} 条，跳过 ${String(data.skipped.length)} 条。`;
+}
+
+/**
+ * 完整配置恢复完成后的提示。
+ *
+ * 数字口径刻意分两层：
+ * - 服务端给出 `importedGroups` / `importedMemberships` 时用**服务端权威值**；
+ * - 否则退化为「按提交的文档计数」，并把口径写清楚（「配置含」），绝不把本地推断
+ *   伪装成服务端事实。
+ */
+export function describeRestoreOutcome(
+  data: NavImportApplyResponse,
+  local: NavLocalImport,
+): string {
+  const groups = data.importedGroups;
+  const memberships = data.importedMemberships;
+  const detail =
+    groups !== undefined && memberships !== undefined
+      ? `，${String(groups)} 个分组，${String(memberships)} 条分组关系`
+      : local.document === null
+        ? ''
+        : `（提交的配置含 ${String(local.document.groups.length)} 个分组 / ${String(local.document.memberships.length)} 条关系）`;
+  return (
+    `已恢复完整导航配置：写入 ${String(data.importedCount)} 条链接${detail}，` +
+    `跳过 ${String(data.skipped.length)} 项。分组、多对多归属、收藏、状态与顺序都已按配置恢复。`
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
 
@@ -788,13 +1019,24 @@ export function useNav(options: UseNavOptions): NavController {
   const [tokenGetter] = useState(() => options.getToken);
   const unauthorizedRef = useRef(options.onUnauthorized);
   /**
-   * 已见墓碑（`实体类型:实体ID` → 墓碑的 `updatedAt`）。
+   * 已见墓碑（`实体类型:实体ID` → 该实体被删除那一次的 `seq`）。
    *
-   * 为什么必须**跨轮次**保留：一轮增量里先收到 delete、后收到一个更早的 upsert 时，
-   * 只靠当轮数据无法判断「这是旧数据」；保留墓碑后，任何晚到的旧 upsert 都会被丢弃，
+   * 为什么必须**跨轮次**保留：一轮增量里先收到 delete、后收到一个 `seq` 更小的 upsert 时，
+   * 只靠当轮数据无法判断「这是旧数据」；保留墓碑后，任何更旧的 upsert 都会被丢弃，
    * 因此不存在「删除过的行被后续合并加回来」的路径。
+   *
+   * 注意它存的是 **`seq`**（数据库单调变更序号），不是 `updatedAt`：同一毫秒内的
+   * 「删除 → 恢复」只有 `seq` 能表达先后。
    */
   const tombstonesRef = useRef<Readonly<Record<string, number>>>({});
+
+  /**
+   * 每个实体已应用过的最大 `seq`（`实体类型:实体ID` → seq）。
+   *
+   * 与墓碑表的分工：墓碑表只回答「这个键是不是被删过、删在哪一号」，这张表回答
+   * 「这个键的变更我消费到第几号了」——重复投递与乱序旧数据都由它拦下。
+   */
+  const appliedSeqRef = useRef<Readonly<Record<string, number>>>({});
 
   /**
    * 为什么用 `useEffect`（而不是渲染期赋值）同步 ref：渲染期写 ref 在并发渲染下
@@ -829,24 +1071,26 @@ export function useNav(options: UseNavOptions): NavController {
   // -------------------------------------------------------------------------
 
   /**
-   * 变更在**快照还没加载完**时到达的暂存区。
+   * 变更在**快照还没加载完**时到达的暂存区（连同该轮的权威 `meta` 一起暂存）。
    *
    * 为什么必须有它：挂载时的首次同步与首次快照加载是并发的，增量可能先到。
    * 直接丢弃是**错的**——游标已经前进了（服务端不会再发一次），丢掉的变更不会自己回来。
    * 因此先暂存，等快照落地后立刻补应用。
    */
-  const pendingChangesRef = useRef<SyncChange[]>([]);
+  const pendingChangesRef = useRef<{ readonly changes: readonly SyncChange[]; readonly meta: SyncMeta | null }[]>([]);
 
   /**
    * 把一批变更应用到给定快照上（纯判定 + 纯应用，本函数只负责把结果落到状态里）。
    *
    * 顺序刻意如此：
    * 1. 先逐条判定（`resolveRemoteChange`）：与草稿冲突的**不进入应用集合**；
-   * 2. 只对可应用的子集调用 `applyNavSyncChanges`（含墓碑防复活）；
-   * 3. 最后写状态：草稿内容一个字段都不会被改写，只置位「远端变了」的提示。
+   * 2. 只对可应用的子集调用 `applyNavSyncChanges`（按 `seq` 升序 + 墓碑防复活）；
+   * 3. 写状态：草稿内容一个字段都不会被改写，只置位「远端变了」的提示；
+   * 4. **全局修订只认 `meta.navRevision`**：即使这一轮没有任何可应用的变更，
+   *    服务端说工作空间已经到了 N，本地就必须记 N——否则下一次重排/导入必然 409。
    */
   const applyChangesTo = useCallback(
-    (snapshot: NavSnapshot, changes: readonly SyncChange[]): void => {
+    (snapshot: NavSnapshot, changes: readonly SyncChange[], meta: SyncMeta | null): void => {
       const draftNow = draftRef.current;
       const draftLinkId = draftNow !== null && draftNow.mode === 'edit' ? draftNow.linkId : null;
 
@@ -880,11 +1124,32 @@ export function useNav(options: UseNavOptions): NavController {
         });
       }
 
+      /**
+       * 权威全局修订（`meta.navRevision`）。`meta` 缺失时（`null`）保持原值：
+       * 「拿不到权威值」与「权威值就是 0」是两件事，不能混为一谈。
+       * 修订没变时返回**原对象**，避免每轮同步都制造一次无谓的重渲染。
+       */
+      const revisionFromMeta = meta === null ? null : meta.navRevision;
+      const withRevision = (base: NavSnapshot): NavSnapshot =>
+        revisionFromMeta === null || revisionFromMeta === base.revision
+          ? base
+          : { ...base, revision: revisionFromMeta };
+
       if (applicable.length === 0) {
+        const currentSnapshot = ref.current.snapshot;
+        const nextSnapshot = currentSnapshot === null ? null : withRevision(currentSnapshot);
+        const revisionMoved = nextSnapshot !== null && nextSnapshot !== currentSnapshot;
+        if (remoteNotice !== null || revisionMoved) {
+          update((current) => ({
+            ...current,
+            snapshot: nextSnapshot ?? current.snapshot,
+            draftRemoteNotice: remoteNotice ?? current.draftRemoteNotice,
+          }));
+        }
         if (remoteNotice !== null) {
-          update((current) => ({ ...current, draftRemoteNotice: remoteNotice }));
           const current = draftRef.current;
           if (current !== null) {
+            // 只置位提示：草稿的 values 与 baseRevision 一个字节都不动。
             setDraftState({ ...current, conflicted: true });
           }
         }
@@ -894,16 +1159,18 @@ export function useNav(options: UseNavOptions): NavController {
       const applied = applyNavSyncChanges({
         snapshot,
         changes: applicable,
+        appliedSeq: appliedSeqRef.current,
         tombstones: tombstonesRef.current,
       });
+      appliedSeqRef.current = applied.appliedSeq;
       tombstonesRef.current = applied.tombstones;
       update((current) => ({
         ...current,
-        snapshot: applied.snapshot,
+        snapshot: withRevision(applied.snapshot),
         draftRemoteNotice: remoteNotice ?? current.draftRemoteNotice,
         notice:
           `已应用其它设备的 ${String(applicable.length)} 条导航变更` +
-          (applied.ignored > 0 ? `（另有 ${String(applied.ignored)} 条因形状或已删除被忽略）` : '') +
+          (applied.ignored > 0 ? `（另有 ${String(applied.ignored)} 条因重复、形状不符或已删除被忽略）` : '') +
           '。',
       }));
       if (remoteNotice !== null) {
@@ -919,14 +1186,14 @@ export function useNav(options: UseNavOptions): NavController {
   );
 
   const handleSyncChanges = useCallback(
-    (changes: readonly SyncChange[]): void => {
+    (changes: readonly SyncChange[], meta: SyncMeta | null): void => {
       const snapshot = ref.current.snapshot;
       if (snapshot === null) {
-        // 快照还没到：暂存，等它落地后立刻补应用（绝不静默丢弃增量）。
-        pendingChangesRef.current = [...pendingChangesRef.current, ...changes];
+        // 快照还没到：暂存（含该轮的 meta），等它落地后立刻补应用（绝不静默丢弃增量）。
+        pendingChangesRef.current = [...pendingChangesRef.current, { changes: [...changes], meta }];
         return;
       }
-      applyChangesTo(snapshot, changes);
+      applyChangesTo(snapshot, changes, meta);
     },
     [applyChangesTo],
   );
@@ -936,10 +1203,16 @@ export function useNav(options: UseNavOptions): NavController {
     ...(options.syncApi === undefined ? {} : { api: options.syncApi }),
     getToken: options.getToken,
     ...(options.syncIntervalMs === undefined ? {} : { intervalMs: options.syncIntervalMs }),
-    onChanges: (changes) => {
-      handleSyncChanges(changes);
+    onChanges: (changes, _serverTimeMs, meta) => {
+      // 一轮成功同步意味着同步机制已经恢复：清掉「游标已重置」这类可恢复提示。
+      update((current) => (current.syncNotice === null ? current : { ...current, syncNotice: null }));
+      handleSyncChanges(changes, meta);
     },
     ...(options.onUnauthorized === undefined ? {} : { onUnauthorized: options.onUnauthorized }),
+    onCursorReset: (message) => {
+      // 可见提示（不静默）：游标已丢弃，下一轮从头完整同步。
+      update((current) => ({ ...current, syncNotice: message }));
+    },
     onError: (message) => {
       // 同步失败**不**清空已有数据，也不显示成致命错误：它只是「这次没拿到增量」。
       update((current) => ({ ...current, error: current.error ?? message }));
@@ -978,7 +1251,7 @@ export function useNav(options: UseNavOptions): NavController {
     }
     update((current) => ({ ...current, status: 'ready', snapshot: result.data, error: null }));
     /**
-     * 补应用「快照还没到时先到达」的增量。
+     * 补应用「快照还没到时先到达」的增量（按到达顺序逐轮应用，各自带该轮的权威 `meta`）。
      *
      * 必须在 `update` 之后：`applyChangesTo` 读的是刚写下的状态镜像，
      * 而它产生的快照要建立在这份**刚拿到**的服务端快照之上。
@@ -986,7 +1259,13 @@ export function useNav(options: UseNavOptions): NavController {
     const pending = pendingChangesRef.current;
     if (pending.length > 0) {
       pendingChangesRef.current = [];
-      applyChangesTo(result.data, pending);
+      for (const batch of pending) {
+        const base = ref.current.snapshot;
+        if (base === null) {
+          break;
+        }
+        applyChangesTo(base, batch.changes, batch.meta);
+      }
     }
   }, [api, applyChangesTo, failureText, update]);
 
@@ -1242,14 +1521,28 @@ export function useNav(options: UseNavOptions): NavController {
     [update],
   );
 
-  /** 就地替换一条链接（保留其余行的引用）。 */
+  /**
+   * 就地替换一条链接（保留其余行的引用）。
+   *
+   * 刻意**不**碰 `snapshot.revision`：行修订不能推导工作空间修订（复核发现的真实缺陷），
+   * 全局修订由紧随其后的 `refresh()`（服务端权威快照）或写响应里的 `revision` 给出。
+   */
   const replaceLink = useCallback(
     (snapshot: NavSnapshot, link: NavLink): NavSnapshot => ({
       ...snapshot,
-      revision: Math.max(snapshot.revision, link.revision),
       links: snapshot.links.map((candidate) => (candidate.id === link.id ? link : candidate)),
     }),
     [],
+  );
+
+  /** 用写响应里**服务端给出的**工作空间修订更新快照（绝不本地推算）。 */
+  const adoptRevision = useCallback(
+    (revision: number): void => {
+      update((current) =>
+        current.snapshot === null ? current : { ...current, snapshot: { ...current.snapshot, revision } },
+      );
+    },
+    [update],
   );
 
   // -------------------------------------------------------------------------
@@ -1355,11 +1648,13 @@ export function useNav(options: UseNavOptions): NavController {
         prefix: '删除链接失败',
         optimistic: (current) => ({
           ...current,
-          revision: Math.max(current.revision, link.revision),
           /**
            * 本地按**墓碑**处理（`deletedAt` 非空），而不是把行从数组里拿掉：
            * 共享投影函数据此排除它，同时「我删的是哪一行」在快照里仍然可见，
            * 这与服务端的删除语义（墓碑，不物理删除）保持一致。
+           *
+           * 刻意**不**在这里动 `current.revision`：乐观阶段无从得知新的工作空间修订，
+           * 服务端会在响应里给出权威值（`data.revision`）。
            */
           links: current.links.map((candidate) =>
             candidate.id === linkId
@@ -1368,14 +1663,16 @@ export function useNav(options: UseNavOptions): NavController {
           ),
         }),
         run: () => api.deleteLink(linkId, { operationId: newOperationId(), expectedRevision: link.revision }),
-        onSuccess: (data) =>
-          update((state2) => ({ ...state2, lastDeletedLinkId: data.deletedId, notice: `已删除「${link.title}」。` })),
+        onSuccess: (data) => {
+          adoptRevision(data.revision);
+          update((state2) => ({ ...state2, lastDeletedLinkId: data.deletedId, notice: `已删除「${link.title}」。` }));
+        },
       });
       if (deleted !== null) {
         await refresh();
       }
     },
-    [api, refresh, update, write],
+    [adoptRevision, api, refresh, update, write],
   );
 
   const toggleFavorite = useCallback(
@@ -1386,7 +1683,7 @@ export function useNav(options: UseNavOptions): NavController {
         return;
       }
       const nextFavorite = !link.isFavorite;
-      await write<{ link: NavLink }>({
+      const updated = await write<{ link: NavLink }>({
         prefix: '切换收藏失败',
         optimistic: (current) => ({
           ...current,
@@ -1410,8 +1707,12 @@ export function useNav(options: UseNavOptions): NavController {
           }
         },
       });
+      if (updated !== null) {
+        // 行级写响应不带工作空间修订，因此刷新一次拿权威快照（否则下一次重排会 409）。
+        await refresh();
+      }
     },
-    [api, replaceLink, update, write],
+    [api, refresh, replaceLink, update, write],
   );
 
   /**
@@ -1420,6 +1721,9 @@ export function useNav(options: UseNavOptions): NavController {
    * 发送**全部**活跃链接的期望顺序：共享契约 `reorderNavLinksRequestSchema` 是整体替换，
    * 这样「部分重排」的歧义不存在。顺序基于当前快照的 `manual` 排序（共享纯函数），
    * 因此与服务端理解完全一致。
+   *
+   * `expectedRevision` 用的是**快照里的工作空间修订**——它只由服务端 `meta.navRevision`
+   * 或服务端写响应给出，绝不是从行修订推导出来的（复核缺陷 P1-2 的修复点）。
    */
   const moveLink = useCallback(
     async (linkId: string, direction: -1 | 1): Promise<void> => {
@@ -1461,9 +1765,13 @@ export function useNav(options: UseNavOptions): NavController {
             orderedIds: ids,
             expectedRevision: snapshot.revision,
           }),
+        // 服务端写响应里的工作空间修订是权威值，直接采用（下一次重排就不会 409）。
+        onSuccess: (data) => {
+          adoptRevision(data.revision);
+        },
       });
     },
-    [api, write],
+    [adoptRevision, api, write],
   );
 
   // -------------------------------------------------------------------------
@@ -1495,7 +1803,7 @@ export function useNav(options: UseNavOptions): NavController {
       if (group === undefined) {
         return;
       }
-      await write<NavGroup>({
+      const renamed = await write<NavGroup>({
         prefix: '重命名分组失败',
         optimistic: (current) => ({
           ...current,
@@ -1523,8 +1831,12 @@ export function useNav(options: UseNavOptions): NavController {
           }));
         },
       });
+      if (renamed !== null) {
+        // 更新分组的响应只有行本身，不带工作空间修订；刷新一次拿权威修订与行版本。
+        await refresh();
+      }
     },
-    [api, update, write],
+    [api, refresh, update, write],
   );
 
   const deleteGroup = useCallback(
@@ -1544,15 +1856,18 @@ export function useNav(options: UseNavOptions): NavController {
           ),
         }),
         run: () => api.deleteGroup(groupId, { operationId: newOperationId(), expectedRevision: group.revision }),
-        onSuccess: () =>
-          update((state2) => ({ ...state2, notice: `已删除分组「${group.name}」（链接本身保留）。` })),
+        onSuccess: (data) => {
+          // 写响应里的工作空间修订是权威值（绝不从行修订推）。
+          adoptRevision(data.revision);
+          update((state2) => ({ ...state2, notice: `已删除分组「${group.name}」（链接本身保留）。` }));
+        },
       });
       if (deleted !== null) {
         // 成员关系由服务端一并处理，因此刷新一次拿到权威的归属结果。
         await refresh();
       }
     },
-    [api, refresh, update, write],
+    [adoptRevision, api, refresh, update, write],
   );
 
   const moveGroup = useCallback(
@@ -1589,9 +1904,12 @@ export function useNav(options: UseNavOptions): NavController {
             orderedIds: ids,
             expectedRevision: snapshot.revision,
           }),
+        onSuccess: (data) => {
+          adoptRevision(data.revision);
+        },
       });
     },
-    [activeGroups, api, write],
+    [activeGroups, adoptRevision, api, write],
   );
 
   // -------------------------------------------------------------------------
@@ -1660,22 +1978,14 @@ export function useNav(options: UseNavOptions): NavController {
   );
 
   // -------------------------------------------------------------------------
-  // 通用导入（书签 HTML / JSON 文本）
+  // 通用导入（书签 HTML / 链接 JSON / 恢复完整配置）
   // -------------------------------------------------------------------------
 
   const previewLocalImport = useCallback(
     (input: { readonly kind: 'bookmarks' | 'json'; readonly sourceName: string; readonly text: string }): void => {
-      // 本地解析用共享纯函数：只把 `<A HREF>` 与文件夹名当**数据**读，
-      // 解析结果里没有任何 HTML，因此页面里永远不会出现外来标签文本。
-      const parsed = input.kind === 'bookmarks' ? parseBookmarkHtml(input.text) : parseNavImportJson(input.text);
       update((current) => ({
         ...current,
-        localImport: {
-          kind: input.kind,
-          sourceName: input.sourceName,
-          items: parsed.items,
-          skipped: parsed.skipped,
-        },
+        localImport: parseLocalImport(input),
         // 换了文件/文本 = 上一次的预览已经不代表用户确认过的内容。
         importPreview: null,
         error: null,
@@ -1688,18 +1998,32 @@ export function useNav(options: UseNavOptions): NavController {
     update((current) => ({ ...current, localImport: null, importPreview: null }));
   }, [update]);
 
+  /**
+   * 提交服务端预览。
+   *
+   * 两种模式**绝不能混**（复核发现的真实缺陷）：
+   * - `links`：提交客户端解析出的 `items` / `skipped`（服务端会重新校验）；
+   * - `restore`：提交**原样**的版本化文档（含 groups 与 memberships），**不**提交 items——
+   *   否则分组、多对多归属、收藏、状态与顺序会被静默丢掉。
+   *
+   * 本地解析失败（未来版本 / 引用不完整 / 危险 URL / 非法 JSON）时**不发任何请求**。
+   */
   const previewImport = useCallback(async (): Promise<void> => {
     const current = ref.current;
     const local = current.localImport;
-    if (local === null || current.snapshot === null) {
+    if (local === null || local.error !== null || current.snapshot === null) {
       return;
     }
     update((state2) => ({ ...state2, busy: true, error: null }));
-    const result = await api.previewImport({
-      items: [...local.items],
-      skipped: [...local.skipped],
-      ...(importTargetGroupId === null ? {} : { targetGroupId: importTargetGroupId }),
-    });
+    const result =
+      local.kind === 'restore' && local.document !== null
+        ? await api.previewImport({ mode: 'restore', document: local.document })
+        : await api.previewImport({
+            mode: 'links',
+            items: [...local.items],
+            skipped: [...local.skipped],
+            ...(importTargetGroupId === null ? {} : { targetGroupId: importTargetGroupId }),
+          });
     if (!mountedRef.current) {
       return;
     }
@@ -1712,10 +2036,11 @@ export function useNav(options: UseNavOptions): NavController {
       ...state2,
       importPreview: {
         preview: result.data,
-        // 记录**预览时**的修订：apply 必须回显它，服务端据此拒绝按旧预览覆盖。
+        // 记录**预览时**的修订（服务端回传的权威值）：apply 必须回显它，
+        // 服务端据此拒绝按旧预览覆盖。这里不做任何本地推算。
         expectedRevision: result.data.revision,
         source: local,
-        targetGroupId: importTargetGroupId,
+        targetGroupId: local.kind === 'restore' ? null : importTargetGroupId,
       },
     }));
   }, [api, failureText, importTargetGroupId, update]);
@@ -1725,24 +2050,35 @@ export function useNav(options: UseNavOptions): NavController {
     if (preview === null) {
       return;
     }
-    const applied = await write<{ importedCount: number; skipped: readonly NavImportSkipped[] }>({
-      prefix: '导入失败',
+    const local = preview.source;
+    const isRestore = local.kind === 'restore' && local.document !== null;
+    const applied = await write<NavImportApplyResponse>({
+      prefix: isRestore ? '恢复完整配置失败' : '导入失败',
       run: () =>
-        api.applyImport({
-          operationId: newOperationId(),
-          items: [...preview.preview.items],
-          ...(preview.targetGroupId === null ? {} : { targetGroupId: preview.targetGroupId }),
-          expectedRevision: preview.expectedRevision,
-        }),
+        isRestore
+          ? api.applyImport({
+              operationId: newOperationId(),
+              mode: 'restore',
+              document: local.document,
+              expectedRevision: preview.expectedRevision,
+            })
+          : api.applyImport({
+              operationId: newOperationId(),
+              mode: 'links',
+              items: [...preview.preview.items],
+              ...(preview.targetGroupId === null ? {} : { targetGroupId: preview.targetGroupId }),
+              expectedRevision: preview.expectedRevision,
+            }),
       onSuccess: (data) =>
         update((state2) => ({
           ...state2,
           importPreview: null,
           localImport: null,
-          notice: `导入完成：写入 ${String(data.importedCount)} 条，跳过 ${String(data.skipped.length)} 条。`,
+          notice: isRestore ? describeRestoreOutcome(data, local) : describeLinkImportOutcome(data),
         })),
     });
     if (applied !== null) {
+      // 恢复会改动分组与成员关系，因此刷新一次拿到权威快照（本地不做任何推断）。
       await refresh();
     }
   }, [api, refresh, update, write]);

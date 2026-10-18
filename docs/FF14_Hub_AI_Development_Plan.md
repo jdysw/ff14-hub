@@ -111,10 +111,21 @@ current_execution:
 | HUB-010 首页与导航 Widget | implemented_pending_review | 真实模块 `ff14.navigation`（`packages/shared/src/nav-api.ts` 的 Manifest/契约 + `worker/modules/registry/builtin-modules.ts` 的 handler 表与能力授予）、Widget `nav-quick-links` / `nav-search`（`apps/web/src/app/nav/`）；首页仍是阶段 03 的可定制工作台；**模块数据端口**（`apps/web/src/app/widgets/module-data-ports.ts`：按模块声明操作名、每次调用前复检门禁、组件拿不到 Token/URL） |
 | HUB-011 手工活动与列表 | implemented_pending_review | `migrations/0009_events.sql` + `0010_event_operations.sql`（公共 `events` 与私有 `workspace_events` 分表；公共表**空表**，不捆绑未核实数据）、`worker/modules/events/`、`worker/api/v1/events.ts`（公开只读）与 `me-events.ts`、`apps/web/src/app/events/`（两个 Widget + 表单）；不做抓取/鱼类/提醒（ADR-0004 D9） |
 | HUB-012 响应式 PWA | implemented_pending_review | `apps/web/public/{manifest.webmanifest,sw.js,icons/*}`、`apps/web/src/app/pwa/`（缓存策略纯函数、离线/安装状态、注册与更新确认、`PwaStatusBar`）；`worker/test/static-assets-headers.spec.ts`（真实 workerd 断言 SW/manifest/图标的响应头）；缓存白名单**默认拒绝** `/api/v1/me/*` 与一切带 Authorization 的流量 |
-| HUB-051 布局/导航跨设备同步 | implemented_pending_review | `worker/modules/sync/service.ts` + `worker/api/v1/me-sync.ts`（`GET /me/sync/changes`，按 `updated_at` 扫描全部写路径 + 毫秒组分页 + 墓碑传播、不做 GC）、`packages/shared/src/sync-api.ts`、`apps/web/src/app/nav/use-nav.ts` 的 `useSyncChangesPoller`（导航与工作台共用；墓碑表跨轮保留 → 删除不复活；有草稿只提示不覆盖）；`worker/test/sync-changes.spec.ts`（含「模块卸载写路径也进入同步」的真实 HTTP 用例） |
+| HUB-051 布局/导航跨设备同步 | implemented_pending_review | `migrations/0011_change_journal.sql`（`workspace_changes` 单调序号 + **触发器**覆盖全部写路径）+ `worker/modules/sync/service.ts` + `worker/api/v1/me-sync.ts`（`GET /me/sync/changes`，游标 `v2:<seq>`、旧 `v1` 游标明确拒绝、每页 ≤ limit、payload/水位/meta 同一 D1 batch 快照、`meta.navRevision` 权威全局修订、墓碑传播、不做 GC）、`packages/shared/src/sync-api.ts`、`apps/web/src/app/nav/use-nav.ts` 的 `useSyncChangesPoller`（按 `seq` 排序/去重，墓碑不复活，有草稿只提示不覆盖）；`worker/test/sync-changes.spec.ts`（冻结同一毫秒、时钟回退、删除→恢复、分页期间持续写入、模块卸载写路径、作用域隔离） |
 
 **明确未完成 / 未做（不要读成已完成）：**
 
+- **第二轮集中复核（GPT）发现的 4 项 P1 功能/数据缺陷已修**（详见 ADR-0004 D15）：
+  ① 同步水位改为**数据库单调序号**（`migrations/0011_change_journal.sql` 的 `workspace_changes`
+  + 触发器覆盖全部写路径；游标 `v2:<seq>`，旧 `v1:<毫秒>` 明确拒绝并重建；payload/水位/meta
+  来自同一 D1 batch 快照；每页 ≤ limit）；
+  ② 导航修订号**全局与行级严格分离**（全局 CAS 只用 `meta.navRevision`，禁止用行修订推导，
+  因此远端改动后无需人工刷新即可重排/导入）；
+  ③ 导航读路径（快照/导出/导入规划/写路径前置条件）改为**单事务一致快照**，导出做引用完整性校验；
+  ④ 完整导航配置 **round-trip**：导入区分 `links` 与 `restore` 两种模式，`restore` 保留
+  分组/多对多/收藏/状态/顺序并重映射 ID，未来版本与危险 URL 明确拒绝。
+  证据：worker 510 项（含跨 workspace 导出→恢复、同毫秒删除→恢复、时钟回退、分页持续写入）、
+  shared 250 项、web 334 项（含 A 改动→B 自动同步后无需刷新即可重排、真并发 409 且草稿保留）。
 - 阶段 04 的工作位于分支 `codex/phase04-navigation`（PR #20 草稿），**尚未合并**。
   该 head 的 GitHub Actions 四项 job 全部 success（CI run `39102921991`），
   本地 frozen install / lint / typecheck（含 e2e）/ 单测 1057 项 / build / 迁移全新+重复应用 /

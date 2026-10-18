@@ -136,6 +136,16 @@ export const navImportApplyResponseSchema = z.object({
   skipped: z.array(navImportSkippedSchema),
   revision: z.number().int().nonnegative(),
   replayed: z.boolean().optional(),
+  /**
+   * `restore` 模式落地的分组 / 成员关系数量（服务端权威值，可选）。
+   *
+   * 字段名与服务端返回一致（`importedGroups` / `importedMemberships`）。为什么可选：
+   * `links` 模式没有分组与关系可恢复，服务端不会给出这两个字段；恢复流程的摘要必须
+   * **优先**用服务端数字，只有在服务端尚未回传时才退化为「按提交的文档计数」并把口径
+   * 写在文案里——绝不用一个本地推断冒充服务端事实。
+   */
+  importedGroups: z.number().int().nonnegative().optional(),
+  importedMemberships: z.number().int().nonnegative().optional(),
 });
 
 /** 目录导入的响应：逐条给出「这条做了什么」，界面据此解释墓碑恢复与覆盖。 */
@@ -467,8 +477,10 @@ export interface SyncChangesApi {
 /**
  * 构造变更查询串。
  *
- * `since` 是服务端给出的游标字符串（`v1:<ms>`），这里只做 `URLSearchParams` 编码：
+ * `since` 是服务端给出的游标字符串（`v2:<单调变更序号>`），这里只做 `URLSearchParams` 编码：
  * 它在路径/查询里只是数据，**不含凭证**（凭证永远只在 `Authorization` 头里）。
+ * 客户端**不**在这里解析或改写游标——编解码的唯一实现是共享 `decodeSyncCursor` /
+ * `encodeSyncCursor`（状态层在存下游标前已往返校验过一次）。
  */
 export function toSyncChangesQuery(query: SyncChangesQuery): string {
   const params = new URLSearchParams();
@@ -487,6 +499,62 @@ export function createSyncChangesApi(request: NavRequester): SyncChangesApi {
     readChanges: (query) =>
       request<SyncChangesResponse>(`${API_ROUTES.meSyncChanges}${toSyncChangesQuery(query)}`),
   };
+}
+
+/**
+ * 服务端拒绝游标的两种结构化原因（`422` 的 `details.reason`）。
+ *
+ * 为什么必须结构化识别而不是看 `message`：文案随时可改，而「游标不被接受」是一个
+ * 必须**自动恢复**的事实——丢掉本地游标、下一轮从头全量同步，并给用户一条可见提示。
+ * 拿文案去猜会让这条恢复路径在文案改动的某一天静默失效。
+ */
+export const SYNC_CURSOR_FAILURE_REASONS = ['cursor_version_unsupported', 'cursor_malformed'] as const;
+export type SyncCursorFailureReason = (typeof SYNC_CURSOR_FAILURE_REASONS)[number];
+
+/**
+ * 结构化原因的**等价别名**。
+ *
+ * 兼容并存的两种写法，都来自本项目的契约，不是模糊匹配：
+ * - 共享 `decodeSyncCursor` 的失败名（`unsupported_version` / `malformed`）；
+ * - 服务端错误日志里既有的 `sync_cursor_<reason>` 形式（若它被放进 `details`）。
+ * 未知取值一律返回 `null`（宁可显示一条普通同步失败，也不猜一个恢复动作出来）。
+ */
+const SYNC_CURSOR_FAILURE_ALIASES: Readonly<Record<string, SyncCursorFailureReason>> = {
+  cursor_version_unsupported: 'cursor_version_unsupported',
+  cursor_malformed: 'cursor_malformed',
+  unsupported_version: 'cursor_version_unsupported',
+  malformed: 'cursor_malformed',
+  sync_cursor_unsupported_version: 'cursor_version_unsupported',
+  sync_cursor_malformed: 'cursor_malformed',
+};
+
+/**
+ * 从 `422` 的 `details` 里取游标失败原因。
+ *
+ * 只认结构（`details.reason` 是已知取值之一），解析不出来就返回 `null`：
+ * 界面据此退化为普通失败提示，**绝不**在原因未知时擅自丢弃本地游标。
+ */
+export function parseSyncCursorFailure(details: unknown): SyncCursorFailureReason | null {
+  if (typeof details !== 'object' || details === null) {
+    return null;
+  }
+  const reason = (details as Record<string, unknown>)['reason'];
+  if (typeof reason !== 'string') {
+    return null;
+  }
+  return SYNC_CURSOR_FAILURE_ALIASES[reason] ?? null;
+}
+
+/** 游标被拒绝时的可见提示（说明「本地游标已丢弃、下一轮从头同步」，不静默）。 */
+export const SYNC_CURSOR_RESET_MESSAGES: Readonly<Record<SyncCursorFailureReason, string>> = {
+  cursor_version_unsupported:
+    '服务端不接受本地同步游标（版本不匹配）：已丢弃游标，下一轮将从最早的变更开始完整同步，不会静默跳过任何改动。',
+  cursor_malformed:
+    '本地同步游标无法解析：已丢弃游标，下一轮将从最早的变更开始完整同步，不会静默跳过任何改动。',
+};
+
+export function describeSyncCursorReset(reason: SyncCursorFailureReason): string {
+  return SYNC_CURSOR_RESET_MESSAGES[reason];
 }
 
 // ---------------------------------------------------------------------------

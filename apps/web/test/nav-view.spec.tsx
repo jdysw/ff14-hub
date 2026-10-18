@@ -13,7 +13,7 @@ import { projectNavLinks, type NavFilter, type NavSnapshot } from '@ff14-hub/sha
 import { NavView } from '../src/app/nav/NavView';
 import { useNav } from '../src/app/nav/use-nav';
 import type { NavApi } from '../src/app/nav/nav-api';
-import { catalogEntry, fakeNavApi, fakeSyncApi, group, link, membership, snapshot } from './nav-fixtures';
+import { catalogEntry, exportDocument, fakeNavApi, fakeSyncApi, group, link, membership, snapshot } from './nav-fixtures';
 
 afterEach(() => {
   cleanup();
@@ -244,7 +244,8 @@ describe('链接 CRUD 走正确的操作', () => {
   it('个人排序（上移 / 下移）提交全部活跃链接的期望顺序', async () => {
     const user = userEvent.setup();
     const fake = fakeNavApi({ snapshot: baseSnapshot() });
-    render(<Harness api={fake.api} syncApi={fakeSyncApi().api} />);
+    // 同步轮的权威修订与快照一致（7）：默认空响应是 0，会让「提交的 expectedRevision」失真。
+    render(<Harness api={fake.api} syncApi={fakeSyncApi([], { navRevision: 7 }).api} />);
     await screen.findByText('以太之光广场');
 
     const rows = screen.getAllByTestId('nav-link-item');
@@ -525,7 +526,7 @@ describe('书签 / JSON 导入预览', () => {
     expect(typeof applyRequest['operationId']).toBe('string');
   });
 
-  it('本地解析失败（非法 JSON）时逐项给出原因，不进入服务端预览', async () => {
+  it('本地解析失败（非法 JSON）时明确给出原因，不进入服务端预览', async () => {
     const user = userEvent.setup();
     const fake = fakeNavApi({ snapshot: baseSnapshot() });
     render(<Harness api={fake.api} syncApi={fakeSyncApi().api} />);
@@ -534,10 +535,140 @@ describe('书签 / JSON 导入预览', () => {
     await pasteInto(user, screen.getByTestId('nav-import-json-text'), '{ 这不是 JSON');
     await user.click(screen.getByTestId('nav-import-json-parse'));
 
-    expect(screen.getAllByTestId('nav-import-skipped-item')).toHaveLength(1);
-    expect(screen.getByTestId('nav-import-skip-reason').textContent).toBe('地址形态不可用');
-    expect(screen.getByText(/不是合法 JSON/)).toBeDefined();
+    // 整份输入不可用 → 用专门的一行说明原因，而不是把「不可解析」伪装成一条链接的跳过项。
+    const parseError = await screen.findByTestId('nav-import-local-error');
+    expect(parseError.textContent).toContain('不是合法 JSON');
+    // 不降级成普通链接导入。
+    expect(screen.queryByTestId('nav-import-item-list')).toBeNull();
+    expect(screen.getByTestId<HTMLButtonElement>('nav-import-preview').disabled).toBe(true);
     expect(fake.calls.previewImport).not.toHaveBeenCalled();
+  });
+});
+
+describe('恢复完整配置（restore）', () => {
+  /** 真实形态的导出文档：2 个分组、1 个链接属于两个组、收藏、sortOrder、archived。 */
+  function restoreFixture() {
+    return exportDocument({
+      exportedAt: 1_700_000_100_000,
+      links: [
+        link('L1', {
+          title: '主站',
+          url: 'https://fav.example.com/',
+          isFavorite: true,
+          sortOrder: 3,
+          tags: ['常用'],
+          region: 'both',
+        }),
+        link('L2', { title: '归档站', url: 'https://arch.example.com/', status: 'archived', sortOrder: 7 }),
+      ],
+      groups: [group('G1', { name: '资料', sortOrder: 0 }), group('G2', { name: '工具', sortOrder: 1 })],
+      memberships: [membership('L1', 'G1', { sortOrder: 0 }), membership('L1', 'G2', { sortOrder: 1 })],
+    });
+  }
+
+  it('识别为完整配置：展示摘要 → preview(mode=restore) 原样提交 → 确认后 apply → 摘要数字正确', async () => {
+    const user = userEvent.setup();
+    const document = restoreFixture();
+    // 服务端此刻的权威修订是 42（预览响应会回传它，apply 必须原样回显）。
+    const fake = fakeNavApi({ snapshot: baseSnapshot(), previewRevision: 42 });
+    render(<Harness api={fake.api} syncApi={fakeSyncApi([], { navRevision: 42 }).api} />);
+    await screen.findByText('以太之光广场');
+
+    await pasteInto(user, screen.getByTestId('nav-import-json-text'), JSON.stringify(document));
+    await user.click(screen.getByTestId('nav-import-json-parse'));
+
+    // 摘要：来源类型 + 链接/分组/关系数量 + 导出时间 + schemaVersion（全部来自文档本身）。
+    const summary = await screen.findByTestId('nav-import-local-summary');
+    expect(summary.textContent).toContain('完整导航配置');
+    const counts = screen.getByTestId('nav-restore-counts');
+    expect(counts.textContent).toContain('链接 2 条');
+    expect(counts.textContent).toContain('分组 2 个');
+    expect(counts.textContent).toContain('成员关系 2 条');
+    const meta = screen.getByTestId('nav-restore-meta');
+    expect(meta.textContent).toContain('schemaVersion 1');
+    expect(meta.textContent).toContain(new Date(document.exportedAt).toISOString());
+    // 恢复流程不提供「导入到分组」（配置自带归属，指定目标分组会扭曲它）。
+    expect(screen.queryByTestId('nav-import-target-group')).toBeNull();
+
+    await user.click(screen.getByTestId('nav-import-preview'));
+    await waitFor(() => {
+      expect(fake.calls.previewImport).toHaveBeenCalledTimes(1);
+    });
+    const previewRequest = fake.calls.previewImport.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(previewRequest['mode']).toBe('restore');
+    // 文档**原样**提交（含分组、多对多、收藏、状态、顺序），且绝不附带 items。
+    expect(previewRequest['document']).toEqual(document);
+    expect(previewRequest['items']).toBeUndefined();
+
+    // 只是预览：还没有任何写入。
+    expect(fake.calls.applyImport).not.toHaveBeenCalled();
+
+    await screen.findByTestId('nav-import-preview-result');
+    await user.click(screen.getByTestId('nav-import-apply'));
+    await waitFor(() => {
+      expect(fake.calls.applyImport).toHaveBeenCalledTimes(1);
+    });
+    const applyRequest = fake.calls.applyImport.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(applyRequest['mode']).toBe('restore');
+    expect(applyRequest['document']).toEqual(document);
+    expect(applyRequest['expectedRevision']).toBe(42);
+    expect(typeof applyRequest['operationId']).toBe('string');
+
+    // 完成提示给出恢复的数量（服务端权威值）与跳过项。
+    const notice = await screen.findByTestId('nav-notice');
+    expect(notice.textContent).toContain('已恢复完整导航配置');
+    expect(notice.textContent).toContain('2 条链接');
+    expect(notice.textContent).toContain('2 个分组');
+    expect(notice.textContent).toContain('2 条分组关系');
+    expect(notice.textContent).toContain('跳过 0 项');
+  });
+
+  it('未来版本（schemaVersion 99）：明确展示原因，不发 preview / apply', async () => {
+    const user = userEvent.setup();
+    const fake = fakeNavApi({ snapshot: baseSnapshot() });
+    render(<Harness api={fake.api} syncApi={fakeSyncApi().api} />);
+    await screen.findByText('以太之光广场');
+
+    await pasteInto(user, screen.getByTestId('nav-import-json-text'), '{"schemaVersion":99,"links":[]}');
+    await user.click(screen.getByTestId('nav-import-json-parse'));
+
+    const error = await screen.findByTestId('nav-import-local-error');
+    expect(error.textContent).toContain('99');
+    // **不得**降级成 links 导入：既没有 items 列表，也没有可点的 apply。
+    expect(screen.queryByTestId('nav-import-item-list')).toBeNull();
+    expect(screen.queryByTestId('nav-import-apply')).toBeNull();
+    expect(screen.getByTestId<HTMLButtonElement>('nav-import-preview').disabled).toBe(true);
+    expect(fake.calls.previewImport).not.toHaveBeenCalled();
+    expect(fake.calls.applyImport).not.toHaveBeenCalled();
+  });
+
+  it('引用不完整 / 危险 URL 的文档：明确拒绝，不进入任何请求', async () => {
+    const user = userEvent.setup();
+    const fake = fakeNavApi({ snapshot: baseSnapshot() });
+    render(<Harness api={fake.api} syncApi={fakeSyncApi().api} />);
+    await screen.findByText('以太之光广场');
+
+    // 悬空成员关系（指向不存在的分组）→ 引用完整性拒绝。
+    const dangling = exportDocument({
+      links: [link('L1')],
+      groups: [group('G1')],
+      memberships: [membership('L1', 'G-missing')],
+    });
+    await pasteInto(user, screen.getByTestId('nav-import-json-text'), JSON.stringify(dangling));
+    await user.click(screen.getByTestId('nav-import-json-parse'));
+    expect((await screen.findByTestId('nav-import-local-error')).textContent).toContain('引用不完整');
+
+    // 危险 URL（javascript:）→ 结构 / 策略拒绝（先清空输入框：粘贴是追加语义）。
+    const dangerous = exportDocument({ links: [link('L1', { url: 'javascript:alert(1)' })] });
+    await user.clear(screen.getByTestId('nav-import-json-text'));
+    await pasteInto(user, screen.getByTestId('nav-import-json-text'), JSON.stringify(dangerous));
+    await user.click(screen.getByTestId('nav-import-json-parse'));
+    await waitFor(() => {
+      expect(screen.getByTestId('nav-import-local-error').textContent).toContain('不符合契约');
+    });
+
+    expect(fake.calls.previewImport).not.toHaveBeenCalled();
+    expect(fake.calls.applyImport).not.toHaveBeenCalled();
   });
 });
 

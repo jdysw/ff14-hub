@@ -310,7 +310,7 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
       deps.db
         .prepare(
           `UPDATE workspace_module_operations SET attempts = attempts + 1, last_error = NULL
-            WHERE workspace_id = ? AND module_id = ? AND revision = ? AND changes() = 1`,
+            WHERE workspace_id = ? AND module_id = ? AND revision = ? AND changes() >= 1`,
         )
         .bind(input.workspaceId, input.moduleId, input.admissionRevision),
     ]);
@@ -341,7 +341,7 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
       deps.db
         .prepare(
           `UPDATE workspace_module_operations SET attempts = attempts + 1, last_error = NULL
-            WHERE workspace_id = ? AND module_id = ? AND revision = ? AND changes() = 1`,
+            WHERE workspace_id = ? AND module_id = ? AND revision = ? AND changes() >= 1`,
         )
         .bind(input.workspaceId, input.moduleId, input.admissionRevision),
     ]);
@@ -871,7 +871,9 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
           )
           .bind(settingsJson, nextSettingsVersion, timestamp, input.workspaceId, input.moduleId, currentRevision)
           .run();
-        if ((updated.meta.changes ?? 0) !== 1) {
+        // D1 的 meta.changes 会**计入触发器写入**（workspace_modules 上的变更日志触发器 +1），
+        // 因此判定「一行都没更新」（=== 0 表示 CAS 抢输），而不是「恰好 1 行」。
+        if ((updated.meta.changes ?? 0) === 0) {
           return {
             ok: false,
             reason: 'revision_conflict',
@@ -950,14 +952,14 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
               `INSERT INTO workspace_module_operations (
                  workspace_id, module_id, action, target_status, revision, started_at, attempts, last_error
                )
-               SELECT ?, ?, ?, ?, 1, ?, 1, NULL WHERE changes() = 1
+               SELECT ?, ?, ?, ?, 1, ?, 1, NULL WHERE changes() >= 1
                ON CONFLICT (workspace_id, module_id) DO NOTHING`,
             )
             .bind(input.workspaceId, input.moduleId, action ?? 'enable', targetStatus, timestamp),
           deps.db
             .prepare(
               `INSERT INTO workspace_module_operation_claims (workspace_id, module_id, token, claimed_at, expires_at)
-               SELECT ?, ?, ?, ?, ? WHERE changes() = 1
+               SELECT ?, ?, ?, ?, ? WHERE changes() >= 1
                ON CONFLICT (workspace_id, module_id) DO NOTHING`,
             )
             .bind(input.workspaceId, input.moduleId, token, claimedAt, expiresAt),
@@ -993,14 +995,14 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
               `INSERT INTO workspace_module_operations (
                  workspace_id, module_id, action, target_status, revision, started_at, attempts, last_error
                )
-               SELECT ?, ?, ?, ?, ?, ?, 1, NULL WHERE changes() = 1
+               SELECT ?, ?, ?, ?, ?, ?, 1, NULL WHERE changes() >= 1
                ON CONFLICT (workspace_id, module_id) DO NOTHING`,
             )
             .bind(input.workspaceId, input.moduleId, action ?? 'enable', targetStatus, admissionRevision, timestamp),
           deps.db
             .prepare(
               `INSERT INTO workspace_module_operation_claims (workspace_id, module_id, token, claimed_at, expires_at)
-               SELECT ?, ?, ?, ?, ? WHERE changes() = 1
+               SELECT ?, ?, ?, ?, ? WHERE changes() >= 1
                ON CONFLICT (workspace_id, module_id) DO NOTHING`,
             )
             .bind(input.workspaceId, input.moduleId, token, claimedAt, expiresAt),
@@ -1009,7 +1011,7 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
         operationChanges = results[1]?.meta.changes ?? 0;
         claimChanges = results[2]?.meta.changes ?? 0;
       }
-      if (casChanges !== 1) {
+      if (casChanges < 1) {
         // **抢输：在任何一个可变副作用之前退出。**
         return {
           ok: false,
@@ -1017,7 +1019,7 @@ export function createModuleLifecycle(deps: ModuleLifecycleDeps): ModuleLifecycl
           detail: '并发写入：revision 已被其他请求改变或该模块已有待完成操作，本次未提交（未执行任何副作用）',
         };
       }
-      if (operationChanges !== 1 || claimChanges !== 1) {
+      if (operationChanges < 1 || claimChanges < 1) {
         // 事务里 CAS 成功却不匹配到待完成标记/认领：条件互斥本应阻止它，因此视为内部不一致。
         return {
           ok: false,

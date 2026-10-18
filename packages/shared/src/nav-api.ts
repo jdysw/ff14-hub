@@ -98,6 +98,12 @@ export const NAV_IMPORT_SKIP_REASONS = [
   'missing_title',
   'too_many_items',
   'duplicate',
+  /**
+   * 输入是**版本化导航配置**（带 `schemaVersion`），却被当成普通链接列表解析。
+   * 这种情况必须**明确拒绝**而不是把 `links` 抽出来用——那会静默丢掉分组、多对多归属、
+   * 收藏、状态与自定义顺序（复核发现的真实缺陷）。
+   */
+  'unsupported_document',
 ] as const;
 export type NavImportSkipReason = (typeof NAV_IMPORT_SKIP_REASONS)[number];
 
@@ -573,26 +579,6 @@ export interface NavParseResult {
   readonly skipped: readonly NavImportSkipped[];
 }
 
-export const navImportPreviewRequestSchema = z
-  .object({
-    /** 客户端解析后的结构化条目（服务端会**重新校验**，绝不相信"已校验"）。 */
-    items: z.array(navImportItemSchema).max(MAX_NAV_IMPORT_ITEMS),
-    skipped: z.array(navImportSkippedSchema).max(MAX_NAV_IMPORT_ITEMS).optional(),
-    /** 目标分组（可选）：把本批全部条目归入该分组。 */
-    targetGroupId: idSchema.optional(),
-  })
-  .strict();
-
-export const navImportApplyRequestSchema = z
-  .object({
-    operationId: operationIdSchema,
-    items: z.array(navImportItemSchema).min(1).max(MAX_NAV_IMPORT_ITEMS),
-    targetGroupId: idSchema.optional(),
-    /** 预览令牌：预览与落库之间若数据被改动则拒绝（避免按旧预览覆盖）。 */
-    expectedRevision: z.number().int().nonnegative(),
-  })
-  .strict();
-
 export const navExportDocumentSchema = z
   .object({
     schemaVersion: z.literal(NAV_EXPORT_SCHEMA_VERSION),
@@ -606,6 +592,93 @@ export const navExportDocumentSchema = z
   .strict();
 
 export type NavExportDocument = z.infer<typeof navExportDocumentSchema>;
+/**
+ * 导入模式。**必须显式区分**（复核发现的真实缺陷）：
+ *
+ * - `links`：普通链接列表 / 浏览器书签。只有「标题 + URL + 可选描述/标签/分组名」这类字段，
+ *   天然不含本应用的分类、多对多归属、收藏、状态与自定义顺序。
+ * - `restore`：**本应用导出的版本化导航配置**（`NavExportDocument`）。它包含 links（含
+ *   isFavorite/status/sortOrder/icon/aliases/region 等全部功能字段）、groups 与 memberships。
+ *   用它做恢复时必须保留全部字段与关系，**绝不能**退化成"只取 links 数组"而静默丢分组/多对多/排序。
+ *
+ * 两种模式都不允许按外部 ID 引用其他工作空间的数据：恢复时服务端会把 link/group ID
+ * 重新映射到当前工作空间（memberships 跟着重映射），`sourceCatalogId` 只是弱关联字符串。
+ */
+export const NAV_IMPORT_MODES = ['links', 'restore'] as const;
+export type NavImportMode = (typeof NAV_IMPORT_MODES)[number];
+export const navImportModeSchema = z.enum(NAV_IMPORT_MODES);
+
+export const navImportPreviewRequestSchema = z
+  .object({
+    /** 省略等价于 `links`（向后兼容既有的书签/链接导入调用方）。 */
+    mode: navImportModeSchema.optional(),
+    /** `links` 模式：客户端解析后的结构化条目（服务端会**重新校验**，绝不相信"已校验"）。 */
+    items: z.array(navImportItemSchema).max(MAX_NAV_IMPORT_ITEMS).optional(),
+    skipped: z.array(navImportSkippedSchema).max(MAX_NAV_IMPORT_ITEMS).optional(),
+    /** 目标分组（可选）：把本批全部条目归入该分组。 */
+    targetGroupId: idSchema.optional(),
+    /** `restore` 模式：完整版本化导出文档（含 groups 与 memberships）。 */
+    document: navExportDocumentSchema.optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    const mode = value.mode ?? 'links';
+    if (mode === 'restore') {
+      if (value.document === undefined) {
+        ctx.addIssue({ code: 'custom', path: ['document'], message: 'restore 模式必须提供 document' });
+      }
+      if (value.items !== undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['items'],
+          message: 'restore 模式不接受 items（完整配置必须走 document，避免静默丢字段）',
+        });
+      }
+      return;
+    }
+    if (value.items === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['items'], message: 'links 模式必须提供 items' });
+    }
+    if (value.document !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['document'],
+        message: 'links 模式不接受 document；请用 mode=restore 恢复完整配置',
+      });
+    }
+  });
+
+export const navImportApplyRequestSchema = z
+  .object({
+    operationId: operationIdSchema,
+    mode: navImportModeSchema.optional(),
+    items: z.array(navImportItemSchema).min(1).max(MAX_NAV_IMPORT_ITEMS).optional(),
+    targetGroupId: idSchema.optional(),
+    document: navExportDocumentSchema.optional(),
+    /** 预览令牌：预览与落库之间若数据被改动则拒绝（避免按旧预览覆盖）。 */
+    expectedRevision: z.number().int().nonnegative(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    const mode = value.mode ?? 'links';
+    if (mode === 'restore') {
+      if (value.document === undefined) {
+        ctx.addIssue({ code: 'custom', path: ['document'], message: 'restore 模式必须提供 document' });
+      }
+      if (value.items !== undefined) {
+        ctx.addIssue({ code: 'custom', path: ['items'], message: 'restore 模式不接受 items' });
+      }
+      return;
+    }
+    if (value.items === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['items'], message: 'links 模式必须提供 items' });
+    }
+    if (value.document !== undefined) {
+      ctx.addIssue({ code: 'custom', path: ['document'], message: 'links 模式不接受 document' });
+    }
+  });
+
+
 
 /** 结构化冲突（复用同步契约里的同一形状：谁在哪个字段上冲突、如何选择）。 */
 export const navConflictSchema = syncConflictSchema;
@@ -1231,9 +1304,13 @@ function asRecord(raw: unknown): Record<string, unknown> {
 }
 
 /**
- * 解析结构化 JSON 导入（`{ "links": [...] }` 或裸数组）。
+ * 解析结构化 JSON 导入（`{ "links": [...] }` 或裸数组）——**仅限普通链接列表**。
  *
  * 只接受**明确的字段**，不猜形状：任何不满足契约的条目都进 `skipped` 并给出原因。
+ *
+ * 复核修正：输入若是**版本化导航配置**（含 `schemaVersion`），这里**拒绝**并把原因写清楚
+ * （`unsupported_document`），而不是抽出 `links` 当成普通列表——那会静默丢掉分组/多对多/
+ * 收藏/状态/顺序。完整配置必须走 `parseNavImportDocument` 的 `restore` 分支。
  */
 export function parseNavImportJson(raw: unknown): NavParseResult {
   let parsed: unknown = raw;
@@ -1248,6 +1325,19 @@ export function parseNavImportJson(raw: unknown): NavParseResult {
     }
   }
   const container = asRecord(parsed);
+  if (Object.hasOwn(container, 'schemaVersion')) {
+    return {
+      items: [],
+      skipped: [
+        skipOf(
+          'unsupported_document',
+          '这是本应用导出的版本化导航配置：请用「恢复完整配置」导入，普通链接导入不会保留分组与多对多归属',
+          null,
+          null,
+        ),
+      ],
+    };
+  }
   const list: unknown[] = Array.isArray(parsed) ? parsed : Array.isArray(container['links']) ? container['links'] : [];
   const items: NavImportItem[] = [];
   const skipped: NavImportSkipped[] = [];
@@ -1313,6 +1403,13 @@ export function parseNavImportJson(raw: unknown): NavParseResult {
 }
 
 /** 构造可 roundtrip 的导出文档（只含活跃行，不含任何凭证）。 */
+/**
+ * 构造可 roundtrip 的导出文档（只含活跃行，不含任何凭证）。
+ *
+ * 复核修正（引用完整性）：成员关系只导出**两端都活跃**的那些。
+ * 否则文档里会出现「指向已删链接/已删分组」的悬空成员关系——那种文档导入回来会把
+ * 用户面丢掉的关系又"复活"一半，而且导出的 schema 自身也不自洽。
+ */
 export function buildNavExportDocument(input: {
   readonly links: readonly NavLink[];
   readonly groups: readonly NavGroup[];
@@ -1320,19 +1417,82 @@ export function buildNavExportDocument(input: {
   readonly catalogSourceVersion: number;
   readonly exportedAt: number;
 }): NavExportDocument {
+  const links = input.links.filter((link) => link.deletedAt === null);
+  const groups = input.groups.filter((group) => group.deletedAt === null);
+  const linkIds = new Set(links.map((link) => link.id));
+  const groupIds = new Set(groups.map((group) => group.id));
+  const memberships = input.memberships.filter(
+    (membership) =>
+      membership.deletedAt === null && linkIds.has(membership.linkId) && groupIds.has(membership.groupId),
+  );
   return {
     schemaVersion: NAV_EXPORT_SCHEMA_VERSION,
     exportedAt: input.exportedAt,
     catalogSourceVersion: input.catalogSourceVersion,
-    links: input.links.filter((link) => link.deletedAt === null),
-    groups: input.groups.filter((group) => group.deletedAt === null),
-    memberships: input.memberships.filter((membership) => membership.deletedAt === null),
+    links,
+    groups,
+    memberships,
   };
 }
 
 export type NavExportParseResult =
   | { readonly ok: true; readonly document: NavExportDocument }
   | { readonly ok: false; readonly reason: string };
+
+/**
+ * 导出文档的**引用完整性**检查（导出与恢复共用同一判定）。
+ *
+ * 检查项（任何一项失败都必须拒绝，而不是"导入时跳过几条"）：
+ * - link / group 的 ID 在本文件内唯一；
+ * - membership 的两端都必须在文件的活跃 links / groups 里（禁止悬空）；
+ * - 数量不超过容量上限；
+ * - 每个 URL 仍满足 https 策略（文档可能被手工编辑过）。
+ */
+export function validateNavExportIntegrity(document: NavExportDocument): {
+  readonly ok: boolean;
+  readonly problems: readonly string[];
+} {
+  const problems: string[] = [];
+  const seenLinkIds = new Set<string>();
+  for (const link of document.links) {
+    if (seenLinkIds.has(link.id)) {
+      problems.push(`链接 ID 重复：${link.id}`);
+    }
+    seenLinkIds.add(link.id);
+    const validation = validateNavUrl(link.url);
+    if (!validation.ok) {
+      problems.push(`链接 URL 不符合策略：${link.id}`);
+    }
+  }
+  const seenGroupIds = new Set<string>();
+  for (const group of document.groups) {
+    if (seenGroupIds.has(group.id)) {
+      problems.push(`分组 ID 重复：${group.id}`);
+    }
+    seenGroupIds.add(group.id);
+  }
+  const seenPairs = new Set<string>();
+  for (const membership of document.memberships) {
+    const pair = `${membership.linkId}\u0000${membership.groupId}`;
+    if (seenPairs.has(pair)) {
+      problems.push(`成员关系重复：${membership.linkId} ↔ ${membership.groupId}`);
+    }
+    seenPairs.add(pair);
+    if (!seenLinkIds.has(membership.linkId)) {
+      problems.push(`成员关系指向不存在的链接：${membership.linkId}`);
+    }
+    if (!seenGroupIds.has(membership.groupId)) {
+      problems.push(`成员关系指向不存在的分组：${membership.groupId}`);
+    }
+  }
+  if (document.links.length > MAX_NAV_LINKS_PER_WORKSPACE) {
+    problems.push(`链接数量超过上限 ${String(MAX_NAV_LINKS_PER_WORKSPACE)}`);
+  }
+  if (document.groups.length > MAX_NAV_GROUPS_PER_WORKSPACE) {
+    problems.push(`分组数量超过上限 ${String(MAX_NAV_GROUPS_PER_WORKSPACE)}`);
+  }
+  return { ok: problems.length === 0, problems };
+}
 
 /** 读回导出文档。未来版本（schemaVersion 更大）必须**明确拒绝**，不尝试猜测。 */
 export function parseNavExportDocument(raw: unknown): NavExportParseResult {
@@ -1345,11 +1505,52 @@ export function parseNavExportDocument(raw: unknown): NavExportParseResult {
     }
   }
   const version = asRecord(parsed)['schemaVersion'];
-  if (typeof version === 'number' && version > NAV_EXPORT_SCHEMA_VERSION) {
+  if (typeof version !== 'number') {
+    return { ok: false, reason: '导出文档缺少 schemaVersion（不是本应用的版本化配置）' };
+  }
+  if (version > NAV_EXPORT_SCHEMA_VERSION) {
     return { ok: false, reason: `导出文档版本 ${String(version)} 高于当前支持的 ${String(NAV_EXPORT_SCHEMA_VERSION)}` };
   }
   const result = navExportDocumentSchema.safeParse(parsed);
-  return result.success ? { ok: true, document: result.data } : { ok: false, reason: '导出文档结构不符合契约' };
+  if (!result.success) {
+    return { ok: false, reason: '导出文档结构不符合契约' };
+  }
+  const integrity = validateNavExportIntegrity(result.data);
+  if (!integrity.ok) {
+    return { ok: false, reason: `导出文档引用不完整：${integrity.problems.slice(0, 3).join('；')}` };
+  }
+  return { ok: true, document: result.data };
+}
+
+/**
+ * 导入内容的**类型判定**（唯一入口，界面与测试都用它）。
+ *
+ * - 带 `schemaVersion` 的对象 → 版本化导航配置 → `restore`（保留全部字段与关系）；
+ * - 数组或 `{links: [...]}` → 普通链接列表 → `links`（浏览器书签/结构化链接）。
+ *
+ * 未来版本、损坏 JSON、引用不完整的文档一律返回 `error`，由调用方明确展示，
+ * **不允许**降级成 links 数组静默丢字段。
+ */
+export type NavImportDocumentParseResult =
+  | { readonly kind: 'links'; readonly items: readonly NavImportItem[]; readonly skipped: readonly NavImportSkipped[] }
+  | { readonly kind: 'restore'; readonly document: NavExportDocument }
+  | { readonly kind: 'error'; readonly reason: string };
+
+export function parseNavImportDocument(raw: unknown): NavImportDocumentParseResult {
+  let parsed: unknown = raw;
+  if (typeof raw === 'string') {
+    try {
+      parsed = JSON.parse(raw) as unknown;
+    } catch {
+      return { kind: 'error', reason: 'JSON 无法解析（不是合法 JSON）' };
+    }
+  }
+  if (Object.hasOwn(asRecord(parsed), 'schemaVersion')) {
+    const restored = parseNavExportDocument(parsed);
+    return restored.ok ? { kind: 'restore', document: restored.document } : { kind: 'error', reason: restored.reason };
+  }
+  const links = parseNavImportJson(parsed);
+  return { kind: 'links', items: links.items, skipped: links.skipped };
 }
 
 // ---------------------------------------------------------------------------

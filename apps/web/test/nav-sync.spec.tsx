@@ -1,14 +1,15 @@
 /**
- * 跨设备变更应用的测试（阶段 04 / HUB-051 客户端侧）。
+ * 跨设备变更应用的测试（阶段 04 / HUB-051 客户端侧）。**不发任何真实网络请求**。
  *
- * 三条必须成立的事实（对应任务书的三个用例）：
- * 1. **删除即删除**：收到 `nav_link` 的 `op:'delete'` 后本地列表移除，
- *    且随后到达的**更早的 upsert**不会把它加回来（墓碑防复活）；
- * 2. **草稿优先**：正在编辑的链接收到远端更新 → 草稿保留 + 明确提示 + **不自动保存**；
- * 3. **无草稿时应用**：远端 upsert 直接反映到列表里。
+ * 这些用例刻意把「同一毫秒」当成默认前提（`syncUpsert` / `syncDelete` 的 `updatedAt`
+ * 默认全部相同），因此每一条通过都只能由 `seq` 解释——时间比较在这些用例里不可能正确。
  *
- * 另外验证：游标按共享 `encodeSyncCursor` / `decodeSyncCursor` 往返推进，
- * 以及形状不符的响应被整轮丢弃（不会用半可信数据改本地快照）。
+ * 覆盖的硬事实（对应集中复核发现的 P1）：
+ * 1. **seq 是唯一排序依据**：同一毫秒「删除 → 恢复」按 seq 落地；更旧的 upsert 不复活删除；
+ * 2. **权威全局修订**：重排 / 导入提交的 `expectedRevision` 只来自服务端 `meta.navRevision`
+ *    （行修订再大也不参与推导），因此远端新增/编辑后另一端**无需人工刷新**即可继续写；
+ * 3. **真并发 409**：草稿保留、提示带新旧 revision、不自动重试；
+ * 4. **游标被拒（422）**：丢弃本地游标 + 可见提示 + 下一轮从头同步；原因未知则不丢。
  */
 // @vitest-environment jsdom
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
@@ -17,8 +18,19 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { encodeSyncCursor, type SyncChangesResponse } from '@ff14-hub/shared';
 import { NavView } from '../src/app/nav/NavView';
 import { useNav } from '../src/app/nav/use-nav';
-import type { NavApi, SyncChangesApi } from '../src/app/nav/nav-api';
-import { emptySyncResponse, fakeNavApi, fakeSyncApi, link, snapshot } from './nav-fixtures';
+import type { NavApi } from '../src/app/nav/nav-api';
+import {
+  emptySyncResponse,
+  failureResult,
+  fakeNavApi,
+  fakeSyncApi,
+  link,
+  navConflictResult,
+  snapshot,
+  syncDelete,
+  syncResponse,
+  syncUpsert,
+} from './nav-fixtures';
 
 afterEach(() => {
   cleanup();
@@ -45,17 +57,6 @@ function Harness(props: { readonly api: NavApi; readonly syncApi: Parameters<typ
   return <NavView state={state} />;
 }
 
-function upsertLink(linkRow: ReturnType<typeof link>, revision: number, updatedAt: number): SyncChangesResponse['changes'][number] {
-  return {
-    entityType: 'nav_link',
-    entityId: linkRow.id,
-    op: 'upsert',
-    revision,
-    updatedAt,
-    payload: linkRow,
-  };
-}
-
 function baseSnapshot() {
   return snapshot({
     revision: 2,
@@ -63,24 +64,77 @@ function baseSnapshot() {
   });
 }
 
-describe('远端删除与防复活', () => {
-  it('收到 nav_link 的 delete 后本地移除，且更早的 upsert 不会把它加回来', async () => {
+describe('seq 顺序（同一毫秒也能正确落地）', () => {
+  it('delete(seq=10) → upsert(seq=11)：最终为活跃（数组里刻意倒序，证明按 seq 排序）', async () => {
+    const sync = fakeSyncApi([
+      syncResponse({
+        navRevision: 5,
+        // 故意把「更晚的 upsert」放在「更早的 delete」前面，且两者 `updatedAt` 完全相同。
+        changes: [
+          syncUpsert({ entityId: 'L2', payload: link('L2', { title: '恢复后的站点', sortOrder: 1 }), seq: 11 }),
+          syncDelete({ entityId: 'L2', seq: 10 }),
+        ],
+        nextCursor: encodeSyncCursor(11),
+      }),
+    ]);
+    const fake = fakeNavApi({ snapshot: baseSnapshot() });
+    render(<Harness api={fake.api} syncApi={sync.api} />);
+
+    // 恢复生效：最终是活跃行，标题是新值。
+    expect(await screen.findByText('恢复后的站点')).toBeDefined();
+    expect(screen.getAllByTestId('nav-link-item')).toHaveLength(2);
+  });
+
+  it('upsert(seq=11) → delete(seq=12)：最终删除；随后更旧的 upsert(seq=10) 不复活', async () => {
     const user = userEvent.setup();
-    const first: SyncChangesResponse = {
-      changes: [{ entityType: 'nav_link', entityId: 'L2', op: 'delete', revision: 3, updatedAt: 200, payload: null }],
-      nextCursor: 'v1:200',
-      hasMore: false,
-      serverTimeMs: 200,
-      entityTypes: ['nav_link', 'nav_group', 'nav_membership'],
-    };
-    // 第二轮：一个**更早**的旧 upsert（updatedAt 150 < 墓碑 200）——绝不允许复活。
-    const second: SyncChangesResponse = {
-      changes: [upsertLink(link('L2', { title: '被删掉的站点' }), 2, 150)],
-      nextCursor: 'v1:150',
-      hasMore: false,
-      serverTimeMs: 260,
-      entityTypes: ['nav_link', 'nav_group', 'nav_membership'],
-    };
+    const sync = fakeSyncApi([
+      syncResponse({
+        navRevision: 6,
+        changes: [
+          syncUpsert({ entityId: 'L2', payload: link('L2', { title: '先出现的标题', sortOrder: 1 }), seq: 11 }),
+          syncDelete({ entityId: 'L2', seq: 12 }),
+        ],
+        nextCursor: encodeSyncCursor(12),
+      }),
+      syncResponse({
+        navRevision: 7,
+        // 更旧的 upsert：seq 小于墓碑，绝不能把它加回来。
+        changes: [syncUpsert({ entityId: 'L2', payload: link('L2', { title: '更旧的旧数据' }), seq: 10 })],
+        nextCursor: encodeSyncCursor(12),
+      }),
+    ]);
+    const fake = fakeNavApi({ snapshot: baseSnapshot() });
+    render(<Harness api={fake.api} syncApi={sync.api} />);
+
+    await screen.findByText('以太之光');
+    await waitFor(() => {
+      expect(screen.queryByText('国际服资料站')).toBeNull();
+    });
+
+    await user.click(screen.getByTestId('nav-sync-now'));
+    await waitFor(() => {
+      expect(sync.queries.length).toBeGreaterThanOrEqual(2);
+    });
+    expect(screen.queryByText('更旧的旧数据')).toBeNull();
+    expect(screen.queryByText('先出现的标题')).toBeNull();
+    expect(screen.getAllByTestId('nav-link-item')).toHaveLength(1);
+  });
+});
+
+describe('墓碑防复活', () => {
+  it('收到 delete(seq=10) 后本地移除，且更旧的 upsert(seq=9) 不会加回来', async () => {
+    const user = userEvent.setup();
+    const first = syncResponse({
+      navRevision: 3,
+      changes: [syncDelete({ entityId: 'L2', seq: 10, revision: 3 })],
+      nextCursor: encodeSyncCursor(10),
+    });
+    // 第二轮：`seq` 更小的旧 upsert —— 绝不允许复活。
+    const second = syncResponse({
+      navRevision: 4,
+      changes: [syncUpsert({ entityId: 'L2', payload: link('L2', { title: '被删掉的站点' }), seq: 9 })],
+      nextCursor: encodeSyncCursor(10),
+    });
     const sync = fakeSyncApi([first, second]);
     const fake = fakeNavApi({ snapshot: baseSnapshot() });
     render(<Harness api={fake.api} syncApi={sync.api} />);
@@ -101,17 +155,208 @@ describe('远端删除与防复活', () => {
 
     // 游标按共享编解码往返推进（第一次 null，之后是上一轮的 nextCursor）。
     expect(sync.queries[0]?.since).toBeNull();
-    expect(sync.queries[1]?.since).toBe(encodeSyncCursor(200));
+    expect(sync.queries[1]?.since).toBe(encodeSyncCursor(10));
+  });
+});
+
+describe('权威全局修订：只认 meta.navRevision', () => {
+  it('A 端新增后 B 端同步：重排直接提交 meta.navRevision（无需人工刷新）', async () => {
+    const user = userEvent.setup();
+    const sync = fakeSyncApi([
+      syncResponse({
+        navRevision: 42,
+        changes: [
+          syncUpsert({ entityId: 'L3', payload: link('L3', { title: '远端新增站点', sortOrder: 2 }), seq: 21 }),
+        ],
+        nextCursor: encodeSyncCursor(21),
+      }),
+    ]);
+    const fake = fakeNavApi({ snapshot: baseSnapshot() });
+    render(<Harness api={fake.api} syncApi={sync.api} />);
+
+    // 远端新增的行已经出现在列表里（本地快照修订也被 meta 抬到了 42）。
+    await screen.findByText('远端新增站点');
+
+    await user.click(within(linkRowAt(0)).getByTestId('nav-link-move-down'));
+    await waitFor(() => {
+      expect(fake.calls.reorderLinks).toHaveBeenCalledTimes(1);
+    });
+    const request = fake.calls.reorderLinks.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(request['expectedRevision']).toBe(42);
+    expect(request['orderedIds']).toEqual(['L2', 'L1', 'L3']);
   });
 
-  it('形状不符的变更响应被整轮丢弃（不会用半可信数据改本地快照）', async () => {
+  it('行修订再大也不参与全局修订：快照修订只跟 meta 走', async () => {
     const user = userEvent.setup();
-    const sync = fakeSyncApi([emptySyncResponse()]);
+    const sync = fakeSyncApi([
+      syncResponse({
+        navRevision: 5,
+        changes: [
+          // 行修订 99（远大于工作空间修订）：它是**行**的计数器，不能被当成全局修订。
+          syncUpsert({
+            entityId: 'L1',
+            payload: link('L1', { title: '远端改过的标题', revision: 99, sortOrder: 0 }),
+            seq: 7,
+            revision: 99,
+          }),
+        ],
+        nextCursor: encodeSyncCursor(7),
+      }),
+    ]);
+    const fake = fakeNavApi({ snapshot: baseSnapshot() });
+    render(<Harness api={fake.api} syncApi={sync.api} />);
+    await screen.findByText('远端改过的标题');
+
+    await user.click(within(linkRowAt(0)).getByTestId('nav-link-move-down'));
+    await waitFor(() => {
+      expect(fake.calls.reorderLinks).toHaveBeenCalledTimes(1);
+    });
+    const request = fake.calls.reorderLinks.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(request['expectedRevision']).toBe(5);
+  });
+
+  it('导入 apply 回显服务端预览返回的权威修订，而不是本地推算的值', async () => {
+    const user = userEvent.setup();
+    const sync = fakeSyncApi([
+      syncResponse({
+        navRevision: 42,
+        changes: [
+          syncUpsert({ entityId: 'L3', payload: link('L3', { title: '远端新增站点', sortOrder: 2 }), seq: 21 }),
+        ],
+        nextCursor: encodeSyncCursor(21),
+      }),
+    ]);
+    // 服务端在预览响应里回传它此刻的权威修订（42）——apply 必须原样回显。
+    const fake = fakeNavApi({ snapshot: baseSnapshot(), previewRevision: 42 });
+    render(<Harness api={fake.api} syncApi={sync.api} />);
+    await screen.findByText('远端新增站点');
+
+    const textarea = screen.getByTestId('nav-import-json-text');
+    await user.click(textarea);
+    await user.paste('{"links":[{"title":"JSON 站点","url":"https://json.example.com/"}]}');
+    await user.click(screen.getByTestId('nav-import-json-parse'));
+    await user.click(screen.getByTestId('nav-import-preview'));
+    await waitFor(() => {
+      expect(fake.calls.previewImport).toHaveBeenCalledTimes(1);
+    });
+    await screen.findByTestId('nav-import-preview-result');
+    await user.click(screen.getByTestId('nav-import-apply'));
+    await waitFor(() => {
+      expect(fake.calls.applyImport).toHaveBeenCalledTimes(1);
+    });
+    const applyRequest = fake.calls.applyImport.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(applyRequest['expectedRevision']).toBe(42);
+    expect(applyRequest['mode']).toBe('links');
+    expect(typeof applyRequest['operationId']).toBe('string');
+  });
+});
+
+describe('真并发 409', () => {
+  it('B 基于旧行修订保存：草稿保留、提示带新旧 revision、不自动重试', async () => {
+    const user = userEvent.setup();
+    const fake = fakeNavApi({
+      snapshot: baseSnapshot(),
+      // 服务端说：你基于 revision 1，而现在是 revision 4。
+      updateLinkFailure: navConflictResult({
+        entityType: 'nav_link',
+        entityId: 'L1',
+        baseRevision: 1,
+        currentRevision: 4,
+      }),
+    });
+    render(<Harness api={fake.api} syncApi={fakeSyncApi([], { navRevision: 2 }).api} />);
+    await screen.findByText('以太之光');
+
+    await user.click(within(linkRowAt(0)).getByTestId('nav-link-edit'));
+    const titleInput = screen.getByTestId<HTMLInputElement>('nav-link-title');
+    await user.clear(titleInput);
+    await user.type(titleInput, '我的并发草稿');
+    await user.click(screen.getByTestId('nav-link-submit'));
+
+    const conflict = await screen.findByTestId('nav-conflict');
+    // 提示必须同时给出「服务器上现在是几」与「你基于的是几」。
+    expect(conflict.textContent).toContain('服务器上是 revision 4');
+    expect(conflict.textContent).toContain('你基于的修订：1');
+    // 草稿**一个字符都没丢**。
+    expect(screen.getByTestId<HTMLInputElement>('nav-link-title').value).toBe('我的并发草稿');
+    // 不盲重试：就这一次提交。
+    expect(fake.calls.updateLink).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('游标版本处理（422）', () => {
+  it('服务端拒绝游标：丢弃本地游标、给出可见提示，下一轮从头同步', async () => {
+    const user = userEvent.setup();
+    const sync = fakeSyncApi([
+      syncResponse({ navRevision: 3, nextCursor: encodeSyncCursor(5) }),
+      failureResult<SyncChangesResponse>({
+        status: 422,
+        code: 'validation_failed',
+        message: '请求参数校验失败。',
+        details: { reason: 'cursor_version_unsupported' },
+      }),
+      emptySyncResponse({ navRevision: 4 }),
+    ]);
+    const fake = fakeNavApi({ snapshot: baseSnapshot() });
+    render(<Harness api={fake.api} syncApi={sync.api} />);
+    await screen.findByText('以太之光');
+
+    await user.click(screen.getByTestId('nav-sync-now'));
+    await waitFor(() => {
+      expect(sync.queries.length).toBeGreaterThanOrEqual(2);
+    });
+    // 第二轮确实带着旧游标发出。
+    expect(sync.queries[1]?.since).toBe(encodeSyncCursor(5));
+    // 可见提示（不静默）：说明游标已丢弃、将从头完整同步。
+    const notice = await screen.findByTestId('nav-sync-notice');
+    expect(notice.textContent).toContain('游标');
+    expect(notice.textContent).toContain('完整同步');
+    // 这不是「同步失败」，因此不显示成错误。
+    expect(screen.queryByTestId('nav-error')).toBeNull();
+
+    await user.click(screen.getByTestId('nav-sync-now'));
+    await waitFor(() => {
+      expect(sync.queries.length).toBeGreaterThanOrEqual(3);
+    });
+    // 第三轮从头同步：不再带旧游标。
+    expect(sync.queries[2]?.since).toBeNull();
+  });
+
+  it('原因未知的 422 不丢弃游标（只认结构化原因，绝不猜）', async () => {
+    const user = userEvent.setup();
+    const sync = fakeSyncApi([
+      syncResponse({ navRevision: 3, nextCursor: encodeSyncCursor(5) }),
+      failureResult<SyncChangesResponse>({
+        status: 422,
+        code: 'validation_failed',
+        message: '请求参数校验失败。',
+        details: { reason: 'something_else_entirely' },
+      }),
+      emptySyncResponse({ navRevision: 4 }),
+    ]);
+    const fake = fakeNavApi({ snapshot: baseSnapshot() });
+    render(<Harness api={fake.api} syncApi={sync.api} />);
+    await screen.findByText('以太之光');
+
+    await user.click(screen.getByTestId('nav-sync-now'));
+    expect(await screen.findByTestId('nav-error')).toBeDefined();
+    await user.click(screen.getByTestId('nav-sync-now'));
+    await waitFor(() => {
+      expect(sync.queries.length).toBeGreaterThanOrEqual(3);
+    });
+    // 游标保持不变：原因不明时绝不擅自重来一次全量同步。
+    expect(sync.queries[2]?.since).toBe(encodeSyncCursor(5));
+    expect(screen.queryByTestId('nav-sync-notice')).toBeNull();
+  });
+});
+
+describe('响应形状不符时整轮丢弃', () => {
+  it('缺少 meta / entityTypes 的响应被丢弃，本地快照不被半可信数据改动', async () => {
+    const user = userEvent.setup();
     const api = fakeNavApi({ snapshot: baseSnapshot() });
-    // 覆写 readChanges：返回一个**缺少 entityTypes** 的响应（违反共享 Schema）。
     /**
-     * 这个替身**故意**返回不符合共享契约的响应（缺少 `entityTypes`）：它只用于验证
-     * 「形状不符 → 整轮丢弃」这条分支，因此这里显式断言它的类型不安全。
+     * 这个替身**故意**返回不符合共享契约的响应（缺少 `entityTypes` 与 `meta`）：
+     * 它只用于验证「形状不符 → 整轮丢弃」这条分支，因此这里显式断言它的类型不安全。
      */
     const broken = {
       readChanges: vi.fn(() =>
@@ -119,17 +364,14 @@ describe('远端删除与防复活', () => {
           ok: true as const,
           status: 200,
           data: {
-          changes: [
-            { entityType: 'nav_link', entityId: 'L1', op: 'delete', revision: 9, updatedAt: 900, payload: null },
-          ],
+            changes: [syncDelete({ entityId: 'L1', seq: 9, revision: 9, updatedAt: 900 })],
             nextCursor: null,
             hasMore: false,
             serverTimeMs: 900,
           },
         }),
       ),
-    } as unknown as SyncChangesApi;
-    void sync;
+    } as unknown as Parameters<typeof useNav>[0]['syncApi'];
     render(<Harness api={api.api} syncApi={broken} />);
 
     await screen.findByText('以太之光');
@@ -146,14 +388,12 @@ describe('草稿 vs 远端变化', () => {
     const user = userEvent.setup();
     const remoteRow = link('L1', { title: '远端改过的标题', revision: 9, updatedAt: 400 });
     const sync = fakeSyncApi([
-      emptySyncResponse(),
-      {
-        changes: [upsertLink(remoteRow, 9, 400)],
-        nextCursor: 'v1:400',
-        hasMore: false,
-        serverTimeMs: 400,
-        entityTypes: ['nav_link', 'nav_group', 'nav_membership'],
-      },
+      emptySyncResponse({ navRevision: 2 }),
+      syncResponse({
+        navRevision: 9,
+        changes: [syncUpsert({ entityId: 'L1', payload: remoteRow, seq: 13, revision: 9, updatedAt: 400 })],
+        nextCursor: encodeSyncCursor(13),
+      }),
     ]);
     const fake = fakeNavApi({ snapshot: baseSnapshot() });
     render(<Harness api={fake.api} syncApi={sync.api} />);
@@ -185,13 +425,11 @@ describe('草稿 vs 远端变化', () => {
   it('无草稿时收到远端 upsert：列表就地更新', async () => {
     const remoteRow = link('L1', { title: '远端新标题', revision: 9, updatedAt: 500 });
     const sync = fakeSyncApi([
-      {
-        changes: [upsertLink(remoteRow, 9, 500)],
-        nextCursor: 'v1:500',
-        hasMore: false,
-        serverTimeMs: 500,
-        entityTypes: ['nav_link', 'nav_group', 'nav_membership'],
-      },
+      syncResponse({
+        navRevision: 9,
+        changes: [syncUpsert({ entityId: 'L1', payload: remoteRow, seq: 14, revision: 9, updatedAt: 500 })],
+        nextCursor: encodeSyncCursor(14),
+      }),
     ]);
     const fake = fakeNavApi({ snapshot: baseSnapshot() });
     render(<Harness api={fake.api} syncApi={sync.api} />);
@@ -206,14 +444,12 @@ describe('草稿 vs 远端变化', () => {
   it('本地草稿遇到远端删除：草稿保留并说明「已被删除」', async () => {
     const user = userEvent.setup();
     const sync = fakeSyncApi([
-      emptySyncResponse(),
-      {
-        changes: [{ entityType: 'nav_link', entityId: 'L1', op: 'delete', revision: 9, updatedAt: 600, payload: null }],
-        nextCursor: 'v1:600',
-        hasMore: false,
-        serverTimeMs: 600,
-        entityTypes: ['nav_link', 'nav_group', 'nav_membership'],
-      },
+      emptySyncResponse({ navRevision: 2 }),
+      syncResponse({
+        navRevision: 10,
+        changes: [syncDelete({ entityId: 'L1', seq: 15, revision: 9, updatedAt: 600 })],
+        nextCursor: encodeSyncCursor(15),
+      }),
     ]);
     const fake = fakeNavApi({ snapshot: baseSnapshot() });
     render(<Harness api={fake.api} syncApi={sync.api} />);

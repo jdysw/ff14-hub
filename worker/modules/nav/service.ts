@@ -15,6 +15,16 @@
  * 事务与幂等：所有写入都经 `runOperation` → `runIdempotentWrite`，
  * 即「认领 + 变更 + 收尾」同一个 D1 batch（原子，失败整体回滚）。
  *
+ * 读一致性（复核发现的真实缺陷）：任何**一次决策或一次输出**所依赖的全部导航行
+ * （活跃 links / groups / memberships、`workspace_nav_state.revision`、
+ * `workspace_nav_catalog` 版本与目录条目、目录关联行含墓碑）必须在**同一个 `db.batch([...])`**
+ * 里读出。分别读（`Promise.all` 若干独立查询）在并发写入下会组合出「旧行 + 新 revision」：
+ * 目录导入会据此误判「用户有没有改过 / 是否墓碑」，导出则会产出**悬空成员关系**
+ * （指向已墓碑化的链接或分组）。因此：
+ *   - 快照 / 导出 / 导入规划 / 目录导入规划的读取各自只有**一个** batch；
+ *   - 写入的 CAS（`expectedRevision` / `navRevisionCondition`）一律绑定**该批里读到的**
+ *     revision，绝不二次读取。
+ *
  * 删除语义：链接 / 分组 / 成员关系一律**墓碑**（`deleted_at`），不做硬删除、不做 GC。
  * 所有导航写入都 bump `workspace_nav_state.revision`（行缺失等价于 0，先插 0 再 +1）。
  *
@@ -34,14 +44,17 @@ import {
   buildNavExportDocument,
   catalogUpgradePlan,
   decideCatalogImport,
+  navCatalogEntrySchema,
   navConflictSchema,
   normalizeNavAliases,
   normalizeNavTags,
   normalizeNavText,
   projectNavLinks,
   sanitizeNavIcon,
+  validateNavExportIntegrity,
   validateNavUrl,
   type NavConflict,
+  type NavCatalogEntry,
   type NavExportDocument,
   type NavFilter,
   type NavGroup,
@@ -56,7 +69,7 @@ import {
   type NavRegion,
   type NavSnapshot,
 } from '@ff14-hub/shared';
-import { readCatalog, readCatalogByIds, readCatalogSourceVersion } from './catalog';
+import type { NavCatalogRow } from './catalog';
 import {
   NAV_OP_KINDS,
   fingerprintOf,
@@ -201,18 +214,6 @@ function toNavMembership(row: NavMembershipRow): NavMembership {
 // 只读查询（全部带 workspace_id）
 // ---------------------------------------------------------------------------
 
-/** 活跃链接（未删除）。墓碑只经同步水位端点流转，不属于用户快照。 */
-async function readLinkRows(db: D1Database, workspaceId: string): Promise<NavLinkRow[]> {
-  const result = await db
-    .prepare(
-      `SELECT ${LINK_COLUMNS} FROM workspace_nav_links
-        WHERE workspace_id = ? AND deleted_at IS NULL
-        ORDER BY sort_order ASC, created_at ASC, id ASC`,
-    )
-    .bind(workspaceId)
-    .all<NavLinkRow>();
-  return result.results;
-}
 
 /**
  * 目录关联行（**含墓碑**）。
@@ -221,16 +222,69 @@ async function readLinkRows(db: D1Database, workspaceId: string): Promise<NavLin
  * 若让前端拿活跃快照去算目录状态，被删掉的条目会被显示成「尚未导入」并默认勾选，
  * 用户点导入却什么都不会发生——界面在误导人（复核发现的真实缺陷）。
  * 因此服务端在这里（也只有这里）读墓碑，只用于**计算目录状态投影**，不进入 links 数组。
+ *
+ * 读取语句常量：它必须与快照的其它语句待在**同一个 batch** 里（见 `readSnapshotBatch`，
+ * 那里解释了为什么「分别读」在并发写入下会产生自相矛盾的结果）。
  */
-async function readCatalogLinkedRows(db: D1Database, workspaceId: string): Promise<NavLinkRow[]> {
-  const result = await db
-    .prepare(
-      `SELECT ${LINK_COLUMNS} FROM workspace_nav_links
-        WHERE workspace_id = ? AND source_catalog_id IS NOT NULL`,
-    )
-    .bind(workspaceId)
-    .all<NavLinkRow>();
-  return result.results;
+const CATALOG_LINKED_ROWS_SQL =
+  `SELECT ${LINK_COLUMNS} FROM workspace_nav_links
+    WHERE workspace_id = ? AND source_catalog_id IS NOT NULL`;
+
+/** 快照 / 导出所需的**全部**读取语句常量。顺序必须与 `readSnapshotBatch` 的解构一一对应。 */
+const ACTIVE_LINK_ROWS_SQL =
+  `SELECT ${LINK_COLUMNS} FROM workspace_nav_links
+    WHERE workspace_id = ? AND deleted_at IS NULL
+    ORDER BY sort_order ASC, created_at ASC, id ASC`;
+const ACTIVE_GROUP_ROWS_SQL =
+  `SELECT ${GROUP_COLUMNS} FROM workspace_nav_groups
+    WHERE workspace_id = ? AND deleted_at IS NULL
+    ORDER BY sort_order ASC, created_at ASC, id ASC`;
+const ACTIVE_MEMBERSHIP_ROWS_SQL =
+  `SELECT ${MEMBERSHIP_COLUMNS} FROM workspace_nav_memberships
+    WHERE workspace_id = ? AND deleted_at IS NULL
+    ORDER BY sort_order ASC, link_id ASC, group_id ASC`;
+const NAV_STATE_REVISION_SQL = 'SELECT revision FROM workspace_nav_state WHERE workspace_id = ?';
+const CATALOG_SOURCE_VERSION_SQL = 'SELECT COALESCE(MAX(source_version), 0) AS value FROM nav_catalog_links';
+/** 目录条目列（与 `modules/nav/catalog.ts` 的 `CATALOG_COLUMNS` 逐列一致）。 */
+const CATALOG_ENTRY_ROWS_SQL =
+  `SELECT id, source_version, title, url, description, category, tags_json, aliases_json, icon,
+          open_mode, region, sort_order, source_url, source_name, verified_at, verification_status, updated_at
+     FROM nav_catalog_links
+    ORDER BY sort_order ASC, id ASC`;
+
+/**
+ * 目录行 → 契约对象。
+ *
+ * 为什么服务层也要有一份（而不是只调 `catalog.ts` 的 `toCatalogEntry`）：快照 / 目录导入的
+ * **全部**读取必须待在同一个 batch 里，而 batch 需要语句**常量**，因此这里把「列清单 + 行投影」
+ * 一并落地；判定标准与 `catalog.ts` 完全一致（严格 Schema，不合法即抛错，绝不把可疑的
+ * 推荐内容当作事实返回）。`catalog.ts` 仍是该表唯一的**写**入口。
+ */
+function toBatchCatalogEntry(row: NavCatalogRow): NavCatalogEntry {
+  const parsed = navCatalogEntrySchema.safeParse({
+    id: row.id,
+    sourceVersion: row.source_version,
+    title: row.title,
+    url: row.url,
+    description: row.description,
+    category: row.category,
+    tags: parseStringArray(row.tags_json),
+    aliases: parseStringArray(row.aliases_json),
+    icon: row.icon,
+    openMode: row.open_mode,
+    region: row.region,
+    sortOrder: row.sort_order,
+    sourceUrl: row.source_url,
+    sourceName: row.source_name,
+    verifiedAt: row.verified_at,
+    verificationStatus: row.verification_status,
+    updatedAt: row.updated_at,
+  });
+  if (!parsed.success) {
+    // 不把行内容写进错误消息（可能被日志链路带出去），只给出 ID。
+    throw new Error(`目录行不符合契约：${row.id}`);
+  }
+  return parsed.data;
 }
 
 /** 单条活跃链接；不属于本工作空间时返回 null（调用方据此给 404）。 */
@@ -242,14 +296,7 @@ async function readLinkRow(db: D1Database, workspaceId: string, linkId: string):
 }
 
 async function readGroupRows(db: D1Database, workspaceId: string): Promise<NavGroupRow[]> {
-  const result = await db
-    .prepare(
-      `SELECT ${GROUP_COLUMNS} FROM workspace_nav_groups
-        WHERE workspace_id = ? AND deleted_at IS NULL
-        ORDER BY sort_order ASC, created_at ASC, id ASC`,
-    )
-    .bind(workspaceId)
-    .all<NavGroupRow>();
+  const result = await db.prepare(ACTIVE_GROUP_ROWS_SQL).bind(workspaceId).all<NavGroupRow>();
   return result.results;
 }
 
@@ -260,45 +307,174 @@ async function readGroupRow(db: D1Database, workspaceId: string, groupId: string
     .first<NavGroupRow>();
 }
 
-/** 活跃成员关系。排序稳定（`sort_order, link_id, group_id`），因此投影里的分组顺序可复现。 */
-async function readMembershipRows(db: D1Database, workspaceId: string): Promise<NavMembershipRow[]> {
-  const result = await db
-    .prepare(
-      `SELECT ${MEMBERSHIP_COLUMNS} FROM workspace_nav_memberships
-        WHERE workspace_id = ? AND deleted_at IS NULL
-        ORDER BY sort_order ASC, link_id ASC, group_id ASC`,
-    )
-    .bind(workspaceId)
-    .all<NavMembershipRow>();
-  return result.results;
-}
-
-/** 工作空间级导航修订号（行缺失等价于 0）。 */
+/** 工作空间级导航修订号（行缺失等价于 0）。**单独**读只用于只读/解释路径，决策路径必须用批次里的值。 */
 async function readNavStateRevision(db: D1Database, workspaceId: string): Promise<number> {
   const row = await db
-    .prepare('SELECT revision FROM workspace_nav_state WHERE workspace_id = ?')
+    .prepare(NAV_STATE_REVISION_SQL)
     .bind(workspaceId)
     .first<{ revision: number }>();
   return row?.revision ?? 0;
 }
 
 /**
- * 带目录来源的链接行（**含墓碑**）：目录导入决策要区分 `unchanged` 与 `tombstoned`。
+ * 带目录来源的链接行（**含墓碑**）的读取语句：目录导入决策要区分 `unchanged` 与 `tombstoned`。
  *
  * 为什么读全量再在内存里按目录 ID 分组：`source_catalog_id` 只可能是系统种子里的少量 ID
  * （「每个目录条目至多一条活跃副本」是数据库约束），因此这个集合天然很小；
  * 而拼 `IN (?, ?, …)` 会按请求长度生成 SQL 文本。两条路都不需要复杂查询。
+ * 它只出现在 `readCatalogImportBatch` 的语句常量里（不能单独读：决策必须与 CAS 基准同批）。
  */
-async function readCatalogSourcedLinkRows(db: D1Database, workspaceId: string): Promise<NavLinkRow[]> {
-  const result = await db
-    .prepare(
-      `SELECT ${LINK_COLUMNS} FROM workspace_nav_links
-        WHERE workspace_id = ? AND source_catalog_id IS NOT NULL
-        ORDER BY deleted_at IS NULL DESC, updated_at DESC, id ASC`,
-    )
-    .bind(workspaceId)
-    .all<NavLinkRow>();
-  return result.results;
+const CATALOG_SOURCED_LINK_ROWS_SQL =
+  `SELECT ${LINK_COLUMNS} FROM workspace_nav_links
+    WHERE workspace_id = ? AND source_catalog_id IS NOT NULL
+    ORDER BY deleted_at IS NULL DESC, updated_at DESC, id ASC`;
+
+// ---------------------------------------------------------------------------
+// 一致快照读取（单 batch）
+// ---------------------------------------------------------------------------
+
+/** 从一个 batch 结果里取出行数组；`index` 越界时返回空数组（而不是抛错）。 */
+function rowsAt<T>(results: readonly D1Result<unknown>[], index: number): T[] {
+  const result = results[index];
+  return result === undefined ? [] : (result.results as T[]);
+}
+
+/**
+ * 快照 / 导出**唯一**的读取入口：活跃链接 + 活跃分组 + 活跃成员关系 + 工作空间修订号 +
+ * 目录版本 + 目录条目 + 目录关联行（含墓碑），全部在**一个 `db.batch`** 内读出。
+ *
+ * ── 为什么必须是同一个 batch（复核发现的真实缺陷）─────────────────────────────
+ * `batch` 在 D1 里是**单个事务**，因此这一批语句看到的是同一个数据库状态；而分别读
+ * （`Promise.all` 若干条独立查询）在并发写入下可以组合出「旧行 + 新 revision」：
+ * 例如成员关系读在「分组墓碑化」之前、而活跃分组读在它之后，导出文档里就会留下
+ * 指向已删除分组的**悬空成员关系**；目录导入也会按旧墓碑做出「用户没删过」的错误决策。
+ * 因此这里宁可多一次 batch，也不允许任何决策建立在两个不同时刻的读之上。
+ *
+ * 只读「活跃行」的语义**没有改变**：`links` / `groups` / `memberships` 仍只含未删除行；
+ * `catalogLinked` 含墓碑，但仅用于目录状态投影与目录导入判定，绝不进入用户快照。
+ */
+async function readSnapshotBatch(input: {
+  readonly db: D1Database;
+  readonly workspaceId: string;
+  readonly withCatalog: boolean;
+}): Promise<{
+  readonly linkRows: NavLinkRow[];
+  readonly groupRows: NavGroupRow[];
+  readonly membershipRows: NavMembershipRow[];
+  readonly revision: number;
+  readonly catalogSourceVersion: number;
+  readonly catalogRows: NavCatalogEntry[];
+  readonly catalogLinkedRows: NavLinkRow[];
+}> {
+  const { db, workspaceId, withCatalog } = input;
+  const statements: D1PreparedStatement[] = [
+    db.prepare(ACTIVE_LINK_ROWS_SQL).bind(workspaceId),
+    db.prepare(ACTIVE_GROUP_ROWS_SQL).bind(workspaceId),
+    db.prepare(ACTIVE_MEMBERSHIP_ROWS_SQL).bind(workspaceId),
+    db.prepare(NAV_STATE_REVISION_SQL).bind(workspaceId),
+    db.prepare(CATALOG_SOURCE_VERSION_SQL),
+  ];
+  if (withCatalog) {
+    statements.push(
+      db.prepare(CATALOG_ENTRY_ROWS_SQL),
+      db.prepare(CATALOG_LINKED_ROWS_SQL).bind(workspaceId),
+    );
+  }
+  const results = await db.batch<unknown>(statements);
+  const catalogSourceVersion = rowsAt<{ value: number }>(results, 4)[0]?.value ?? 0;
+  return {
+    linkRows: rowsAt<NavLinkRow>(results, 0),
+    groupRows: rowsAt<NavGroupRow>(results, 1),
+    membershipRows: rowsAt<NavMembershipRow>(results, 2),
+    revision: rowsAt<{ revision: number }>(results, 3)[0]?.revision ?? 0,
+    catalogSourceVersion,
+    catalogRows: withCatalog ? rowsAt<NavCatalogRow>(results, 5).map(toBatchCatalogEntry) : [],
+    catalogLinkedRows: withCatalog ? rowsAt<NavLinkRow>(results, 6) : [],
+  };
+}
+
+/** 导入规划所需的最小一致读取：活跃链接 + 活跃分组 + 工作空间修订号（单 batch）。 */
+async function readImportPlanBatch(input: {
+  readonly db: D1Database;
+  readonly workspaceId: string;
+}): Promise<{
+  readonly linkRows: NavLinkRow[];
+  readonly groupRows: NavGroupRow[];
+  readonly revision: number;
+}> {
+  const { db, workspaceId } = input;
+  const results = await db.batch<unknown>([
+    db.prepare(ACTIVE_LINK_ROWS_SQL).bind(workspaceId),
+    db.prepare(ACTIVE_GROUP_ROWS_SQL).bind(workspaceId),
+    db.prepare(NAV_STATE_REVISION_SQL).bind(workspaceId),
+  ]);
+  return {
+    linkRows: rowsAt<NavLinkRow>(results, 0),
+    groupRows: rowsAt<NavGroupRow>(results, 1),
+    revision: rowsAt<{ revision: number }>(results, 2)[0]?.revision ?? 0,
+  };
+}
+
+/**
+ * **写路径**的前置条件读取：活跃链接 + 活跃分组 + 导航修订号，同样来自**一个 batch**。
+ *
+ * 为什么写路径也要一致快照（复核发现的同类缺陷）：`createLink` / `updateLink` / `reorderLinks` /
+ * `reorderGroups` 此前是「读链接（Promise.all）读分组（另一次查询）读修订号（又一次查询）」，
+ * 期间并发写入能组合出「旧行 + 新 revision」，于是容量判定、集合判定与 CAS 基准可能互相矛盾：
+ * 要么按旧集合拒绝一次合法重排，要么按旧 revision 放行一次本该 409 的写入。
+ * 现在这三样都在同一个事务里读，CAS 基准就是判定所用的同一个观察值。
+ */
+async function readWritePrecondition(input: {
+  readonly db: D1Database;
+  readonly workspaceId: string;
+}): Promise<{
+  readonly linkRows: NavLinkRow[];
+  readonly groupRows: NavGroupRow[];
+  readonly revision: number;
+}> {
+  return await readImportPlanBatch(input);
+}
+
+/**
+ * 目录导入规划所需的一致读取：目录条目 + 目录关联行（**含墓碑**）+ 活跃分组 + 活跃链接 +
+ * 工作空间修订号（单 batch）。
+ *
+ * 「决策」与「CAS 基准」必须来自同一批：否则会出现「按旧 revision 判定的墓碑/个人修改」
+ * 被写进以新 revision 为前提的事务里——那正是复核发现的『旧行 + 新 revision』。
+ */
+async function readCatalogImportBatch(input: {
+  readonly db: D1Database;
+  readonly workspaceId: string;
+  readonly catalogIds: readonly string[];
+}): Promise<{
+  readonly catalogById: Map<string, NavCatalogEntry>;
+  readonly sourcedRows: NavLinkRow[];
+  readonly groupRows: NavGroupRow[];
+  readonly linkRows: NavLinkRow[];
+  readonly revision: number;
+}> {
+  const { db, workspaceId, catalogIds } = input;
+  const results = await db.batch<unknown>([
+    db.prepare(CATALOG_ENTRY_ROWS_SQL),
+    db.prepare(CATALOG_SOURCED_LINK_ROWS_SQL).bind(workspaceId),
+    db.prepare(ACTIVE_GROUP_ROWS_SQL).bind(workspaceId),
+    db.prepare(ACTIVE_LINK_ROWS_SQL).bind(workspaceId),
+    db.prepare(NAV_STATE_REVISION_SQL).bind(workspaceId),
+  ]);
+  const wanted = new Set(catalogIds);
+  const catalogById = new Map<string, NavCatalogEntry>();
+  for (const entry of rowsAt<NavCatalogRow>(results, 0)) {
+    if (wanted.has(entry.id)) {
+      catalogById.set(entry.id, toBatchCatalogEntry(entry));
+    }
+  }
+  return {
+    catalogById,
+    sourcedRows: rowsAt<NavLinkRow>(results, 1),
+    groupRows: rowsAt<NavGroupRow>(results, 2),
+    linkRows: rowsAt<NavLinkRow>(results, 3),
+    revision: rowsAt<{ revision: number }>(results, 4)[0]?.revision ?? 0,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -322,7 +498,13 @@ function bumpNavStateStatements(input: { readonly workspaceId: string; readonly 
   ];
 }
 
-/** 新建链接（`WHERE 1 = 1` 供账本守卫追加；INSERT…SELECT 不能以 VALUES 形式追加条件）。 */
+/**
+ * 新建链接（`WHERE 1 = 1` 供账本守卫追加；INSERT…SELECT 不能以 VALUES 形式追加条件）。
+ *
+ * `health` / `healthCheckedAt` 可显式给出：restore 导入必须**保留**用户的功能字段，
+ * 而健康状态是「阶段 04 不做服务端探测」的唯一例外——它一律按 `unknown` / `null` 写入
+ * （导入不复活任何探测结论）。默认值即这两个，因此其它调用点不需要感知该参数。
+ */
 function insertLinkStatement(input: {
   readonly id: string;
   readonly workspaceId: string;
@@ -339,14 +521,18 @@ function insertLinkStatement(input: {
   readonly status: NavLinkStatus;
   readonly isFavorite: boolean;
   readonly sortOrder: number;
+  readonly health?: NavLink['health'];
+  readonly healthCheckedAt?: number | null;
   readonly now: number;
 }): NavStatement {
+  const health = input.health ?? 'unknown';
+  const healthCheckedAt = input.healthCheckedAt ?? null;
   return {
     sql: `INSERT INTO workspace_nav_links
             (id, workspace_id, source_catalog_id, imported_source_version, title, url, description,
              tags_json, aliases_json, icon, open_mode, region, status, is_favorite, sort_order,
              health, health_checked_at, revision, deleted_at, created_at, updated_at)
-          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'unknown', NULL, 0, NULL, ?, ?
+          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?
            WHERE 1 = 1`,
     binds: [
       input.id,
@@ -364,6 +550,8 @@ function insertLinkStatement(input: {
       input.status,
       input.isFavorite ? 1 : 0,
       input.sortOrder,
+      health,
+      healthCheckedAt,
       input.now,
       input.now,
     ],
@@ -518,6 +706,35 @@ function tombstoneMembershipStatement(input: {
 }
 
 /**
+ * 「补插缺失的成员关系」这一条语句（revive 墓碑那一条由调用方自行决定是否一起入批）。
+ *
+ * 用 `FROM workspace_nav_links l JOIN workspace_nav_groups g
+ * ON l.workspace_id = g.workspace_id` 取行：**在同一事务内**保证成员关系的
+ * `workspace_id` 与链接、分组两行的 `workspace_id` 相同（ADR-0004 D2 的硬要求，
+ * 外键证明不了这一点）。跨工作空间分组在这里取不到任何行，因此写不进去。
+ * `NOT EXISTS` 让已存在的行不被重复插入（主键是 (link_id, group_id)）。
+ */
+function insertMembershipStatement(input: {
+  readonly linkId: string;
+  readonly groupId: string;
+  readonly workspaceId: string;
+  readonly sortOrder: number;
+  readonly now: number;
+}): NavStatement {
+  return {
+    sql: `INSERT INTO workspace_nav_memberships (link_id, group_id, workspace_id, sort_order, deleted_at, updated_at)
+          SELECT l.id, g.id, l.workspace_id, ?, NULL, ?
+            FROM workspace_nav_links l
+            JOIN workspace_nav_groups g
+              ON g.id = ? AND g.workspace_id = l.workspace_id AND g.deleted_at IS NULL
+           WHERE l.id = ? AND l.workspace_id = ? AND l.deleted_at IS NULL
+             AND NOT EXISTS (SELECT 1 FROM workspace_nav_memberships m
+                              WHERE m.link_id = l.id AND m.group_id = g.id)`,
+    binds: [input.sortOrder, input.now, input.groupId, input.linkId, input.workspaceId],
+  };
+}
+
+/**
  * 「把链接加入分组」的两条语句（复活墓碑 + 不存在才插入）。
  *
  * 为什么不用 `INSERT … ON CONFLICT (link_id, group_id) DO UPDATE`：账本的守卫 SQL 是
@@ -525,11 +742,6 @@ function tombstoneMembershipStatement(input: {
  * 位于 `WHERE` 之后、语句末尾之前——守卫一旦被追加到 upsert 之后就变成语法错误。
  * 因此改成两条语义等价的语句：先复活（UPDATE 命中已存在的行，含墓碑），再补插缺失的行。
  * 两条都带守卫，仍处于同一个原子 batch 内。
- *
- * 插入语句本身用 `FROM workspace_nav_links l JOIN workspace_nav_groups g
- * ON l.workspace_id = g.workspace_id` 取行：**在同一事务内**保证成员关系的
- * `workspace_id` 与链接、分组两行的 `workspace_id` 相同（ADR-0004 D2 的硬要求，
- * 外键证明不了这一点）。跨工作空间分组在这里取不到任何行，因此写不进去。
  */
 function addMembershipStatements(input: {
   readonly linkId: string;
@@ -544,17 +756,7 @@ function addMembershipStatements(input: {
              WHERE link_id = ? AND group_id = ? AND workspace_id = ?`,
       binds: [input.sortOrder, input.now, input.linkId, input.groupId, input.workspaceId],
     },
-    {
-      sql: `INSERT INTO workspace_nav_memberships (link_id, group_id, workspace_id, sort_order, deleted_at, updated_at)
-            SELECT l.id, g.id, l.workspace_id, ?, NULL, ?
-              FROM workspace_nav_links l
-              JOIN workspace_nav_groups g
-                ON g.id = ? AND g.workspace_id = l.workspace_id AND g.deleted_at IS NULL
-             WHERE l.id = ? AND l.workspace_id = ? AND l.deleted_at IS NULL
-               AND NOT EXISTS (SELECT 1 FROM workspace_nav_memberships m
-                                WHERE m.link_id = l.id AND m.group_id = g.id)`,
-      binds: [input.sortOrder, input.now, input.groupId, input.linkId, input.workspaceId],
-    },
+    insertMembershipStatement(input),
   ];
 }
 
@@ -639,6 +841,49 @@ export interface NavImportPreviewResult {
   readonly revision: number;
 }
 
+// ---------------------------------------------------------------------------
+// restore 导入（完整配置恢复：HUB-047 复核修复）
+// ---------------------------------------------------------------------------
+
+/**
+ * 完整配置恢复时**逐条不导入**的原因（不允许静默丢弃）。
+ *
+ * 只列真正可能发生的两种：与目标工作空间已有活跃 URL 重复（跳过该链接及其全部成员关系）、
+ * 以及链接容量上限（整批已在规划前被拒，这里只作为逐项明细的兜底）。
+ * 「文档结构 / 引用完整性 / 危险 URL / 未来版本」不属于逐项原因——它们是**整份文档**
+ * 被拒绝（413/422），因为只导入一部分版本化配置等于静默丢数据。
+ */
+export type NavRestoreSkipReason = 'duplicate_url' | 'link_limit_reached';
+
+export interface NavRestoreSkipped {
+  readonly reason: NavRestoreSkipReason;
+  readonly detail: string;
+}
+
+export interface NavRestoreIdMaps {
+  /** 外部 link ID → 本工作空间新 link ID（memberships 已按这份映射重写）。 */
+  readonly links: Readonly<Record<string, string>>;
+  /** 外部 group ID → 本工作空间新 group ID。 */
+  readonly groups: Readonly<Record<string, string>>;
+}
+
+export interface NavRestorePreviewResult {
+  readonly links: number;
+  readonly groups: number;
+  readonly memberships: number;
+  readonly conflicts: readonly NavRestoreSkipped[];
+  readonly expectedRevision: number;
+}
+
+export interface NavRestoreApplyResult {
+  readonly importedLinks: number;
+  readonly importedGroups: number;
+  readonly importedMemberships: number;
+  readonly skipped: readonly NavRestoreSkipped[];
+  readonly idMaps: NavRestoreIdMaps;
+  readonly revision: number;
+}
+
 /** 逐条目录导入结果（界面据此解释「这条被跳过是因为你自己改过 / 你删过它」）。 */
 export interface NavCatalogImportItemResult {
   readonly catalogId: string;
@@ -715,14 +960,32 @@ export interface NavService {
     readonly orderedIds: readonly string[];
     readonly expectedRevision: number;
   }): Promise<NavResult<{ readonly revision: number }>>;
-  /** 导出（只含活跃行、不含任何凭证；可被 `parseNavExportDocument` 读回）。 */
-  exportDocument(workspaceId: string): Promise<NavExportDocument>;
+  /**
+   * 导出（只含活跃行、不含任何凭证；可被共享 `parseNavExportDocument` 读回）。
+   *
+   * 返回 `NavResult`：若**同一批**读出的行组合出的文档过不了共享
+   * `validateNavExportIntegrity`（例如出现悬空成员关系），则**如实失败**，
+   * 绝不产出一份自相矛盾的导出（`export_integrity_failed`）。
+   */
+  exportDocument(workspaceId: string): Promise<NavResult<NavExportDocument>>;
   /** 导入**预览**（只读）：服务端重新校验条目，并给出「与现有 URL 重复」等逐项跳过原因。 */
   previewImport(input: {
     readonly workspaceId: string;
     readonly items: readonly NavImportItem[];
     readonly targetGroupId?: string | undefined;
   }): Promise<NavResult<NavImportPreviewResult>>;
+  /** `restore` 预览（只读）：按**已校验的完整配置文档**给出计数与冲突，绝不写入。 */
+  previewRestore(input: {
+    readonly workspaceId: string;
+    readonly document: NavExportDocument;
+  }): Promise<NavResult<NavRestorePreviewResult>>;
+  /** `restore` 落地：重映射 ID、保留全部功能字段与多对多归属，单事务 + operationId 幂等。 */
+  importRestoreItems(input: {
+    readonly workspaceId: string;
+    readonly operationId: string;
+    readonly document: NavExportDocument;
+    readonly expectedRevision: number;
+  }): Promise<NavResult<NavRestoreApplyResult>>;
   /** 导入落地（单事务、按 operationId 幂等；`expectedRevision` 是预览新鲜度令牌）。 */
   importItems(input: {
     readonly workspaceId: string;
@@ -885,7 +1148,31 @@ interface ImportPlan {
   readonly accepted: readonly PlannedImportItem[];
   readonly skipped: readonly NavImportSkipped[];
   readonly newGroups: readonly { readonly id: string; readonly name: string; readonly sortOrder: number }[];
+  /** 规划所依据的**那个批**里读到的工作空间修订号（CAS 必须绑定它，不再二次读取）。 */
   readonly revision: number;
+}
+
+/** 一条被跳过的 restore 链接（连同它的全部成员关系一起不导入）。 */
+interface RestoreSkippedLink {
+  readonly oldId: string;
+  readonly skip: NavRestoreSkipped;
+}
+
+/** restore 的执行计划：**只**由同一次批次读取 + 校验过的文档算出。 */
+interface RestoreExecutionPlan {
+  readonly links: readonly NavLink[];
+  readonly groups: readonly NavGroup[];
+  /** 只含两端都在本次导入里、且按「链接 / 分组」重映射后的成员关系。 */
+  readonly memberships: readonly NavMembership[];
+  readonly importedLinkIds: readonly string[];
+  readonly importedGroupIds: readonly string[];
+  /** 被导入的链接真正用到的分组 ID（文档里的空分组不算「有成员关系」）。 */
+  readonly usedGroupIds: ReadonlySet<string>;
+  readonly skippedLinks: readonly RestoreSkippedLink[];
+  /** 外部 link ID → 新 link ID（与 `links` 同序生成，成员关系已按它重写）。 */
+  readonly linkIdMap: Readonly<Record<string, string>>;
+  /** 外部 group ID → 新 group ID。 */
+  readonly groupIdMap: Readonly<Record<string, string>>;
 }
 
 export function createNavService(deps: NavServiceDeps): NavService {
@@ -1005,12 +1292,19 @@ export function createNavService(deps: NavServiceDeps): NavService {
     readonly workspaceId: string;
     readonly items: readonly NavImportItem[];
     readonly targetGroupId?: string;
+    /**
+     * 已经读到的修订号（可选）。给定时只做一次 batch 读「活跃链接 + 活跃分组」，
+     * 判定与 CAS 基准仍来自同一时刻——`importItems` 用它保证「新鲜度检查」与
+     * 「规划」看到的是同一批数据，而不是两次独立读取。
+     */
+    readonly revision?: number;
   }): Promise<NavResult<ImportPlan>> {
-    const [links, groups, revision] = await Promise.all([
-      readLinkRows(deps.db, input.workspaceId),
-      readGroupRows(deps.db, input.workspaceId),
-      readNavStateRevision(deps.db, input.workspaceId),
-    ]);
+    // 一次 batch 读出「活跃链接 + 活跃分组 + 修订号」：判定与 CAS 基准来自**同一时刻**。
+    const batch = await readImportPlanBatch({ db: deps.db, workspaceId: input.workspaceId });
+    const links = batch.linkRows;
+    const groups = batch.groupRows;
+    // 调用方已经读过修订号时以它为准（同一批数据里读到的值），避免「读两次」产生组合。
+    const revision = input.revision ?? batch.revision;
 
     // 目标分组必须属于本工作空间（越权 → 404，且整批零写入）。
     let targetGroup: NavGroupRow | null = null;
@@ -1146,28 +1440,164 @@ export function createNavService(deps: NavServiceDeps): NavService {
     return created.id;
   }
 
+  /**
+   * 目标工作空间里已有的活跃 URL 集合（规范化后比较，与普通导入「与现有 URL 重复」同一口径）。
+   * 只用来**跳过重复链接**，绝不参与任何 ID 判定。
+   */
+  function urlKeysOf(rows: readonly NavLinkRow[]): ReadonlySet<string> {
+    return new Set(rows.map((row) => normalizeNavText(row.url)));
+  }
+
+  /** 逐条不导入记录：detail 只含可安全回显的计数 / 文本，绝不含凭证。 */
+  function restoreSkipOf(reason: NavRestoreSkipReason, detail: string): NavRestoreSkipped {
+    return { reason, detail };
+  }
+
+  /**
+   * `restore` 的**唯一**规划实现（预览与落地共用，因此在预览里看到的计数与冲突就是落地时的行为）：
+   *
+   * ① 为每个 link / group **重映射新 ID** —— 外部 ID 一律不采用，否则一份别的
+   *    工作空间（甚至别的用户）的导出文件就能引用本空间的既有行；
+   * ② 插入 groups（name / sortOrder，逐个保留文档顺序）；
+   * ③ 插入 links（**保留全部功能字段**：title/url/description/tags/aliases/icon/openMode/
+   *    region/status/isFavorite/sortOrder/sourceCatalogId/importedSourceVersion）；
+   * ④ 插入 memberships（用重映射后的两端 ID + 各自的 sortOrder）；
+   * ⑤ 与目标工作空间已有活跃 URL 重复的链接：**跳过该链接及其全部成员关系**，逐条记录原因
+   *    （不静默丢弃）。
+   *
+   * 容量（链接 / 分组数）与既有常量一致：超限时**整份请求拒绝**（返回失败），
+   * 绝不做「导入一半」。
+   */
+  function planRestore(input: {
+    readonly document: NavExportDocument;
+    readonly existingLinkUrls: ReadonlySet<string>;
+  }): NavResult<RestoreExecutionPlan> {
+    const document = input.document;
+    if (document.links.length > MAX_NAV_LINKS_PER_WORKSPACE) {
+      return navFailure(
+        'link_limit_reached',
+        `待恢复链接 ${String(document.links.length)} 条，超过单工作空间上限 ${String(MAX_NAV_LINKS_PER_WORKSPACE)}`,
+      );
+    }
+    if (document.groups.length > MAX_NAV_GROUPS_PER_WORKSPACE) {
+      return navFailure(
+        'group_limit_reached',
+        `待恢复分组 ${String(document.groups.length)} 个，超过单工作空间上限 ${String(MAX_NAV_GROUPS_PER_WORKSPACE)}`,
+      );
+    }
+
+    const groupIdMap: Record<string, string> = {};
+    const groups: NavGroup[] = document.groups.map((group) => {
+      const id = crypto.randomUUID();
+      groupIdMap[group.id] = id;
+      return { id, name: group.name, sortOrder: group.sortOrder } as NavGroup;
+    });
+
+    const linkIdMap: Record<string, string> = {};
+    const links: NavLink[] = [];
+    const importedLinkIds: string[] = [];
+    const skippedLinks: RestoreSkippedLink[] = [];
+    const takenUrls = new Set(input.existingLinkUrls);
+
+    for (const link of document.links) {
+      if (links.length >= MAX_NAV_LINKS_PER_WORKSPACE) {
+        skippedLinks.push({
+          oldId: link.id,
+          skip: restoreSkipOf(
+            'link_limit_reached',
+            `已达单工作空间链接上限 ${String(MAX_NAV_LINKS_PER_WORKSPACE)}，该链接及其成员关系未导入`,
+          ),
+        });
+        continue;
+      }
+      const urlKey = normalizeNavText(link.url);
+      if (takenUrls.has(urlKey)) {
+        // 同一 URL 已在目标工作空间（或本文件更前面）出现：跳过它**和**它的全部成员关系。
+        skippedLinks.push({
+          oldId: link.id,
+          skip: restoreSkipOf('duplicate_url', `URL 已存在，已跳过该链接及其成员关系：${link.url}`),
+        });
+        continue;
+      }
+      takenUrls.add(urlKey);
+
+      const id = crypto.randomUUID();
+      linkIdMap[link.id] = id;
+      // 逐个字段复制（显式列出，**不含** row id → 保证「不采用外部 ID」不是靠遗漏实现的）。
+      links.push({
+        id,
+        sourceCatalogId: link.sourceCatalogId,
+        importedSourceVersion: link.importedSourceVersion,
+        title: link.title,
+        url: link.url,
+        description: link.description,
+        tags: normalizeNavTags(link.tags),
+        aliases: normalizeNavAliases(link.aliases),
+        icon: sanitizeNavIcon(link.icon),
+        openMode: link.openMode,
+        region: link.region,
+        status: link.status,
+        isFavorite: link.isFavorite,
+        sortOrder: link.sortOrder,
+        health: 'unknown',
+        healthCheckedAt: null,
+        revision: 0,
+        deletedAt: null,
+        createdAt: 0,
+        updatedAt: 0,
+      });
+      importedLinkIds.push(id);
+    }
+
+    // 成员关系：两端都在本次导入里的才建立（其余按「链接被跳过」逐条已在上面记录，
+    // 文档自身的引用完整性已由共享 `validateNavExportIntegrity` 保证）。
+    const memberships: NavMembership[] = [];
+    const usedGroupIds = new Set<string>();
+    for (const membership of document.memberships) {
+      const linkId = linkIdMap[membership.linkId];
+      const groupId = groupIdMap[membership.groupId];
+      if (linkId === undefined || groupId === undefined) {
+        continue;
+      }
+      usedGroupIds.add(groupId);
+      memberships.push({ linkId, groupId, sortOrder: membership.sortOrder, deletedAt: null, updatedAt: 0 });
+    }
+
+    return {
+      ok: true,
+      replayed: false,
+      value: {
+        links,
+        groups,
+        memberships,
+        importedLinkIds,
+        importedGroupIds: groups.map((group) => group.id),
+        usedGroupIds,
+        skippedLinks,
+        linkIdMap,
+        groupIdMap,
+      },
+    };
+  }
+
   const service: NavService = {
     async readSnapshot(workspaceId) {
-      const [links, groups, memberships, revision, catalogSourceVersion, catalogLinked, catalog] =
-        await Promise.all([
-          readLinkRows(deps.db, workspaceId),
-          readGroupRows(deps.db, workspaceId),
-          readMembershipRows(deps.db, workspaceId),
-          readNavStateRevision(deps.db, workspaceId),
-          readCatalogSourceVersion(deps.db),
-          readCatalogLinkedRows(deps.db, workspaceId),
-          readCatalog({ db: deps.db }),
-        ]);
+      // **一个** batch：链接 / 分组 / 成员关系 / 修订号 / 目录版本 / 目录条目 / 目录关联行
+      // 全部来自同一时刻，因此快照里不会出现「指向已墓碑化分组的成员关系」这类组合。
+      const snapshot = await readSnapshotBatch({ db: deps.db, workspaceId, withCatalog: true });
       return {
-        links: links.map(toNavLink),
-        groups: groups.map(toNavGroup),
-        memberships: memberships.map(toNavMembership),
-        revision,
-        catalogSourceVersion,
+        links: snapshot.linkRows.map(toNavLink),
+        groups: snapshot.groupRows.map(toNavGroup),
+        memberships: snapshot.membershipRows.map(toNavMembership),
+        revision: snapshot.revision,
+        catalogSourceVersion: snapshot.catalogSourceVersion,
         limits: NAV_LIMITS,
         // 目录状态投影：**由服务端**用共享 `catalogUpgradePlan` 计算（含墓碑行），
         // 因此界面能正确显示 `user_modified` / `tombstoned`，并与服务端导入决策同源。
-        catalogPlan: catalogUpgradePlan({ catalog, links: catalogLinked.map(toNavLink) }),
+        catalogPlan: catalogUpgradePlan({
+          catalog: snapshot.catalogRows,
+          links: snapshot.catalogLinkedRows.map(toNavLink),
+        }),
       };
     },
 
@@ -1176,16 +1606,13 @@ export function createNavService(deps: NavServiceDeps): NavService {
     },
 
     async listViews(workspaceId, filter) {
-      const [links, groups, memberships] = await Promise.all([
-        readLinkRows(deps.db, workspaceId),
-        readGroupRows(deps.db, workspaceId),
-        readMembershipRows(deps.db, workspaceId),
-      ]);
+      // 同一批读出三张表：投影里不可能出现「链接在、分组已删」的半旧组合。
+      const batch = await readSnapshotBatch({ db: deps.db, workspaceId, withCatalog: false });
       // 筛选 / 排序 / 投影**全部**走共享纯函数：服务端只负责「本工作空间 + 未删除」。
       return projectNavLinks({
-        links: links.map(toNavLink),
-        groups: groups.map(toNavGroup),
-        memberships: memberships.map(toNavMembership),
+        links: batch.linkRows.map(toNavLink),
+        groups: batch.groupRows.map(toNavGroup),
+        memberships: batch.membershipRows.map(toNavMembership),
         filter,
       });
     },
@@ -1225,11 +1652,12 @@ export function createNavService(deps: NavServiceDeps): NavService {
           `单个链接最多属于 ${String(MAX_NAV_GROUPS_PER_LINK)} 个分组`,
         );
       }
-      const [links, resolved] = await Promise.all([
-        readLinkRows(deps.db, input.workspaceId),
-        resolveGroups(input.workspaceId, groupIds),
-      ]);
-      if (resolved.missing.length > 0) {
+      // 容量判定与「分组是否属于本工作空间」必须来自**同一个快照**（CAS 基准同源）。
+      const capacityPlan = await readWritePrecondition({ db: deps.db, workspaceId: input.workspaceId });
+      const links = capacityPlan.linkRows;
+      const knownGroupIds = new Set(capacityPlan.groupRows.map((row) => row.id));
+      const missingGroups = groupIds.filter((id) => !knownGroupIds.has(id));
+      if (missingGroups.length > 0) {
         return navFailure('group_not_found', '分组不存在或不属于本工作空间');
       }
       if (links.length >= MAX_NAV_LINKS_PER_WORKSPACE) {
@@ -1316,11 +1744,11 @@ export function createNavService(deps: NavServiceDeps): NavService {
         },
         result: { link },
         explain: async () => {
-          const [current, resolvedNow] = await Promise.all([
-            readLinkRows(deps.db, input.workspaceId),
-            resolveGroups(input.workspaceId, groupIds),
-          ]);
-          if (resolvedNow.missing.length > 0) {
+          // 失败原因必须用同一快照重读（否则会给出与实际拒绝条件不一致的解释）。
+          const recheckPlan = await readWritePrecondition({ db: deps.db, workspaceId: input.workspaceId });
+          const current = recheckPlan.linkRows;
+          const knownNow = new Set(recheckPlan.groupRows.map((row) => row.id));
+          if (groupIds.some((id) => !knownNow.has(id))) {
             return navFailure('group_not_found', '分组不存在或不属于本工作空间');
           }
           if (current.length >= MAX_NAV_LINKS_PER_WORKSPACE) {
@@ -1571,10 +1999,10 @@ export function createNavService(deps: NavServiceDeps): NavService {
       if (guard.replay !== null) {
         return guard.replay;
       }
-      const [links, revision] = await Promise.all([
-        readLinkRows(deps.db, input.workspaceId),
-        readNavStateRevision(deps.db, input.workspaceId),
-      ]);
+      // 集合判定与 CAS 基准必须同源：否则并发下可能「按旧集合放行」或「按旧 revision 拒绝」。
+      const reorderPlan = await readWritePrecondition({ db: deps.db, workspaceId: input.workspaceId });
+      const links = reorderPlan.linkRows;
+      const revision = reorderPlan.revision;
       if (revision !== input.expectedRevision) {
         return navFailure(
           'revision_conflict',
@@ -1975,10 +2403,10 @@ export function createNavService(deps: NavServiceDeps): NavService {
       if (guard.replay !== null) {
         return guard.replay;
       }
-      const [groups, revision] = await Promise.all([
-        readGroupRows(deps.db, input.workspaceId),
-        readNavStateRevision(deps.db, input.workspaceId),
-      ]);
+      // 同 reorderLinks：集合判定与 CAS 基准来自同一个事务快照。
+      const groupReorderPlan = await readWritePrecondition({ db: deps.db, workspaceId: input.workspaceId });
+      const groups = groupReorderPlan.groupRows;
+      const revision = groupReorderPlan.revision;
       if (revision !== input.expectedRevision) {
         return navFailure(
           'revision_conflict',
@@ -2040,19 +2468,26 @@ export function createNavService(deps: NavServiceDeps): NavService {
     },
 
     async exportDocument(workspaceId) {
-      const [links, groups, memberships, catalogSourceVersion] = await Promise.all([
-        readLinkRows(deps.db, workspaceId),
-        readGroupRows(deps.db, workspaceId),
-        readMembershipRows(deps.db, workspaceId),
-        readCatalogSourceVersion(deps.db),
-      ]);
-      return buildNavExportDocument({
-        links: links.map(toNavLink),
-        groups: groups.map(toNavGroup),
-        memberships: memberships.map(toNavMembership),
-        catalogSourceVersion,
+      // 一个 batch 读出全部行；再交给共享构造函数（只导出两端都活跃的成员关系）。
+      const snapshot = await readSnapshotBatch({ db: deps.db, workspaceId, withCatalog: false });
+      const document = buildNavExportDocument({
+        links: snapshot.linkRows.map(toNavLink),
+        groups: snapshot.groupRows.map(toNavGroup),
+        memberships: snapshot.membershipRows.map(toNavMembership),
+        catalogSourceVersion: snapshot.catalogSourceVersion,
         exportedAt: now(),
       });
+      // 防御性复核（与导入端**同一份**判定）：导出文档是用户会存起来、再导入回来的东西，
+      // 一旦它自相矛盾（悬空成员关系 / ID 重复 / URL 不合策略），宁可让这次导出失败，
+      // 也不产出一份「导回来会少一半关系」的文档。正常路径下必须通过。
+      const integrity = validateNavExportIntegrity(document);
+      if (!integrity.ok) {
+        return navFailure(
+          'export_integrity_failed',
+          `导出数据自检未通过（未产出文档）：${integrity.problems.slice(0, 3).join('；')}`,
+        );
+      }
+      return { ok: true, replayed: false, value: document };
     },
 
     async previewImport(input) {
@@ -2075,6 +2510,135 @@ export function createNavService(deps: NavServiceDeps): NavService {
       };
     },
 
+    async previewRestore(input) {
+      // 只读：与 apply 共用同一个规划函数，因此预览里不会出现「预览能过、落地不行」的玄学差异。
+      const batch = await readImportPlanBatch({ db: deps.db, workspaceId: input.workspaceId });
+      const plan = planRestore({ document: input.document, existingLinkUrls: urlKeysOf(batch.linkRows) });
+      if (!plan.ok) {
+        return plan;
+      }
+      return {
+        ok: true,
+        replayed: false,
+        value: {
+          links: plan.value.links.length,
+          groups: plan.value.groups.length,
+          memberships: plan.value.memberships.length,
+          conflicts: plan.value.skippedLinks.map((skipped) => skipped.skip),
+          expectedRevision: batch.revision,
+        },
+      };
+    },
+
+    async importRestoreItems(input) {
+      const guard = await replayGuard<NavRestoreApplyResult>({
+        workspaceId: input.workspaceId,
+        operationId: input.operationId,
+        kind: NAV_OP_KINDS.importRestore,
+        intent: {
+          document: input.document,
+          expectedRevision: input.expectedRevision,
+        },
+      });
+      if (guard.replay !== null) {
+        return guard.replay;
+      }
+      // 读取 / 判定 / CAS 基准全部来自**同一个** batch（不再二次读取修订号）。
+      const batch = await readImportPlanBatch({ db: deps.db, workspaceId: input.workspaceId });
+      const revision = batch.revision;
+      if (revision !== input.expectedRevision) {
+        return navFailure(
+          'import_preview_stale',
+          `恢复预览已过期：导航修订号已从 ${String(input.expectedRevision)} 变为 ${String(revision)}`,
+        );
+      }
+      const plan = planRestore({ document: input.document, existingLinkUrls: urlKeysOf(batch.linkRows) });
+      if (!plan.ok) {
+        return plan;
+      }
+
+      const timestamp = now();
+      const statements: NavStatement[] = [];
+      for (const group of plan.value.groups) {
+        statements.push(
+          insertGroupStatement({
+            id: group.id,
+            workspaceId: input.workspaceId,
+            name: group.name,
+            sortOrder: group.sortOrder,
+            now: timestamp,
+          }),
+        );
+      }
+      for (const link of plan.value.links) {
+        statements.push(
+          insertLinkStatement({
+            id: link.id,
+            workspaceId: input.workspaceId,
+            sourceCatalogId: link.sourceCatalogId,
+            importedSourceVersion: link.importedSourceVersion,
+            title: link.title,
+            url: link.url,
+            description: link.description,
+            tags: link.tags,
+            aliases: link.aliases,
+            icon: link.icon,
+            openMode: link.openMode,
+            region: link.region,
+            status: link.status,
+            isFavorite: link.isFavorite,
+            sortOrder: link.sortOrder,
+            // 健康状态是唯一不保留的字段：阶段 04 没有任何服务端探测结论，
+            // 因此导入永远落 unknown / null，绝不把「上一次探测」当成事实带进新工作空间。
+            health: 'unknown',
+            healthCheckedAt: null,
+            now: timestamp,
+          }),
+        );
+      }
+      for (const membership of plan.value.memberships) {
+        statements.push(
+          insertMembershipStatement({
+            linkId: membership.linkId,
+            groupId: membership.groupId,
+            workspaceId: input.workspaceId,
+            sortOrder: membership.sortOrder,
+            now: timestamp,
+          }),
+        );
+      }
+      statements.push(...bumpNavStateStatements({ workspaceId: input.workspaceId, now: timestamp }));
+      const revisionCondition = navRevisionCondition(input.workspaceId, revision);
+
+      return await runOperation({
+        workspaceId: input.workspaceId,
+        operationId: input.operationId,
+        kind: NAV_OP_KINDS.importRestore,
+        requestFingerprint: guard.fingerprint,
+        preconditionSql: revisionCondition.sql,
+        preconditionBinds: revisionCondition.binds,
+        build: () => statements,
+        result: {
+          importedLinks: plan.value.links.length,
+          importedGroups: plan.value.groups.length,
+          importedMemberships: plan.value.memberships.length,
+          skipped: plan.value.skippedLinks.map((skipped) => skipped.skip),
+          idMaps: { links: plan.value.linkIdMap, groups: plan.value.groupIdMap },
+          revision: revision + 1,
+        },
+        explain: async () => {
+          const latest = await readNavStateRevision(deps.db, input.workspaceId);
+          if (latest !== revision) {
+            return navFailure(
+              'import_preview_stale',
+              `恢复预览已过期：导航修订号已从 ${String(input.expectedRevision)} 变为 ${String(latest)}`,
+            );
+          }
+          return navFailure('revision_conflict', '导航数据在恢复写入前发生了变化，请重新预览后再试');
+        },
+      });
+    },
+
     async importItems(input) {
       const items = input.items.slice(0, MAX_NAV_IMPORT_ITEMS).map(normalizeImportItem);
       const guard = await replayGuard<NavImportApplyResult>({
@@ -2090,14 +2654,7 @@ export function createNavService(deps: NavServiceDeps): NavService {
       if (guard.replay !== null) {
         return guard.replay;
       }
-      // 预览新鲜度：客户端必须回显预览时看到的修订号，否则拒绝（不按旧预览覆盖）。
-      const revision = await readNavStateRevision(deps.db, input.workspaceId);
-      if (revision !== input.expectedRevision) {
-        return navFailure(
-          'import_preview_stale',
-          `导入预览已过期：导航修订号已从 ${String(input.expectedRevision)} 变为 ${String(revision)}`,
-        );
-      }
+      // 新鲜度 + 规划 + CAS 基准全部来自**同一个** batch 读（不再二次读取修订号）。
       const plan = await planImport({
         workspaceId: input.workspaceId,
         items,
@@ -2105,6 +2662,14 @@ export function createNavService(deps: NavServiceDeps): NavService {
       });
       if (!plan.ok) {
         return plan;
+      }
+      // 预览新鲜度：客户端必须回显预览时看到的修订号，否则拒绝（不按旧预览覆盖）。
+      const revision = plan.value.revision;
+      if (revision !== input.expectedRevision) {
+        return navFailure(
+          'import_preview_stale',
+          `导入预览已过期：导航修订号已从 ${String(input.expectedRevision)} 变为 ${String(revision)}`,
+        );
       }
 
       const timestamp = now();
@@ -2212,13 +2777,19 @@ export function createNavService(deps: NavServiceDeps): NavService {
         return guard.replay;
       }
 
-      const [catalogById, sourcedRows, groups, links, revision] = await Promise.all([
-        readCatalogByIds({ db: deps.db, catalogIds: input.catalogIds }),
-        readCatalogSourcedLinkRows(deps.db, input.workspaceId),
-        readGroupRows(deps.db, input.workspaceId),
-        readLinkRows(deps.db, input.workspaceId),
-        readNavStateRevision(deps.db, input.workspaceId),
-      ]);
+      // 一次 batch：目录条目 + 目录关联行（含墓碑）+ 活跃分组 + 活跃链接 + 修订号。
+      // 决策（用户是否改过 / 是否墓碑）与 CAS 基准必须来自同一批，否则会写出
+      // 「按旧墓碑判定、却以新 revision 为前提」的不一致结果。
+      const batch = await readCatalogImportBatch({
+        db: deps.db,
+        workspaceId: input.workspaceId,
+        catalogIds: input.catalogIds,
+      });
+      const catalogById = batch.catalogById;
+      const sourcedRows = batch.sourcedRows;
+      const groups = batch.groupRows;
+      const links = batch.linkRows;
+      const revision = batch.revision;
 
       /**
        * 同一目录 ID 在一次请求里重复出现时只处理一次：它指向同一条目录条目，

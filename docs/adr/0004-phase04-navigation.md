@@ -86,19 +86,32 @@
 - `GET /me/sync/changes?since=<cursor>&limit=N` 是**认证**的变更/水位端点，覆盖：
   `page` / `widget` / `layout` / `nav_link` / `nav_group` / `nav_membership` / `module` /
   `workspace_event`（个人活动；追加在清单末尾，因为清单顺序也是契约）。
-- 变更来源不是「只在常规 CRUD 里记一条日志」，而是**按行扫描**：所有相关表都有
-  `updated_at`（UTC 毫秒）并在**任何**写入路径上更新——包括模块卸载清理、模板重置、
-  备份导入、墓碑化。因此这些写路径天然进入同步流，不可能被漏掉。
-- 游标：`v1:<updatedAtMs>`。查询返回 `updated_at >= cursor` 的行（**含**边界），
-  按 `(updated_at, entityType, entityId)` 稳定排序。
-- **分页以「毫秒组」为边界**（复核修正：单纯 `LIMIT` + 「停在最后一个时间戳」存在
-  「同一毫秒内的行多于 limit 时永远取不到后续行」的死循环风险）：
-  1. 先取 `limit` 行；若取满且最后一行的 `updated_at = lastTs`，
-     再把 `updated_at = lastTs` 的**全部**行补齐到本页（同一毫秒不会只返回一部分）；
-  2. `nextCursor = v1:(lastTs + 1)`，因此**必然前进**，且不会跳过任何行；
-  3. 页大小因此以毫秒组为单位，可能略大于 `limit`（个人规模下上限约「页数 × 每页实例数」，
-     一次性模板重置最多千行级，可接受）。
-  这一条有「同一毫秒写入多于 limit 行」的真实测试（断言第二轮不再重复、且一行不少）。
+- **变更流是数据库里的单调序号表，不是时间戳扫描**（复核修正：原「按 `updated_at` 扫描 +
+  `nextCursor = lastTs + 1`」被判定为 P1 真实缺陷）。`migrations/0011_change_journal.sql`
+  建立 `workspace_changes(seq INTEGER PRIMARY KEY AUTOINCREMENT, workspace_id, entity_type,
+  entity_id, op, revision, changed_at)`，并由**触发器**在**同一事务**里为每一行变更落一条记录。
+  为什么必须是序号：同一毫秒内完全可能「删除 → 显式恢复」，`updated_at` 无法表达先后；
+  多 Worker 的时钟还可能回退。任何「按时间重叠窗口」的补丁都解决不了这两点。
+  为什么用触发器而不是在写路径里手记日志：写路径不止常规 CRUD（模块卸载清理、模板重置、
+  备份导入、墓碑化，将来还会有新代码），漏记一处就是**永久**丢变更，且客户端无法补救。
+  触发器由数据库保证「行变了 ⟹ 同一个事务里有记录」，覆盖现在与将来的所有路径。
+- **游标 = `v2:<seq>`**（`SYNC_CURSOR_PREFIX`）。`v1:<毫秒>` 是旧版时间戳游标，
+  服务端**明确拒绝**（422 + `details.reason='cursor_version_unsupported'`），
+  由客户端丢弃本地游标做一次全量重建——绝不把毫秒值当 seq 解释（那会静默漏变更或重放）。
+  其余损坏输入返回 `cursor_malformed`。迁移会**回填**既有行的一条初始变更记录，因此
+  「游标为空」的首次同步也能拿到全部现存数据。
+- **分页有真实工作量上限**：每页恰好 ≤ `limit` 条变更（`seq` 严格递增，不存在
+  「同一时间戳行太多而无限扩张」的情形）；`nextSyncCursor` 是唯一实现。
+- **payload 与水位来自同一一致快照**：一次请求用**一个 D1 batch** 读「变更页 + 各实体 payload
+  （按本页 entity_id 子查询限定）+ `meta`」，因此不会出现「旧行 + 新 revision」的混合视图。
+- **权威工作空间修订号随响应返回**（`meta.navRevision` / `meta.workbenchRevision` / `meta.watermark`）。
+  客户端更新**全局 CAS 基数**只能用它；行 CAS 只用各行 `revision`。
+  复核修正：原客户端用 `Math.max(snapshot.revision, change.revision)` 推导全局修订，
+  而行修订（membership 恒 0）不能推导全局修订 → 远端每次新增/编辑后客户端全局修订落后，
+  下一次重排/导入必然 409。这条规则有双浏览器回归（B 自动同步后**无需人工刷新**即可重排/导入）。
+- `syncChange.seq` 是排序/去重/墓碑先后的**唯一**依据；`updatedAt` 仅作展示与诊断。
+  客户端墓碑表按 seq 记忆，因此「同毫秒删除→恢复」会正确落地为恢复，而更旧的 upsert
+  不会复活已删行。
 - 删除以墓碑形式返回（`op: 'delete'`）；客户端只按墓碑删除，**不会**因为某行没出现在
   增量里就复活它。墓碑保留策略：**不自动 GC**（阶段 04 不删除任何墓碑），
   因此不存在「早于某设备水位被删掉」的情况。
@@ -111,12 +124,6 @@
   `page` 的 `delete`。契约规定：客户端收到 `page` 的 `delete` 时，**本地一并移除该页面的
   widget 与 layout**（它们已经不可能再被服务端返回）；收到 `page` 的 upsert 时重新读取
   该页的实例与布局。这条规则有服务端测试记录（增量只有 page、全量里 layout 为 delete）。
-- **诚实记录一个 1 毫秒窗口**：游标按 `lastTs + 1` 前进，因此「在本页快照之后、
-  与 `lastTs` 同一毫秒写入的行」不会被增量再次返回。阶段 04 的取舍是：
-  **增量是通知通道，快照是权威**——客户端在挂载/focus/显式刷新时以
-  `/me/navigation` 或 `/me/workbench` 快照对齐，因此这个窗口不会造成永久丢失，
-  最坏情况是「晚一个 focus 周期看到」。将来若要彻底消除，需要给每行加单调递增的
-  变更序号（本期不做，不做假承诺）。
 - 编辑中的本地草稿遇到远程变化时**保留草稿并提示冲突**，后台刷新不得静默覆盖。
 
 ## D8 内置真实模块（HUB-010 / 011）
@@ -214,3 +221,40 @@ SW 逐条按**同一份**缓存策略过滤后补缓存（页面侧的过滤只�
 真实目录 `source_version` 升级需要直接改库，因此浏览器链用「同一条目再次非显式导入」触发
 同一份服务端决策；真实版本升级由 `worker/test/nav-catalog.spec.ts` / `nav-import.spec.ts` 覆盖。
 F2 的「同断点陈旧写」用真实 HTTP 断言 409（界面路径难以稳定构造），已在 `tests/e2e/README.md` 标注。
+
+## D15 第二轮集中复核修正（P1，已修）
+
+独立复核在三处发现「实现能跑但语义不对」的问题，均已按根因修掉（不是测试问题）：
+
+### D15.1 同步水位 = 数据库单调序号（替换时间戳游标）
+见 D7 的重写。要点：`workspace_changes` + 触发器覆盖**所有**写路径；游标 `v2:<seq>`；
+旧 `v1:<毫秒>` 游标**明确拒绝**并要求重建；每页 ≤ limit（真实工作量上限）；
+payload/水位/meta 来自**同一个 D1 batch 快照**；`meta` 给出权威的工作空间级修订号。
+
+### D15.2 导航修订号：全局与行级严格分离
+- 服务端：同步响应带 `meta.navRevision`（`workspace_nav_state.revision`，与变更页同一个 batch 读出）。
+- 客户端：**全局 CAS 只用 `meta.navRevision`**；行 CAS 只用各行 `revision`。
+  明确禁止 `Math.max(snapshot.revision, change.revision)` 之类的推导——`change.revision` 是行修订
+  （`nav_membership` 恒 0），用它推导全局修订会让本地全局修订落后，下一次重排/导入必 409。
+- 回归：双浏览器 A 改动 → B 自动同步后**无需人工刷新**即可重排/导入；真并发仍 409 且草稿保留。
+
+### D15.3 导航读路径的一致快照 + 导出引用完整性
+- `readSnapshot` / `exportDocument` / `importItems` 规划 / `importCatalogEntries` 规划的
+  links+groups+memberships+revision+目录(+关联墓碑行) 全部放进**一个 D1 batch** 读取，
+  写入的 CAS 绑定**该快照**观察到的 revision（不再二次读取）。
+- 导出：`buildNavExportDocument` 只导出**两端都活跃**的成员关系；
+  `validateNavExportIntegrity` 校验「ID 唯一、membership 两端存在、URL 仍合规、数量上限」，
+  导出与恢复共用同一判定。导入侧遇到不完整文档**明确拒绝**，不"跳过几条"。
+- 回归：在两次读取之间插入真实 CRUD/删除（委托层），断言不会覆盖用户修改、
+  不会按旧墓碑规划复活、导出的成员关系全部有两端。
+
+### D15.4 完整导航配置 round-trip（`restore` 模式）
+- 导入分两种**显式**模式：`links`（普通链接/浏览器书签）与 `restore`（本应用版本化导出文档）。
+  `parseNavImportDocument` 是唯一判定入口：带 `schemaVersion` → `restore`，
+  数组/`{links}` → `links`，未来版本/损坏/引用不完整 → `error`（**不降级**成 links 数组）。
+- `restore` 保留全部功能字段（含 `isFavorite`/`status`/`sortOrder`/`icon`/`aliases`/`region`/
+  `openMode`）与 groups、多对多 memberships、组内顺序；link/group ID **重映射**到当前工作空间
+  （绝不按外部 ID 引用其他 workspace 的数据）；URL 重复的链接连同其关系逐条跳过并说明原因。
+- 幂等（`operationId`）+ 工作空间 revision CAS（`expectedRevision`）。
+- 回归（真实 HTTP）：A 导出 → **空 workspace B** 预览 → 确认导入 → 逐字段/逐关系相等、
+  B 的设备凭证与模块个人数据未被触碰；未来版本与危险 URL 明确拒绝。
