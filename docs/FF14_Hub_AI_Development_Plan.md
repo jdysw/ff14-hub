@@ -115,7 +115,20 @@ current_execution:
 
 **明确未完成 / 未做（不要读成已完成）：**
 
-- 阶段 04 的工作位于分支 `codex/phase04-navigation`，以**草稿 PR** 提交集中复核，**尚未合并**。
+- 阶段 04 的工作位于分支 `codex/phase04-navigation`（PR #20 草稿），**尚未合并**。
+  该 head 的 GitHub Actions 四项 job 全部 success（CI run `39102921991`），
+  本地 frozen install / lint / typecheck（含 e2e）/ 单测 1057 项 / build / 迁移全新+重复应用 /
+  三条真实浏览器链（phase02 2 项、phase03 3 项、phase04 9 项）全部通过。
+- **SonarCloud 质量门延期统一修复（用户明确指示「sonar 报错先不管，之后统一修复」）**：
+  当前唯一失败条件是 `Security Rating on New Code = D`（要求 ≥ A），
+  `Reliability Rating` 已修到通过（S2871 无参 `sort()` 全仓 43 处已改显式比较函数）。
+  已定位的剩余项（GitHub 检查注解最多只回传 50 条，因此只列关键项）：
+  `packages/shared/src/nav-api.ts:1137`（认知复杂度 47）、`worker/modules/nav/service.ts:1337`（17）、
+  `worker/modules/sync/service.ts:634`（16）、`apps/web/src/app/workbench/WorkbenchView.tsx:82`（18）、
+  `migrations/0009_events.sql:39`（字面量重复 3 次）。
+  Security 评级的根因尚未定位到具体行（该项目为私有，`/api/hotspots/search` 需要 token）。
+  **处理方式**：作为进入下一轮集中验收前的独立待办（PR #20 描述 §6 有逐条步骤），
+  不关闭检查、不降低阈值、不批量标假阳性。
 - 未创建任何 Cloudflare 远程资源（无 D1 远程库、无 Worker 部署、无预览环境、无域名绑定、无 Cron）。
 - 阶段 05 的鱼类/活动自动数据/提醒引擎、阶段 06 的 WebDAV 同步均未实现。
 - **没有任何服务端 URL 探测**：导航 `health` 一律 `unknown`，界面显示「未探测」；
