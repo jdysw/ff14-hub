@@ -70,7 +70,7 @@ import {
   readModuleGate,
   readPageRow,
   readTakenSlugs,
-  readWorkbenchRevision,
+  readWorkbenchSnapshotBatch,
   rederiveDefaultPageStatement,
   restorePageStatement,
   setLayoutRevisionStatements,
@@ -400,13 +400,17 @@ export function createWorkbenchService(deps: WorkbenchServiceDeps): WorkbenchSer
   // 而方法体里的 `this` 在对象字面量中被解构或转发时会丢失，因此用显式引用。
   const service: WorkbenchService = {
     async readSnapshot(workspaceId) {
-      const pages = await readActivePages(deps.db, workspaceId);
-      const revision = await readWorkbenchRevision(deps.db, workspaceId);
+      // **一个** batch：活跃页面 + 工作台修订号 + 变更流水位（`MAX(seq)`）来自同一时刻。
+      // 水位必须与页面内容同批（见 `readWorkbenchSnapshotBatch` 的原子性论证）：否则客户端会
+      // 拿「内容已更新」的快照配「更新之前的水位」，把已被覆盖的历史 `delete` 重新应用上去。
+      const snapshot = await readWorkbenchSnapshotBatch(deps.db, workspaceId);
+      const pages = snapshot.pages;
       const defaultPage = pages.find((page) => page.is_default === 1) ?? null;
       return {
         pages: pages.map(toPage),
         defaultPageId: defaultPage?.id ?? null,
-        revision,
+        revision: snapshot.revision,
+        watermark: snapshot.watermark,
         limits: {
           maxPages: MAX_PAGES_PER_WORKSPACE,
           maxWidgetsPerPage: MAX_WIDGETS_PER_PAGE,

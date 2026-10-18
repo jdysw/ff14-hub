@@ -373,6 +373,13 @@ export const workbenchSnapshotSchema = z.object({
   pages: z.array(workspacePageSchema),
   defaultPageId: z.string().min(1).max(64).nullable(),
   revision: z.number().int().nonnegative(),
+  /**
+   * 快照的**原子同步水位**（`workspace_changes.seq` 的当前最大值，与快照内容同批读出）。
+   *
+   * 协议（同导航，见 ADR-0004 D7）：日志只是**失效信号**，客户端有变更就重读快照；
+   * 快照发布后把游标设为该水位。缺失时（旧服务端）客户端退化为「重读快照后再单独取一次水位」。
+   */
+  watermark: z.number().int().nonnegative().optional(),
   limits: z.object({
     maxPages: z.number().int().positive(),
     maxWidgetsPerPage: z.number().int().positive(),

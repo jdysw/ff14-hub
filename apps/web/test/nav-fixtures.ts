@@ -102,6 +102,15 @@ export function snapshot(overrides: Partial<NavSnapshot> = {}): NavSnapshot {
     groups: [],
     memberships: [],
     revision: 1,
+    /**
+     * 同步水位（必填字段，第四轮契约变更）。
+     *
+     * 默认取 `revision` 只是**夹具约定**（「快照读出时工作空间的权威修订是 R，水位也是 R」），
+     * 让绝大多数用例不必显式给出。但**验证 P1-A 竞态 / 地板语义的用例必须显式给出水位**：
+     * 「快照里已经包含到哪个 `seq`」正是「内容 + 水位同批读出」的唯一证据，
+     * 也是游标必须等于 `v2:<watermark>` 的依据。
+     */
+    watermark: overrides.revision ?? 1,
     catalogSourceVersion: 1,
     limits: { maxLinks: 500, maxGroups: 100, maxGroupsPerLink: 20 },
     ...overrides,
@@ -321,6 +330,14 @@ export interface FakeSyncApi {
   readonly readChanges: ReturnType<typeof vi.fn>;
   /** 队列耗尽后的兜底响应会用到它（`since` 缺省时回初始化信封）。 */
   readonly watermark: number;
+  /**
+   * 往队列尾部追加一步。
+   *
+   * 为什么需要它：有些用例要在**中间某个时刻之后**才喂入一页（例如「手动 reload 到新快照
+   * 之后，再喂入 seq 小于新水位的旧增量」）。构造时就固定队列做不到这件事——
+   * 挂载阶段的「确认无更多变更」那一轮会把页面提前消费掉。
+   */
+  readonly enqueue: (step: FakeSyncStep) => void;
 }
 
 /** 由测试**手动兑现**的一步：用于观察「排空中间态」与「分页之间发生并发写」。 */
@@ -407,6 +424,9 @@ export function fakeSyncApi(
     queries,
     readChanges,
     watermark,
+    enqueue: (step: FakeSyncStep): void => {
+      queue.push(step);
+    },
   };
 }
 
@@ -448,6 +468,16 @@ export interface FakeNavApi {
     readonly applyImport: ReturnType<typeof vi.fn>;
     readonly exportDocument: ReturnType<typeof vi.fn>;
   };
+  /**
+   * 换掉 `readSnapshot` 之后返回的**权威快照**。
+   *
+   * 为什么必须有它：新协议下**状态只由快照发布**（变更日志只是失效信号），因此
+   * 「远端发生了什么」必须体现为「快照变了」。一个永远返回同一份快照的替身根本无法验证
+   * 「失效信号 → 重读快照 → 原子发布」这条链路，也无法验证「旧增量不得回退本地状态」。
+   */
+  readonly setSnapshot: (next: NavSnapshot) => void;
+  /** 当前替身会返回的快照（断言「发布了哪一份」时用它比对引用）。 */
+  readonly currentSnapshot: () => NavSnapshot;
 }
 
 /**
@@ -472,7 +502,11 @@ export function fakeNavApi(input: {
    */
   readonly readSnapshotFailure?: NavResult<never> | undefined;
 }): FakeNavApi {
-  const current = input.snapshot ?? snapshot();
+  /**
+   * 替身当前会返回的权威快照。用 `let` + `setSnapshot` 是为了让用例能模拟
+   * 「远端又写了一次」——新协议下这是**唯一**能让本地状态变化的来源。
+   */
+  let current = input.snapshot ?? snapshot();
   const revisionFor = (): number => input.previewRevision ?? current.revision;
 
   const readSnapshot = vi.fn((): Promise<NavResult<NavSnapshot>> => {
@@ -627,6 +661,10 @@ export function fakeNavApi(input: {
       applyImport,
       exportDocument,
     },
+    setSnapshot: (next: NavSnapshot): void => {
+      current = next;
+    },
+    currentSnapshot: (): NavSnapshot => current,
   };
 }
 

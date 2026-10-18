@@ -245,6 +245,19 @@ const ACTIVE_MEMBERSHIP_ROWS_SQL =
     ORDER BY sort_order ASC, link_id ASC, group_id ASC`;
 const NAV_STATE_REVISION_SQL = 'SELECT revision FROM workspace_nav_state WHERE workspace_id = ?';
 const CATALOG_SOURCE_VERSION_SQL = 'SELECT COALESCE(MAX(source_version), 0) AS value FROM nav_catalog_links';
+/**
+ * 快照的**原子同步水位**：本工作空间变更流的 `MAX(seq)`（没有任何变更时为 0）。
+ *
+ * 与 `modules/sync/service.ts` 的 `WORKSPACE_WATERMARK_SQL` 是**同一条事实的第二个读取点**
+ * （那边用于 reset 协议的 `meta.watermark`）；这里刻意写成 `COALESCE(...)`，因为快照契约
+ * （共享 `navSnapshotSchema.watermark`）是**必填非负整数**，不接受 NULL——空工作空间的水位
+ * 必须显式是 `0`，否则客户端拿不到可用的游标。
+ *
+ * 它**只能**在 `readSnapshotBatch` 的同一个 batch 里读：单独读一次就等于引入两个观察时刻
+ * （见那里的原子性论证）。
+ */
+const WATERMARK_SQL =
+  'SELECT COALESCE(MAX(seq), 0) AS max_seq FROM workspace_changes WHERE workspace_id = ?';
 /** 目录条目列（与 `modules/nav/catalog.ts` 的 `CATALOG_COLUMNS` 逐列一致）。 */
 const CATALOG_ENTRY_ROWS_SQL =
   `SELECT id, source_version, title, url, description, category, tags_json, aliases_json, icon,
@@ -341,7 +354,7 @@ function rowsAt<T>(results: readonly D1Result<unknown>[], index: number): T[] {
 
 /**
  * 快照 / 导出**唯一**的读取入口：活跃链接 + 活跃分组 + 活跃成员关系 + 工作空间修订号 +
- * 目录版本 + 目录条目 + 目录关联行（含墓碑），全部在**一个 `db.batch`** 内读出。
+ * 目录版本 + 变更流水位 + 目录条目 + 目录关联行（含墓碑），全部在**一个 `db.batch`** 内读出。
  *
  * ── 为什么必须是同一个 batch（复核发现的真实缺陷）─────────────────────────────
  * `batch` 在 D1 里是**单个事务**，因此这一批语句看到的是同一个数据库状态；而分别读
@@ -349,6 +362,27 @@ function rowsAt<T>(results: readonly D1Result<unknown>[], index: number): T[] {
  * 例如成员关系读在「分组墓碑化」之前、而活跃分组读在它之后，导出文档里就会留下
  * 指向已删除分组的**悬空成员关系**；目录导入也会按旧墓碑做出「用户没删过」的错误决策。
  * 因此这里宁可多一次 batch，也不允许任何决策建立在两个不同时刻的读之上。
+ *
+ * ── 为什么水位也必须进这一批（第四轮复核修正的竞态）──────────────────────────
+ * 客户端此前先用 `GET /me/sync/changes`（无 `since`）拿水位 W，再 `GET /me/navigation` 读快照 S；
+ * 若两个请求之间远端做了「`delete(W+1)` → 显式恢复 `(W+2)`」，S **已经**包含恢复后的链接与
+ * 成员关系，但客户端仍会收到 W+1 的历史 `delete` 并把它应用上去——把刚恢复的数据删掉。
+ * 根因是**请求发起顺序不能证明数据库观察顺序**：W 与 S 来自两个不同的观察时刻。
+ * 把 `MAX(seq)` 放进**同一个 batch** 之后，S 自带「S 是站在哪个水位上读出来的」这一事实，
+ * 客户端只需把游标设成 `S.watermark`，W+1 那条历史 `delete` 就落在游标**之后**、永不被应用。
+ *
+ * ── 原子性论证（为什么 `watermark` 一定 ≥ 快照里任何一行的最新变更 seq）─────────
+ * 设某行 R 出现在本批快照里，其最近一次写入的变更日志序号为 N（即 R 的最新状态由 seq=N
+ * 那次写入产生）。由于：
+ *   ① 迁移 0011 的 `AFTER INSERT/UPDATE` 触发器把变更行写进 `workspace_changes`，它与业务
+ *      写入处于**同一个事务**（触发器内的 DML 属于该语句所在事务），二者要么一起提交、要么
+ *      一起回滚；
+ *   ② 本批语句是**一个事务**，看到的是同一个数据库状态——既然 R 的最新状态可见，那么产生该
+ *      状态的变更行 N 也必然已提交可见（它们同事务）；
+ *   ③ `seq` 是 AUTOINCREMENT 主键（只增不减、不复用），且 `MAX(seq)` 按 `workspace_id` 过滤，
+ * 因此本批里读到的 `MAX(seq) ≥ N` 对快照里的**每一行**都成立。「内容更新 ⇒ 水位更大」不是断言，
+ * 而是①②③的直接推论：先 `delete(W+1)` 再恢复 `(W+2)` 之后，快照里的链接是恢复后的活跃行，
+ * 它的最新变更 seq 是 W+2，于是同批读到的水位必然 ≥ W+2（而不是 W）。
  *
  * 只读「活跃行」的语义**没有改变**：`links` / `groups` / `memberships` 仍只含未删除行；
  * `catalogLinked` 含墓碑，但仅用于目录状态投影与目录导入判定，绝不进入用户快照。
@@ -362,6 +396,7 @@ async function readSnapshotBatch(input: {
   readonly groupRows: NavGroupRow[];
   readonly membershipRows: NavMembershipRow[];
   readonly revision: number;
+  readonly watermark: number;
   readonly catalogSourceVersion: number;
   readonly catalogRows: NavCatalogEntry[];
   readonly catalogLinkedRows: NavLinkRow[];
@@ -373,6 +408,8 @@ async function readSnapshotBatch(input: {
     db.prepare(ACTIVE_MEMBERSHIP_ROWS_SQL).bind(workspaceId),
     db.prepare(NAV_STATE_REVISION_SQL).bind(workspaceId),
     db.prepare(CATALOG_SOURCE_VERSION_SQL),
+    // 水位与上面的内容、revision 同批（同一事务）：这是「快照自带水位」的全部机制。
+    db.prepare(WATERMARK_SQL).bind(workspaceId),
   ];
   if (withCatalog) {
     statements.push(
@@ -388,8 +425,10 @@ async function readSnapshotBatch(input: {
     membershipRows: rowsAt<NavMembershipRow>(results, 2),
     revision: rowsAt<{ revision: number }>(results, 3)[0]?.revision ?? 0,
     catalogSourceVersion,
-    catalogRows: withCatalog ? rowsAt<NavCatalogRow>(results, 5).map(toBatchCatalogEntry) : [],
-    catalogLinkedRows: withCatalog ? rowsAt<NavLinkRow>(results, 6) : [],
+    // `COALESCE(MAX(seq), 0)` 保证这一行一定存在；`?? 0` 只是防御（空工作空间的水位是 0）。
+    watermark: rowsAt<{ max_seq: number }>(results, 5)[0]?.max_seq ?? 0,
+    catalogRows: withCatalog ? rowsAt<NavCatalogRow>(results, 6).map(toBatchCatalogEntry) : [],
+    catalogLinkedRows: withCatalog ? rowsAt<NavLinkRow>(results, 7) : [],
   };
 }
 
@@ -1582,14 +1621,18 @@ export function createNavService(deps: NavServiceDeps): NavService {
 
   const service: NavService = {
     async readSnapshot(workspaceId) {
-      // **一个** batch：链接 / 分组 / 成员关系 / 修订号 / 目录版本 / 目录条目 / 目录关联行
-      // 全部来自同一时刻，因此快照里不会出现「指向已墓碑化分组的成员关系」这类组合。
+      // **一个** batch：链接 / 分组 / 成员关系 / 修订号 / 目录版本 / 水位 / 目录条目 / 目录关联行
+      // 全部来自同一时刻，因此快照里不会出现「指向已墓碑化分组的成员关系」这类组合，
+      // 也不会出现「内容已是恢复后的、水位却停在删除之前」这种协议级竞态（见 readSnapshotBatch）。
       const snapshot = await readSnapshotBatch({ db: deps.db, workspaceId, withCatalog: true });
       return {
         links: snapshot.linkRows.map(toNavLink),
         groups: snapshot.groupRows.map(toNavGroup),
         memberships: snapshot.membershipRows.map(toNavMembership),
         revision: snapshot.revision,
+        // 客户端**只**用快照发布状态，并把游标设成这个水位（与内容同批读出，因此 W+1 的历史
+        // delete 一定落在它之后，不会被应用到已恢复的数据上）。
+        watermark: snapshot.watermark,
         catalogSourceVersion: snapshot.catalogSourceVersion,
         limits: NAV_LIMITS,
         // 目录状态投影：**由服务端**用共享 `catalogUpgradePlan` 计算（含墓碑行），

@@ -15,7 +15,7 @@ import {
   BREAKPOINT_COLUMNS,
   LAYOUT_BREAKPOINTS,
   type LayoutBreakpoint,
-  type SyncChange,
+  type SyncEntityType,
 } from '@ff14-hub/shared';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ModuleDataPort } from '../widgets/types';
@@ -30,7 +30,7 @@ import { TemplatePicker } from './TemplatePicker';
 import { WidgetCard } from './WidgetCard';
 import { WidgetLibrary } from './WidgetLibrary';
 import { BREAKPOINT_LABELS } from './workbench-model';
-import type { WorkbenchController } from './use-workbench';
+import { setWorkbenchSyncGate, WORKBENCH_SYNCING_NOTICE, type WorkbenchController } from './use-workbench';
 
 export interface WorkbenchViewProps {
   readonly state: WorkbenchController;
@@ -48,48 +48,25 @@ export interface WorkbenchViewProps {
 }
 
 /**
- * 排空期间暂存的上限。
+ * 工作台关心的变更实体类型。
  *
- * 为什么要有上限：一个异常的服务端可能一直声称 `hasMore === true`，此时暂存区会无限增长。
- * 超出时**保留最新的**（`seq` 递增，因此最后面的才是最新的）：丢掉最旧的只会让「可能少刷新
- * 一次」（本视图对任何相关变更的响应都是整份重载，不会因此写坏数据），
- * 而无限增长会真的吃掉内存。
+ * 与导航**同一套协议**（日志只作失效信号、状态只由原子快照发布），但各自只关心自己那几类
+ * 实体：别的设备改了一条导航链接不该让工作台重读快照，反之亦然。工作台按
+ * 「页面 × 断点布局 × 组件实例」组织，因此这三类变化都可能影响当前页面。
  */
-const MAX_PENDING_SYNC_CHANGES = 1000;
-
-/** 排空进行中的可见提示（排空结束时会精确地只清掉这一条，不影响别的提示）。 */
-const SYNC_DRAINING_NOTICE = '正在同步其它设备的改动（还有变更页未取完）…排空后才会刷新当前页面。';
-
-/** 该变更是否可能影响**当前页面**（页面本身 / 本页的实例 / 本页布局）。 */
-function touchesActivePage(change: SyncChange, activePageId: string, instanceIds: ReadonlySet<string>): boolean {
-  if (change.entityType === 'page') {
-    return change.entityId === activePageId;
-  }
-  if (change.entityType === 'widget') {
-    return instanceIds.has(change.entityId);
-  }
-  if (change.entityType === 'layout') {
-    // 布局实体的 ID 由服务端定义（页面 + 断点）。服务端没有把「哪个页面」单独给出来，
-    // 因此这里刻意**保守**：一律视为与当前页相关。代价是最多多刷新一次，
-    // 而漏掉本页的布局变化会让用户看到过期布局——两者相比后者严重得多。
-    return true;
-  }
-  return false;
-}
+export const WORKBENCH_SYNC_ENTITY_TYPES: readonly SyncEntityType[] = ['page', 'widget', 'layout'];
 
 /**
- * 已知的该实体修订号（用于「避免无谓刷新」）。
+ * 权威快照刷新完成后的可见提示（可见、不静默）。
  *
- * 拿不到就返回 null：调用方会退化为「每个 (实体, 修订) 只刷新一次」的去重。
+ * 编辑态下必须**明确说明草稿还在**：刷新只替换服务端快照与布局基线，绝不写 `drafts`。
  */
-function knownRevisionOf(change: SyncChange, state: WorkbenchController): number | null {
-  if (change.entityType === 'page') {
-    return state.pages.find((page) => page.id === change.entityId)?.revision ?? null;
-  }
-  if (change.entityType === 'widget') {
-    return state.instances.find((instance) => instance.id === change.entityId)?.revision ?? null;
-  }
-  return null;
+function refreshedNotice(count: number, editing: boolean): string {
+  const head =
+    count > 0
+      ? `已收到 ${String(count)} 条变更信号，并按服务端权威快照整体刷新工作台。`
+      : '已按服务端权威快照整体刷新工作台。';
+  return editing ? `${head}你的布局草稿仍然保留（不会被远端内容覆盖）。` : head;
 }
 
 export function WorkbenchView(props: WorkbenchViewProps) {
@@ -99,33 +76,29 @@ export function WorkbenchView(props: WorkbenchViewProps) {
   /**
    * 跨设备变更提示（只读文本，不参与布局计算的任何一步）。
    *
-   * 语义刻意限定为**提示**：编辑态下它替代「自动刷新」，因为刷新会覆盖草稿，
-   * 而那正是阶段 03 明确不允许的（用户没点保存，草稿就不能被动过）。
+   * 语义刻意限定为**提示**：编辑态下它明确说明「草稿已保留」——刷新只替换快照与服务端布局
+   * 基线，**绝不**动 `drafts`（用户没点保存，草稿就不能被动过）。
    */
   const [remoteNotice, setRemoteNotice] = useState<string | null>(null);
 
   /**
-   * 是否**正在排空**变更页（服务端说 `hasMore === true`）。
+   * 「同步未完成」：权威快照发布并确认没有更多变更之前为 true。
    *
-   * 与导航同一套协议：排空期间本地集合还不完整，因此不按部分集合刷新、
-   * 也不采用 `meta` 里的权威全局修订（本视图不做 CAS 写，但状态必须可见，
-   * 以免将来在排空期间发起基于整份集合的操作）。
+   * 与导航同一套协议（见 `useSyncChangesPoller`）：这段时间里**全局 CAS 写**
+   * （保存整页布局 / 恢复备份 / 应用模板）一律被拒绝（见下面的 `setWorkbenchSyncGate`），
+   * 行级写（组件配置 / 隐藏 / 删除组件）不受影响。
    */
   const [syncing, setSyncing] = useState(false);
 
-  /**
-   * 已处理的 `(实体, 修订)` 集合：避免同一条变更在每次轮询里都触发一次刷新。
-   * 放在 ref 里而不是 state：它是去重簿记，不需要触发渲染。
-   */
-  const handledRef = useRef(new Set<string>());
+  /** 已收到但还没被权威快照消费掉的失效信号条数（只用于可见文案）。 */
+  const pendingSignalsRef = useRef(0);
 
   /**
-   * 排空期间的暂存：**只有排空之后**（`hasMore === false`）才一次性处理整批变更。
+   * 本地**已经发布的**快照水位（只增不减）。
    *
-   * 为什么必须等排空：中途的 `meta.navRevision` 对应服务端**当前**状态，而本地集合
-   * 还不完整；按部分集合反复重载既浪费请求，也可能让界面在两个状态之间来回跳。
+   * 轮询器每轮开始会用它抬游标：同步路径发布过快照之后，不该把同一段变更再当一次新信号。
    */
-  const pendingRemoteRef = useRef<readonly SyncChange[]>([]);
+  const publishedWatermarkRef = useRef(0);
 
   /** 同步回调里需要读**最新**状态，但它本身要保持引用稳定（否则轮询定时器会被反复重建）。 */
   const stateRef = useRef(state);
@@ -134,16 +107,18 @@ export function WorkbenchView(props: WorkbenchViewProps) {
   });
 
   /**
-   * 初始化协议的权威快照读取：`resetRequired === true` 时读一次**工作台**快照。
+   * 把「同步中」登记给 `use-workbench` 的写闸门（本视图与同步协议唯一的对外接触点）。
    *
-   * 为什么无条件返回 `true`：工作台**从不**把增量应用到本地状态——它只根据变更决定是否
-   * 重新读整份快照（`reload()`）。因此「这次读取失败」不会造成「把历史重放到过期本地集合」
-   * 的危险（那是导航侧 `snapshotFloorRef` 要防的事）；下一次轮询仍会重新读取。
+   * 为什么用 ref 转发：轮询与 `syncing` 的持有者只在本视图（它同时持有 `syncChangesApi`），
+   * 而写入实现全在 `use-workbench` 里；`use-workbench.ts` 因此只增加**一个**入口
+   * （`setWorkbenchSyncGate`），不引入第二套同步状态。没有注入 `syncChangesApi` 时
+   * 轮询不启用、`syncing` 恒为 false，闸门因此恒为「可以写」（阶段 03 行为不变）。
    */
-  const readAuthoritySnapshot = useCallback(async (): Promise<boolean> => {
-    await stateRef.current.reload();
-    return true;
-  }, []);
+  const syncingRef = useRef(false);
+  useEffect(() => {
+    syncingRef.current = syncing;
+  }, [syncing]);
+  useEffect(() => setWorkbenchSyncGate(() => syncingRef.current), []);
 
   /**
    * 把「是否有未保存草稿」登记给 PWA 更新提示（HUB-012）。
@@ -156,67 +131,63 @@ export function WorkbenchView(props: WorkbenchViewProps) {
     [],
   );
 
-  const onSyncChanges = useCallback((changes: readonly SyncChange[], drained: boolean): void => {
-    pendingRemoteRef.current = [...pendingRemoteRef.current, ...changes].slice(-MAX_PENDING_SYNC_CHANGES);
-    if (!drained) {
-      // 还有页没取完：只报「正在同步」，绝不按不完整的集合决定刷新。
-      setSyncing(true);
-      setRemoteNotice(SYNC_DRAINING_NOTICE);
-      return;
-    }
-    const batch = pendingRemoteRef.current;
-    pendingRemoteRef.current = [];
-    setSyncing(false);
-    // 排空结束：只清掉「正在同步」这一条，别的提示（例如编辑态冲突）原样保留。
-    setRemoteNotice((previous) => (previous === SYNC_DRAINING_NOTICE ? null : previous));
-    if (batch.length === 0) {
-      return;
-    }
-    const current = stateRef.current;
-    const activePageId = current.activePageId;
-    if (activePageId === null) {
-      return;
-    }
-    const instanceIds = new Set(current.instances.map((instance) => instance.id));
-    const relevant = batch.filter((change) => touchesActivePage(change, activePageId, instanceIds));
-    if (relevant.length === 0) {
-      return;
-    }
-    const fresh = relevant.filter((change) => {
-      const known = knownRevisionOf(change, current);
-      if (known !== null && change.revision <= known) {
-        // 修订号不比已知的新：这次刷新不会有任何新信息。
-        return false;
+  /**
+   * 权威快照读取（**唯一**的状态发布路径）：整份替换本地状态并返回该快照的同步水位。
+   *
+   * `state.reload()` 会替换快照与当前页的服务端布局，但**不动 `drafts`**：
+   * 因此「同步刷新把用户草稿清掉」在结构上不会发生（`loadPage` 只调整草稿的矩形覆盖，
+   * 不改草稿内容与 `baseRevision`）。
+   *
+   * 水位取值（工作台与导航的**唯一**差别，理由必须写清）：`WorkbenchController` 不暴露快照对象，
+   * 因此这里用轮询器给的日志下界 `knownWatermarkSeq`（排空到的最大 `seq`，含服务器在
+   * `resetRequired` 里给出的水位）。
+   *
+   * 为什么这在工作台是**安全**的：工作台从不把变更逐条应用到本地状态（快照永远整份发布），
+   * 所以「水位偏低」唯一的代价是多重读一次快照，**绝不会**跳过变更；而快照读取发生在排空
+   * **之后**，其真实水位必然 ≥ 这个下界。导航侧则不同——那里必须用快照自带的水位
+   * （`navSnapshotSchema.watermark` 是必填的）：只有「内容 + 水位同批读出」才能证明
+   * 「这份内容已经包含到 seq ≤ 水位」，否则会出现 P1-A 那类竞态。
+   *
+   * 读取失败（`loadSnapshot` 把状态置为 error）时返回 `null`：轮询器据此**不发布状态、
+   * 不推进游标、并保持「同步中」**。
+   */
+  const readAuthoritySnapshot = useCallback(
+    async (knownWatermarkSeq: number): Promise<number | null> => {
+      await stateRef.current.reload();
+      if (stateRef.current.status === 'error') {
+        return null;
       }
-      const key = `${change.entityType}:${change.entityId}:${String(change.revision)}`;
-      if (handledRef.current.has(key)) {
-        return false;
-      }
-      handledRef.current.add(key);
-      return true;
-    });
-    if (fresh.length === 0) {
-      return;
-    }
-    if (current.editing) {
-      setRemoteNotice(
-        `其它设备也改动了当前页面（${String(fresh.length)} 项）。你的布局草稿已保留，本视图**不会**自动刷新或覆盖草稿；` +
-          '要取服务端版本请先退出编辑并重新载入。',
-      );
-      return;
-    }
-    setRemoteNotice(null);
-    void current.reload();
-  }, []);
+      const signals = pendingSignalsRef.current;
+      pendingSignalsRef.current = 0;
+      publishedWatermarkRef.current = Math.max(publishedWatermarkRef.current, knownWatermarkSeq);
+      setRemoteNotice(refreshedNotice(signals, stateRef.current.editing));
+      return publishedWatermarkRef.current;
+    },
+    [],
+  );
 
   useSyncChangesPoller({
     enabled: syncChangesApi !== undefined,
     ...(syncChangesApi === undefined ? {} : { api: syncChangesApi }),
     ...(syncIntervalMs === undefined ? {} : { intervalMs: syncIntervalMs }),
-    // 初始化协议第 ③ 步：先读一次权威工作台快照，快照落地后才采用水位取增量。
-    onSnapshotRequired: () => readAuthoritySnapshot(),
-    onChanges: (changes, _serverTimeMs, _meta, drained) => {
-      onSyncChanges(changes, drained);
+    // 只有工作台实体的变更才是本视图的失效信号（导航的增删改不该让工作台重读快照）。
+    relevantEntityTypes: WORKBENCH_SYNC_ENTITY_TYPES,
+    readSnapshot: (knownWatermarkSeq) => readAuthoritySnapshot(knownWatermarkSeq),
+    publishedWatermark: () => publishedWatermarkRef.current,
+    onSyncingChange: (next) => {
+      setSyncing(next);
+      // 排空 / 刷新期间给出可见提示；排空完成时**只**清掉这一条，别的提示原样保留。
+      setRemoteNotice((previous) =>
+        next ? WORKBENCH_SYNCING_NOTICE : previous === WORKBENCH_SYNCING_NOTICE ? null : previous,
+      );
+    },
+    onInvalidated: (changeCount) => {
+      // 只记条数：**不**缓存 change 对象（它们的 payload 是当前内容，而日志条目是历史事件，
+      // 缓存下来只会诱导「稍后重放」这条已被删除的错误路径）。
+      pendingSignalsRef.current += changeCount;
+    },
+    onSettled: () => {
+      setRemoteNotice((previous) => (previous === WORKBENCH_SYNCING_NOTICE ? null : previous));
     },
   });
 

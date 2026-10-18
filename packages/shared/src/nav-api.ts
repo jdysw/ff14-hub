@@ -376,6 +376,18 @@ export const navSnapshotSchema = z
     memberships: z.array(navMembershipSchema),
     /** 工作空间级导航修订号（新鲜度令牌）。 */
     revision: z.number().int().nonnegative(),
+    /**
+     * 快照的**原子同步水位**（`workspace_changes.seq` 的当前最大值，与该快照在**同一个 D1 batch** 读出）。
+     *
+     * 为什么必须由快照自己带（第三轮复核修正）：客户端此前先用「reset」拿水位 W，再单独读快照 S；
+     * 若在这两个请求之间发生「删除(W+1) → 显式恢复(W+2)」，S 已经包含恢复后的链接，但客户端仍会
+     * 收到并应用 W+1 的历史 `delete`——把已恢复的数据删掉。请求发起顺序**不能**证明数据库观察顺序，
+     * 只有「内容 + revision + 水位同批读出」才能证明。
+     *
+     * 协议：客户端**只**用快照发布状态，并把游标设为该 `watermark`；日志仅作**失效信号**
+     * （有变更就重读快照），不再把历史事件逐条重放到当前状态上。
+     */
+    watermark: z.number().int().nonnegative(),
     /** 系统目录当前版本（客户端据此判断「目录有没有升级」）。 */
     catalogSourceVersion: z.number().int().nonnegative(),
     /**
