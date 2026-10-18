@@ -276,7 +276,7 @@ describe('分页场景：跨毫秒推进与「同一毫秒刚好等于 limit」'
     const merged = new Map<string, SyncChange>();
     mergeById(merged, round1.changes);
     mergeById(merged, round2.changes);
-    expect([...merged.keys()].sort()).toEqual(['page:p1', 'page:p2', 'page:p3', 'page:p4']);
+    expect([...merged.keys()].sort((a, b) => a.localeCompare(b))).toEqual(['page:p1', 'page:p2', 'page:p3', 'page:p4']);
   });
 
   it('同一毫秒多行且刚好等于 limit：游标停在同一毫秒，下一轮仍返回这些行（宁可重复，绝不跳过）', () => {

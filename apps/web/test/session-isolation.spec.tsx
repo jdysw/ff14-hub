@@ -61,7 +61,7 @@ describe('会话凭证存储的代际语义', () => {
     const store = createSessionCredentialStore();
     store.set('ffh_dev_secret_value');
     const snapshot: SessionSnapshot = store.getSnapshot();
-    expect(Object.keys(snapshot).sort()).toEqual(['authenticated', 'generation']);
+    expect(Object.keys(snapshot).sort((a, b) => a.localeCompare(b))).toEqual(['authenticated', 'generation']);
     expect(JSON.stringify(snapshot)).not.toContain('ffh_dev_secret_value');
     // 明文只能经由 get() 交给 API 客户端内部。
     expect(store.get()).toBe('ffh_dev_secret_value');

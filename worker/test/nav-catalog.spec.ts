@@ -98,11 +98,11 @@ describe('目录种子与公开目录端点', () => {
     expect(body?.sourceVersion).toBe(NAV_CATALOG_SOURCE_VERSION);
     expect(body?.updatedAt).toBeGreaterThan(0);
 
-    const allowedKeys = Object.keys(navCatalogEntrySchema.shape).sort();
+    const allowedKeys = Object.keys(navCatalogEntrySchema.shape).sort((a, b) => a.localeCompare(b));
     for (const entry of entries) {
       expect(navCatalogEntrySchema.safeParse(entry).success).toBe(true);
       // 字段集合必须**恰好**是目录契约的字段：多一个「个人字段」都算泄露。
-      expect(Object.keys(entry).sort()).toEqual(allowedKeys);
+      expect(Object.keys(entry).sort((a, b) => a.localeCompare(b))).toEqual(allowedKeys);
     }
     // 响应文本里不允许出现个人导航的字段名。
     for (const forbidden of ['workspaceId', 'workspace_id', 'isFavorite', 'deletedAt', 'health']) {

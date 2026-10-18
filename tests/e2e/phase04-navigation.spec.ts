@@ -689,7 +689,7 @@ test.describe('阶段 04：自由导航（HUB-047 / 048 / 007 / 008）', () => {
     });
     const upgrade = await importCatalogViaHttp(request, { catalogIds });
     expect(upgrade.importedCount, '目录升级不得写入任何个人行').toBe(0);
-    expect([...upgrade.skippedCatalogIds].sort()).toEqual([...catalogIds].sort());
+    expect([...upgrade.skippedCatalogIds].sort((a, b) => a.localeCompare(b))).toEqual([...catalogIds].sort((a, b) => a.localeCompare(b)));
     const decisionOf = (catalogId: string): CatalogDecision | undefined =>
       upgrade.decisions.find((decision) => decision.catalogId === catalogId);
     expect(decisionOf(first.id)?.action).toBe('skip');

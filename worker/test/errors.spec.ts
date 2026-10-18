@@ -22,7 +22,7 @@ async function expectApiError(
   // 结构必须严格符合共享契约（不允许出现额外字段）。
   expect(apiErrorBodySchema.safeParse(body).success).toBe(true);
   expect(body['code']).toBe(code);
-  expect(Object.keys(body).sort()).toEqual(['code', 'message', 'requestId']);
+  expect(Object.keys(body).sort((a, b) => a.localeCompare(b))).toEqual(['code', 'message', 'requestId']);
   return body;
 }
 

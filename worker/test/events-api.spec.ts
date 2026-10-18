@@ -728,7 +728,7 @@ describe('公共接口不泄露任何个人数据', () => {
     expect(body.events).toEqual([]);
     expect(Number.isInteger(body.serverTimeMs)).toBe(true);
     // 严格两个键：任何多出来的字段都会让共享的严格 Schema 失败。
-    expect(Object.keys(body).sort()).toEqual(['events', 'serverTimeMs']);
+    expect(Object.keys(body).sort((a, b) => a.localeCompare(b))).toEqual(['events', 'serverTimeMs']);
     expect(text).not.toContain('私密活动');
     expect(text).not.toContain('私人备注');
 

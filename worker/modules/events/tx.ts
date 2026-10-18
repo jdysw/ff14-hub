@@ -26,6 +26,7 @@
  */
 import type { ApiErrorCode } from '@ff14-hub/shared';
 import {
+  EVENT_LEDGER_SQL,
   createLedger,
   errorNameOf,
   fingerprintOf,
@@ -139,10 +140,7 @@ export const EVENT_OP_KINDS = {
 } as const;
 
 /** 账本表绑定：活动模块只换账本表，算法与工作台/导航完全共用（ADR-0004 D11）。 */
-const eventLedger = createLedger({
-  operations: 'event_operations',
-  intents: 'event_operation_intents',
-});
+const eventLedger = createLedger(EVENT_LEDGER_SQL);
 
 /**
  * 「本次尝试仍然持有认领」的守卫 SQL 片段。绑定顺序：workspaceId、operationId、token。

@@ -11,9 +11,6 @@
  * - SW 侧：即使页面报了私有 URL，SW 也必须拒绝（策略是安全边界，页面过滤只是优化）；
  * - 没有受控 SW 时不发任何消息（不制造无意义的 postMessage）。
  */
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   CACHE_URLS_MESSAGE,
@@ -31,7 +28,11 @@ const SW_ORIGIN = 'https://ff14-hub.test';
 
 afterEach(() => {
   resetServiceWorkerHandleForTests();
+  // 清理本用例装的 self / caches / fetch stub，并丢弃它加载的 sw.js 模块实例：
+  // 下一个用例拿到全新的模块与全新的处理器，互不影响。
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  vi.resetModules();
 });
 
 // ---------------------------------------------------------------------------
@@ -112,13 +113,21 @@ describe('reportLoadedAssetsToServiceWorker', () => {
     expect(message.type).toBe(CACHE_URLS_MESSAGE);
     expect(message.urls).toEqual([`${APP_ORIGIN}/assets/index-abc123.js`]);
     // 消息里只有 URL：没有任何令牌、workspace 字段或页面数据。
-    expect(Object.keys(message).sort()).toEqual(['type', 'urls']);
+    expect(Object.keys(message).sort((a, b) => a.localeCompare(b))).toEqual(['type', 'urls']);
     expect(SERVICE_WORKER_URL).toBe('/sw.js');
   });
 });
 
 // ---------------------------------------------------------------------------
 // SW 侧：即使被报了私有 URL，也必须拒绝缓存
+//
+// 为什么不再把 sw.js 源码交给 vm 动态求值：
+// ① 安全热点：把源码字符串交给 vm 执行属于「动态执行代码」（SonarCloud S1523），
+//    质量门要求新代码 0 Security Hotspots；改成模块 import 后没有任何字符串求值。
+// ② 语义更接近真实：浏览器装载 Service Worker 就是「把 sw.js 当脚本执行、在全局作用域里读写
+//    self / caches / fetch」，直接执行真实产物比自造 vm 沙箱更贴近 worker 语义。
+// ③ 每个用例独立模块实例：加载前 vi.resetModules() + 递增查询串，让 sw.js 重新执行一次，
+//    事件处理器只挂到**该用例自己的** self stub 上，用例之间不会串台。
 // ---------------------------------------------------------------------------
 
 interface SwSandbox {
@@ -127,12 +136,25 @@ interface SwSandbox {
   readonly fetchedUrls: string[];
 }
 
-function loadServiceWorker(): SwSandbox {
+/**
+ * sw.js 在 worker 全局作用域里真正会触碰的成员。
+ * 只声明这些：location.origin、addEventListener、clients.claim、skipWaiting。
+ */
+interface SwGlobalScope {
+  readonly location: { readonly origin: string };
+  addEventListener(type: string, handler: (event: unknown) => void): void;
+  readonly clients: { claim: () => Promise<void> };
+  skipWaiting(): Promise<void>;
+}
+
+/** 递增计数器：给每次模块加载一个唯一查询串（配合 vi.resetModules 拿到全新实例）。 */
+let swModuleLoadCounter = 0;
+
+/** 把真实的 sw.js（相对本测试文件定位，与进程 cwd 无关）当模块执行。 */
+async function loadServiceWorker(): Promise<SwSandbox> {
   const handlers = new Map<string, ((event: unknown) => void)[]>();
   const cachedUrls: string[] = [];
   const fetchedUrls: string[] = [];
-  const swPath = join(process.cwd(), 'public', 'sw.js');
-  const source = readFileSync(swPath, 'utf8');
 
   const cacheStub = {
     match: () => Promise.resolve(undefined),
@@ -141,7 +163,7 @@ function loadServiceWorker(): SwSandbox {
       return Promise.resolve(undefined);
     },
   };
-  const selfStub: Record<string, unknown> = {
+  const selfStub: SwGlobalScope = {
     location: { origin: SW_ORIGIN },
     addEventListener: (type: string, handler: (event: unknown) => void) => {
       const list = handlers.get(type);
@@ -154,30 +176,31 @@ function loadServiceWorker(): SwSandbox {
     clients: { claim: () => Promise.resolve() },
     skipWaiting: () => Promise.resolve(),
   };
-  const sandbox: Record<string, unknown> = {
-    self: selfStub,
-    caches: {
-      open: () => Promise.resolve(cacheStub),
-      keys: () => Promise.resolve([]),
-      delete: () => Promise.resolve(true),
-    },
-    fetch: (request: Request) => {
-      fetchedUrls.push(typeof request === 'string' ? request : request.url);
-      return Promise.resolve(new Response('ok', { status: 200, headers: { 'Content-Type': 'text/javascript' } }));
-    },
-    Request,
-    Response,
-    Headers,
-    URL,
-    console,
-  };
-  runInNewContext(source, sandbox);
+
+  // 先把受控 stub 装成全局，再执行 sw.js——它一执行就会读 self / caches / fetch。
+  // fetch/cache.put 都只做记录，不发真实网络请求、不写真实缓存。
+  vi.stubGlobal('self', selfStub);
+  vi.stubGlobal('caches', {
+    open: () => Promise.resolve(cacheStub),
+    keys: () => Promise.resolve([]),
+    delete: () => Promise.resolve(true),
+  });
+  vi.stubGlobal('fetch', (request: Request) => {
+    fetchedUrls.push(typeof request === 'string' ? request : request.url);
+    return Promise.resolve(new Response('ok', { status: 200, headers: { 'Content-Type': 'text/javascript' } }));
+  });
+
+  swModuleLoadCounter += 1;
+  vi.resetModules();
+  const moduleSpecifier = `../public/sw.js?test-case=${String(swModuleLoadCounter)}`;
+  await import(/* @vite-ignore */ moduleSpecifier);
+
   return { handlers, cachedUrls, fetchedUrls };
 }
 
 describe('sw.js：CACHE_URLS 消息路径也受同一份策略约束', () => {
   it('缓存公开资源，但拒绝私有接口与跨域地址', async () => {
-    const sandbox = loadServiceWorker();
+    const sandbox = await loadServiceWorker();
     const handler = sandbox.handlers.get('message')?.[0];
     expect(handler, 'sw.js 必须注册 message 处理器').toBeDefined();
 

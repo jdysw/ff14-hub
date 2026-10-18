@@ -412,7 +412,7 @@ describe('书签 / 结构化导入', () => {
       'duplicate',
     ]);
     const activeRows = await readActiveLinkRows(auth.workspaceId);
-    expect(activeRows.map((row) => row.url).sort()).toEqual([
+    expect(activeRows.map((row) => row.url).sort((a, b) => a.localeCompare(b))).toEqual([
       'https://exists.test/',
       'https://new.test/a',
       'https://new.test/b',

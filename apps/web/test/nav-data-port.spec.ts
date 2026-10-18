@@ -53,7 +53,7 @@ afterEach(() => {
 describe('操作表与拒绝语义', () => {
   it('声明的操作名正好是契约里的 16 个（不多不少）', () => {
     const port = portFor();
-    expect([...port.operations].sort()).toEqual([...NAV_PORT_OPERATIONS].sort());
+    expect([...port.operations].sort((a, b) => a.localeCompare(b))).toEqual([...NAV_PORT_OPERATIONS].sort((a, b) => a.localeCompare(b)));
   });
 
   it('未声明的操作名被拒绝，且不发生任何网络请求', async () => {

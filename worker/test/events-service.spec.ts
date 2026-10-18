@@ -180,7 +180,7 @@ describe('listPublic：只读公共表，筛选/排序复用共享纯函数', ()
     const body = await service.listPublic({ nowMs: FIXED_NOW });
     expect(body.events).toEqual([]);
     expect(body.serverTimeMs).toBe(FIXED_NOW);
-    expect(Object.keys(body).sort()).toEqual(['events', 'serverTimeMs']);
+    expect(Object.keys(body).sort((a, b) => a.localeCompare(b))).toEqual(['events', 'serverTimeMs']);
     expect(publicEventListResponseSchema.safeParse(body).success).toBe(true);
   });
 

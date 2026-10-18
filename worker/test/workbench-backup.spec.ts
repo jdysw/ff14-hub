@@ -358,7 +358,7 @@ describe('导出：形状与凭证零泄漏', () => {
     expect(instances[0]?.['configVersion']).toBe(1);
     expect(instances[0]?.['hidden']).toBe(false);
     const layouts = instances[0]?.['layouts'] as Record<string, unknown>;
-    expect(Object.keys(layouts).sort()).toEqual(['desktop', 'mobile', 'tablet']);
+    expect(Object.keys(layouts).sort((a, b) => a.localeCompare(b))).toEqual(['desktop', 'mobile', 'tablet']);
 
     // 容量自洽：导出报的字节数与真实序列化长度一致，且上限来自共享契约。
     expect(exported.byteLength).toBe(new TextEncoder().encode(JSON.stringify(document)).byteLength);
@@ -613,7 +613,7 @@ describe('replace 模式与可撤销备份', () => {
     // 替换 = 墓碑：旧页面与旧实例都还在（内容可恢复）。
     const afterReplace = await readPageRows(target.workspaceId);
     expect(afterReplace.filter((row) => row.deleted_at === null).map((row) => row.name)).toEqual(['新页面']);
-    expect(afterReplace.filter((row) => row.deleted_at !== null).map((row) => row.name).sort()).toEqual(['旧一', '旧二']);
+    expect(afterReplace.filter((row) => row.deleted_at !== null).map((row) => row.name).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))).toEqual(['旧一', '旧二']);
     // 旧页面已被墓碑化：它的实例查询按「页面不存在」处理（404），
     // 与 `GET /me/pages/:id/layout` 的语义一致（前端据此识别过期的 pageId）。
     const oldPageInstances = await SELF.fetch(pageWidgetsUrl(oldFirst.page.id), {
@@ -642,10 +642,10 @@ describe('replace 模式与可撤销备份', () => {
     expect(restored.status).toBe(200);
     const restoredBody = await restored.json<{ result: ApplyBody['result']; notice: string }>();
     expect(restoredBody.notice).toContain('已恢复');
-    expect(restoredBody.result.pages.map((page) => page.name).sort()).toEqual(['旧一', '旧二']);
+    expect(restoredBody.result.pages.map((page) => page.name).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))).toEqual(['旧一', '旧二']);
 
     const afterRestore = (await readPageRows(target.workspaceId)).filter((row) => row.deleted_at === null);
-    expect(afterRestore.map((row) => row.name).sort()).toEqual(['旧一', '旧二']);
+    expect(afterRestore.map((row) => row.name).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))).toEqual(['旧一', '旧二']);
     expect(afterRestore.filter((row) => row.is_default === 1)).toHaveLength(1);
     // 复核语义：撤销点在**替换的同一个事务**里被标记消费（不再有「已恢复但未消费」的窗口）。
     expect((await readBackupRow(target.workspaceId, backupId))?.consumed_at).not.toBeNull();
@@ -1496,7 +1496,7 @@ describe('B3 恢复原子性与一次性', () => {
     expect(restored.status).toBe(200);
     const restoredBody = await restored.json<{ result: ApplyBody['result']; replayed: boolean }>();
     expect(restoredBody.replayed).toBe(false);
-    expect(restoredBody.result.pages.map((page) => page.name).sort()).toEqual(['旧一']);
+    expect(restoredBody.result.pages.map((page) => page.name).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))).toEqual(['旧一']);
 
     // 消费与恢复在同一个事务里：撤销点已消费，恢复本身也留下了一份新的可撤销备份。
     expect((await readBackupRow(auth.workspaceId, backupId))?.consumed_at).not.toBeNull();

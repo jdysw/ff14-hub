@@ -19,6 +19,7 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  NAV_LEDGER_SQL,
   createLedger,
   fingerprintOf,
   guardedStatements,
@@ -38,8 +39,8 @@ const NOW = 1_760_000_000_000;
 /** 导航域的 kind 命名空间（与工作台的 `page.create` 等互不干扰）。 */
 const NAV_KIND = 'nav.link.create';
 
-/** 导航账本：绑定 0008_navigation.sql 的两张表。 */
-const navLedger = createLedger({ operations: 'nav_operations', intents: 'nav_operation_intents' });
+/** 导航账本：绑定 0008_navigation.sql 的两张表（SQL 是字面量，见 `NAV_LEDGER_SQL`）。 */
+const navLedger = createLedger(NAV_LEDGER_SQL);
 
 /** 被写入的副作用结果（形状无所谓，重点是重放必须逐字节返回同一份）。 */
 interface NavWriteResult {
@@ -269,7 +270,10 @@ describe('并发同 ID', () => {
 
     // 两边都必须是**可解释**的结果：一次首次成功、一次重放；不允许任何失败。
     expect(results.map((result) => result.ok)).toEqual([true, true]);
-    expect(results.map((result) => (result.ok ? result.replayed : null)).sort()).toEqual([false, true]);
+    expect(results.map((result) => (result.ok ? result.replayed : null)).sort((a, b) => Number(a) - Number(b))).toEqual([
+      false,
+      true,
+    ]);
 
     // 无论哪一次先提交，副作用与账本都只落一份。
     expect(await linkCount(workspaceId)).toBe(1);

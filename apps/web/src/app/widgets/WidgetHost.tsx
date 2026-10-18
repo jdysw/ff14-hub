@@ -395,7 +395,9 @@ export function WidgetHost(props: WidgetHostProps) {
    * 依赖是「涉及到的模块 ID 序列」这个**字符串**：`instances` 每次渲染都是新数组，
    * 直接依赖它会让记忆化失效；而模块集合不变时端口必须复用。
    */
-  const moduleIdsKey = [...new Set(props.instances.map((instance) => instance.moduleId))].sort().join('|');
+  const moduleIdsKey = [...new Set(props.instances.map((instance) => instance.moduleId))]
+    .sort((a, b) => a.localeCompare(b))
+    .join('|');
   const ports = useMemo(() => {
     const map = new Map<string, ModuleDataPort>();
     if (dataPortFor === undefined) {

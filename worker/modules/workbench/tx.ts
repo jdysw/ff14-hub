@@ -28,6 +28,7 @@
  */
 import type { ApiErrorCode } from '@ff14-hub/shared';
 import {
+  WORKBENCH_LEDGER_SQL,
   createLedger,
   errorNameOf,
   fingerprintOf,
@@ -167,10 +168,7 @@ export function workbenchFailure(reason: WorkbenchRejection, detail: string): Wo
 }
 
 /** 账本表绑定：工作台与导航共用同一算法，只换账本表（ADR-0004 D11）。 */
-const workbenchLedger = createLedger({
-  operations: 'workbench_operations',
-  intents: 'workbench_operation_intents',
-});
+const workbenchLedger = createLedger(WORKBENCH_LEDGER_SQL);
 
 /**
  * 「本次尝试仍然持有认领」的守卫 SQL 片段。绑定顺序：workspaceId、operationId、token。

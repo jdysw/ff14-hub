@@ -410,7 +410,7 @@ describe('Manifest 与 Widget 配置契约一致', () => {
 
   it('Widget 定义（ID / 多实例 / 尺寸 / 配置版本）与规格一致', () => {
     const byId = new Map(EVENTS_MODULE_MANIFEST.widgets.map((widget) => [widget.id, widget]));
-    expect([...byId.keys()].sort()).toEqual([EVENTS_WIDGET_IDS.manage, EVENTS_WIDGET_IDS.upcoming].sort());
+    expect([...byId.keys()].sort((a, b) => a.localeCompare(b))).toEqual([EVENTS_WIDGET_IDS.manage, EVENTS_WIDGET_IDS.upcoming].sort((a, b) => a.localeCompare(b)));
 
     const upcoming = byId.get(EVENTS_WIDGET_IDS.upcoming);
     expect(upcoming).toMatchObject({

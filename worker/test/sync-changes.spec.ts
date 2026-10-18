@@ -256,7 +256,7 @@ describe('GET /me/sync/changes：鉴权与首次全量', () => {
     for (const change of response.changes) {
       byType.set(change.entityType, change);
     }
-    expect([...byType.keys()].sort()).toEqual([...SYNC_ENTITY_TYPES].sort());
+    expect([...byType.keys()].sort((a, b) => a.localeCompare(b))).toEqual([...SYNC_ENTITY_TYPES].sort((a, b) => a.localeCompare(b)));
 
     // 每种实体都能按 ID 找到，且是 upsert（有内容）。
     expect(requireChange(response, 'page', seed.pageId).op).toBe('upsert');
@@ -525,7 +525,7 @@ describe('毫秒组分页：同一毫秒不会被切成两页', () => {
       .bind(auth.workspaceId)
       .all<{ id: string }>();
     const union = new Set([...first.changes, ...second.changes].map((change) => change.entityId));
-    expect([...union].sort()).toEqual(stored.results.map((row) => row.id).sort());
+    expect([...union].sort((a, b) => a.localeCompare(b))).toEqual(stored.results.map((row) => row.id).sort((a, b) => a.localeCompare(b)));
   });
 
   it('同毫秒行数少于 limit 时不补齐、不重复（hasMore=false 且停在 lastTs+1）', async () => {

@@ -72,14 +72,14 @@ export function createModuleDataPort(input: {
   const operations: ModulePortOperationTable = factory === undefined ? {} : factory(input.context);
   return {
     moduleId: input.moduleId,
-    operations: Object.keys(operations).sort(),
+    operations: Object.keys(operations).sort((a, b) => a.localeCompare(b)),
     async call<T = unknown>(operation: string, input_?: unknown): Promise<T> {
       const access = input.context.moduleAccess(input.moduleId);
       if (!isModuleUsableForRendering(access.status)) {
         throw new Error(`模块 ${input.moduleId} 当前为「${access.status}」，该调用已被拒绝`);
       }
       if (!Object.hasOwn(operations, operation)) {
-        const available = Object.keys(operations).sort().join('、');
+        const available = Object.keys(operations).sort((a, b) => a.localeCompare(b)).join('、');
         throw new Error(
           `模块 ${input.moduleId} 未声明操作「${operation}」` +
             (available.length === 0 ? '（该模块没有可用操作）' : `（可用：${available}）`),

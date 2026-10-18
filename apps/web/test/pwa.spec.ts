@@ -12,7 +12,6 @@
 // @vitest-environment jsdom
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   CACHE_POLICY,
@@ -46,12 +45,18 @@ import {
 } from '../src/app/pwa/register-service-worker';
 
 afterEach(() => {
+  // 清理本用例装的 self / caches / fetch stub，并丢弃它加载的 sw.js 模块实例，
+  // 保证下一个用例从一个干净的模块注册表开始（不残留任何事件处理器）。
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  vi.resetModules();
 });
 
 // ---------------------------------------------------------------------------
 // 读取真实产物：apps/web/public/sw.js
+//
+// 这里读到的源码文本**只用于「文本级」断言**（内联 JSON 逐字节相等、不出现手写 API 路径）。
+// 行为断言一律走 loadServiceWorker() 的动态 import，不再把源码字符串交给动态求值。
 // ---------------------------------------------------------------------------
 
 const SW_CANDIDATES = [join(process.cwd(), 'public', 'sw.js'), join(process.cwd(), 'apps', 'web', 'public', 'sw.js')];
@@ -239,6 +244,14 @@ describe('cache-policy：缓存名与清理选择', () => {
 
 // ---------------------------------------------------------------------------
 // 3. sw.js 与策略的一致性（文本 + 真实执行）
+//
+// 为什么不再把 sw.js 源码交给 vm 动态求值：
+// ① 安全热点：把源码字符串交给 vm 执行属于「动态执行代码」（SonarCloud S1523），
+//    质量门要求新代码 0 Security Hotspots；改成模块 import 后没有任何字符串求值。
+// ② 语义更接近真实：浏览器装载 Service Worker 本来就是「把 sw.js 当脚本执行、在全局作用域里
+//    读写 self / caches / fetch」。这里直接执行真实产物，比自造一套 vm 沙箱更接近 worker 语义。
+// ③ 每个用例独立模块实例：每次加载前 vi.resetModules() + 递增查询串，让 sw.js 在每个用例里
+//    重新执行一次；事件处理器只挂到**该用例自己的** self stub 上，用例之间不会串台。
 // ---------------------------------------------------------------------------
 
 interface SwApi {
@@ -261,8 +274,24 @@ interface SwSandbox {
   readonly hasAuthorization: (authorization: boolean) => Headers;
 }
 
-/** 把真实的 sw.js 放进一个隔离的 vm 上下文执行，取出它自己的判断函数与事件处理器。 */
-function loadServiceWorker(): SwSandbox {
+/**
+ * sw.js 在 worker 全局作用域里真正会触碰的成员。
+ * 只声明这些：location.origin、addEventListener、clients.claim、skipWaiting，
+ * 以及它执行时自己挂上去的自检出口 `__FF14_HUB_SW__`。
+ */
+interface SwGlobalScope {
+  readonly location: { readonly origin: string };
+  addEventListener(type: string, handler: (event: unknown) => void): void;
+  readonly clients: { claim: () => Promise<void> };
+  skipWaiting(): Promise<void>;
+  __FF14_HUB_SW__?: SwApi;
+}
+
+/** 递增计数器：给每次模块加载一个唯一查询串（配合 vi.resetModules 拿到全新实例）。 */
+let swModuleLoadCounter = 0;
+
+/** 把真实的 sw.js 当模块执行，取出它自己的判断函数与事件处理器。 */
+async function loadServiceWorker(): Promise<SwSandbox> {
   const handlers = new Map<string, ((event: unknown) => void)[]>();
   const deletedCaches: string[] = [];
   const cacheKeys = ['ff14-hub-public-v1', 'ff14-hub-public-v0', 'ff14-hub-private'];
@@ -282,7 +311,7 @@ function loadServiceWorker(): SwSandbox {
     },
   };
 
-  const selfStub: Record<string, unknown> = {
+  const selfStub: SwGlobalScope = {
     location: { origin: APP_ORIGIN },
     addEventListener: (type: string, handler: (event: unknown) => void) => {
       const list = handlers.get(type);
@@ -304,19 +333,23 @@ function loadServiceWorker(): SwSandbox {
     },
   };
 
-  const sandbox: Record<string, unknown> = {
-    self: selfStub,
-    caches: cachesStub,
-    fetch: () => Promise.resolve(new Response('ok', { status: 200, headers: { 'Content-Type': 'text/html' } })),
-    Request,
-    Response,
-    Headers,
-    URL,
-    console,
-  };
-  runInNewContext(SW_SOURCE, sandbox);
+  // 先把受控 stub 装成全局，再执行 sw.js——它一执行就会读 self / caches / fetch。
+  // 这里刻意不真的发网络请求：fetch 是纯 stub。
+  vi.stubGlobal('self', selfStub);
+  vi.stubGlobal('caches', cachesStub);
+  vi.stubGlobal(
+    'fetch',
+    () => Promise.resolve(new Response('ok', { status: 200, headers: { 'Content-Type': 'text/html' } })),
+  );
 
-  const sw = selfStub['__FF14_HUB_SW__'] as SwApi | undefined;
+  // 路径相对本测试文件，因此与进程 cwd 无关；唯一查询串 + resetModules 保证是全新实例。
+  // 用带查询串的说明符是为了让 Vite/Vitest 的模块缓存也不复用同一个实例（否则 handler 会串台）。
+  swModuleLoadCounter += 1;
+  vi.resetModules();
+  const moduleSpecifier = `../public/sw.js?test-case=${String(swModuleLoadCounter)}`;
+  await import(/* @vite-ignore */ moduleSpecifier);
+
+  const sw = selfStub.__FF14_HUB_SW__;
   if (sw === undefined) {
     throw new Error('sw.js 没有暴露自检出口 __FF14_HUB_SW__');
   }
@@ -331,7 +364,9 @@ function loadServiceWorker(): SwSandbox {
     hasAuthorization: (authorization: boolean) => {
       const headers = new Headers();
       if (authorization) {
-        headers.set('Authorization', 'Bearer test-only-not-a-real-token');
+        // 只需要「有 Authorization 头」这个事实来验证缓存策略；值本身无意义，
+        // 因此刻意用明显的占位文本（不是任何真实凭证，也不像高熵密钥）。
+        headers.set('Authorization', 'Bearer placeholder');
       }
       return headers;
     },
@@ -348,7 +383,7 @@ function handlerOf(sandbox: SwSandbox, type: string): (event: unknown) => void {
 
 /** 只注册 install/activate/fetch/message 四类事件——「只做三件事」的可执行断言。 */
 function registeredEventTypes(sandbox: SwSandbox): string[] {
-  return [...sandbox.handlers.keys()].sort();
+  return [...sandbox.handlers.keys()].sort((a, b) => a.localeCompare(b));
 }
 
 describe('sw.js：与 cache-policy.ts 一一对应', () => {
@@ -359,8 +394,8 @@ describe('sw.js：与 cache-policy.ts 一一对应', () => {
     expect(inlineJson).toBe(JSON.stringify(CACHE_POLICY));
   });
 
-  it('sw.js 报告的白名单与 TypeScript 侧完全相同', () => {
-    const sandbox = loadServiceWorker();
+  it('sw.js 报告的白名单与 TypeScript 侧完全相同', async () => {
+    const sandbox = await loadServiceWorker();
     expect(sandbox.sw.CACHE_POLICY).toEqual(JSON.parse(JSON.stringify(CACHE_POLICY)));
     expect(sandbox.sw.PUBLIC_CACHE_NAME).toBe(PUBLIC_CACHE_NAME);
     expect(sandbox.sw.SKIP_WAITING_MESSAGE).toBe(SKIP_WAITING_MESSAGE);
@@ -377,12 +412,12 @@ describe('sw.js：与 cache-policy.ts 一一对应', () => {
     expect(apiLiterals).toEqual([]);
   });
 
-  it('只注册 install / activate / fetch / message 四类事件', () => {
-    expect(registeredEventTypes(loadServiceWorker())).toEqual(['activate', 'fetch', 'install', 'message']);
+  it('只注册 install / activate / fetch / message 四类事件', async () => {
+    expect(registeredEventTypes(await loadServiceWorker())).toEqual(['activate', 'fetch', 'install', 'message']);
   });
 
-  it('对同一批请求/响应输入，sw.js 的判断与 TypeScript 侧逐条一致', () => {
-    const sandbox = loadServiceWorker();
+  it('对同一批请求/响应输入，sw.js 的判断与 TypeScript 侧逐条一致', async () => {
+    const sandbox = await loadServiceWorker();
     const requests: CacheRequestDescriptor[] = [
       requestDescriptor('/'),
       requestDescriptor('/index.html'),
@@ -429,7 +464,7 @@ describe('sw.js：与 cache-policy.ts 一一对应', () => {
   });
 
   it('activate 清理一切非当前公开缓存（含旧版本），并接管当前页面', async () => {
-    const sandbox = loadServiceWorker();
+    const sandbox = await loadServiceWorker();
     const waited: Promise<unknown>[] = [];
     handlerOf(sandbox, 'activate')({
       waitUntil: (promise: Promise<unknown>) => {
@@ -443,7 +478,7 @@ describe('sw.js：与 cache-policy.ts 一一对应', () => {
   });
 
   it('install 预缓存时不调用 skipWaiting（更新必须由页面确认）', async () => {
-    const sandbox = loadServiceWorker();
+    const sandbox = await loadServiceWorker();
     const waited: Promise<unknown>[] = [];
     handlerOf(sandbox, 'install')({
       waitUntil: (promise: Promise<unknown>) => {
@@ -455,8 +490,8 @@ describe('sw.js：与 cache-policy.ts 一一对应', () => {
     expect(sandbox.skipWaitingCalls()).toBe(0);
   });
 
-  it('message 收到页面的 SKIP_WAITING 通知后才 skipWaiting', () => {
-    const sandbox = loadServiceWorker();
+  it('message 收到页面的 SKIP_WAITING 通知后才 skipWaiting', async () => {
+    const sandbox = await loadServiceWorker();
     let waited = false;
     handlerOf(sandbox, 'message')({ data: { type: '别的消息' }, waitUntil: () => undefined });
     expect(sandbox.skipWaitingCalls()).toBe(0);
@@ -472,7 +507,7 @@ describe('sw.js：与 cache-policy.ts 一一对应', () => {
   });
 
   it('fetch 只接管公开资源与导航请求，绝不介入私有/写请求', async () => {
-    const sandbox = loadServiceWorker();
+    const sandbox = await loadServiceWorker();
     const fetchHandler = handlerOf(sandbox, 'fetch');
 
     async function dispatch(url: string, init: { method?: string; authorization?: boolean; mode?: string }) {

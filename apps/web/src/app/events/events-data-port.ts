@@ -227,7 +227,7 @@ function stableIntentText(value: unknown): string {
     const record = value as Record<string, unknown>;
     const keys = Object.keys(record)
       .filter((key) => record[key] !== undefined)
-      .sort();
+      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     const body = keys.map((key) => `${JSON.stringify(key) ?? '""'}:${stableIntentText(record[key])}`).join(',');
     return `{${body}}`;
   }

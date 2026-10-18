@@ -16,6 +16,7 @@ import {
   MAX_NAV_IMPORT_ITEMS,
   MAX_NAV_TAG_LENGTH,
   MAX_NAV_TAGS,
+  MAX_NAV_TITLE_LENGTH,
   NAV_DEFAULT_ICON,
   NAV_EXPORT_SCHEMA_VERSION,
   NAV_MODULE_ID,
@@ -654,8 +655,8 @@ describe('decideCatalogImport：四条规则逐条覆盖', () => {
   ];
 
   it('四条规则覆盖全部目录条目状态', () => {
-    expect([...new Set(cases.map((testCase) => testCase.input.state))].sort()).toEqual(
-      ['new', 'tombstoned', 'unchanged', 'user_modified'].sort(),
+    expect([...new Set(cases.map((testCase) => testCase.input.state))].sort((a, b) => a.localeCompare(b))).toEqual(
+      ['new', 'tombstoned', 'unchanged', 'user_modified'].sort((a, b) => a.localeCompare(b)),
     );
   });
 
@@ -789,6 +790,122 @@ describe('parseBookmarkHtml：书签 HTML 解析（关键安全性质）', () =>
       expect(parseBookmarkHtml(raw)).toEqual({ items: [], skipped: [] });
     }
   });
+});
+
+// ---------------------------------------------------------------------------
+// 5b. 实体解码 / href 取值：线性扫描改写后的边界语义（SonarCloud S5852）
+// ---------------------------------------------------------------------------
+
+/**
+ * 这一组用例把**手写线性扫描**与改写前正则的等价性钉死。
+ *
+ * `decodeHtmlEntities` 与 `extractHref` 都是模块私有函数，只能经 `parseBookmarkHtml` 观察：
+ * - 标题片段经 `textOfFragment` 解成纯文本 → 观察实体解码；
+ * - `<a href>` 的取值就是条目的 url（被跳过时给出 skip 原因） → 观察 href 取值。
+ *
+ * 覆盖：`&;` / `&` 结尾 / `&#;` / `&#x;` / 码点 0 / 超上限截断 / 名字大小写不敏感 /
+ * 前导零与超长数字 / 单引号、裸值、大写 `HREF`、带 `&amp;` 的查询串 / 无 `=` / 引号不配对。
+ */
+describe('parseBookmarkHtml：实体解码与 href 取值的边界（线性扫描的等价性锁）', () => {
+  /** 让片段走一遍标题解码（片段里不含 `<`/`>`，不会被标签剥离干扰）；标题为空时返回 undefined。 */
+  function decodedTitle(fragment: string): string | undefined {
+    return parseBookmarkHtml(`<A HREF="https://entity.example.com/">${fragment}</A>`).items[0]?.title;
+  }
+
+  /** 观察 href 取值：返回解析出的 url，未解析出来时返回 `skipped:<原因>`。 */
+  function hrefOutcome(attributes: string): string {
+    const result = parseBookmarkHtml(`<A ${attributes}>标题</A>`);
+    const item = result.items[0];
+    return item === undefined ? `skipped:${result.skipped[0]?.reason ?? 'none'}` : item.url;
+  }
+
+  const entityCases: readonly {
+    readonly label: string;
+    readonly fragment: string;
+    readonly expected: string | undefined;
+  }[] = [
+    { label: '&amp; → &', fragment: '工具 &amp; 站点', expected: '工具 & 站点' },
+    { label: '&lt; → <', fragment: '&lt;', expected: '<' },
+    { label: '&#39; → 单引号', fragment: '&#39;', expected: "'" },
+    { label: '&#x27; → 单引号', fragment: '&#x27;', expected: "'" },
+    // `#x` 的 x 在原正则里**区分大小写**（原式没有 i 标志），大写 X 不属于十六进制分支：
+    // 这条用例把「原样保留」的既有语义钉住，避免改造顺手扩大了解码范围。
+    { label: '&#X27; 原样保留（x 标记区分大小写）', fragment: '&#X27;', expected: '&#X27;' },
+    { label: '&unknown; 原样保留', fragment: '&unknown;', expected: '&unknown;' },
+    { label: '&; 原样保留', fragment: '&;', expected: '&;' },
+    { label: '& 结尾原样保留（不吞字符）', fragment: 'a&', expected: 'a&' },
+    { label: '&#; 原样保留', fragment: '&#;', expected: '&#;' },
+    { label: '&#x; 原样保留', fragment: '&#x;', expected: '&#x;' },
+    { label: '&#0; 码点为 0 → 原样保留', fragment: '&#0;', expected: '&#0;' },
+    {
+      label: '&#x110000; 超出上限 → 截到 U+10FFFF',
+      fragment: '&#x110000;',
+      expected: String.fromCodePoint(0x10ffff),
+    },
+    { label: '&AMP; 名字大小写不敏感', fragment: '&AMP;', expected: '&' },
+    // `&nbsp;` 解成空格，随后被空白折叠 + trim 吃掉 → 标题为空（正好证明它**被解码**了）。
+    { label: '&nbsp; 解成空格后被折叠为空标题', fragment: '&nbsp;', expected: undefined },
+    { label: '&nbsp; 在中间 → 折叠成一个空格', fragment: 'a&nbsp;b', expected: 'a b' },
+    // 前导零 / 超长数字必须与 parseInt 语义一致：手写扫描因此不做长度截断。
+    { label: '&#x0000000041; 前导零 → A', fragment: '&#x0000000041;', expected: 'A' },
+    { label: '&#00000000000000065; 前导零 → A', fragment: '&#00000000000000065;', expected: 'A' },
+    { label: '&amp;lt; 只解码一层', fragment: '&amp;lt;', expected: '&lt;' },
+  ];
+
+  for (const testCase of entityCases) {
+    it(`实体：${testCase.label}`, () => {
+      expect(decodedTitle(testCase.fragment)).toBe(testCase.expected);
+    });
+  }
+
+  it('实体：超长且没有分号的串原样保留，且不吞掉两侧字符', () => {
+    const fragment = `x&${'a'.repeat(20_000)}y`;
+    expect(decodedTitle(fragment)).toBe(fragment.slice(0, MAX_NAV_TITLE_LENGTH));
+  });
+
+  const hrefCases: readonly { readonly label: string; readonly attributes: string; readonly expected: string }[] = [
+    {
+      label: '双引号 + 大写 HREF + 查询串里的 &amp;',
+      attributes: 'HREF="https://q.example.com/?a=1&amp;b=2"',
+      expected: 'https://q.example.com/?a=1&b=2',
+    },
+    { label: '单引号', attributes: "href='https://s.example.com/x'", expected: 'https://s.example.com/x' },
+    {
+      label: '裸值（属性串在 `>` 处结束，值随之结束）',
+      attributes: 'HREF=https://bare.example.com/x',
+      expected: 'https://bare.example.com/x',
+    },
+    {
+      label: '`=` 两侧任意空白',
+      attributes: 'HrEf \t= \u00a0"https://ws.example.com/z"',
+      expected: 'https://ws.example.com/z',
+    },
+    {
+      label: '前一个 href 没有 `=` 时继续找下一个',
+      attributes: 'hrefx="https://no.example.com/" href="https://yes.example.com/"',
+      expected: 'https://yes.example.com/',
+    },
+    // 原正则不要求单词边界，`data-href=` 里的 `href` 同样命中：改造后必须保持一致。
+    {
+      label: '不要求单词边界（data-href= 同样命中）',
+      attributes: 'data-href="https://data.example.com/"',
+      expected: 'https://data.example.com/',
+    },
+    { label: 'href 后没有 `=`', attributes: 'hrefx="https://noeq.example.com/"', expected: 'skipped:invalid_url' },
+    { label: '空值 → 返回 null', attributes: 'href=""', expected: 'skipped:invalid_url' },
+    {
+      label: '引号不配对 → 返回 null',
+      attributes: 'href="https://unterminated.example.com/',
+      expected: 'skipped:invalid_url',
+    },
+    { label: '裸值为空（后面就是标签结束）', attributes: 'href=', expected: 'skipped:invalid_url' },
+  ];
+
+  for (const testCase of hrefCases) {
+    it(`href：${testCase.label}`, () => {
+      expect(hrefOutcome(testCase.attributes)).toBe(testCase.expected);
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -978,8 +1095,8 @@ describe('Manifest 与 Widget 配置契约一致', () => {
       onDisable: 'ff14.navigation.disable',
       onUninstall: 'ff14.navigation.uninstall',
     });
-    expect(validation.manifest.widgets.map((widget) => widget.id).sort()).toEqual(
-      [NAV_WIDGET_IDS.quickLinks, NAV_WIDGET_IDS.search].sort(),
+    expect(validation.manifest.widgets.map((widget) => widget.id).sort((a, b) => a.localeCompare(b))).toEqual(
+      [NAV_WIDGET_IDS.quickLinks, NAV_WIDGET_IDS.search].sort((a, b) => a.localeCompare(b)),
     );
   });
 

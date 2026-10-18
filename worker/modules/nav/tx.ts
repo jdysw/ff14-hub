@@ -19,6 +19,7 @@
  */
 import type { ApiErrorCode, NavConflict } from '@ff14-hub/shared';
 import {
+  NAV_LEDGER_SQL,
   createLedger,
   errorNameOf,
   fingerprintOf,
@@ -144,10 +145,7 @@ export interface NavStatement {
 }
 
 /** 账本表绑定：导航与工作台共用同一算法，只换账本表（ADR-0004 D11）。 */
-const navLedger = createLedger({
-  operations: 'nav_operations',
-  intents: 'nav_operation_intents',
-});
+const navLedger = createLedger(NAV_LEDGER_SQL);
 
 /** 「本次尝试仍然持有认领」的守卫 SQL 片段（绑定顺序：workspaceId、operationId、token）。 */
 export const NAV_GUARD_SQL: string = navLedger.guardSql;

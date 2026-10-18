@@ -78,7 +78,7 @@ export function stableStringify(value: unknown): string {
     }
     const source = input as Record<string, unknown>;
     const result: Record<string, unknown> = {};
-    for (const key of Object.keys(source).sort()) {
+    for (const key of Object.keys(source).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))) {
       result[key] = normalize(source[key]);
     }
     return result;

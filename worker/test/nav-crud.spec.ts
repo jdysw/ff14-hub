@@ -347,7 +347,7 @@ describe('多分组与重排', () => {
     });
     const views = await listLinks(auth);
     expect(views.links.length).toBe(1);
-    expect([...(views.links[0]?.groupIds ?? [])].sort()).toEqual([g1.id, g2.id].sort());
+    expect([...(views.links[0]?.groupIds ?? [])].sort((a, b) => a.localeCompare(b))).toEqual([g1.id, g2.id].sort((a, b) => a.localeCompare(b)));
     expect(new Set(views.links[0]?.groupNames ?? [])).toEqual(new Set(['组一', '组二']));
 
     // 整体替换为 [组二, 组三]：组一被墓碑化，组三是新归属。
