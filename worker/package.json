@@ -10,6 +10,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@block65/webcrypto-web-push": "catalog:",
     "@ff14-hub/shared": "workspace:*",
     "drizzle-orm": "catalog:",
     "hono": "catalog:",

@@ -31,6 +31,8 @@ import { moduleAccessFrom, useModuleState } from '../modules/use-module-state';
 import { NavView } from '../nav/NavView';
 import { FishingPage } from '../fish/FishingPanel';
 import { FISH_MODULE_ID } from '@ff14-hub/shared';
+import { REMINDER_MODULE_ID } from '@ff14-hub/shared';
+import { ReminderPage } from '../reminders/ReminderPanel';
 import { createNavTransport, createSyncChangesApi, type SyncChangesApi } from '../nav/nav-api';
 import { useNav } from '../nav/use-nav';
 import { builtinWidgetLookup } from '../widgets/component-registry';
@@ -216,6 +218,7 @@ function SessionWorkbench(props: SessionWorkbenchProps) {
 
       {props.view === 'nav' ? <NavView state={nav} /> : null}
       {props.view === 'fishing' ? <FishingPage dataPortFor={dataPortFor} status={moduleAccess(FISH_MODULE_ID).status}/> : null}
+      {props.view === 'reminders' ? <ReminderPage dataPortFor={dataPortFor} status={moduleAccess(REMINDER_MODULE_ID).status}/> : null}
 
       {props.view === 'workbench' ? (
         <WorkbenchView
@@ -262,7 +265,7 @@ function NavEntryBar(props: { readonly active: boolean; readonly onOpen: () => v
 
 export function AppShell() {
   const [credentialStore] = useState(createSessionCredentialStore);
-  const [view, setView] = useState<ShellView>('overview');
+  const [view, setView] = useState<ShellView>(() => new URLSearchParams(window.location.search).get('view') === 'reminders' ? 'reminders' : 'overview');
   const session = useSession(credentialStore);
 
   const api = useMemo(

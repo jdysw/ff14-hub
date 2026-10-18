@@ -10,3 +10,11 @@ The upstream acknowledges Rogueadyn's SaintCoinach calculation.
 Window enumeration, versioned adapters, API and UI integrate with this repository's existing code.
 No game CSV, icon pack or third party fish-rule dataset is bundled. Synthetic examples are visibly
 marked and unverified. Code permission and game-data provenance are recorded separately.
+
+The Worker uses npm `@block65/webcrypto-web-push` 2.0.0 (MIT, Copyright 2024 Block65 Pte Ltd)
+for Web Push encryption/VAPID. Upstream reviewed at commit `31b7c729f7d9945e66722a95bddead85aea1c43f`:
+https://github.com/block65/webcrypto-web-push. Its license is retained as
+`third_party/webcrypto-web-push-LICENSE.md`. Its pinned transitive dependency `uint8array-extras` 1.6.0
+(MIT, Sindre Sorhus) has its license retained as `third_party/uint8array-extras-LICENSE.txt`.
+We reuse the library as a dependency and add endpoint restrictions, bounded transport, lease fencing
+and private device ownership in this application rather than reimplementing the encryption protocol.

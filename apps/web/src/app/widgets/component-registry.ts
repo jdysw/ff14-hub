@@ -21,6 +21,7 @@ import type { ComponentType } from 'react';
 import type { ZodType } from 'zod';
 import { eventsWidgetComponents } from '../events/events-widget-components';
 import { fishWidgetComponents } from '../fish/FishingPanel';
+import { reminderWidgetComponents } from '../reminders/ReminderPanel';
 import { navWidgetComponents } from '../nav/nav-widget-components';
 import { DemoCounterWidget, DemoFaultWidget, DemoSoloWidget } from './demo-widgets';
 import type { WidgetLookupEntry } from './instance-store';
@@ -62,6 +63,7 @@ const BUILTIN_WIDGET_COMPONENTS: Readonly<Record<string, ComponentType<WidgetRun
   ...navWidgetComponents,
   ...eventsWidgetComponents,
   ...fishWidgetComponents,
+  ...reminderWidgetComponents,
 };
 
 export interface ComponentRegistryInput {

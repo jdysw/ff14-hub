@@ -364,3 +364,18 @@ self.__FF14_HUB_SW__ = {
   shouldCacheRequest,
   shouldCacheResponse,
 };
+self.addEventListener('push', (event) => {
+  let message = {};
+  try { const parsed = event.data?.json(); message = parsed !== null && typeof parsed === 'object' ? parsed : {}; } catch { /* Empty or malformed payload uses safe text. */ }
+  const text = (value, fallback, limit) => typeof value === 'string' ? value.slice(0, limit) : fallback;
+  event.waitUntil(self.registration.showNotification(text(message.title, 'FF14 Hub 提醒', 80), {
+    body: text(message.body, '请打开提醒管理查看。', 200),
+    tag: text(message.tag, 'ff14-hub-reminder', 100),
+    data: { url: '/?view=reminders' },
+  }));
+});
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  // Never navigate to a URL supplied by the push payload.
+  event.waitUntil(self.clients.openWindow('/?view=reminders'));
+});

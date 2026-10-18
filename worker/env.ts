@@ -20,6 +20,9 @@ import { z } from 'zod';
 export interface RuntimeEnv extends Cloudflare.Env {
   /** HUB-006 的一次性初始化密钥；由部署环境提供，未配置时为 undefined。 */
   readonly BOOTSTRAP_SECRET?: string;
+  readonly VAPID_PUBLIC_KEY?: string;
+  readonly VAPID_PRIVATE_KEY?: string;
+  readonly VAPID_SUBJECT?: string;
 }
 
 /**
