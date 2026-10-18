@@ -42,13 +42,15 @@
   },
 
   // 预览与生产环境分离：各自持有独立的 D1 与 ENVIRONMENT。
-  // 注意：assets / main / compatibility_date 等键不可被 env 继承，若要发布到这些环境需要在此重复声明；
-  // 本轮不做任何部署，因此这里只声明"分离"的事实与占位 ID，不写入真实凭证或资源 ID。
+  // main / assets / compatibility_date 沿用顶层；vars 和 bindings 不继承，必须逐环境声明。
+  // 占位 ID 会被发布预检拒绝；真实 ID 与 Secrets 必须在发布准备时分别配置。
   "env": {
     "preview": {
       "name": "ff14-hub-preview",
       "vars": {
-        "ENVIRONMENT": "preview"
+        "ENVIRONMENT": "preview",
+        "ENABLE_TEST_ROUTES": "0",
+        "ALLOWED_ORIGINS": ""
       },
       "d1_databases": [
         {
@@ -62,7 +64,9 @@
     "production": {
       "name": "ff14-hub",
       "vars": {
-        "ENVIRONMENT": "production"
+        "ENVIRONMENT": "production",
+        "ENABLE_TEST_ROUTES": "0",
+        "ALLOWED_ORIGINS": ""
       },
       "d1_databases": [
         {

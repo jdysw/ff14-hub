@@ -5,7 +5,10 @@ FF14 个人导航与模块化工作台。默认面向国服玩家与个人自用
 **当前状态：阶段 01～04、05A/05B 与 06A/06B 已合并。工程、身份、模块化工作台、个人导航、
 活动、钓鱼/提醒框架、文件同步与本机凭证保险箱已实现；06C 补充 Hub 客户端端口、跨标签锁与多设备运行时验收。未部署。**
 鱼类数据目前是明确标注的合成演示，具体模板内容留待单独开发。真实鱼糕存储适配、真实 WebDAV 联调、
-产品自动同步与发布恢复演练仍未完成；阶段边界以对应操作手册和 ADR 为准。
+产品自动同步与云端发布恢复演练仍未完成；阶段边界以对应操作手册和 ADR 为准。
+
+06D 已增加发布静态预检和**本地**整库备份/恢复演练：`pnpm run ops:preflight`、
+`pnpm run ops:rehearse`。占位 D1 仍会阻止发布；详见[维护手册](docs/operations-runbook.md)。
 
 - 完整开发规划（单一事实来源）：[`docs/FF14_Hub_AI_Development_Plan.md`](docs/FF14_Hub_AI_Development_Plan.md)
 - 安全边界（已生效的边界与已知限制）：[`docs/security-boundaries.md`](docs/security-boundaries.md)
