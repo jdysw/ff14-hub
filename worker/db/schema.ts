@@ -725,7 +725,15 @@ export const workspaceChanges = sqliteTable(
 );
 
 /** 全部表的集合，供 drizzle 客户端与测试使用。 */
+export const schedulerObservations=sqliteTable('scheduler_observations',{
+  seq:integer('seq').primaryKey({autoIncrement:true}),runId:text('run_id').notNull().unique(),
+  status:text('status').$type<'running'|'succeeded'|'failed'|'abandoned'>().notNull(),
+  scheduledAt:integer('scheduled_at').notNull(),startedAt:integer('started_at').notNull(),finishedAt:integer('finished_at'),
+  planned:integer('planned'),processed:integer('processed'),failureStage:text('failure_stage').$type<'plan'|'deliver'|'finish'|'abandoned'>(),
+});
+
 export const schema = {
+  schedulerObservations,
   workspaces,
   devices,
   devicePairings,

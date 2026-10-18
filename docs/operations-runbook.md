@@ -51,3 +51,11 @@ SQL 是明文私有备份，可能包含身份摘要、个人数据和通知订�
 本地演练没有确认云端资源、Secrets、生产数据规模、云端 Time Travel、外发通知恢复或真实鱼糕/DAV 行为，因而不把 HUB-037～041 的完整发布验收标记为完成。
 
 依据：[D1 导入导出与 CLI](https://developers.cloudflare.com/d1/wrangler-commands/)、[D1 支持的检查语句](https://developers.cloudflare.com/d1/sql-api/sql-statements/)、[Wrangler 环境配置](https://developers.cloudflare.com/workers/wrangler/configuration/#environments)。本地导出不支持 `--persist-to`，脚本使用独立配置文件目录对应的默认本地状态；已用锁定版本 Wrangler 4.151.1 验证。
+
+## 06E 私有诊断
+
+使用当前设备凭证的 Authorization 头请求 `GET /api/v1/me/operations?region=cn` 或 global，不能把 Token 放进 URL。返回当前空间的任务/投递聚合、模块待完成状态、当前区服来源摘要、最后 Hub 导入和调度观测；不返回推送端点、订阅、任意异常正文或其他空间内容。响应禁止缓存，停用模块后仍能检查门禁。
+
+先看 alerts 代码，再区分：调度函数失败、队列等待/租约失效、渠道未配置、来源未验证、模块待完成。`succeeded` 不表示设备已收件；没有 Cron 周期、抓取器或 DAV 新鲜度观测时，相关字段明确为 false，不能当成“运行正常”。代码含义、阈值和保留策略见 [ADR 0011](adr/0011-operations-observability.md)。
+
+恢复演练现在用隔离 Wrangler 的 `--test-scheduled` 调用一次真实本地调度入口，并在恢复后核对观测与私有诊断。不会创建云端定时任务或重新发送旧通知；实际恢复生产 outbox 仍必须按上面的暂停/核对流程进行。

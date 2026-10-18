@@ -27,6 +27,7 @@ import { registerMeSyncRoutes } from './me-sync';
 import { registerFishProgressRoutes } from './fish';
 import { registerReminderRoutes } from './me-reminders';
 import { registerFishSyncRoutes } from './me-fish-sync';
+import { registerOperationsRoutes } from './me-operations';
 import type { AppBindings } from '../../types';
 
 export const meRoutes = new Hono<AppBindings>();
@@ -82,6 +83,7 @@ registerMeSyncRoutes(meRoutes);
 registerFishProgressRoutes(meRoutes);
 registerReminderRoutes(meRoutes);
 registerFishSyncRoutes(meRoutes);
+registerOperationsRoutes(meRoutes);
 
 // 其他方法：结构化 405（同样先经过认证）。
 // 这里列出 /me 子树实际提供过的方法；具体路径仍按注册的处理器优先匹配。

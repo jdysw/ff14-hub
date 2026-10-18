@@ -70,9 +70,9 @@ async function freePort(){
   const address=server.address();check(address!==null&&typeof address==='object','本地端口分配失败');
   const port=address.port;await new Promise((resolve)=>server.close(resolve));return port;
 }
-async function start(config,bootstrapSecret){
+async function start(config,bootstrapSecret,testScheduled=false){
   const port=await freePort();const base=`http://127.0.0.1:${port}`;
-  const child=launch(['dev','--local','--ip','127.0.0.1','--port',String(port),'--config',config,'--var',`BOOTSTRAP_SECRET:${bootstrapSecret}`],path.dirname(config));
+  const child=launch(['dev','--local','--ip','127.0.0.1','--port',String(port),'--config',config,'--var',`BOOTSTRAP_SECRET:${bootstrapSecret}`,...(testScheduled?['--test-scheduled']:[])],path.dirname(config));
   // Startup output can contain test vars. Keep it private, never forward it to CI stdout.
   let log='';child.stdout.on('data',(v)=>{log=(log+v.toString()).slice(-32768);});child.stderr.on('data',(v)=>{log=(log+v.toString()).slice(-32768);});
   const deadline=Date.now()+60000;
@@ -129,6 +129,10 @@ async function restoredApi(base,state){
   const {token}=state;
   await api(base,'/me/profile',{token});await api(base,'/me/profile',{token:state.revokedToken,status:401});
   await api(base,'/me/profile',{status:401});
+  const operations=await api(base,'/me/operations?region=cn',{token});
+  check(operations.scheduler.last?.status==='succeeded'&&operations.scheduler.lastSuccessAt===state.schedulerObservedAt,'运维调度记录恢复失败');
+  check(operations.scheduler.cadenceVerified===false&&operations.sync.webdavFreshnessAvailable===false,'诊断错误声称已验证外部新鲜度');
+  await api(base,'/me/operations?region=cn',{status:401});
   assert.deepEqual(await api(base,'/me/fish-sync?region=cn',{token}),state.snapshot);
   check((await api(base,'/me/fish-sync?region=global',{token})).fields.length===0,'区服隔离恢复失败');
   const replay=await api(base,'/me/fish-sync/apply',{token,body:{token:state.previewToken,operationId:state.operationId}});
@@ -150,8 +154,19 @@ async function main(){
   const migrations=await migrationInventory(path.join(root,'migrations'));
   await command(sourceConfig,['d1','migrations','apply','DB','--local'],'迁移');
   const bootstrapSecret=`rehearsal-only-${randomBytes(32).toString('hex')}`;
-  const server=await start(sourceConfig,bootstrapSecret);let state;
-  try{state=await seed(server.base,bootstrapSecret);}finally{await server.stop();}
+  const server=await start(sourceConfig,bootstrapSecret,true);let state;
+  try{
+    state=await seed(server.base,bootstrapSecret);
+    const trigger=await fetch(`${server.base}/__scheduled?cron=${encodeURIComponent('* * * * *')}`,{signal:AbortSignal.timeout(15000)});
+    check(trigger.ok,'本地调度触发失败');await trigger.body?.cancel();
+    for(let attempt=0;attempt<20;attempt++){
+      const observed=await api(server.base,'/me/operations?region=cn',{token:state.token});
+      if(observed.scheduler.last?.status==='succeeded'){state.schedulerObservedAt=observed.scheduler.lastSuccessAt;break;}
+      check(observed.scheduler.last?.status!=='failed','本地调度未完成');
+      await new Promise((resolve)=>setTimeout(resolve,100));
+    }
+    check(Number.isSafeInteger(state.schedulerObservedAt),'未观察到本地调度成功完成');
+  }finally{await server.stop();}
   // Source is quiesced before fingerprint/export: no background writers or scheduled delivery.
   await integrity(sourceConfig);const before=await fingerprint(sourceConfig);
   const backupDir=path.join(runDir,'backup');await mkdir(backupDir,{mode:0o700});
@@ -173,7 +188,8 @@ async function main(){
   const report={formatVersion:1,kind:'local-only-recovery-rehearsal',passed:true,createdAt:new Date().toISOString(),
     release,backupSha256:manifest.sql.sha256,databaseFingerprint:before.sha256,tables:before.tables,
     checks:['quiesced-source','manifest-and-migration-hashes','empty-target-only','all-table-schema-and-row-digests','foreign-keys','d1-quick-check',
-      'live-device-auth','revoked-device-denied','anonymous-denied','workbench-page','navigation-tombstone','fish-fields-and-region','idempotency-replay','stale-preview-rejected','monotonic-watermark']};
+      'live-device-auth','revoked-device-denied','anonymous-denied','workbench-page','navigation-tombstone','fish-fields-and-region','idempotency-replay','stale-preview-rejected','monotonic-watermark',
+      'scheduled-handler-observed','private-operations-snapshot']};
   await privateFile(path.join(runDir,'report.json'),JSON.stringify(report,null,2));
   console.log(JSON.stringify({passed:true,report:path.relative(root,path.join(runDir,'report.json')),tableCount:before.tables.length,
     releaseConfigurationReady:release.configurationReady,secretsVerified:false,remoteResourcesVerified:false},null,2));
