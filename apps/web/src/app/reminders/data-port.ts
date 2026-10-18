@@ -6,8 +6,9 @@ export const reminderPortFactory:ModulePortFactory=(context)=>{
   const request=async(method:string,path:string,body?:unknown):Promise<unknown>=>{
     const response=await fetch(buildApiUrl(`/api/v1/me/reminders${path}`,context.apiBaseUrl),{method,
       headers:{Authorization:`Bearer ${context.token}`,...(body===undefined?{}:{'Content-Type':'application/json'})},
-      ...(body===undefined?{}:{body:JSON.stringify(body)}),cache:'no-store'});
+      ...(body===undefined?{}:{body:JSON.stringify(body)}),cache:'no-store',redirect:'error',credentials:'omit'});
     if(response.status===401)context.onUnauthorized?.();
+    if(response.status===429)throw new Error('操作过于频繁，请稍后再试；当前输入已保留');
     if(!response.ok)throw new Error(response.status===409?'规则已变化，请刷新后重试；当前输入已保留':`提醒请求失败（${String(response.status)}）`);
     return response.json();
   };

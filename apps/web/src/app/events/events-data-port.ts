@@ -278,7 +278,7 @@ async function requestJson(context: ModulePortContext, input: JsonRequest): Prom
   headers.set('Authorization', `Bearer ${context.token}`);
   headers.set('Content-Type', 'application/json');
 
-  const init: RequestInit = { method: input.method, headers };
+  const init: RequestInit = { method: input.method, headers,redirect:'error',credentials:'omit',cache:'no-store' };
   if (input.body !== undefined) {
     init.body = JSON.stringify(input.body);
   }

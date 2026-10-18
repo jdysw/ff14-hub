@@ -29,14 +29,14 @@ export default {
     let response: Response;
     try {
       response = await app.fetch(request, env, ctx);
-    } catch (error) {
+    } catch {
       // 理论上 onError 已经兜住；这里是最后一道防线，保证响应结构与安全头都成立。
       const requestId = normalizeRequestId(request.headers.get('X-Request-Id') ?? undefined);
       console.error(
         logLine('error', 'top_level_fetch_failure', {
           requestId,
-          path: url.pathname,
-          message: error,
+          scope: isApiPath(url.pathname)?'api':'static',
+          category: 'unexpected_exception',
         }),
       );
       response = errorResponse('internal_error', DEFAULT_ERROR_MESSAGE.internal_error, requestId);

@@ -13,6 +13,9 @@ FF14 个人导航与模块化工作台。默认面向国服玩家与个人自用
 06E 增加调度运行记录、私有诊断接口和日志脱敏加固；固定告警代码只供查询，
 真实 Cron 与外部告警尚未启用，详见[观测边界](docs/adr/0011-operations-observability.md)。
 
+06F 加固手工通知限额、异常隐私与私有传输，并加入生产依赖审计；
+范围与未完成项见[安全复核记录](docs/security-review-06f.md)。
+
 - 完整开发规划（单一事实来源）：[`docs/FF14_Hub_AI_Development_Plan.md`](docs/FF14_Hub_AI_Development_Plan.md)
 - 安全边界（已生效的边界与已知限制）：[`docs/security-boundaries.md`](docs/security-boundaries.md)
 - Module / Widget 边界（含阶段 01/02 实际落地与刻意未做）：[`docs/module-widget-boundaries.md`](docs/module-widget-boundaries.md)

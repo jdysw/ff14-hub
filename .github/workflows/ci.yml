@@ -135,6 +135,9 @@ jobs:
       - name: 冻结安装（frozen lockfile）
         run: pnpm install --frozen-lockfile
 
+      - name: 生产依赖已知漏洞审计（官方npm接口）
+        run: pnpm run audit:prod
+
       # 绑定类型由 wrangler types 从 wrangler.jsonc 生成（已提交）。
       # 这一步确保配置与类型没有漂移：改了 wrangler.jsonc 却忘了重新生成会被 CI 拦下。
       - name: 绑定类型与 wrangler 配置一致性

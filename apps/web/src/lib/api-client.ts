@@ -137,7 +137,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
 
     let response: Response;
     try {
-      response = await doFetch(url, { ...init, method, headers });
+      response = await doFetch(url, { ...init, method, headers,redirect:'error',credentials:'omit',cache:'no-store' });
     } catch {
       return { ok: false, status: NETWORK_FAILURE_STATUS, error: NETWORK_FAILURE_ERROR };
     }
