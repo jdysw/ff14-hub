@@ -251,6 +251,7 @@ export async function createPairingViaApi(
  */
 export async function resetIdentityState(): Promise<void> {
   await env.DB.batch([
+    env.DB.prepare('DELETE FROM scheduler_observations'),
     // 阶段 03：工作台相关（子表在前，避免外键失败）。
     // 0007 的两张配套表（幂等意图指纹 / 本次清理标记）也显式清空：
     // 依赖 `workspaces` 的级联删除会把「清空顺序」变成隐含假设，而这两个用例都要求干净起点。

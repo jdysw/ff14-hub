@@ -19,6 +19,7 @@ export * from './identity';
 export * from './identity-api';
 export * from './module-api';
 export * from './module-manifest';
+export * from './operations-api';
 export * from './nav-api';
 export * from './sync-api';
 export * from './workbench-api';

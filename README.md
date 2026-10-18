@@ -10,6 +10,9 @@ FF14 个人导航与模块化工作台。默认面向国服玩家与个人自用
 06D 已增加发布静态预检和**本地**整库备份/恢复演练：`pnpm run ops:preflight`、
 `pnpm run ops:rehearse`。占位 D1 仍会阻止发布；详见[维护手册](docs/operations-runbook.md)。
 
+06E 增加调度运行记录、私有诊断接口和日志脱敏加固；固定告警代码只供查询，
+真实 Cron 与外部告警尚未启用，详见[观测边界](docs/adr/0011-operations-observability.md)。
+
 - 完整开发规划（单一事实来源）：[`docs/FF14_Hub_AI_Development_Plan.md`](docs/FF14_Hub_AI_Development_Plan.md)
 - 安全边界（已生效的边界与已知限制）：[`docs/security-boundaries.md`](docs/security-boundaries.md)
 - Module / Widget 边界（含阶段 01/02 实际落地与刻意未做）：[`docs/module-widget-boundaries.md`](docs/module-widget-boundaries.md)

@@ -80,6 +80,14 @@ describe('日志脱敏', () => {
     expect(parsed['reason']).toBe('invalid');
     expect(parsed['token']).toBe(REDACTED);
   });
+  it('按敏感字段名隐藏不带凭证前缀的值，并防止覆盖日志级别和事件',()=>{
+    for(const key of ['password','VAPID_PRIVATE_KEY','accessToken','Authorization','cookie','username','endpoint','subscription','p256dh']){
+      const text=logLine('warn','trusted_event',{[key]:'plain private phrase without a token prefix',level:'info',event:'forged'});
+      const parsed=JSON.parse(text) as Record<string,string>;
+      expect(parsed[key]).toBe(REDACTED);expect(text).not.toContain('plain private');
+      expect(parsed['level']).toBe('warn');expect(parsed['event']).toBe('trusted_event');
+    }
+  });
 });
 
 describe('请求 ID 规范化', () => {

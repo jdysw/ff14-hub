@@ -30,6 +30,7 @@ const SENSITIVE_FIELD_PATTERN =
 const URL_SECRET_QUERY_PATTERN = /([?&](?:token|key|secret|sig|signature)=)[^&\s]+/gi;
 
 export const REDACTED = '[REDACTED]';
+const SENSITIVE_LOG_KEY=/(?:password|passwd|pwd|secret|token|recovery|pairingcode|authorization|cookie|privatekey|apikey|username|endpoint|subscription|p256dh|auth)/i;
 
 /**
  * 对文本做脱敏。非字符串输入返回 `[UNPRINTABLE]`，避免把对象意外序列化进日志。
@@ -63,8 +64,9 @@ export function logLine(
 ): string {
   const safeFields: Record<string, string> = {};
   for (const [key, value] of Object.entries(fields)) {
+    if(['level','event','__proto__','constructor','prototype'].includes(key))continue;
     // 键名本身也可能是敏感的，因此对键与值都做脱敏。
-    safeFields[redactSecrets(key)] = redactSecrets(value);
+    safeFields[redactSecrets(key)] = SENSITIVE_LOG_KEY.test(key.replace(/[^a-z0-9]/gi,''))?REDACTED:redactSecrets(value);
   }
-  return JSON.stringify({ level, event, ...safeFields });
+  return JSON.stringify({ ...safeFields,level,event:redactSecrets(event) });
 }
