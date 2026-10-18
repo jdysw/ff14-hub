@@ -11,6 +11,7 @@
     "test/**/*.ts",
     "test/**/*.tsx",
     "vite.config.ts",
+    "vite.sync-e2e.config.ts",
     "vitest.config.ts"
   ]
 }
