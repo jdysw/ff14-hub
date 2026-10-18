@@ -465,7 +465,17 @@ export function createNavApi(request: NavRequester): NavApi {
 // ---------------------------------------------------------------------------
 
 export interface SyncChangesQuery {
-  /** 上一轮的 `nextCursor`；首次同步传 null（服务端从最早开始）。 */
+  /**
+   * 上一轮的 `nextCursor`；**首次同步传 `null`**（请求里因此不带 `since`）。
+   *
+   * 注意首次同步的语义（第三轮复核修正的 P1）：`null` **不是**「从最早开始给我历史」，
+   * 而是「先告诉我水位，我读完权威快照再来取增量」。服务端此时返回
+   * `resetRequired: true` + `changes: []` + `nextCursor = v2:<当前水位>` + `meta.watermark`；
+   * 客户端必须先读一次权威快照（`readSnapshot`）并替换本地状态，**然后**才把游标设为该水位。
+   * 原因是变更流的 `payload` 是**当前**实体内容、而日志条目是**历史事件**，
+   * 把历史重放到一份已经是当前状态的本地副本上会误删已恢复的数据。
+   * 因此 `SyncChangesApi` 的调用方（状态层）绝不能从 `null` 逐页应用历史。
+   */
   readonly since: string | null;
   readonly limit?: number | undefined;
 }
@@ -505,8 +515,8 @@ export function createSyncChangesApi(request: NavRequester): SyncChangesApi {
  * 服务端拒绝游标的两种结构化原因（`422` 的 `details.reason`）。
  *
  * 为什么必须结构化识别而不是看 `message`：文案随时可改，而「游标不被接受」是一个
- * 必须**自动恢复**的事实——丢掉本地游标、下一轮从头全量同步，并给用户一条可见提示。
- * 拿文案去猜会让这条恢复路径在文案改动的某一天静默失效。
+ * 必须**自动恢复**的事实——丢掉本地游标、下一轮重新初始化（读权威快照 + 新水位），
+ * 并给用户一条可见提示。拿文案去猜会让这条恢复路径在文案改动的某一天静默失效。
  */
 export const SYNC_CURSOR_FAILURE_REASONS = ['cursor_version_unsupported', 'cursor_malformed'] as const;
 export type SyncCursorFailureReason = (typeof SYNC_CURSOR_FAILURE_REASONS)[number];
@@ -545,12 +555,18 @@ export function parseSyncCursorFailure(details: unknown): SyncCursorFailureReaso
   return SYNC_CURSOR_FAILURE_ALIASES[reason] ?? null;
 }
 
-/** 游标被拒绝时的可见提示（说明「本地游标已丢弃、下一轮从头同步」，不静默）。 */
+/**
+ * 游标被拒绝时的可见提示（说明「本地游标已丢弃、下一轮重新做一次完整同步」，不静默）。
+ *
+ * 「完整同步」在**新协议**下的含义是：先读一次权威快照并整份替换本地状态，
+ * 再用服务端给出的水位取真实增量——**不是**「从最早的变更开始回放历史」
+ * （变更流的 payload 是当前内容，回放历史会改错数据，见 `SyncChangesQuery.since`）。
+ */
 export const SYNC_CURSOR_RESET_MESSAGES: Readonly<Record<SyncCursorFailureReason, string>> = {
   cursor_version_unsupported:
-    '服务端不接受本地同步游标（版本不匹配）：已丢弃游标，下一轮将从最早的变更开始完整同步，不会静默跳过任何改动。',
+    '服务端不接受本地同步游标（版本不匹配）：已丢弃游标，下一轮会重新读取权威快照并重建同步水位（完整同步），不会静默跳过任何改动。',
   cursor_malformed:
-    '本地同步游标无法解析：已丢弃游标，下一轮将从最早的变更开始完整同步，不会静默跳过任何改动。',
+    '本地同步游标无法解析：已丢弃游标，下一轮会重新读取权威快照并重建同步水位（完整同步），不会静默跳过任何改动。',
 };
 
 export function describeSyncCursorReset(reason: SyncCursorFailureReason): string {

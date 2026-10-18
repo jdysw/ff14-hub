@@ -26,6 +26,34 @@
  * 因此 payload 的行集合与变更页**逐条对应**，页大小也有**真实上限**
  * （旧实现为了让同一毫秒的行不跨页，会让一页无限扩张）。
  *
+ * ── payload 是**当前**实体内容，不是「事件发生时的内容」；禁止从 0 回放历史 ─────────
+ * 这是本服务最容易被误用的语义，第三轮复核把它定为 P1 缺陷：
+ * 日志条目（`workspace_changes`）记录的是**历史事件**（谁在什么顺序上被 upsert / delete），
+ * 而响应里的 `payload` 是**这一刻读出来的实体快照**——两者刻意不是一回事，也不该是一回事：
+ * 日志是只增的水位事实，payload 若要在日志里冻结就必须为每次写入存一份完整内容副本
+ * （存储与"同一行反复写"的放大都不可接受），而「按 seq 应用当前内容」对**增量**是完全自洽的。
+ *
+ * 真正不成立的是「把历史日志重放到一个已经是当前状态的本地副本上」。反例（真实复现）：
+ *   ① A 导入链接 → ② A 删除该链接（墓碑） → ③ A 显式恢复。
+ * 此时 B 先读 `GET /me/navigation`（快照里链接**已是活跃的**），再「从 seq 0 回放」：
+ * 日志里**每一条** upsert 携带的都是**当前**（已恢复）的内容（`payload` 不是事件快照），
+ * 而夹在中间的那条 `delete` 照样会被投递——于是这条**已恢复**的链接
+ * 又被从 B 的本地状态删掉（成员关系随之一并丢失），要等更靠后的 restore 页才补回来：
+ * 期间用户看到的是错误的删除，而且这是「派生自当前快照的本地状态」被历史事件污染的必然结果。
+ * 同时历史行的 `revision` 与当前 `payload.revision` 也不一致（行修订已经前进），
+ * 而 `meta.navRevision` / `meta.workbenchRevision` 是服务端**当前**值，
+ * 一页历史并不等于「当前完整状态」。
+ *
+ * 因此协议（见 `sync-api.ts` 的 `resetRequired` 注释）：
+ * - **`since` 缺省**（路由把 `cursor` 置 null）：**不再扫描历史**，只在**一个** batch 里读
+ *   本工作空间的 `MAX(seq)`（= 稳定水位）与两个全局修订号，返回
+ *   `{changes: [], resetRequired: true, nextCursor: encodeSyncCursor(水位), meta.watermark: 水位}`，
+ *   让客户端**先读一次权威快照**（导航/工作台）再从这个水位做增量。
+ *   这就是本缺陷的根因修法：不从 0 投递历史，客户端就没有「重放历史」的机会。
+ * - **`since = v2:N`**：仍按现有逻辑返回 `seq > N` 的变更页 + 本页 payload + meta，
+ *   但 `resetRequired: false`。被投递的每一条都发生在**客户端快照之后**，
+ *   按 seq 顺序应用是自洽的（后来的事件覆盖先前事件），中间态是真实历史而非错误状态。
+ *
  * ── 为什么不 GC 墓碑 ──────────────────────────────────────────────────────────
  * 墓碑（`op: 'delete'`）是唯一能告诉设备「这一行已经不存在」的信息。设备的水位可能落后
  * 任意久（离线数周）。若在「早于某设备水位」之前删掉墓碑，那台设备下次同步时既看不到行、
@@ -60,7 +88,13 @@ export interface SyncServiceDeps {
 export interface ListChangesInput {
   readonly workspaceId: string;
   /**
-   * 水位起点（`workspace_changes.seq`）；`null` 表示首次全量（从 seq 0 开始）。
+   * 水位起点（`workspace_changes.seq`）。
+   *
+   * `null` 表示客户端**没有游标**（`since` 缺省）：服务端**不返回历史变更**，
+   * 而是返回 `resetRequired: true` + `nextCursor = v2:<本工作空间当前水位>`（见文件头注释），
+   * 由客户端先读一次权威快照再从这个水位做增量。
+   *
+   * 数字表示「已消费到 seq < N」：只返回 `seq > N` 的真实增量（`resetRequired: false`）。
    *
    * 为什么这里是**已解析的数字**而不是原始游标字符串：游标非法必须变成 HTTP 422，
    * 那是路由层的职责（`decodeSyncCursor` + `SYNC_MESSAGES`）。若把字符串塞进服务层，
@@ -235,6 +269,16 @@ const LAYOUT_RECTS_SQL = `SELECT wi.page_id, wl.breakpoint, wl.widget_id, wl.x, 
 const NAV_STATE_REVISION_SQL = 'SELECT revision FROM workspace_nav_state WHERE workspace_id = ?';
 /** 工作空间级工作台修订号（行缺失等价于 0）。 */
 const WORKBENCH_STATE_REVISION_SQL = 'SELECT revision FROM workspace_workbench_state WHERE workspace_id = ?';
+
+/**
+ * 本工作空间变更流的**当前水位**（`MAX(seq)`；没有任何变更时为 `NULL` → 按 0 处理）。
+ *
+ * 只在 `cursor === null`（`since` 缺省）的**重置**分支里使用：它就是客户端读完权威快照后
+ * 应该带回的游标。刻意带 `workspace_id = ?`：水位必须**按工作空间各算各的**
+ * （`seq` 是全局自增的，A 的水位绝不等于全局最大值）。
+ */
+const WORKSPACE_WATERMARK_SQL =
+  'SELECT MAX(seq) AS max_seq FROM workspace_changes WHERE workspace_id = ?';
 
 // ---------------------------------------------------------------------------
 // 来源定义：journal 行 → 响应变更
@@ -527,7 +571,55 @@ export function createSyncService(deps: SyncServiceDeps): SyncService {
         throw new RangeError('sync.listChanges：limit 必须是正整数（请求校验由路由层负责）');
       }
       const requestSeq = input.cursor;
-      const fromSeq = requestSeq ?? 0;
+
+      /**
+       * `since` 缺省（`cursor === null`）：**重置协议**——不返回历史变更，只给出稳定水位。
+       *
+       * 为什么**绝不**在这里扫描历史（本缺陷的根因）：`payload` 是**当前**实体内容，
+       * 而日志条目是**历史事件**，把整段历史回放到「已经是当前状态」的本地副本上
+       * 会误删已恢复的行（详见文件头「禁止从 0 回放历史」）。因此这里只做一件事：
+       * 在**一个** batch（= 一个事务快照）里读本工作空间的 `MAX(seq)` 与两个全局修订号，
+       * 让客户端先拿权威快照、再用返回的游标取**真实增量**。
+       */
+      if (requestSeq === null) {
+        const results = await deps.db.batch([
+          deps.db.prepare(WORKSPACE_WATERMARK_SQL).bind(workspaceId),
+          deps.db.prepare(NAV_STATE_REVISION_SQL).bind(workspaceId),
+          deps.db.prepare(WORKBENCH_STATE_REVISION_SQL).bind(workspaceId),
+        ]);
+        const watermarkRow = (results[0]?.results ?? [])[0] as SyncRow | undefined;
+        // `MAX(seq)` 在空工作空间返回 NULL：按 0 处理（= 从 v2:0 开始就是全量）。
+        const watermark = watermarkRow === undefined ? 0 : (nullableMsAt(watermarkRow, 'max_seq') ?? 0);
+        const navRevisionRow = (results[1]?.results ?? [])[0] as SyncRow | undefined;
+        const workbenchRevisionRow = (results[2]?.results ?? [])[0] as SyncRow | undefined;
+
+        // 复用唯一实现 `nextSyncCursor`：returned=0 ⇒ 游标原地停在「当前水位」、hasMore=false。
+        const advanced = nextSyncCursor({
+          returned: 0,
+          limit,
+          lastSeq: null,
+          requestSeq: watermark,
+        });
+
+        return {
+          // 历史一律不投递：客户端必须先读一次权威快照（这就是 resetRequired 的含义）。
+          changes: [],
+          nextCursor: advanced.nextCursor,
+          hasMore: false,
+          resetRequired: true,
+          serverTimeMs: now(),
+          entityTypes: [...SYNC_ENTITY_TYPES],
+          meta: {
+            navRevision: navRevisionRow === undefined ? 0 : msAt(navRevisionRow, 'revision'),
+            workbenchRevision:
+              workbenchRevisionRow === undefined ? 0 : msAt(workbenchRevisionRow, 'revision'),
+            // 水位 = 本工作空间当前 `MAX(seq)`：客户端读完快照后原样带回即可取增量。
+            watermark,
+          },
+        };
+      }
+
+      const fromSeq = requestSeq;
       // 这一组绑定对应 `PAGE_SCOPE_SQL` 的六个占位符（见其文档）。
       const scopeBinds: readonly unknown[] = [
         workspaceId,
@@ -619,6 +711,8 @@ export function createSyncService(deps: SyncServiceDeps): SyncService {
         changes,
         nextCursor: advanced.nextCursor,
         hasMore: advanced.hasMore,
+        // 有游标 ⇒ 客户端已经有（或即将先读）权威快照，本轮投递的就是真实增量。
+        resetRequired: false,
         serverTimeMs: now(),
         entityTypes: [...SYNC_ENTITY_TYPES],
         meta: {

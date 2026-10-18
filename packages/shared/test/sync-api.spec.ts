@@ -477,6 +477,8 @@ describe('syncChangesResponseSchema / syncConflictSchema', () => {
       changes: [validChange],
       nextCursor: 'v2:1',
       hasMore: true,
+      // 第三轮复核新增：缺省游标 ⇒ reset 协议，因此该字段必填。
+      resetRequired: false,
       serverTimeMs: T0,
       entityTypes: [...SYNC_ENTITY_TYPES],
       meta: validMeta,

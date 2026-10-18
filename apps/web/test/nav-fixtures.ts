@@ -8,6 +8,8 @@
  * 这些夹具只做**形状构造**，不含任何断言与业务判断。
  */
 import {
+  decodeSyncCursor,
+  encodeSyncCursor,
   navSnapshotSchema,
   NAV_MODULE_ID,
   type ApiErrorCode,
@@ -35,6 +37,7 @@ import type {
   NavDeleteResponse,
   NavExportResponse,
   NavResult,
+  SyncChangesApi,
 } from '../src/app/nav/nav-api';
 
 /** 契约里的链接行（默认值全部合法，调用方只覆盖关心的字段）。 */
@@ -182,10 +185,12 @@ export function syncDelete(input: {
 }
 
 /**
- * 一轮变更响应。
+ * 一轮变更响应的形状（严格按共享契约）。
  *
  * `meta.navRevision` 是**服务端权威的工作空间修订**（全局 CAS 只能用它）：
  * 行级 `revision` 与它无关，测试用它证明客户端没有从行修订推导全局修订。
+ * `resetRequired` / `meta.watermark` 属于「安全快照 + 稳定水位」初始化协议：
+ * `since` 缺省时服务端必须回 `resetRequired: true` + 空的 `changes` + 水位游标。
  */
 export function syncResponse(input: {
   readonly navRevision: number;
@@ -193,20 +198,57 @@ export function syncResponse(input: {
   readonly nextCursor?: string | null | undefined;
   readonly hasMore?: boolean | undefined;
   readonly serverTimeMs?: number | undefined;
+  readonly resetRequired?: boolean | undefined;
+  readonly watermark?: number | undefined;
 }): SyncChangesResponse {
+  const changes = [...(input.changes ?? [])];
+  const lastSeq = changes.length === 0 ? null : (changes[changes.length - 1]?.seq ?? null);
   return {
-    changes: [...(input.changes ?? [])],
+    changes,
     nextCursor: input.nextCursor ?? null,
     hasMore: input.hasMore ?? false,
+    resetRequired: input.resetRequired ?? false,
     serverTimeMs: input.serverTimeMs ?? 1_700_000_000_000,
     entityTypes: ['nav_link', 'nav_group', 'nav_membership'],
-    meta: { navRevision: input.navRevision, workbenchRevision: 0, watermark: 0 },
+    meta: {
+      navRevision: input.navRevision,
+      workbenchRevision: 0,
+      watermark: input.watermark ?? lastSeq ?? 0,
+    },
   };
 }
 
+/**
+ * **初始化响应**：`since` 缺省时服务端按新契约返回的信封。
+ *
+ * 语义（见共享 `resetRequired` 注释）：**不返回任何历史变更**，只给出当前水位；
+ * 客户端必须先读一次权威快照，再用这个水位开始取真实增量。
+ * 历史行绝不能重放——变更流的 `payload` 是**当前**内容，重放历史会误删已恢复的数据。
+ */
+export function resetResponse(input: {
+  readonly watermark: number;
+  readonly navRevision?: number | undefined;
+  readonly serverTimeMs?: number | undefined;
+}): SyncChangesResponse {
+  return syncResponse({
+    navRevision: input.navRevision ?? 0,
+    changes: [],
+    nextCursor: encodeSyncCursor(input.watermark),
+    hasMore: false,
+    resetRequired: true,
+    watermark: input.watermark,
+    ...(input.serverTimeMs === undefined ? {} : { serverTimeMs: input.serverTimeMs }),
+  });
+}
+
 /** 一个空的变更响应（默认行为：没有变更，`navRevision` 由调用方给出）。 */
-export function emptySyncResponse(meta: { readonly navRevision?: number } = {}): SyncChangesResponse {
-  return syncResponse({ navRevision: meta.navRevision ?? 0 });
+export function emptySyncResponse(meta: { readonly navRevision?: number; readonly cursor?: number } = {}): SyncChangesResponse {
+  return syncResponse({
+    navRevision: meta.navRevision ?? 0,
+    changes: [],
+    nextCursor: meta.cursor === undefined ? null : encodeSyncCursor(meta.cursor),
+    ...(meta.cursor === undefined ? {} : { watermark: meta.cursor }),
+  });
 }
 
 /** 失败结果（用于游标被拒 / 409 等分支；`details` 是结构化原因的唯一来源）。 */
@@ -267,45 +309,104 @@ function ok<T>(data: T, status = 200): Promise<NavResult<T>> {
 }
 
 export interface FakeSyncApi {
-  readonly api: {
-    readonly readChanges: (query: {
-      readonly since: string | null;
-      readonly limit?: number | undefined;
-    }) => Promise<NavResult<SyncChangesResponse>>;
-  };
+  readonly api: SyncChangesApi;
   readonly queries: { readonly since: string | null; readonly limit?: number | undefined }[];
+  /**
+   * 同一个 `vi.fn`（`api.readChanges`）。
+   *
+   * 为什么暴露它：初始化协议要求「先发一次不带 `since` 的请求 → 再读权威快照 → 才采用水位」，
+   * 而顺序只能由 `mock.invocationCallOrder` 与快照请求的发起顺序比较来断言，
+   * 不能靠「请求计数」这种会被并发打乱的近似。
+   */
+  readonly readChanges: ReturnType<typeof vi.fn>;
+  /** 队列耗尽后的兜底响应会用到它（`since` 缺省时回初始化信封）。 */
+  readonly watermark: number;
 }
 
-/** 队列里的一步：要么是一轮成功响应，要么是一次失败（例如游标 `422`）。 */
-export type FakeSyncStep = SyncChangesResponse | NavResult<SyncChangesResponse>;
+/** 由测试**手动兑现**的一步：用于观察「排空中间态」与「分页之间发生并发写」。 */
+export interface DeferredSyncStep {
+  readonly deferred: Promise<NavResult<SyncChangesResponse>>;
+}
+
+/** 队列里的一步：一轮成功响应、一次失败（例如游标 `422`）、或一个延迟兑现的响应。 */
+export type FakeSyncStep = SyncChangesResponse | NavResult<SyncChangesResponse> | DeferredSyncStep;
+
+function isDeferredStep(step: FakeSyncStep): step is DeferredSyncStep {
+  return 'deferred' in step;
+}
+
+/**
+ * 一个可由测试兑现的响应（`resolve` 之后该页才会送达）。
+ *
+ * 为什么要它：要求「断言中间态」与「hasMore 期间禁止写」的用例必须在**排空进行中**
+ * 观察界面，因此那一页必须停在被测代码手里，而不是立刻返回。
+ */
+export function deferredSyncResponse(): {
+  readonly step: DeferredSyncStep;
+  readonly resolve: (response: SyncChangesResponse) => void;
+} {
+  let settle: ((value: NavResult<SyncChangesResponse>) => void) | null = null;
+  const deferred = new Promise<NavResult<SyncChangesResponse>>((resolve) => {
+    settle = resolve;
+  });
+  return {
+    step: { deferred },
+    resolve: (response: SyncChangesResponse) => {
+      settle?.({ ok: true, status: 200, data: response });
+    },
+  };
+}
 
 /**
  * 假变更 API：按队列依次返回响应，并记录每次查询（用于断言游标推进）。
- * 队列用完后一直返回空响应（`navRevision` 可用第二个参数固定，默认 0）。
+ *
+ * 队列耗尽后的兜底响应**按契约构造**，因此它能证明「客户端不会因为一次空响应就
+ * 反复重建水位」：
+ * - `since` 缺省（客户端没有游标）→ 回初始化信封（`resetRequired: true` + 水位游标）；
+ * - 带游标 → 回「没有新变更」，并把**请求的游标原样回传**（水位不倒退）。
  */
 export function fakeSyncApi(
   steps: readonly FakeSyncStep[] = [],
-  options: { readonly navRevision?: number | undefined } = {},
+  options: { readonly navRevision?: number | undefined; readonly watermark?: number | undefined } = {},
 ): FakeSyncApi {
   const queue = [...steps];
   const queries: { since: string | null; limit?: number | undefined }[] = [];
-  /** 队列耗尽后的兜底：保持「没有变更」，但修订必须与调用方声明的一致。 */
-  const fallback = (): SyncChangesResponse =>
-    options.navRevision === undefined ? emptySyncResponse() : emptySyncResponse({ navRevision: options.navRevision });
-  return {
-    api: {
-      readChanges: vi.fn(
-        (query: { readonly since: string | null; readonly limit?: number | undefined }) => {
-          queries.push(query);
-          const step = queue.shift();
-          if (step === undefined) {
-            return ok(fallback());
-          }
-          return 'ok' in step ? Promise.resolve(step) : ok(step);
-        },
-      ),
+  const watermark = options.watermark ?? 0;
+
+  /** 队列耗尽后的兜底：保持「没有变更」，但形状必须与真实契约一致。 */
+  const fallback = (since: string | null): SyncChangesResponse => {
+    const navRevision = options.navRevision ?? 0;
+    if (since === null) {
+      return resetResponse({ watermark, navRevision });
+    }
+    const decoded = decodeSyncCursor(since);
+    return syncResponse({
+      navRevision,
+      changes: [],
+      nextCursor: since,
+      watermark: decoded.ok ? decoded.seq : watermark,
+    });
+  };
+
+  const readChanges = vi.fn(
+    (query: { readonly since: string | null; readonly limit?: number | undefined }) => {
+      queries.push(query);
+      const step = queue.shift();
+      if (step === undefined) {
+        return Promise.resolve(ok(fallback(query.since)));
+      }
+      if (isDeferredStep(step)) {
+        return step.deferred;
+      }
+      return 'ok' in step ? Promise.resolve(step) : Promise.resolve(ok(step));
     },
+  );
+
+  return {
+    api: { readChanges },
     queries,
+    readChanges,
+    watermark,
   };
 }
 
@@ -365,11 +466,21 @@ export function fakeNavApi(input: {
   readonly previewRevision?: number | undefined;
   /** `updateLink` 的失败结果（真并发 409 用例）：给定则每次 updateLink 都返回它。 */
   readonly updateLinkFailure?: NavResult<never> | undefined;
+  /**
+   * `readSnapshot` 的失败结果：用于验证初始化协议的第 ③ 步——
+   * 权威快照读不到时，客户端**既不能**推进同步水位、**也不能**应用任何变更。
+   */
+  readonly readSnapshotFailure?: NavResult<never> | undefined;
 }): FakeNavApi {
   const current = input.snapshot ?? snapshot();
   const revisionFor = (): number => input.previewRevision ?? current.revision;
 
-  const readSnapshot = vi.fn((): Promise<NavResult<NavSnapshot>> => ok(current));
+  const readSnapshot = vi.fn((): Promise<NavResult<NavSnapshot>> => {
+    if (input.readSnapshotFailure !== undefined) {
+      return Promise.resolve(input.readSnapshotFailure);
+    }
+    return ok(current);
+  });
   const listLinks = vi.fn(
     (): Promise<NavResult<NavLinkListView>> => ok({ links: [], revision: revisionFor() }),
   );

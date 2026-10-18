@@ -405,18 +405,24 @@ async function setModuleEnabledViaUi(page: Page, moduleId: string, enabled: bool
 }
 
 /**
- * 在**变更水位端点**里找一条指定实体的**最新**变更（变更按 `updatedAt` 升序返回，因此取最后一条）。
+ * 在**变更水位端点**里找一条指定实体的**最新**变更（按 `seq` 升序返回，因此取最后一条）。
  *
  * 为什么需要它：`GET /me/navigation` 刻意**只返回未删除行**（SQL `deleted_at IS NULL`），
  * 因此「删除是墓碑（行还在、只是 deleted_at 非空）」这一事实无法从快照读出。
  * 服务端权威证据在 `/me/sync/changes`：墓碑以 `op: 'delete'` + `payload: null` 下发。
+ *
+ * 协议说明（第三轮复核修正）：`since` 缺省表示「请先读快照」——服务端会返回
+ * `resetRequired: true` 而**不返回历史**，因为变更的 payload 是**当前**实体内容，
+ * 把历史重放到一个已经是当前状态的副本上会误删已恢复的数据。
+ * 本助手是**测试观察**用途（要检查「某条删除是否进入了变更流」），因此显式从 `v2:0`
+ * 读取历史；真实客户端永远不这么做（它先读快照，再从快照水位增量）。
  */
 async function findLatestSyncChange(
   request: APIRequestContext,
   entityType: string,
   entityId: string,
 ): Promise<SyncChange | null> {
-  let since: string | null = null;
+  let since: string | null = 'v2:0';
   let latest: SyncChange | null = null;
   for (let page = 0; page < 20; page += 1) {
     const query = since === null ? '' : `?since=${encodeURIComponent(since)}`;

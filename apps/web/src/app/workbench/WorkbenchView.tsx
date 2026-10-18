@@ -47,6 +47,19 @@ export interface WorkbenchViewProps {
   readonly syncIntervalMs?: number | undefined;
 }
 
+/**
+ * 排空期间暂存的上限。
+ *
+ * 为什么要有上限：一个异常的服务端可能一直声称 `hasMore === true`，此时暂存区会无限增长。
+ * 超出时**保留最新的**（`seq` 递增，因此最后面的才是最新的）：丢掉最旧的只会让「可能少刷新
+ * 一次」（本视图对任何相关变更的响应都是整份重载，不会因此写坏数据），
+ * 而无限增长会真的吃掉内存。
+ */
+const MAX_PENDING_SYNC_CHANGES = 1000;
+
+/** 排空进行中的可见提示（排空结束时会精确地只清掉这一条，不影响别的提示）。 */
+const SYNC_DRAINING_NOTICE = '正在同步其它设备的改动（还有变更页未取完）…排空后才会刷新当前页面。';
+
 /** 该变更是否可能影响**当前页面**（页面本身 / 本页的实例 / 本页布局）。 */
 function touchesActivePage(change: SyncChange, activePageId: string, instanceIds: ReadonlySet<string>): boolean {
   if (change.entityType === 'page') {
@@ -92,16 +105,45 @@ export function WorkbenchView(props: WorkbenchViewProps) {
   const [remoteNotice, setRemoteNotice] = useState<string | null>(null);
 
   /**
+   * 是否**正在排空**变更页（服务端说 `hasMore === true`）。
+   *
+   * 与导航同一套协议：排空期间本地集合还不完整，因此不按部分集合刷新、
+   * 也不采用 `meta` 里的权威全局修订（本视图不做 CAS 写，但状态必须可见，
+   * 以免将来在排空期间发起基于整份集合的操作）。
+   */
+  const [syncing, setSyncing] = useState(false);
+
+  /**
    * 已处理的 `(实体, 修订)` 集合：避免同一条变更在每次轮询里都触发一次刷新。
    * 放在 ref 里而不是 state：它是去重簿记，不需要触发渲染。
    */
   const handledRef = useRef(new Set<string>());
+
+  /**
+   * 排空期间的暂存：**只有排空之后**（`hasMore === false`）才一次性处理整批变更。
+   *
+   * 为什么必须等排空：中途的 `meta.navRevision` 对应服务端**当前**状态，而本地集合
+   * 还不完整；按部分集合反复重载既浪费请求，也可能让界面在两个状态之间来回跳。
+   */
+  const pendingRemoteRef = useRef<readonly SyncChange[]>([]);
 
   /** 同步回调里需要读**最新**状态，但它本身要保持引用稳定（否则轮询定时器会被反复重建）。 */
   const stateRef = useRef(state);
   useEffect(() => {
     stateRef.current = state;
   });
+
+  /**
+   * 初始化协议的权威快照读取：`resetRequired === true` 时读一次**工作台**快照。
+   *
+   * 为什么无条件返回 `true`：工作台**从不**把增量应用到本地状态——它只根据变更决定是否
+   * 重新读整份快照（`reload()`）。因此「这次读取失败」不会造成「把历史重放到过期本地集合」
+   * 的危险（那是导航侧 `snapshotFloorRef` 要防的事）；下一次轮询仍会重新读取。
+   */
+  const readAuthoritySnapshot = useCallback(async (): Promise<boolean> => {
+    await stateRef.current.reload();
+    return true;
+  }, []);
 
   /**
    * 把「是否有未保存草稿」登记给 PWA 更新提示（HUB-012）。
@@ -114,14 +156,29 @@ export function WorkbenchView(props: WorkbenchViewProps) {
     [],
   );
 
-  const onSyncChanges = useCallback((changes: readonly SyncChange[]): void => {
+  const onSyncChanges = useCallback((changes: readonly SyncChange[], drained: boolean): void => {
+    pendingRemoteRef.current = [...pendingRemoteRef.current, ...changes].slice(-MAX_PENDING_SYNC_CHANGES);
+    if (!drained) {
+      // 还有页没取完：只报「正在同步」，绝不按不完整的集合决定刷新。
+      setSyncing(true);
+      setRemoteNotice(SYNC_DRAINING_NOTICE);
+      return;
+    }
+    const batch = pendingRemoteRef.current;
+    pendingRemoteRef.current = [];
+    setSyncing(false);
+    // 排空结束：只清掉「正在同步」这一条，别的提示（例如编辑态冲突）原样保留。
+    setRemoteNotice((previous) => (previous === SYNC_DRAINING_NOTICE ? null : previous));
+    if (batch.length === 0) {
+      return;
+    }
     const current = stateRef.current;
     const activePageId = current.activePageId;
     if (activePageId === null) {
       return;
     }
     const instanceIds = new Set(current.instances.map((instance) => instance.id));
-    const relevant = changes.filter((change) => touchesActivePage(change, activePageId, instanceIds));
+    const relevant = batch.filter((change) => touchesActivePage(change, activePageId, instanceIds));
     if (relevant.length === 0) {
       return;
     }
@@ -156,8 +213,10 @@ export function WorkbenchView(props: WorkbenchViewProps) {
     enabled: syncChangesApi !== undefined,
     ...(syncChangesApi === undefined ? {} : { api: syncChangesApi }),
     ...(syncIntervalMs === undefined ? {} : { intervalMs: syncIntervalMs }),
-    onChanges: (changes) => {
-      onSyncChanges(changes);
+    // 初始化协议第 ③ 步：先读一次权威工作台快照，快照落地后才采用水位取增量。
+    onSnapshotRequired: () => readAuthoritySnapshot(),
+    onChanges: (changes, _serverTimeMs, _meta, drained) => {
+      onSyncChanges(changes, drained);
     },
   });
 
@@ -211,6 +270,7 @@ export function WorkbenchView(props: WorkbenchViewProps) {
       className="panel workbench"
       data-testid="workbench-view"
       data-breakpoint={state.activeBreakpoint}
+      data-syncing={syncing ? 'true' : 'false'}
       aria-labelledby="workbench-title"
     >
       <h2 id="workbench-title">自定义工作台</h2>

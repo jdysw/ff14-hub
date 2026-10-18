@@ -18,14 +18,20 @@
  * 5. **导入先预览、再显式 apply**：本地解析（书签 HTML / 版本化配置 / 链接 JSON）用共享纯函数；
  *    apply 回显预览时的工作空间修订，期间数据被改动则由服务端 409 拒绝。
  *
- * ── 变更应用的两条复核修正（P1）──────────────────────────────────────────────
+ * ── 变更应用的三条复核修正（P1）──────────────────────────────────────────────
  * A. **排序/去重/墓碑一律只看 `seq`**（数据库单调变更序号）。`updatedAt` 不再参与任何
  *    新旧判断：同一毫秒内完全可能既有删除又有恢复，时间表达不了先后。每个实体维护
  *    `lastAppliedSeq`，墓碑表也存 `seq`，因此「删除后到达的更旧 upsert」在结构上无法复活它。
- * B. **工作空间级修订号只来自服务端 `meta.navRevision`**。早先这里用
+ * B. **工作空间级修订号只来自服务端 `meta.navRevision`，且只在排空之后采用**。早先这里用
  *    `Math.max(snapshot.revision, change.revision)` 从**行**修订推导全局修订，导致远端
  *    每次新增/编辑之后本地全局修订恒落后，下一次重排/导入必然 409——除非用户手动刷新。
  *    `change.revision` 现在只用于**行级**判断（草稿是否落后于该行）。
+ * C. **绝不从 null 游标回放历史**（第三轮复核）：变更流的 `payload` 是**当前**实体内容，
+ *    而日志条目是**历史事件**。「导入 → 删除 → 显式恢复」之后再重放那条历史 `delete`
+ *    会把已恢复的链接删掉（成员关系一起丢）。因此初始化严格按「不带 `since` 请求 →
+ *    `resetRequired` → 读权威快照并整份替换 → 才采用水位」执行（见 `useSyncChangesPoller`），
+ *    并且应用前先用**快照水位地板** `snapshotFloorRef` 丢掉 `seq <= 地板` 的历史行。
+ *    `hasMore === true`（还有页没取完）期间既不采用 `meta.navRevision`，也禁止重排/导入。
  */
 import {
   buildNavExportDocument,
@@ -39,6 +45,7 @@ import {
   navLinkSchema,
   navMembershipSchema,
   navUrlSchema,
+  nextSyncCursor,
   parseBookmarkHtml,
   parseNavImportDocument,
   parseNavExportDocument,
@@ -61,6 +68,7 @@ import {
   type NavSnapshot,
   type NavSortMode,
   type SyncChange,
+  type SyncChangesResponse,
   type SyncConflict,
   type SyncEntityType,
   type SyncMeta,
@@ -193,6 +201,15 @@ export interface NavController {
   readonly error: string | null;
   readonly notice: string | null;
   readonly busy: boolean;
+  /**
+   * 是否**正在排空**跨设备变更（服务端说 `hasMore === true`，还有页没取完）。
+   *
+   * 为什么必须让界面知道：排空期间本地集合是**不完整**的，此时提交「全局 CAS 写」
+   * （重排 / 导入这类带 `expectedRevision` 的整体操作）等于拿一份部分旧集合去覆盖服务端。
+   * 因此这些动作在 `syncing === true` 时被拒绝并给出「正在同步」的提示，
+   * 而不是静默地用旧修订（或服务端当前修订）提交。
+   */
+  readonly syncing: boolean;
   readonly snapshot: NavSnapshot | null;
   /** 已投影的视图（筛选 + 排序 + 分组名）：视图直接渲染它，不再自己算。 */
   readonly visibleLinks: readonly NavLinkView[];
@@ -269,6 +286,8 @@ interface NavState {
   readonly error: string | null;
   readonly notice: string | null;
   readonly busy: boolean;
+  /** 正在排空跨设备变更（见 `NavController.syncing`）。 */
+  readonly syncing: boolean;
   readonly snapshot: NavSnapshot | null;
   readonly catalog: readonly NavCatalogEntry[] | null;
   readonly catalogError: string | null;
@@ -288,6 +307,7 @@ const INITIAL_STATE: NavState = {
   error: null,
   notice: null,
   busy: false,
+  syncing: false,
   snapshot: null,
   catalog: null,
   catalogError: null,
@@ -315,6 +335,13 @@ export interface UseNavOptions {
   readonly syncApi?: SyncChangesApi | undefined;
   /** 变更轮询间隔（毫秒）。默认 30 秒；`<= 0` 表示只在挂载与窗口获得焦点时同步。 */
   readonly syncIntervalMs?: number | undefined;
+  /**
+   * 每页变更条数（默认共享 `SYNC_DEFAULT_LIMIT`）。
+   *
+   * 只在测试里注入较小的值（例如 1）：那样一次同步必然要跨多页，才能真正验证
+   * 「发现 `hasMore` 立即续取下一页直到排空」以及「排空期间禁止全局 CAS 写」。
+   */
+  readonly syncLimit?: number | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -521,6 +548,23 @@ export function describeRemoteDraftConflict(input: {
   return `${input.verdict.reason}${label === '' ? '' : `：${label}`}；${row}未保存。`;
 }
 
+/**
+ * 「正在排空变更页」的可见文案（排空期间写入被拒绝时也复用它）。
+ */
+export const SYNC_DRAINING_NOTICE =
+  '正在同步其它设备的改动（还有变更页未取完）：在排空之前不会采用服务端的全局修订，' +
+  '重排 / 导入等整体操作暂时不可用，以免用不完整的本地集合覆盖服务端。';
+
+/**
+ * 「忽略了快照之前的历史事件」的可见文案。
+ *
+ * 必须让用户看得见：这说明服务端投递了本不该投递的历史行，而客户端按协议丢弃了它们
+ * （重放会把已恢复的数据改错）。静默丢弃会让「为什么这条没生效」无从解释。
+ */
+export function describeHistoryIgnored(count: number): string {
+  return `已忽略 ${String(count)} 条早于本次同步水位的变更（它们已包含在权威快照里，重放会把已恢复的数据改错）。`;
+}
+
 export interface NavSyncApplyResult {
   readonly snapshot: NavSnapshot;
   /** 每个实体（`类型:ID`）已应用过的最大 `seq`（活跃与已删除实体都记）。 */
@@ -706,6 +750,15 @@ export function applyNavSyncChanges(input: {
 /** 默认轮询间隔（毫秒）：30 秒。测试可注入更短的值，注入 0 表示不轮询。 */
 export const NAV_SYNC_DEFAULT_INTERVAL_MS = 30_000;
 
+/**
+ * 一次同步里最多连续取回的页数（安全阀）。
+ *
+ * 为什么需要它：协议要求「发现 `hasMore` 就立刻续取下一页直到排空」，因此一次 `syncNow`
+ * 可能连续往返很多轮。上限保证一个异常的服务端（永远声称 `hasMore === true`）不会把界面
+ * 卡在无休止的请求里；到上限时**游标已经前移**，下一轮从断点继续，不会丢变更。
+ */
+export const SYNC_MAX_PAGES_PER_SYNC = 50;
+
 export interface SyncChangesPollerOptions {
   readonly enabled: boolean;
   /** 真实环境下读取设备凭证；注入 `api` 替身时不需要它。 */
@@ -715,26 +768,91 @@ export interface SyncChangesPollerOptions {
   readonly intervalMs?: number | undefined;
   readonly limit?: number | undefined;
   /**
-   * 应用一轮变更。
+   * 应用**一页**变更。
    *
-   * `meta` 是与变更流**同一快照**读出的权威工作空间修订（`syncMetaSchema`）；
+   * `meta` 是与变更流**同一快照**读出的权威工作空间修订（`syncMetaSchema`）：
    * 调用方只能用它更新全局 CAS 基数，绝不能用 `change.revision` 推导。
+   *
+   * `drained` 表示本页是否为最后一页（`hasMore === false`）。它是硬约束的一部分：
+   * `hasMore === true` 期间本地集合还不完整，**不得**采用 `meta` 里的全局修订号——那对应
+   * 服务端**当前**状态，用它做全局 CAS 是「按未来修订号批准基于部分旧集合的写入」。
    */
-  readonly onChanges: (changes: readonly SyncChange[], serverTimeMs: number, meta: SyncMeta) => void;
+  readonly onChanges: (
+    changes: readonly SyncChange[],
+    serverTimeMs: number,
+    meta: SyncMeta,
+    drained: boolean,
+  ) => void;
   readonly onUnauthorized?: (() => void) | undefined;
   readonly onError?: ((message: string) => void) | undefined;
   /**
    * 服务端**拒绝本地游标**（`422` + `details.reason`）时的可见回调。
    *
-   * 为什么单列一条：这不是失败而是**已自动恢复**（游标已丢弃，下一轮从头全量同步），
+   * 为什么单列一条：这不是失败而是**已自动恢复**（游标已丢弃，下一轮做一次完整重建），
    * 必须让用户看得见；静默重来会让用户误以为「本地数据一直是最新的」。
    */
   readonly onCursorReset?: ((message: string) => void) | undefined;
+  /**
+   * `resetRequired === true`（客户端没有游标）时**唯一**的初始化入口：读一次权威快照
+   * 并**替换**本地状态。
+   *
+   * 参数是该轮水位（服务端给的 `nextCursor` 对应的 `seq`）。调用方在快照成功落地后应把它
+   * 记为「已经包含在快照里的水位」——比它更旧（或相等）的变更一律是**历史事件**，
+   * 而变更流的 `payload` 是**当前**内容，重放历史会误删已恢复的数据，因此必须能识别出来。
+   * 返回 `true` 才表示快照已落地；返回 `false` 时轮询器**既不推进游标也不应用任何变更**。
+   */
+  readonly onSnapshotRequired?: ((watermarkSeq: number) => Promise<boolean>) | undefined;
+  /** 排空（还有页没取完）开始 / 结束：界面据此禁用全局 CAS 写并提示「正在同步」。 */
+  readonly onDrainingChange?: ((draining: boolean) => void) | undefined;
 }
 
 export interface SyncChangesPoller {
   /** 立刻同步一次（轮询之外的显式入口，便于测试与「手动刷新」）。 */
   readonly syncNow: () => Promise<void>;
+}
+
+/** 规范化服务端给出的游标：只接受本版本能理解的 `v2:<seq>`，其余一律视为不可用。 */
+function normalizeSyncCursor(raw: string | null): { readonly cursor: string; readonly seq: number } | null {
+  if (raw === null) {
+    return null;
+  }
+  const decoded = decodeSyncCursor(raw);
+  return decoded.ok ? { cursor: encodeSyncCursor(decoded.seq), seq: decoded.seq } : null;
+}
+
+/**
+ * 推进游标（**唯一实现**是共享 `nextSyncCursor` 与 `encodeSyncCursor`）。
+ *
+ * 三种情况：
+ * - 服务端给了 `nextCursor` → 往返校验后采用（版本/形状不合法则清空，下一轮重新初始化）；
+ * - 没有 `nextCursor` 且本页没有变更 → **水位不变**：游标语义是「已消费到 seq < N」，
+ *   「本次没有下一轮」并不表示水位失效（若在这里清空，每轮同步都会白白重读一次快照）；
+ * - 没有 `nextCursor` 但本页有变更（契约瑕疵）→ 用共享纯函数从最后一条的 `seq` 推进，
+ *   绝不原地打转（否则每一轮都会把同一页重新投递一次）。
+ */
+function advanceSyncCursor(input: {
+  readonly response: SyncChangesResponse;
+  readonly requestSince: string;
+  readonly requestSeq: number;
+  readonly limit: number;
+}): { readonly cursor: string | null; readonly invalid: boolean } {
+  if (input.response.nextCursor !== null) {
+    const decoded = decodeSyncCursor(input.response.nextCursor);
+    return decoded.ok
+      ? { cursor: encodeSyncCursor(decoded.seq), invalid: false }
+      : { cursor: null, invalid: true };
+  }
+  const last = input.response.changes[input.response.changes.length - 1];
+  if (last === undefined) {
+    return { cursor: input.requestSince, invalid: false };
+  }
+  const advanced = nextSyncCursor({
+    returned: input.response.changes.length,
+    limit: input.limit,
+    lastSeq: last.seq,
+    requestSeq: input.requestSeq,
+  });
+  return { cursor: advanced.nextCursor, invalid: false };
 }
 
 /**
@@ -744,11 +862,29 @@ export interface SyncChangesPoller {
  * 为什么必须有焦点触发：笔记本合盖、切走标签页之后定时器可能被节流甚至暂停，
  * 回到页面时如果只等下一次定时器，用户会看到过期数据任意长的时间。
  *
+ * ── 初始化协议（第三轮复核修正的 P1：**禁止从零回放历史**）────────────────────
+ * 变更流的 `payload` 是**当前**实体内容，日志条目却是**历史事件**，因此「拿 null 游标
+ * 把整段历史按 seq 重放到一个已经是当前状态的本地副本上」是不成立的。反例：A 导入链接 →
+ * 删除 → 显式恢复之后，历史里的那条 `delete`（payload=null）仍然存在，重放它会把本地一条
+ * **已恢复**的链接删掉（成员关系一起丢），直到更靠后的恢复页才补回来。
+ *
+ * 因此首次同步（本地没有游标）严格按下面的顺序执行，任何一步都不能交换：
+ *   ① 先发一次不带 `since` 的 `GET /me/sync/changes`；
+ *   ② 收到 `resetRequired: true` → **不应用任何 changes**（此时应为空），把返回的
+ *      `nextCursor` 作为**待用水位**先拿在手里，但**先不写进游标**；
+ *   ③ 通过 `onSnapshotRequired` 读一次权威快照并**替换**本地状态；
+ *   ④ 快照落地**之后**才把游标设为 ② 的水位，之后只用 `since` 取真实增量。
+ * 这样被投递的每一条都发生在本地快照之后，按 seq 顺序应用自洽；快照与游标之间若发生新写入，
+ * 增量里会再次出现该实体（upsert 幂等，不会回退）。
+ *
+ * 分页：发现 `hasMore === true` 就**立刻续取下一页**（不等下一个轮询间隔），直到排空；
+ * `hasMore` 期间通过 `onDrainingChange` 明确告知调用方「正在同步」，后者据此禁止全局 CAS 写。
+ *
  * 游标处理：`since` 是服务端给出的字符串；每轮用共享 `decodeSyncCursor` 校验
  * **再**用 `encodeSyncCursor` 编回去（往返一次，证明拿到的确实是本版本能理解的游标）。
- * 解析失败（损坏或来自更新的版本）时把游标清空，下一轮做一次完整同步——
+ * 解析失败（损坏或来自更新的版本）时把游标清空，下一轮重新走一次初始化——
  * 这比「猜一个值继续增量」安全：漏掉的变更不会自己回来。
- * 服务端**拒绝**我们的游标（`422` + `details.reason`）时同样丢弃本地游标并从头同步，
+ * 服务端**拒绝**我们的游标（`422` + `details.reason`）时同样丢弃本地游标并重新初始化，
  * 但会额外给出一条可见提示（`onCursorReset`），不静默。
  */
 export function useSyncChangesPoller(options: SyncChangesPollerOptions): SyncChangesPoller {
@@ -758,6 +894,8 @@ export function useSyncChangesPoller(options: SyncChangesPollerOptions): SyncCha
     onChanges: options.onChanges,
     onError: options.onError,
     onCursorReset: options.onCursorReset,
+    onSnapshotRequired: options.onSnapshotRequired,
+    onDrainingChange: options.onDrainingChange,
   });
   const unauthorizedRef = useRef(options.onUnauthorized);
 
@@ -766,6 +904,8 @@ export function useSyncChangesPoller(options: SyncChangesPollerOptions): SyncCha
       onChanges: options.onChanges,
       onError: options.onError,
       onCursorReset: options.onCursorReset,
+      onSnapshotRequired: options.onSnapshotRequired,
+      onDrainingChange: options.onDrainingChange,
     };
     unauthorizedRef.current = options.onUnauthorized;
   });
@@ -799,50 +939,131 @@ export function useSyncChangesPoller(options: SyncChangesPollerOptions): SyncCha
       return;
     }
     inFlightRef.current = true;
+    /**
+     * 「正在排空」的可见状态：一旦收到 `hasMore === true` 就置位，排空 / 出错 / 重置时一律
+     * 在 `finally` 里复位——界面绝不会因为一次中途失败的排空而永久禁用写入。
+     */
+    let draining = false;
+    const setDraining = (next: boolean): void => {
+      if (draining === next) {
+        return;
+      }
+      draining = next;
+      handlersRef.current.onDrainingChange?.(next);
+    };
     try {
-      const result = await api.readChanges({
-        since: cursorRef.current,
-        limit: limit ?? SYNC_DEFAULT_LIMIT,
-      });
-      if (!result.ok) {
-        if (result.error.code === 'unauthorized') {
-          unauthorizedRef.current?.();
+      let since = cursorRef.current;
+      for (let page = 0; ; page += 1) {
+        if (page >= SYNC_MAX_PAGES_PER_SYNC) {
+          handlersRef.current.onError?.(
+            `一次同步连续取回了 ${String(page)} 页仍未排空，已暂停本轮（游标已前移，下一轮从断点继续）。`,
+          );
           return;
         }
+        const result = await api.readChanges({ since, limit: limit ?? SYNC_DEFAULT_LIMIT });
+        if (!result.ok) {
+          if (result.error.code === 'unauthorized') {
+            unauthorizedRef.current?.();
+            return;
+          }
+          /**
+           * 服务端拒绝本地游标（`422` + `details.reason`）：
+           * 丢掉本地游标 → 下一轮重新走初始化（读权威快照 + 新水位）→ 给出可见提示。
+           * 只认**结构化原因**（`parseSyncCursorFailure`），原因未知时按普通失败处理——
+           * 绝不在不明原因时擅自丢弃水位。
+           */
+          const cursorFailure = result.status === 422 ? parseSyncCursorFailure(result.error.details) : null;
+          if (cursorFailure !== null) {
+            cursorRef.current = null;
+            handlersRef.current.onCursorReset?.(describeSyncCursorReset(cursorFailure));
+            return;
+          }
+          handlersRef.current.onError?.(`同步变更失败：${describeNavError(result.error)}`);
+          return;
+        }
+        const parsed = syncChangesResponseSchema.safeParse(result.data);
+        if (!parsed.success) {
+          // 形状不符的响应一律不用：宁可不应用变更，也不用半可信数据改本地快照。
+          handlersRef.current.onError?.('同步响应不符合契约，本轮结果已忽略。');
+          return;
+        }
+        const response = parsed.data;
+
+        if (response.resetRequired) {
+          /**
+           * 初始化（①②③④）：**不应用任何 changes**，先读权威快照，快照落地后才采用水位。
+           * 注意顺序不能交换——若先写游标再读快照，快照可能落在水位**之前**，
+           * 那段时间里的变更既不在快照里、也不会再被投递（永久丢失）。
+           */
+          const pending = normalizeSyncCursor(response.nextCursor);
+          const readSnapshot = handlersRef.current.onSnapshotRequired;
+          if (readSnapshot === undefined) {
+            handlersRef.current.onError?.(
+              '服务端要求先读取权威快照再增量，但当前上下文没有提供快照读取步骤，本轮结果已忽略。',
+            );
+            return;
+          }
+          if (pending === null) {
+            handlersRef.current.onError?.(
+              '服务端要求重建同步水位，但没有给出可用的水位游标，本轮未推进（下一轮会重新初始化）。',
+            );
+            return;
+          }
+          const landed = await readSnapshot(pending.seq);
+          if (!landed) {
+            handlersRef.current.onError?.(
+              '读取权威快照失败，暂不推进同步水位（下一轮会重新初始化，绝不会在没有快照时应用历史变更）。',
+            );
+            return;
+          }
+          cursorRef.current = pending.cursor;
+          since = pending.cursor;
+          // 立刻用新水位取**真实增量**，而不是等下一个轮询间隔。
+          continue;
+        }
+
         /**
-         * 服务端拒绝本地游标（`422` + `details.reason`）：
-         * 丢掉本地游标 → 下一轮从最早的变更开始完整同步 → 给出可见提示。
-         * 只认**结构化原因**（`parseSyncCursorFailure`），原因未知时按普通失败处理——
-         * 绝不在不明原因时擅自丢弃水位。
+         * 没有可用游标却收到了变更：绝不应用。这是「禁止历史回放」的最后一道闸门——
+         * 在没有权威快照的情况下把历史按 seq 重放，会误删已恢复的行。
          */
-        const cursorFailure = result.status === 422 ? parseSyncCursorFailure(result.error.details) : null;
-        if (cursorFailure !== null) {
-          cursorRef.current = null;
-          handlersRef.current.onCursorReset?.(describeSyncCursorReset(cursorFailure));
+        if (since === null) {
+          handlersRef.current.onError?.(
+            '服务端在没有可用同步游标时返回了变更，本轮已忽略（不会在没有权威快照的情况下回放历史变更）。',
+          );
           return;
         }
-        handlersRef.current.onError?.(`同步变更失败：${describeNavError(result.error)}`);
-        return;
-      }
-      const parsed = syncChangesResponseSchema.safeParse(result.data);
-      if (!parsed.success) {
-        // 形状不符的响应一律不用：宁可不应用变更，也不用半可信数据改本地快照。
-        handlersRef.current.onError?.('同步响应不符合契约，本轮结果已忽略。');
-        return;
-      }
-      const response = parsed.data;
-      if (response.nextCursor === null) {
-        cursorRef.current = null;
-      } else {
-        const decoded = decodeSyncCursor(response.nextCursor);
-        // 游标语义是「数据库单调变更序号」，因此推进用的是 `seq`（不是任何时间戳）。
-        cursorRef.current = decoded.ok ? encodeSyncCursor(decoded.seq) : null;
-        if (!decoded.ok) {
+        const requestedSeq = decodeSyncCursor(since);
+        if (!requestedSeq.ok) {
+          handlersRef.current.onError?.(
+            '本地的同步游标无法解析，本轮已忽略（不会在没有可用水位的情况下应用变更）。',
+          );
+          return;
+        }
+
+        const drained = !response.hasMore;
+        setDraining(!drained);
+        handlersRef.current.onChanges(response.changes, response.serverTimeMs, response.meta, drained);
+
+        const advanced = advanceSyncCursor({
+          response,
+          requestSince: since,
+          requestSeq: requestedSeq.seq,
+          limit: limit ?? SYNC_DEFAULT_LIMIT,
+        });
+        cursorRef.current = advanced.cursor;
+        if (advanced.invalid) {
           handlersRef.current.onCursorReset?.('同步游标不可用，下一轮将做一次完整同步。');
         }
+
+        const nextSince = cursorRef.current;
+        if (drained || nextSince === null) {
+          // 排空完成，或游标已不可用（下一轮重新初始化，继续排空只会拿到空游标）。
+          return;
+        }
+        since = nextSince;
       }
-      handlersRef.current.onChanges(response.changes, response.serverTimeMs, response.meta);
     } finally {
+      setDraining(false);
       inFlightRef.current = false;
     }
   }, [api, enabled, limit]);
@@ -1039,6 +1260,33 @@ export function useNav(options: UseNavOptions): NavController {
   const appliedSeqRef = useRef<Readonly<Record<string, number>>>({});
 
   /**
+   * **快照水位地板**：本地这份快照里已经包含了 `seq <= 地板` 的全部变更。
+   *
+   * 为什么必须有它（第三轮复核修正的 P1）：变更流的 `payload` 是**当前**实体内容，
+   * 而日志条目是**历史事件**。因此任何 `seq <= 地板` 的变更都是「快照之前的历史」，
+   * 把它重放到一份已经是当前状态的快照上只会造成错误——典型反例是
+   * 「导入 → 删除 → 显式恢复」：历史里的 `delete`（`payload=null`）会把一条**已恢复**的
+   * 链接删掉，成员关系一起丢，直到更靠后的恢复页才补回（甚至补不回）。
+   *
+   * 地板在**初始化流程**里、快照落地那一刻被抬到服务端给出的水位（只增不减）：
+   *   没有游标 → `since` 缺省 → `resetRequired: true` + `nextCursor = v2:<当前水位>`
+   *   → 读权威快照并替换本地状态 → 采用该水位。
+   * 应用变更前先按它过滤，因此「从 null 回放整段历史」在结构上不可能发生。
+   */
+  const snapshotFloorRef = useRef(0);
+
+  /**
+   * 权威快照请求的**发起序号**与**最近一次落地序号**。
+   *
+   * 用途：快照是**整份替换**，因此「更早发起、更晚返回」的响应绝不能覆盖更新的那份
+   * （挂载时的后台刷新与初始化流程的读取天然并发）。规则是单调的：一旦有更新发起的
+   * 请求落地（`applied` 变大），更旧请求的结果就只用于回答「快照是否已可用」，
+   * 不再写状态。
+   */
+  const snapshotRequestSeqRef = useRef(0);
+  const snapshotAppliedSeqRef = useRef(0);
+
+  /**
    * 为什么用 `useEffect`（而不是渲染期赋值）同步 ref：渲染期写 ref 在并发渲染下
    * 可能被丢弃或重复，`useEffect` 保证提交后才可见。
    */
@@ -1070,33 +1318,94 @@ export function useNav(options: UseNavOptions): NavController {
   // 跨设备变更：应用远端变化，但**永不**动正在编辑的草稿
   // -------------------------------------------------------------------------
 
-  /**
-   * 变更在**快照还没加载完**时到达的暂存区（连同该轮的权威 `meta` 一起暂存）。
-   *
-   * 为什么必须有它：挂载时的首次同步与首次快照加载是并发的，增量可能先到。
-   * 直接丢弃是**错的**——游标已经前进了（服务端不会再发一次），丢掉的变更不会自己回来。
-   * 因此先暂存，等快照落地后立刻补应用。
-   */
-  const pendingChangesRef = useRef<{ readonly changes: readonly SyncChange[]; readonly meta: SyncMeta | null }[]>([]);
+  const failureText = useCallback(
+    (result: { readonly error: NavApiErrorInfo }, prefix: string): string => {
+      if (result.error.code === 'unauthorized') {
+        unauthorizedRef.current?.();
+        return `${prefix}：凭证已失效，请重新输入设备凭证。`;
+      }
+      return `${prefix}：${describeNavError(result.error)}`;
+    },
+    [],
+  );
 
   /**
-   * 把一批变更应用到给定快照上（纯判定 + 纯应用，本函数只负责把结果落到状态里）。
+   * 读一次**权威快照**并整份替换本地状态；返回 `true` 表示「已有一份不早于本轮水位的快照落地」。
+   *
+   * 两个调用方：挂载 / 写入后的普通刷新（不给水位），以及初始化协议的第 ③ 步（给出水位）。
+   * 后者落地时把**快照水位地板**抬到该水位——地板是「禁止历史回放」的判据（见 `snapshotFloorRef`）。
+   *
+   * 并发处理：快照是整份替换，「更早发起、更晚返回」的响应绝不能覆盖更新的那份。
+   * 因此给每次请求发一个**递增的发起序号**，并只允许不早于「已落地序号」的结果写状态；
+   * 被更新的请求落地的旧结果只用于回答「快照是否可用」，不写状态、不报错（避免把界面标红）。
+   */
+  const readAuthoritativeSnapshot = useCallback(
+    async (watermarkSeq?: number): Promise<boolean> => {
+      const requestSeq = snapshotRequestSeqRef.current + 1;
+      snapshotRequestSeqRef.current = requestSeq;
+      const result = await api.readSnapshot();
+      if (!mountedRef.current) {
+        return false;
+      }
+      if (!result.ok) {
+        if (requestSeq === snapshotRequestSeqRef.current) {
+          update((current) => ({ ...current, status: 'error', error: failureText(result, '加载导航快照失败') }));
+        }
+        return false;
+      }
+      /**
+       * 地板在**拿到快照之后**才抬高，而且只增不减。
+       *
+       * 为什么「被更新的请求取代」这一支也可以抬：任何 `applied` 更大的请求都是**更晚发起**的，
+       * 而初始化流程的请求本身发在 `resetRequired` 之后，因此那份更新的快照不可能早于本轮水位
+       * ——它至少同样新鲜。
+       */
+      if (watermarkSeq !== undefined) {
+        snapshotFloorRef.current = Math.max(snapshotFloorRef.current, watermarkSeq);
+      }
+      if (requestSeq < snapshotAppliedSeqRef.current) {
+        // 已有更新的快照落地：这份结果更旧，只回答「可用」，不覆盖状态。
+        return true;
+      }
+      snapshotAppliedSeqRef.current = requestSeq;
+      update((current) => ({ ...current, status: 'ready', snapshot: result.data, error: null }));
+      return true;
+    },
+    [api, failureText, update],
+  );
+
+  /**
+   * 把**一页**变更应用到给定快照上（纯判定 + 纯应用，本函数只负责把结果落到状态里）。
    *
    * 顺序刻意如此：
-   * 1. 先逐条判定（`resolveRemoteChange`）：与草稿冲突的**不进入应用集合**；
+   * 0. 先用**快照水位地板**丢掉「快照之前的历史事件」（`seq <= 地板`）——变更流的 payload 是
+   *    **当前**内容，重放历史会误删已恢复的行；这一步是 P1 修复的核心闸门；
+   * 1. 再逐条判定（`resolveRemoteChange`）：与草稿冲突的**不进入应用集合**；
    * 2. 只对可应用的子集调用 `applyNavSyncChanges`（按 `seq` 升序 + 墓碑防复活）；
    * 3. 写状态：草稿内容一个字段都不会被改写，只置位「远端变了」的提示；
-   * 4. **全局修订只认 `meta.navRevision`**：即使这一轮没有任何可应用的变更，
-   *    服务端说工作空间已经到了 N，本地就必须记 N——否则下一次重排/导入必然 409。
+   * 4. **全局修订只认 `meta.navRevision`，且只在 `drained === true` 的那一页之后写入**。
+   *    `hasMore === true` 期间 meta 对应的是服务端**当前**状态，而本地集合还不完整，
+   *    拿它当 CAS 基数就是「按未来修订号批准基于部分旧集合的写入」。
    */
   const applyChangesTo = useCallback(
-    (snapshot: NavSnapshot, changes: readonly SyncChange[], meta: SyncMeta | null): void => {
+    (snapshot: NavSnapshot, changes: readonly SyncChange[], meta: SyncMeta | null, drained: boolean): void => {
+      const floor = snapshotFloorRef.current;
+      const fresh: SyncChange[] = [];
+      let historyIgnored = 0;
+      for (const change of changes) {
+        if (change.seq <= floor) {
+          historyIgnored += 1;
+          continue;
+        }
+        fresh.push(change);
+      }
+
       const draftNow = draftRef.current;
       const draftLinkId = draftNow !== null && draftNow.mode === 'edit' ? draftNow.linkId : null;
 
       const applicable: SyncChange[] = [];
       let conflictVerdict: RemoteChangeVerdict | null = null;
-      for (const change of changes) {
+      for (const change of fresh) {
         const verdict = resolveRemoteChange({ change, draftLinkId });
         if (verdict.kind === 'ignore') {
           continue;
@@ -1125,11 +1434,11 @@ export function useNav(options: UseNavOptions): NavController {
       }
 
       /**
-       * 权威全局修订（`meta.navRevision`）。`meta` 缺失时（`null`）保持原值：
-       * 「拿不到权威值」与「权威值就是 0」是两件事，不能混为一谈。
-       * 修订没变时返回**原对象**，避免每轮同步都制造一次无谓的重渲染。
+       * 权威全局修订（`meta.navRevision`）。三种情况保持原值：
+       * `meta === null`（拿不到权威值 ≠ 权威值是 0）、`drained === false`（集合还不完整）、
+       * 以及修订本来就没变（返回**原对象**，避免每轮同步都制造一次无谓的重渲染）。
        */
-      const revisionFromMeta = meta === null ? null : meta.navRevision;
+      const revisionFromMeta = meta === null || !drained ? null : meta.navRevision;
       const withRevision = (base: NavSnapshot): NavSnapshot =>
         revisionFromMeta === null || revisionFromMeta === base.revision
           ? base
@@ -1139,11 +1448,12 @@ export function useNav(options: UseNavOptions): NavController {
         const currentSnapshot = ref.current.snapshot;
         const nextSnapshot = currentSnapshot === null ? null : withRevision(currentSnapshot);
         const revisionMoved = nextSnapshot !== null && nextSnapshot !== currentSnapshot;
-        if (remoteNotice !== null || revisionMoved) {
+        if (remoteNotice !== null || revisionMoved || historyIgnored > 0) {
           update((current) => ({
             ...current,
             snapshot: nextSnapshot ?? current.snapshot,
             draftRemoteNotice: remoteNotice ?? current.draftRemoteNotice,
+            notice: historyIgnored > 0 ? describeHistoryIgnored(historyIgnored) : current.notice,
           }));
         }
         if (remoteNotice !== null) {
@@ -1171,7 +1481,7 @@ export function useNav(options: UseNavOptions): NavController {
         notice:
           `已应用其它设备的 ${String(applicable.length)} 条导航变更` +
           (applied.ignored > 0 ? `（另有 ${String(applied.ignored)} 条因重复、形状不符或已删除被忽略）` : '') +
-          '。',
+          (historyIgnored > 0 ? `。${describeHistoryIgnored(historyIgnored)}` : '。'),
       }));
       if (remoteNotice !== null) {
         const current = draftRef.current;
@@ -1186,16 +1496,26 @@ export function useNav(options: UseNavOptions): NavController {
   );
 
   const handleSyncChanges = useCallback(
-    (changes: readonly SyncChange[], meta: SyncMeta | null): void => {
+    (changes: readonly SyncChange[], meta: SyncMeta | null, drained: boolean): void => {
       const snapshot = ref.current.snapshot;
       if (snapshot === null) {
-        // 快照还没到：暂存（含该轮的 meta），等它落地后立刻补应用（绝不静默丢弃增量）。
-        pendingChangesRef.current = [...pendingChangesRef.current, { changes: [...changes], meta }];
+        /**
+         * 新协议下增量只会在**权威快照落地之后**到达（初始化流程保证：先 reset → 读快照 → 采用水位）。
+         * 这里若没有快照，说明协议被破坏：绝不逐页应用历史，只给一条可见说明，
+         * 下一轮同步会重新走初始化。早先的「先暂存、等快照到了再补应用」正是 P1 缺陷的入口——
+         * 它等于「在没有快照的情况下把历史重放上去」，因此被删除。
+         */
+        update((current) => ({
+          ...current,
+          error:
+            current.error ??
+            '同步增量到达时还没有权威快照，本轮已忽略（不会在没有快照的情况下回放历史变更）。',
+        }));
         return;
       }
-      applyChangesTo(snapshot, changes, meta);
+      applyChangesTo(snapshot, changes, meta, drained);
     },
-    [applyChangesTo],
+    [applyChangesTo, update],
   );
 
   const poller = useSyncChangesPoller({
@@ -1203,14 +1523,30 @@ export function useNav(options: UseNavOptions): NavController {
     ...(options.syncApi === undefined ? {} : { api: options.syncApi }),
     getToken: options.getToken,
     ...(options.syncIntervalMs === undefined ? {} : { intervalMs: options.syncIntervalMs }),
-    onChanges: (changes, _serverTimeMs, meta) => {
-      // 一轮成功同步意味着同步机制已经恢复：清掉「游标已重置」这类可恢复提示。
-      update((current) => (current.syncNotice === null ? current : { ...current, syncNotice: null }));
-      handleSyncChanges(changes, meta);
+    ...(options.syncLimit === undefined ? {} : { limit: options.syncLimit }),
+    // 初始化协议第 ③ 步：只在这里读权威快照，并在快照落地那一刻抬高「水位地板」。
+    onSnapshotRequired: (watermarkSeq) => readAuthoritativeSnapshot(watermarkSeq),
+    onChanges: (changes, _serverTimeMs, meta, drained) => {
+      // 只有**排空完成**（`hasMore === false`）才意味着同步机制已经恢复：清掉可恢复提示。
+      if (drained) {
+        update((current) => (current.syncNotice === null ? current : { ...current, syncNotice: null }));
+      }
+      handleSyncChanges(changes, meta, drained);
+    },
+    onDrainingChange: (draining) => {
+      update((current) => ({
+        ...current,
+        syncing: draining,
+        syncNotice: draining
+          ? SYNC_DRAINING_NOTICE
+          : current.syncNotice === SYNC_DRAINING_NOTICE
+            ? null
+            : current.syncNotice,
+      }));
     },
     ...(options.onUnauthorized === undefined ? {} : { onUnauthorized: options.onUnauthorized }),
     onCursorReset: (message) => {
-      // 可见提示（不静默）：游标已丢弃，下一轮从头完整同步。
+      // 可见提示（不静默）：游标已丢弃，下一轮重新走初始化（读权威快照 + 新水位）。
       update((current) => ({ ...current, syncNotice: message }));
     },
     onError: (message) => {
@@ -1223,17 +1559,13 @@ export function useNav(options: UseNavOptions): NavController {
   // 读取
   // -------------------------------------------------------------------------
 
-  const failureText = useCallback(
-    (result: { readonly error: NavApiErrorInfo }, prefix: string): string => {
-      if (result.error.code === 'unauthorized') {
-        unauthorizedRef.current?.();
-        return `${prefix}：凭证已失效，请重新输入设备凭证。`;
-      }
-      return `${prefix}：${describeNavError(result.error)}`;
-    },
-    [],
-  );
-
+  /**
+   * 重新读一次权威快照（挂载、写入之后、用户点「重新加载」）。
+   *
+   * 为什么**不再**在这里补应用「快照还没到时先到达的增量」：那是 P1 缺陷的入口
+   * （等于在没有快照的旧状态上逐页回放历史）。新协议把这件事交给初始化流程：
+   * 增量只在快照落地之后才会被请求，因此不存在「先到一步」的增量。
+   */
   const refresh = useCallback(async (): Promise<void> => {
     update((current) => ({
       ...current,
@@ -1241,33 +1573,8 @@ export function useNav(options: UseNavOptions): NavController {
       status: current.snapshot === null ? 'loading' : current.status,
       error: null,
     }));
-    const result = await api.readSnapshot();
-    if (!mountedRef.current) {
-      return;
-    }
-    if (!result.ok) {
-      update((current) => ({ ...current, status: 'error', error: failureText(result, '加载导航快照失败') }));
-      return;
-    }
-    update((current) => ({ ...current, status: 'ready', snapshot: result.data, error: null }));
-    /**
-     * 补应用「快照还没到时先到达」的增量（按到达顺序逐轮应用，各自带该轮的权威 `meta`）。
-     *
-     * 必须在 `update` 之后：`applyChangesTo` 读的是刚写下的状态镜像，
-     * 而它产生的快照要建立在这份**刚拿到**的服务端快照之上。
-     */
-    const pending = pendingChangesRef.current;
-    if (pending.length > 0) {
-      pendingChangesRef.current = [];
-      for (const batch of pending) {
-        const base = ref.current.snapshot;
-        if (base === null) {
-          break;
-        }
-        applyChangesTo(base, batch.changes, batch.meta);
-      }
-    }
-  }, [api, applyChangesTo, failureText, update]);
+    await readAuthoritativeSnapshot();
+  }, [readAuthoritativeSnapshot, update]);
 
   useEffect(() => {
     if (!options.enabled || loadedRef.current) {
@@ -1545,6 +1852,25 @@ export function useNav(options: UseNavOptions): NavController {
     [update],
   );
 
+  /**
+   * 排空期间的**全局 CAS 写**闸门：拒绝提交并给出「正在同步」的可见提示。
+   *
+   * 为什么只拦这一类（重排 / 目录导入 / 导入 apply）：它们提交的是**工作空间级**
+   * `expectedRevision`，语义是「基于我看到的整份集合」。`hasMore === true` 时本地集合
+   * 还不完整，此时提交等于用部分旧集合覆盖服务端；而服务端 `meta.navRevision` 也不能拿来当
+   * 基数（那是**未来**的全局值）。行级写（编辑 / 删除 / 收藏）用的是**行修订**，与集合完整性
+   * 无关，因此不受此闸门影响。
+   *
+   * 返回 `true` 表示「已拒绝」——调用方必须立刻返回，什么都不发。
+   */
+  const rejectWriteWhileSyncing = useCallback((): boolean => {
+    if (!ref.current.syncing) {
+      return false;
+    }
+    update((current) => ({ ...current, notice: SYNC_DRAINING_NOTICE }));
+    return true;
+  }, [update]);
+
   // -------------------------------------------------------------------------
   // 链接 CRUD
   // -------------------------------------------------------------------------
@@ -1727,6 +2053,10 @@ export function useNav(options: UseNavOptions): NavController {
    */
   const moveLink = useCallback(
     async (linkId: string, direction: -1 | 1): Promise<void> => {
+      // 排空期间禁止全局 CAS 写（见 `rejectWriteWhileSyncing`）：绝不静默用旧/新修订提交。
+      if (rejectWriteWhileSyncing()) {
+        return;
+      }
       const snapshot = ref.current.snapshot;
       if (snapshot === null) {
         return;
@@ -1771,7 +2101,7 @@ export function useNav(options: UseNavOptions): NavController {
         },
       });
     },
-    [adoptRevision, api, write],
+    [adoptRevision, api, rejectWriteWhileSyncing, write],
   );
 
   // -------------------------------------------------------------------------
@@ -1872,6 +2202,10 @@ export function useNav(options: UseNavOptions): NavController {
 
   const moveGroup = useCallback(
     async (groupId: string, direction: -1 | 1): Promise<void> => {
+      // 排空期间禁止全局 CAS 写：分组顺序同样是整体替换，必须基于完整集合。
+      if (rejectWriteWhileSyncing()) {
+        return;
+      }
       const snapshot = ref.current.snapshot;
       if (snapshot === null) {
         return;
@@ -1909,7 +2243,7 @@ export function useNav(options: UseNavOptions): NavController {
         },
       });
     },
-    [activeGroups, adoptRevision, api, write],
+    [activeGroups, adoptRevision, api, rejectWriteWhileSyncing, write],
   );
 
   // -------------------------------------------------------------------------
@@ -1943,6 +2277,10 @@ export function useNav(options: UseNavOptions): NavController {
         update((current) => ({ ...current, error: '请先勾选要导入的目录条目。' }));
         return;
       }
+      // 排空期间禁止全局 CAS 写（目录导入会整体改动集合与顺序）。
+      if (rejectWriteWhileSyncing()) {
+        return;
+      }
       const done = await write<{
         importedCount: number;
         restoredLinkIds: readonly string[];
@@ -1974,7 +2312,7 @@ export function useNav(options: UseNavOptions): NavController {
         await loadCatalog();
       }
     },
-    [api, loadCatalog, refresh, update, write],
+    [api, loadCatalog, refresh, rejectWriteWhileSyncing, update, write],
   );
 
   // -------------------------------------------------------------------------
@@ -2050,6 +2388,10 @@ export function useNav(options: UseNavOptions): NavController {
     if (preview === null) {
       return;
     }
+    // 排空期间禁止导入落地：`expectedRevision` 语义上基于整份集合，此时本地集合还不完整。
+    if (rejectWriteWhileSyncing()) {
+      return;
+    }
     const local = preview.source;
     const isRestore = local.kind === 'restore' && local.document !== null;
     const applied = await write<NavImportApplyResponse>({
@@ -2081,7 +2423,7 @@ export function useNav(options: UseNavOptions): NavController {
       // 恢复会改动分组与成员关系，因此刷新一次拿到权威快照（本地不做任何推断）。
       await refresh();
     }
-  }, [api, refresh, update, write]);
+  }, [api, refresh, rejectWriteWhileSyncing, update, write]);
 
   // -------------------------------------------------------------------------
   // 导出与读回校验

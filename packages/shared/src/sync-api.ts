@@ -197,6 +197,26 @@ export const syncChangesResponseSchema = z
      */
     nextCursor: z.string().nullable(),
     hasMore: z.boolean(),
+    /**
+     * **必须先读一次当前快照再增量**（复核修正：安全快照 + 稳定水位协议）。
+     *
+     * 为什么需要它：变更流的 `payload` 是**当前**实体内容，而不是「该事件发生时的内容」。
+     * 因此把历史日志按 seq 顺序重放到一个**已经是当前状态**的本地副本上是不成立的：
+     * 例如「导入 → 删除 → 显式恢复」之后，历史里的那条 `delete` 仍然存在（payload=null），
+     * 重放它会把本地一条**已恢复**的链接删掉，直到更靠后的 restore 页才补回来——期间用户看到
+     * 错误的删除、成员关系也一起丢。更一般地，历史行的 `revision` 与当前 payload 的
+     * `revision` 也不一致。
+     *
+     * 因此协议规定：
+     * - **`since` 缺省**（客户端没有游标）时，服务端**不返回历史变更**，而是返回
+     *   `resetRequired: true` + `nextCursor = v2:<当前水位>` + `meta.watermark = 当前水位`；
+     *   客户端必须先 `GET` 一次权威快照（导航/工作台），再把游标设为该水位开始增量。
+     * - 只有 `since = v2:<某个水位>`（通常来自快照或上一页）时才返回 `seq > 水位` 的**真实增量**，
+     *   此时「在快照之后发生的事件」按 seq 顺序应用是自洽的（后来的事件覆盖先前事件）。
+     * - 客户端在 `hasMore === true`（还有页没取完）期间**不得**把 `meta` 里的权威全局修订号
+     *   当作 CAS 基数：那对应的是服务端当前状态，而本地集合还不完整。
+     */
+    resetRequired: z.boolean(),
     /** 服务端时间：客户端据此对自身时钟偏移做估计，并给本地墓碑/草稿排序。 */
     serverTimeMs: z.number().int().nonnegative(),
     /**

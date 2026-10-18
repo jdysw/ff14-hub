@@ -13,6 +13,14 @@
  *    都必须天然进入同步流——它们不是常规 CRUD，靠的正是迁移 0011 的**触发器**。
  * 4. **分页不变量**：`seq` 严格递增 ⇒ 页与页之间既不漏也不重；分页期间持续写入也不影响。
  * 5. **作用域隔离**：工作空间 B 的行绝不出现在 A 的响应里。
+ * 6. **重置协议 / 禁止从 0 回放历史**（第三轮复核修正的 P1 语义缺陷）：变更流的 `payload`
+ *    是**当前**实体内容，而日志条目是**历史事件**。因此「`since` 缺省 = 从 seq 0 回放整段历史」
+ *    不成立：真实反例是「导入 → 删除 → 显式恢复」之后，历史里的 `delete` 会把本地**已恢复**
+ *    的链接删掉（成员关系一起丢）。现在的协议是：`since` 缺省 ⇒ `resetRequired: true`、
+ *    `changes: []`、`nextCursor = v2:<本工作空间当前水位>`、`meta.watermark = 该水位`；
+ *    客户端先读一次权威快照（导航/工作台）再从这个水位取**真实增量**。
+ *    `v2:0` 仍能显式读到历史条目本身（服务端如实返回被请求的序号段），
+ *    测试用它检查历史、并证明「历史条目不再由 reset/增量路径投递」，但它**不是**客户端的初始化路径。
  *
  * 夹具策略：导航 / 活动行直接 `env.DB.prepare(...).run()` 插入并**显式设置 `updated_at`**
  * （不依赖并行实现中的 nav/events 端点）。直接 SQL 写入同样会触发 0011 的变更触发器，
@@ -29,6 +37,7 @@ import {
   encodeSyncCursor,
   syncChangeSchema,
   syncChangesResponseSchema,
+  type NavSnapshot,
   type SyncChange,
   type SyncChangesResponse,
   type SyncEntityType,
@@ -101,6 +110,89 @@ function cursorOf(response: SyncChangesResponse): string {
     throw new Error('本用例期望拿到可继续的游标，但响应为 null');
   }
   return response.nextCursor;
+}
+
+/**
+ * 从 `v2:0` 读**整段历史**（测试专用的诊断视角）。
+ *
+ * 协议**禁止客户端**从 0 回放历史（`payload` 是当前实体内容而非事件内容，见 `sync-api.ts`），
+ * 但服务端仍如实返回被显式请求的序号段。测试用它检查「历史条目本身」，
+ * 并据此证明历史里的 `delete` 确实存在、只是**不再**由 reset / 增量路径投递。
+ */
+function readAllHistory(authorization: string, limit?: number): Promise<SyncChangesResponse> {
+  return readChanges(authorization, encodeSyncCursor(0), limit);
+}
+
+/**
+ * 无 `since` 的**重置协议**读取（客户端的唯一安全初始化路径）。
+ *
+ * 三条硬断言（新协议的全部内容）：`resetRequired: true`、不投递任何历史变更、
+ * `nextCursor` 恰好是「当前水位」`meta.watermark`。任何一条不成立都说明服务端又回到了
+ * 「从 0 回放历史」的旧语义，用例直接失败。
+ */
+async function readReset(authorization: string, limit?: number): Promise<SyncChangesResponse> {
+  const response = await readChanges(authorization, undefined, limit);
+  expect(response.resetRequired, `reset 响应必须要求先读快照：${JSON.stringify(response)}`).toBe(true);
+  expect(response.changes).toEqual([]);
+  expect(response.hasMore).toBe(false);
+  expect(cursorOf(response)).toBe(encodeSyncCursor(response.meta.watermark));
+  return response;
+}
+
+/** `GET /me/navigation` 权威快照（只含活跃行；reset 之后客户端第一步就读它）。 */
+async function readNavSnapshot(authorization: string): Promise<NavSnapshot> {
+  const response = await SELF.fetch(URLS.meNavigation, { headers: { Authorization: authorization } });
+  const text = await response.text();
+  expect(response.status, text).toBe(200);
+  return JSON.parse(text) as NavSnapshot;
+}
+
+/**
+ * 客户端本地的导航状态模型（只保留「谁在、谁不在」这两个测试关心的维度）。
+ *
+ * 应用规则与契约一致：`upsert` ⇒ 落地该行；`delete` ⇒ 移除该行。
+ * 刻意**不**在「链接被删」时顺手清掉成员关系：服务端的删除路径会把成员关系一并墓碑化并
+ * **各自**投递一条 `delete`，客户端只需按收到的墓碑行事（不猜、不推断）。
+ */
+interface LocalNavState {
+  readonly links: Set<string>;
+  readonly groups: Set<string>;
+  readonly memberships: Set<string>;
+}
+
+function localStateOf(snapshot: NavSnapshot): LocalNavState {
+  return {
+    links: new Set(snapshot.links.map((link) => link.id)),
+    groups: new Set(snapshot.groups.map((group) => group.id)),
+    memberships: new Set(snapshot.memberships.map((m) => `${m.linkId}:${m.groupId}`)),
+  };
+}
+
+/** 按 seq 顺序把一条变更应用到本地状态（`delete` 移除、`upsert` 落地）。 */
+function applyChange(state: LocalNavState, change: SyncChange): void {
+  if (change.entityType === 'nav_link') {
+    if (change.op === 'delete') {
+      state.links.delete(change.entityId);
+    } else {
+      state.links.add(change.entityId);
+    }
+    return;
+  }
+  if (change.entityType === 'nav_group') {
+    if (change.op === 'delete') {
+      state.groups.delete(change.entityId);
+    } else {
+      state.groups.add(change.entityId);
+    }
+    return;
+  }
+  if (change.entityType === 'nav_membership') {
+    if (change.op === 'delete') {
+      state.memberships.delete(change.entityId);
+    } else {
+      state.memberships.add(change.entityId);
+    }
+  }
 }
 
 /** 解码游标里的序号（断言「游标确实前进」时用；解析失败直接让用例失败）。 */
@@ -291,6 +383,59 @@ async function tombstoneNavGroup(workspaceId: string, id: string, ts: number): P
     .run();
 }
 
+async function insertNavLink(workspaceId: string, id: string, updatedAt: number): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO workspace_nav_links
+       (id, workspace_id, source_catalog_id, imported_source_version, title, url, description,
+        tags_json, aliases_json, icon, open_mode, region, status, is_favorite, sort_order,
+        health, health_checked_at, revision, deleted_at, created_at, updated_at)
+     VALUES (?, ?, NULL, NULL, '链接', 'https://example.com/', '', '[]', '[]', '',
+             'new_tab', 'cn', 'active', 0, 0, 'unknown', NULL, 0, NULL, ?, ?)`,
+  )
+    .bind(id, workspaceId, updatedAt, updatedAt)
+    .run();
+}
+
+/**
+ * 墓碑化链接（**只**链接行）：与业务删除路径同形，但刻意不同批墓碑化成员关系。
+ *
+ * 为什么这里要「只动链接行」：这样一次写**恰好**产生一条日志，`limit=1` 分页就能逐页看到
+ * 「先 delete、后 upsert」的真实迁移。业务删除路径会把成员关系一并墓碑化（于是成员关系
+ * 各自也产生一条日志，`limit=1` 下会有 4 页）——那条路径由上面「真实 HTTP」的用例覆盖。
+ */
+async function tombstoneNavLink(workspaceId: string, id: string, ts: number): Promise<void> {
+  await env.DB.prepare(
+    `UPDATE workspace_nav_links SET deleted_at = ?, revision = revision + 1, updated_at = ?
+      WHERE id = ? AND workspace_id = ?`,
+  )
+    .bind(ts, ts, id, workspaceId)
+    .run();
+}
+
+/** 显式恢复：墓碑回活跃（同样是「一次写 = 一条日志」）。 */
+async function restoreNavLink(workspaceId: string, id: string, ts: number): Promise<void> {
+  await env.DB.prepare(
+    `UPDATE workspace_nav_links SET deleted_at = NULL, revision = revision + 1, updated_at = ?
+      WHERE id = ? AND workspace_id = ?`,
+  )
+    .bind(ts, id, workspaceId)
+    .run();
+}
+
+async function insertNavMembership(
+  workspaceId: string,
+  linkId: string,
+  groupId: string,
+  updatedAt: number,
+): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO workspace_nav_memberships (link_id, group_id, workspace_id, sort_order, deleted_at, updated_at)
+     VALUES (?, ?, ?, 0, NULL, ?)`,
+  )
+    .bind(linkId, groupId, workspaceId, updatedAt)
+    .run();
+}
+
 /** 工作空间级导航修订号（行缺失等价于 0）。 */
 async function readNavStateRevision(workspaceId: string): Promise<number> {
   const row = await env.DB.prepare('SELECT revision FROM workspace_nav_state WHERE workspace_id = ?')
@@ -321,22 +466,35 @@ describe('GET /me/sync/changes：鉴权与首次全量', () => {
     expect(body.code).toBe('unauthorized');
   });
 
-  it('since 缺失 = 首次全量：八种实体各至少一条，每条都过 syncChangeSchema 且 seq 严格递增', async () => {
+  it('v2:0 全量历史：八种实体各至少一条，每条都过 syncChangeSchema 且 seq 严格递增；since 缺省只给 reset 水位', async () => {
     const auth = await seedAuth();
     const seed = await seedEveryEntityType(auth.workspaceId, T0);
 
-    const response = await readChanges(auth.authorization);
+    // `since` 缺省**不再**投递历史（那正是本轮修的 P1 缺陷）：先证明这一点，
+    // 再用 `v2:0` 读历史条目本身，检查各实体类型、payload 与 revision 的事实。
+    const reset = await readReset(auth.authorization);
+
+    const response = await readAllHistory(auth.authorization);
 
     // entityTypes 是契约的一部分：客户端据此知道服务端**实际扫描**了哪些类型。
     expect(response.entityTypes).toEqual([...SYNC_ENTITY_TYPES]);
     expect(response.serverTimeMs).toBeGreaterThan(0);
     expect(response.hasMore).toBe(false);
+    expect(response.resetRequired).toBe(false);
     expectStrictlyIncreasingSeq(response.changes);
     // 每条 seq 都是正整数，且游标恰好停在最后一条 seq 上。
     for (const change of response.changes) {
       expect(change.seq).toBeGreaterThan(0);
     }
     expect(cursorOf(response)).toBe(encodeSyncCursor(maxSeq(response)));
+
+    // reset 的水位 = 本工作空间的 `MAX(seq)`（= 历史里最后一条变更的 seq）：
+    // 客户端读完快照后带这个游标回来，历史一条都不会重发。
+    expect(reset.meta.watermark).toBe(maxSeq(response));
+    expect(seqOf(cursorOf(reset))).toBe(maxSeq(response));
+    const fromWatermark = await readChanges(auth.authorization, cursorOf(reset));
+    expect(fromWatermark.changes).toEqual([]);
+    expect(fromWatermark.resetRequired).toBe(false);
 
     const byType = new Map<SyncEntityType, SyncChange>();
     for (const change of response.changes) {
@@ -394,19 +552,19 @@ describe('GET /me/sync/changes：鉴权与首次全量', () => {
       expect(JSON.stringify(change.payload)).not.toContain(auth.workspaceId);
     }
 
-    // 用首次全量的游标再同步一次：没有任何新变更，游标停驻（不是「+1 前移」）。
+    // 用全量历史的游标再同步一次：没有任何新变更，游标停驻（不是「+1 前移」）。
     const idle = await readChanges(auth.authorization, cursorOf(response));
     expect(idle.changes).toEqual([]);
     expect(idle.hasMore).toBe(false);
     expect(cursorOf(idle)).toBe(cursorOf(response));
   });
 
-  it('空水位：没有任何行的首次全量返回空列表、hasMore=false、watermark=0', async () => {
+  it('空水位：没有任何行时重置协议返回空列表、hasMore=false、watermark=0', async () => {
     const auth = await seedAuth();
-    const response = await readChanges(auth.authorization);
+    const response = await readReset(auth.authorization);
     expect(response.changes).toEqual([]);
     expect(response.hasMore).toBe(false);
-    // 契约：无变更时 nextCursor = encodeSyncCursor(requestSeq ?? 0)，watermark 同理。
+    // 空工作空间的水位是 0：`nextCursor = v2:0`，`meta.watermark = 0`（readReset 已断言两者一致）。
     expect(cursorOf(response)).toBe(encodeSyncCursor(0));
     expect(response.meta.watermark).toBe(0);
   });
@@ -420,7 +578,8 @@ describe('增量：只返回水位（seq）之后的变更', () => {
   it('bump 某行 updated_at 后，用上一次的 nextCursor 只拿到该行', async () => {
     const auth = await seedAuth();
     const seed = await seedEveryEntityType(auth.workspaceId, T0);
-    const first = await readChanges(auth.authorization);
+    // 客户端的合法初始化：reset（拿稳定水位）→ 读权威快照 → 增量。
+    const first = await readReset(auth.authorization);
 
     const bumpTs = T0 + 500;
     await env.DB.prepare(
@@ -447,7 +606,7 @@ describe('增量：只返回水位（seq）之后的变更', () => {
   it('墓碑：widget 被墓碑化后出现 op=delete 且 payload 为 null（行仍在库里）', async () => {
     const auth = await seedAuth();
     const seed = await seedEveryEntityType(auth.workspaceId, T0);
-    const first = await readChanges(auth.authorization);
+    const first = await readReset(auth.authorization);
 
     const tombTs = T0 + 600;
     await env.DB.prepare(
@@ -474,7 +633,9 @@ describe('增量：只返回水位（seq）之后的变更', () => {
   it('页面墓碑：page 以 delete 投递；layout 的 op 由变更日志决定（日志说 upsert 就是 upsert）', async () => {
     const auth = await seedAuth();
     const seed = await seedEveryEntityType(auth.workspaceId, T0);
-    const first = await readChanges(auth.authorization);
+    // 这条用例要检查**种下的历史条目**（layout 的 upsert），因此显式读 v2:0；
+    // 游标语义与 reset 水位一致（都停在本工作空间最后一条 seq 上）。
+    const first = await readAllHistory(auth.authorization);
     const cursor = cursorOf(first);
     expect(requireChange(first, 'layout', `${seed.pageId}:desktop`).op).toBe('upsert');
 
@@ -519,7 +680,8 @@ describe('水位是单调序号：同一毫秒、时钟回退、显式恢复都�
   it('同一毫秒内「更新 → 删除 → 显式恢复」三条都按 seq 投递（旧实现会全丢）', async () => {
     const auth = await seedAuth();
     const seed = await seedEveryEntityType(auth.workspaceId, T0);
-    const first = await readChanges(auth.authorization);
+    // reset 拿到的是「种下八种实体之后」的稳定水位：下面的三次写入都在它之后。
+    const first = await readReset(auth.authorization);
     const cursor = cursorOf(first);
 
     // 组件行原本的 updated_at 就是 T0+1；下面三次写入**全部**落在同一个毫秒。
@@ -565,7 +727,7 @@ describe('水位是单调序号：同一毫秒、时钟回退、显式恢复都�
   it('时钟倒退：updated_at 改小（乱序）时，新变更仍按 seq 被投递并排在正确位置', async () => {
     const auth = await seedAuth();
     const seed = await seedEveryEntityType(auth.workspaceId, T0);
-    const first = await readChanges(auth.authorization);
+    const first = await readReset(auth.authorization);
     const cursor = cursorOf(first);
 
     // ① 时间戳大幅前进的写入；② 时间戳**倒退**（模拟 Worker 时钟回退/乱序）的写入。
@@ -593,6 +755,9 @@ describe('水位是单调序号：同一毫秒、时钟回退、显式恢复都�
   });
 
   it('删除 → 显式恢复（真实 HTTP：墓碑化链接 + explicitReimport 再导入）：delete 后紧跟 upsert', async () => {
+    // 这条用例的「导入 → 删除 → 显式恢复」正是第三轮复核 P1 缺陷的真实场景，
+    // 这里的增量（水位之后）视角由本用例覆盖；「客户端不得从 0 回放它」由下面的
+    // 「重置协议」describe 覆盖。用 `v2:0` 读历史只为断言导入那条 upsert 确实存在。
     // 目录种子：与导航导入端点的真实前置一致（否则导入决策无法命中同一条目录条目）。
     await env.DB.prepare('DELETE FROM nav_catalog_links').run();
     await applyCatalogSeed({ db: env.DB, now: T0 });
@@ -613,7 +778,7 @@ describe('水位是单调序号：同一毫秒、时钟回退、显式恢复都�
     const linkId = importedBody.decisions[0]?.linkId ?? '';
     expect(linkId.length).toBeGreaterThan(0);
 
-    const before = await readChanges(auth.authorization);
+    const before = await readAllHistory(auth.authorization);
     const cursor = cursorOf(before);
     expect(requireChange(before, 'nav_link', linkId).op).toBe('upsert');
 
@@ -669,7 +834,7 @@ describe('写路径完备性：非 CRUD 写路径也天然进入同步流', () =
       operationId: opId('sync-uninstall-widget'),
     });
 
-    const before = await readChanges(auth.authorization);
+    const before = await readAllHistory(auth.authorization);
     const beforeChange = requireChange(before, 'widget', widget.instance.id);
     expect(beforeChange.op).toBe('upsert');
     expect((beforeChange.payload as { moduleId?: string } | null)?.moduleId).toBe(
@@ -712,7 +877,7 @@ describe('写路径完备性：非 CRUD 写路径也天然进入同步流', () =
       operationId: opId('sync-reset-old-widget'),
     });
 
-    const before = await readChanges(auth.authorization);
+    const before = await readAllHistory(auth.authorization);
     expect(findChange(before, 'widget', oldWidget.instance.id)?.op).toBe('upsert');
 
     const apply = await SELF.fetch(
@@ -755,7 +920,8 @@ describe('写路径完备性：非 CRUD 写路径也天然进入同步流', () =
       operationId: opId('sync-import-before'),
     });
 
-    const before = await readChanges(auth.authorization);
+    // 客户端的安全初始化：reset → 快照（工作台）→ 用 reset 的水位取增量。
+    const before = await readReset(auth.authorization);
 
     const document = {
       kind: 'ff14-hub.workbench',
@@ -835,6 +1001,8 @@ describe('分页：seq 严格递增，跨页不漏不重（含分页期间持续
     await insertNavGroup(auth.workspaceId, 'pg-2', T0 + 2);
     await insertNavGroup(auth.workspaceId, 'pg-3', T0 + 3);
 
+    // 这里显式从 `v2:0` 起分页：本用例要验证的正是「seq 严格递增 ⇒ 并集 = 整条变更流」，
+    // 因此需要一个固定起点（`since` 缺省现在只返回重置水位，不再投递历史）。
     let cursor = encodeSyncCursor(0);
     const collected: SyncChange[] = [];
     for (let round = 0; round < 10; round += 1) {
@@ -877,7 +1045,8 @@ describe('分页：seq 严格递增，跨页不漏不重（含分页期间持续
     await insertNavGroup(auth.workspaceId, 'limit-one-a', T0 + 4_000);
     await insertNavGroup(auth.workspaceId, 'limit-one-b', T0 + 4_001);
 
-    const response = await readChanges(auth.authorization, undefined, 1);
+    const response = await readChanges(auth.authorization, encodeSyncCursor(0), 1);
+    expect(response.resetRequired).toBe(false);
     expect(response.changes).toHaveLength(1);
     expect(response.changes[0]?.entityId).toBe('limit-one-a');
     expect(response.hasMore).toBe(true);
@@ -900,7 +1069,7 @@ describe('分页：seq 严格递增，跨页不漏不重（含分页期间持续
     }
     await insertNavGroup(auth.workspaceId, 'ms-group-later', groupTs + 1);
 
-    const first = await readChanges(auth.authorization, undefined, 3);
+    const first = await readChanges(auth.authorization, encodeSyncCursor(0), 3);
     // 与旧实现不同：页大小**不会**因为「同一毫秒有 5 行」而扩张到 5。
     expect(first.changes).toHaveLength(3);
     expect(first.hasMore).toBe(true);
@@ -943,17 +1112,27 @@ describe('作用域隔离', () => {
     await insertPage(authA.workspaceId, 'scope-page-a', 'scope-a', T0);
     await insertPage(authB.workspaceId, 'scope-page-b', 'scope-b', T0);
 
-    const responseA = await readChanges(authA.authorization);
+    const responseA = await readAllHistory(authA.authorization);
     expect(responseA.changes.map((change) => change.entityId)).toEqual(['scope-page-a']);
     expect(JSON.stringify(responseA.changes)).not.toContain(authB.workspaceId);
 
-    const responseB = await readChanges(authB.authorization);
+    const responseB = await readAllHistory(authB.authorization);
     expect(responseB.changes.map((change) => change.entityId)).toEqual(['scope-page-b']);
     expect(JSON.stringify(responseB.changes)).not.toContain(authA.workspaceId);
+
+    // reset 的**水位**也必须各算各的：A 拿到的是 A 自己的 `MAX(seq)`，不是全局最大值
+    // （全局 seq 由两个工作空间共享，B 的行后插入 ⇒ B 的水位更大）。
+    const resetA = await readReset(authA.authorization);
+    const resetB = await readReset(authB.authorization);
+    expect(resetA.meta.watermark).toBe(maxSeq(responseA));
+    expect(resetB.meta.watermark).toBe(maxSeq(responseB));
+    expect(resetB.meta.watermark).toBeGreaterThan(resetA.meta.watermark);
 
     // 各自的水位只覆盖自己的工作空间（A 消费完自己的变更后不会「顺带」消费 B 的）。
     const idleA = await readChanges(authA.authorization, cursorOf(responseA));
     expect(idleA.changes).toEqual([]);
+    // 也不能靠 reset 水位漏掉自己的行：A 从 v2:0 读到的就是它自己的全部 seq。
+    expect(resetA.meta.watermark).toBeGreaterThan(0);
   });
 });
 
@@ -991,15 +1170,20 @@ describe('游标版本与参数校验', () => {
     }
   });
 
-  it('v2:0 合法：等价于首次全量', async () => {
+  it('v2:0 = 从 seq 0 起的真实增量（测试/诊断用）；since 缺省只给重置水位', async () => {
     const auth = await seedAuth();
     await insertPage(auth.workspaceId, 'cursor-zero', 'cursor-zero', T0);
     const fromZero = await readChanges(auth.authorization, encodeSyncCursor(0));
-    const fromScratch = await readChanges(auth.authorization);
     expect(fromZero.changes.map((change) => change.entityId)).toEqual(['cursor-zero']);
-    expect(fromZero.changes.map((change) => change.seq)).toEqual(
-      fromScratch.changes.map((change) => change.seq),
-    );
+    expect(fromZero.resetRequired).toBe(false);
+
+    // `since` 缺省与本用例的 `v2:0` **不同**：不投递历史，只给「当前水位」。
+    const reset = await readReset(auth.authorization);
+    expect(cursorOf(reset)).toBe(encodeSyncCursor(maxSeq(fromZero)));
+
+    // 从重置水位取增量：历史那条 page upsert 不重发（这正是「禁止从 0 回放」的落点）。
+    const afterReset = await readChanges(auth.authorization, cursorOf(reset));
+    expect(afterReset.changes).toEqual([]);
   });
 
   it('limit 越界或非整数 → 422', async () => {
@@ -1022,7 +1206,7 @@ describe('游标版本与参数校验', () => {
 describe('meta：与变更流同一快照的全局修订号', () => {
   it('空工作空间：navRevision / workbenchRevision / watermark 都是 0', async () => {
     const auth = await seedAuth();
-    const response = await readChanges(auth.authorization);
+    const response = await readReset(auth.authorization);
     expect(response.meta).toEqual({ navRevision: 0, workbenchRevision: 0, watermark: 0 });
   });
 
@@ -1034,7 +1218,7 @@ describe('meta：与变更流同一快照的全局修订号', () => {
       throw new Error('目录种子缺少「官方」分类条目');
     }
     const auth = await seedAuth();
-    expect((await readChanges(auth.authorization)).meta.navRevision).toBe(0);
+    expect((await readReset(auth.authorization)).meta.navRevision).toBe(0);
 
     // 一次真实导航写入（目录导入 = 建链接 + 建分组 + 建成员关系，并 bump 导航修订号）。
     const created = await SELF.fetch(
@@ -1057,8 +1241,11 @@ describe('meta：与变更流同一快照的全局修订号', () => {
 
     const stored = await readNavStateRevision(auth.workspaceId);
     expect(stored).toBeGreaterThan(0);
-    const after = await readChanges(auth.authorization);
+    // 用 `v2:0` 读整段历史：`meta` 与变更流来自**同一快照**，因此这里读到的 navRevision
+    // 就是服务端当前值（reset 分支读的也是同一行，两条路径必须一致）。
+    const after = await readAllHistory(auth.authorization);
     expect(after.meta.navRevision).toBe(stored);
+    expect((await readReset(auth.authorization)).meta.navRevision).toBe(stored);
     // 导航写入确实进了变更流（nav_link upsert 可见）。
     expect(requireChange(after, 'nav_link', linkId).op).toBe('upsert');
     // watermark = 本页最后一条 seq。
@@ -1077,7 +1264,7 @@ describe('meta：与变更流同一快照的全局修订号', () => {
 
     const stored = await readWorkbenchStateRevision(auth.workspaceId);
     expect(stored).toBeGreaterThan(0);
-    const response = await readChanges(auth.authorization);
+    const response = await readReset(auth.authorization);
     expect(response.meta.workbenchRevision).toBe(stored);
   });
 });
@@ -1112,7 +1299,7 @@ describe('组合实体 ID', () => {
     ]);
 
     // readChanges 会校验整个响应：因此这条用例同时证明「组合键 ≤ 契约上限」这一契约事实。
-    const response = await readChanges(auth.authorization);
+    const response = await readAllHistory(auth.authorization);
     const composite = `${linkId}:${groupId}`;
     const change = requireChange(response, 'nav_membership', composite);
     // 关键：**不截断**（变更日志里的 entity_id 即触发器写入的完整组合键）。
@@ -1121,5 +1308,309 @@ describe('组合实体 ID', () => {
     expect(change.entityId.length).toBeLessThanOrEqual(SYNC_ENTITY_ID_MAX_LENGTH);
     // payload 里同样带完整的 linkId / groupId：客户端能重建归属关系。
     expect(change.payload).toMatchObject({ linkId, groupId });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 重置协议：安全快照 + 稳定水位（第三轮复核修正的 P1 语义缺陷）
+// ---------------------------------------------------------------------------
+//
+// 缺陷：`payload` 是**当前**实体内容，日志条目是**历史事件**，因此「从 null 游标回放整段历史」
+// 不安全。真实复现：A 导入链接 → 删除 → 显式恢复；B 先读快照（已是恢复后的活跃链接），
+// 再从 null 游标按 limit=1 消费 —— 历史 `delete` 会把这条**已恢复**的链接从 B 的本地状态删掉
+// （成员关系一起丢），要等更靠后的恢复页才补回；历史行的 `revision` 与当前 payload.revision
+// 也不一致，`meta` 是服务端当前值而一页历史不等于「当前完整状态」。
+//
+// 修复后的协议（下面的用例逐条钉住）：
+//   ① `since` 缺省 ⇒ `resetRequired: true`、`changes: []`、`nextCursor = v2:<当前水位>`、
+//      `meta.watermark = 当前水位`（**不再扫描历史**）；
+//   ② 客户端先读一次权威快照（`GET /me/navigation` 等）替换本地状态；
+//   ③ 快照落地后才用 ① 的游标取增量，此后每一条都发生在快照之后，按 seq 应用自洽。
+
+describe('重置协议：安全快照 + 稳定水位（禁止从 0 回放历史）', () => {
+  it('真实复现「导入 → 删除 → 显式恢复」：reset 不投递历史、快照里链接已恢复、since=水位 一条历史都不重发', async () => {
+    await env.DB.prepare('DELETE FROM nav_catalog_links').run();
+    await applyCatalogSeed({ db: env.DB, now: T0 });
+    const entry = NAV_CATALOG_SEED.find((item) => item.category === '官方');
+    if (entry === undefined) {
+      throw new Error('目录种子缺少「官方」分类条目');
+    }
+    const auth = await seedAuth();
+
+    // ① 导入 → ② 删除 → ③ 显式恢复（全部走真实 HTTP 写路径）。
+    const imported = await SELF.fetch(
+      URLS.meNavigationCatalogImport,
+      jsonPost({ catalogIds: [entry.id], operationId: opId('reset-insert') }, { Authorization: auth.authorization }),
+    );
+    expect(imported.status, await imported.clone().text()).toBe(200);
+    const importedBody = await imported.json<{ decisions: readonly { linkId: string | null }[] }>();
+    const linkId = importedBody.decisions[0]?.linkId ?? '';
+    expect(linkId.length).toBeGreaterThan(0);
+
+    const linkRow = await env.DB.prepare(
+      'SELECT revision FROM workspace_nav_links WHERE id = ? AND workspace_id = ?',
+    )
+      .bind(linkId, auth.workspaceId)
+      .first<{ revision: number }>();
+    const deleted = await SELF.fetch(
+      navLinkUrl(linkId),
+      jsonDelete(
+        { operationId: opId('reset-delete'), expectedRevision: linkRow?.revision ?? 0 },
+        { Authorization: auth.authorization },
+      ),
+    );
+    expect(deleted.status, await deleted.clone().text()).toBe(200);
+
+    const restored = await SELF.fetch(
+      URLS.meNavigationCatalogImport,
+      jsonPost(
+        { catalogIds: [entry.id], operationId: opId('reset-restore'), explicitReimport: true },
+        { Authorization: auth.authorization },
+      ),
+    );
+    expect(restored.status, await restored.clone().text()).toBe(200);
+    const restoredBody = await restored.json<{ restoredLinkIds: readonly string[] }>();
+    expect(restoredBody.restoredLinkIds).toContain(linkId);
+
+    // 历史里确实躺着「upsert → delete → upsert」：最后一条 upsert 与最前面那条携带的是
+    // **同一份当前内容**（这正是「历史事件 ≠ 当前内容」的证据，也是禁止回放的理由）。
+    const history = await readAllHistory(auth.authorization);
+    const linkHistory = changesOf(history, 'nav_link', linkId);
+    expect(linkHistory.map((change) => change.op)).toEqual(['upsert', 'delete', 'upsert']);
+    const historicalDelete = linkHistory.find((change) => change.op === 'delete');
+    expect(historicalDelete?.payload).toBeNull();
+
+    // 旧行为（`since` 缺省 = 从 0 起投递历史）已不存在：`limit=1` 的第一页**空**、
+    // 且明确要求先读快照。因此「旧 upsert → 历史 delete」这条害人的序列不再可能发生。
+    const legacy = await readChanges(auth.authorization, undefined, 1);
+    expect(legacy.resetRequired).toBe(true);
+    expect(legacy.changes).toEqual([]);
+    expect(legacy.hasMore).toBe(false);
+
+    // ② reset：不返回历史，水位 = 本工作空间当前 `MAX(seq)`（与 v2:0 历史的最后一条一致，
+    //    两次读之间没有任何写入）。
+    const reset = await readReset(auth.authorization);
+    expect(reset.meta.watermark).toBe(maxSeq(history));
+    expect(seqOf(cursorOf(reset))).toBe(maxSeq(history));
+
+    // ③ 权威快照：链接是**已恢复**的活跃行，成员关系也在。
+    const snapshot = await readNavSnapshot(auth.authorization);
+    expect(snapshot.links.find((link) => link.id === linkId)?.deletedAt).toBeNull();
+    expect(snapshot.memberships.filter((m) => m.linkId === linkId).length).toBeGreaterThan(0);
+
+    // ④ 用 reset 的水位取增量：**一条都不返回**——历史 delete 不会再出现，
+    //    因此也不可能把快照里这条已恢复的链接删掉。
+    const incremental = await readChanges(auth.authorization, cursorOf(reset));
+    expect(incremental.resetRequired).toBe(false);
+    expect(incremental.changes).toEqual([]);
+    expect(
+      incremental.changes.filter((change) => change.entityType === 'nav_link' && change.op === 'delete'),
+    ).toEqual([]);
+
+    // 对照（缺陷本身长什么样）：把整段历史从 `v2:0` 起 limit=1 回放到**同一个快照**上，
+    // 消费到历史 `delete` 那一页时，本地这条服务端仍然活跃的链接已经消失（成员关系也丢了）。
+    const replayState = localStateOf(snapshot);
+    let replayCursor = encodeSyncCursor(0);
+    let reachedHistoricalDelete = false;
+    for (let round = 0; round < 20; round += 1) {
+      const page = await readChanges(auth.authorization, replayCursor, 1);
+      for (const change of page.changes) {
+        applyChange(replayState, change);
+      }
+      replayCursor = cursorOf(page);
+      if (page.changes.some((change) => change.op === 'delete' && change.entityId === linkId)) {
+        reachedHistoricalDelete = true;
+        break;
+      }
+      if (!page.hasMore) {
+        break;
+      }
+    }
+    expect(reachedHistoricalDelete, '历史里应当有一条 delete 可供回放').toBe(true);
+    expect(replayState.links.has(linkId), '回放历史会把已恢复的链接删掉（这就是缺陷）').toBe(false);
+    // 而 reset + 快照 + 增量的路径下，本地状态自始至终与服务端一致。
+    const correctState = localStateOf(snapshot);
+    for (const change of incremental.changes) {
+      applyChange(correctState, change);
+    }
+    expect(correctState.links.has(linkId)).toBe(true);
+  });
+
+  it('快照后的增量：删除 → 显式恢复两次写，limit=1 逐页应用后最终活跃且成员关系没丢', async () => {
+    const auth = await seedAuth();
+    await insertNavGroup(auth.workspaceId, 'inc-group', T0 + 1);
+    await insertNavLink(auth.workspaceId, 'inc-link', T0 + 2);
+    await insertNavMembership(auth.workspaceId, 'inc-link', 'inc-group', T0 + 3);
+
+    // 客户端安全初始化：① reset 拿水位 → ② 读权威快照 → ③ 本地状态。
+    const reset = await readReset(auth.authorization);
+    const snapshot = await readNavSnapshot(auth.authorization);
+    const local = localStateOf(snapshot);
+    expect(local.links.has('inc-link')).toBe(true);
+    expect(local.memberships.has('inc-link:inc-group')).toBe(true);
+    expect(seqOf(cursorOf(reset))).toBe(reset.meta.watermark);
+
+    // 快照水位之后：删除 → 显式恢复（各一次写 ⇒ 各恰好一条日志，便于 limit=1 逐页观察）。
+    await tombstoneNavLink(auth.workspaceId, 'inc-link', T0 + 10);
+    await restoreNavLink(auth.workspaceId, 'inc-link', T0 + 11);
+
+    // 第一页：delete（这条链接被删）。
+    const first = await readChanges(auth.authorization, cursorOf(reset), 1);
+    expect(first.changes).toHaveLength(1);
+    expect(first.changes[0]?.entityType).toBe('nav_link');
+    expect(first.changes[0]?.entityId).toBe('inc-link');
+    expect(first.changes[0]?.op).toBe('delete');
+    expect(first.changes[0]?.payload).toBeNull();
+    expect(first.hasMore).toBe(true);
+    for (const change of first.changes) {
+      applyChange(local, change);
+    }
+    expect(local.links.has('inc-link')).toBe(false);
+
+    // 第二页：upsert（恢复，且 payload 是活跃内容）。
+    const second = await readChanges(auth.authorization, cursorOf(first), 1);
+    expect(second.changes).toHaveLength(1);
+    const restoreChange = second.changes[0];
+    if (restoreChange === undefined) {
+      throw new Error('第二页应当包含恢复的 upsert');
+    }
+    expect(restoreChange.op).toBe('upsert');
+    expect(restoreChange.entityId).toBe('inc-link');
+    expect((restoreChange.payload as { deletedAt?: number | null } | null)?.deletedAt).toBeNull();
+    applyChange(local, restoreChange);
+    expect(local.links.has('inc-link')).toBe(true);
+
+    // 第三页：空页 ⇒ hasMore=false，游标停驻（不漏也不重）。
+    const third = await readChanges(auth.authorization, cursorOf(second), 1);
+    expect(third.changes).toEqual([]);
+    expect(third.hasMore).toBe(false);
+    expect(cursorOf(third)).toBe(cursorOf(second));
+
+    // 逐页应用完两页之后：链接活跃、**成员关系仍在**（不是丢），且与库内一致。
+    expect(local.links.has('inc-link')).toBe(true);
+    expect(local.memberships.has('inc-link:inc-group')).toBe(true);
+    const row = await env.DB.prepare(
+      'SELECT deleted_at FROM workspace_nav_links WHERE id = ? AND workspace_id = ?',
+    )
+      .bind('inc-link', auth.workspaceId)
+      .first<{ deleted_at: number | null }>();
+    expect(row?.deleted_at).toBeNull();
+    const membershipRow = await env.DB.prepare(
+      'SELECT deleted_at FROM workspace_nav_memberships WHERE link_id = ? AND workspace_id = ?',
+    )
+      .bind('inc-link', auth.workspaceId)
+      .first<{ deleted_at: number | null }>();
+    expect(membershipRow?.deleted_at).toBeNull();
+    // 顺序也必须对：delete 的 seq 严格小于恢复的 upsert（客户端据此判断最终状态）。
+    expect(first.changes[0]?.seq).toBeLessThan(restoreChange.seq);
+  });
+
+  it('limit=1 分页期间并发写入：后续页不漏（并集 = 库内 > 水位的全部 seq）、严格递增、无重复', async () => {
+    const auth = await seedAuth();
+    // 水位**之前**插入的行：它自己的 upsert 绝不重发；之后墓碑化它才产生水位之上的 delete。
+    await insertNavGroup(auth.workspaceId, 'conc-1', T0 + 1);
+    const reset = await readReset(auth.authorization);
+    const watermark = reset.meta.watermark;
+
+    // 水位之后先写一条，保证第一页非空。
+    await insertNavGroup(auth.workspaceId, 'conc-2', T0 + 2);
+
+    let cursor = cursorOf(reset);
+    const collected: SyncChange[] = [];
+    let rounds = 0;
+    for (let round = 0; round < 30; round += 1) {
+      const page = await readChanges(auth.authorization, cursor, 1);
+      expect(page.changes.length, `第 ${String(round)} 页超过 limit=1`).toBeLessThanOrEqual(1);
+      collected.push(...page.changes);
+      cursor = cursorOf(page);
+      rounds += 1;
+      if (!page.hasMore) {
+        break;
+      }
+      if (round === 0) {
+        // 分页进行中并发写入：新增 / 墓碑（水位之前的行）/ 再新增。
+        await insertNavGroup(auth.workspaceId, 'conc-3', T0 + 3);
+        await tombstoneNavGroup(auth.workspaceId, 'conc-1', T0 + 4);
+        await insertNavGroup(auth.workspaceId, 'conc-4', T0 + 5);
+      }
+    }
+
+    // ① 跨页拼接后 seq 严格递增、无重复。
+    expectStrictlyIncreasingSeq(collected);
+    const seqs = collected.map((change) => change.seq);
+    expect(new Set(seqs).size).toBe(seqs.length);
+    // ② 并集 = 库内「水位之后」的全部 seq（一条不漏、一条不多）。
+    const expected = (await readJournalSeqs(auth.workspaceId)).filter((seq) => seq > watermark);
+    expect(expected.length).toBeGreaterThan(0);
+    expect(seqs).toEqual(expected);
+    // ③ 全是 nav_group；水位之前的 `conc-1` upsert 没有重发，只有它的墓碑被投递。
+    expect(collected.every((change) => change.entityType === 'nav_group')).toBe(true);
+    expect(collected.filter((change) => change.entityId === 'conc-1').map((change) => change.op)).toEqual([
+      'delete',
+    ]);
+    // ④ 收敛：每一页恰好一条（直到空页），最终游标停在库内最后一条 seq 上。
+    expect(rounds).toBe(expected.length + 1);
+    expect(seqOf(cursor)).toBe(expected.at(-1) ?? 0);
+  });
+
+  it('reset 水位之后写入 nav_link / nav_group / nav_membership 与 page / widget / layout，since=水位 全部拿到', async () => {
+    const auth = await seedAuth();
+    // 水位之前先放一条：增量里绝不能出现它。
+    await insertNavGroup(auth.workspaceId, 'd4-before', T0 + 1);
+    const reset = await readReset(auth.authorization);
+    expect(reset.meta.watermark).toBeGreaterThan(0);
+
+    const pageId = crypto.randomUUID();
+    const widgetId = crypto.randomUUID();
+    const linkId = 'd4-link';
+    const groupId = 'd4-group';
+    await insertPage(auth.workspaceId, pageId, `d4-${pageId.slice(0, 8)}`, T0 + 10);
+    await env.DB.prepare(
+      `INSERT INTO widget_instances
+         (id, workspace_id, page_id, module_id, widget_type, config_json, config_version, is_hidden,
+          revision, created_revision, deleted_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, '{"step":1,"label":"增量","initDelayMs":0}', 1, 0, 1, 1, NULL, ?, ?)`,
+    )
+      .bind(widgetId, auth.workspaceId, pageId, DEMO_BASICS_MODULE_ID, DEMO_COUNTER, T0 + 11, T0 + 11)
+      .run();
+    await env.DB.prepare(
+      `INSERT INTO widget_layouts (widget_id, breakpoint, x, y, w, h) VALUES (?, 'desktop', 0, 0, 4, 2)`,
+    )
+      .bind(widgetId)
+      .run();
+    await env.DB.prepare(
+      `INSERT INTO page_layout_revisions (page_id, breakpoint, revision, updated_at) VALUES (?, 'desktop', 1, ?)`,
+    )
+      .bind(pageId, T0 + 12)
+      .run();
+    await insertNavLink(auth.workspaceId, linkId, T0 + 13);
+    await insertNavGroup(auth.workspaceId, groupId, T0 + 14);
+    await insertNavMembership(auth.workspaceId, linkId, groupId, T0 + 15);
+
+    const incremental = await readChanges(auth.authorization, cursorOf(reset));
+    expect(incremental.resetRequired).toBe(false);
+    const keys = incremental.changes.map((change) => `${change.entityType}:${change.entityId}`);
+    expect(keys).toContain(`nav_link:${linkId}`);
+    expect(keys).toContain(`nav_group:${groupId}`);
+    expect(keys).toContain(`nav_membership:${linkId}:${groupId}`);
+    expect(keys).toContain(`page:${pageId}`);
+    expect(keys).toContain(`widget:${widgetId}`);
+    expect(keys).toContain(`layout:${pageId}:desktop`);
+    // 水位之前的行不重发；本轮的六条一条不少。
+    expect(keys).not.toContain('nav_group:d4-before');
+    expect(incremental.changes).toHaveLength(6);
+    expect(seqOf(cursorOf(incremental))).toBe(maxSeq(incremental));
+    // payload 是当前内容：链接活跃、布局矩形与实例对得上。
+    expect(
+      (requireChange(incremental, 'nav_link', linkId).payload as { deletedAt?: number | null } | null)
+        ?.deletedAt,
+    ).toBeNull();
+    expect(
+      (
+        requireChange(incremental, 'layout', `${pageId}:desktop`).payload as {
+          rects?: readonly { i: string; x: number; y: number; w: number; h: number }[];
+        } | null
+      )?.rects,
+    ).toEqual([{ i: widgetId, x: 0, y: 0, w: 4, h: 2 }]);
   });
 });
