@@ -8,7 +8,7 @@ FF14 个人导航与模块化工作台。默认面向国服玩家与个人自用
 产品自动同步与云端发布恢复演练仍未完成；阶段边界以对应操作手册和 ADR 为准。
 
 06D 已增加发布静态预检和**本地**整库备份/恢复演练：`pnpm run ops:preflight`、
-`pnpm run ops:rehearse`。占位 D1 仍会阻止发布；详见[维护手册](docs/operations-runbook.md)。
+`pnpm run ops:rehearse`。06G 已配置独立云端 D1，发布准备见[alpha 上线记录](docs/releases/v0.1-alpha.md)；详见[维护手册](docs/operations-runbook.md)。
 
 06E 增加调度运行记录、私有诊断接口和日志脱敏加固；固定告警代码只供查询，
 真实 Cron 与外部告警尚未启用，详见[观测边界](docs/adr/0011-operations-observability.md)。
