@@ -68,12 +68,7 @@ export async function bootstrapWorkspace(db: D1Database, input: BootstrapInput):
           'INSERT INTO devices (id, workspace_id, token_hash, name, revoked_at, last_seen_at, created_at) VALUES (?, ?, ?, ?, NULL, NULL, ?)',
         )
         .bind(deviceId, workspaceId, tokenHash, input.deviceName, now),
-      // 4) 首次初始化设备是站点 owner，同时获得公开活动编辑权限。
-      // 后续配对设备只获得普通工作空间权限，绝不自动继承管理员角色。
-      db.prepare(
-        'INSERT INTO calendar_admin_devices (device_id, workspace_id, granted_at) VALUES (?, ?, ?)',
-      ).bind(deviceId, workspaceId, now),
-      // 5) 审计：与业务写入同一事务。
+      // 4) 审计：与业务写入同一事务。
       identityAuditStatement(db, {
         workspaceId,
         eventType: 'workspace_bootstrapped',
