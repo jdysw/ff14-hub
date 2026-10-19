@@ -8,7 +8,7 @@ async function enter(page:Page):Promise<void>{
   await page.getByRole('button',{name:/会话凭证/}).click();
   await page.getByLabel('设备令牌（Bearer）').fill(credentials.token);
   await page.getByRole('button',{name:'保存到会话内存'}).click();
-  await page.getByRole('button',{name:/提醒管理 规则/}).click();
+  await page.getByRole('button',{name:/^提醒管理/}).click();
   await expect(page.getByRole('button',{name:'新增提醒规则'})).toBeVisible();
 }
 test('规则增改删、未配置渠道、任务去重及工作台组件',async({page},info)=>{
@@ -32,7 +32,7 @@ test('规则增改删、未配置渠道、任务去重及工作台组件',async(
   const createdPage=await created.json() as {page:{id:string}};
   const widget=await page.request.post(`${credentials.baseUrl}/api/v1/me/pages/${createdPage.page.id}/widgets`,{headers:auth,data:{widgetType:'reminder-manager',operationId:crypto.randomUUID(),config:{}}});
   expect(widget.status()).toBe(201);
-  await page.getByRole('button',{name:/自定义工作台 多页面/}).click();await expect(rule).toContainText('提醒框架验收活动');
+  await page.getByRole('button',{name:/^自定义工作台/}).click();await expect(rule).toContainText('提醒框架验收活动');
   await rule.getByRole('button',{name:'删除规则'}).click();await expect(rule).toHaveCount(0);
 });
 test('窄屏提醒表单可用且不横向溢出',async({page},info)=>{

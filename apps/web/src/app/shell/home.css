@@ -145,3 +145,54 @@ code { background: #f0f3f6; }
   .shell__footer { margin-top: 40px; flex-wrap: wrap; gap: 4px; }
 }
 @media (prefers-reduced-motion: no-preference) { .text-button, .directory-links a, .home-filter { transition: color 140ms, background-color 140ms; } }
+
+/* 首页官方活动：公共资讯无需进入工作空间。缩减信息密度，保留可核对的来源与日期。 */
+.home-official { margin-top: 44px; padding: 24px 0 30px; border-bottom: 1px solid var(--border); }
+.home-official__hint, .home-official__disclaimer { color: var(--text-muted); font-size: 12px; margin: 4px 0 12px; }
+.home-official__disclaimer { margin-top: 14px; }
+.home-official__list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin: 18px 0 6px; padding: 0; list-style: none; }
+.home-official-event { display: flex; justify-content: space-between; align-items: center; gap: 14px; min-width: 0; padding: 16px 18px; border: 1px solid var(--border); background: var(--bg-elevated); border-radius: 9px; }
+.home-official-event__main { min-width: 0; flex: 1; }
+.home-official-event__main h3 { margin: 7px 0 5px; font-size: 15px; font-weight: 600; line-height: 1.45; }
+.home-official-event__main h3 a { text-decoration: none; color: var(--text); }
+.home-official-event__main h3 a:hover { color: var(--accent); text-decoration: underline; }
+.home-official-event__main p { margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.7; }
+.home-official-event__category, .home-official-event__phase { display: inline-block; margin-right: 8px; font-size: 11px; color: var(--text-muted); }
+.home-official-event__phase { color: var(--accent); }
+.home-official-event__timer { display: grid; gap: 4px; flex: 0 0 auto; min-width: 92px; text-align: right; font-variant-numeric: tabular-nums; }
+.home-official-event__timer span { font-size: 11px; color: var(--text-muted); }
+.home-official-event__timer strong { font-size: 14px; font-weight: 650; color: var(--accent); }
+.home-official__notice { padding: 10px 14px; margin: 12px 0; background: #f6f7f8; border-radius: 6px; font-size: 13px; color: var(--text-muted); }
+.home-daily--single { grid-template-columns: minmax(0,1fr); margin-top: 30px; }
+.home-daily--single > section { padding-right: 0; }
+
+/* 玩家设置：明确的分组、小尺寸卡片；开发/验收入口折叠到高级设置。 */
+.settings-navigation { max-width: 900px; margin: 26px auto 38px; padding: 28px 30px; border-radius: 12px; }
+.settings-navigation__heading { margin-bottom: 22px; }
+.settings-navigation__intro { margin: -14px 0 24px; color: var(--text-muted); font-size: 13px; }
+.settings-navigation .system-bar { display: grid; gap: 24px; }
+.settings-group { min-width: 0; }
+.settings-group__heading { margin-bottom: 10px; }
+.settings-group__heading h3 { font-size: 15px; margin: 0; color: var(--text); font-weight: 650; }
+.settings-group__heading p { font-size: 12px; color: var(--text-muted); margin: 3px 0 0; }
+.settings-navigation .system-bar__list { margin: 10px 0 0; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.settings-navigation .system-bar__item { width: 100%; min-width: 0; min-height: 68px; padding: 12px 16px; border: 1px solid var(--border); background: var(--bg); }
+.settings-navigation .system-bar__item:hover { background: #f3f6fb; border-color: #c6d5e5; }
+.settings-navigation .system-bar__item--active { background: #eff4fa; border-color: #a1bad1; }
+.settings-navigation .system-bar__label { font-size: 14px; }
+.settings-navigation .system-bar__hint { font-size: 12px; line-height: 1.6; color: var(--text-muted); }
+.settings-advanced { border-top: 1px solid var(--border); padding-top: 15px; }
+.settings-advanced > summary { min-height: 44px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; color: var(--text); font-weight: 600; font-size: 14px; cursor: pointer; }
+.settings-advanced > summary span { font-size: 12px; font-weight: 400; color: var(--text-muted); }
+.settings-advanced .settings-group { padding-top: 12px; }
+.settings-navigation__links { margin-top: 18px; }
+@media (max-width: 760px) {
+  .home-official__list { grid-template-columns: minmax(0,1fr); }
+  .home-official { margin-top: 30px; }
+}
+@media (max-width: 639px) {
+  .settings-navigation { padding: 20px 16px; margin: 18px 0; }
+  .settings-navigation .system-bar__list { grid-template-columns: minmax(0,1fr); }
+  .home-official-event { padding: 14px; }
+  .home-official-event__timer { min-width: 84px; }
+}
