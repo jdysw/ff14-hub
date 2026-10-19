@@ -59,6 +59,68 @@ function order(items: EventCalendarItem[], now: number): EventCalendarItem[] {
   });
 }
 
+type EventPhase = ReturnType<typeof calendarPhase>;
+const PHASE_BADGES: Readonly<Record<EventPhase, string>> = {
+  upcoming: '未开始',
+  active: '进行中',
+  ended: '已结束',
+  unknown: '时间待确认',
+};
+function eventProgress(event: EventCalendarItem, now: number): number | null {
+  if (event.startsAt === null || event.endsAt === null) return null;
+  const span = event.endsAt - event.startsAt;
+  if (span <= 0) return null;
+  return Math.min(100, Math.max(0, Math.round((now - event.startsAt) / span * 100)));
+}
+function eventCountdown(event: EventCalendarItem, now: number, phase: EventPhase) {
+  if (phase === 'ended') return { label: '已结束', value: '已结束' };
+  if (phase === 'unknown') return { label: '倒计时不可用', value: '官方时间待核实' };
+  if (phase === 'upcoming' && event.startsAt !== null) {
+    return { label: '距开始', value: calendarCountdown(event.startsAt, now) };
+  }
+  if (event.endsAt !== null) return { label: '距结束', value: calendarCountdown(event.endsAt, now) };
+  return { label: '倒计时不可用', value: '官方时间待核实' };
+}
+/** 活动卡片独立于筛选/拉取控制器，降低单组件分支数量。 */
+function OfficialEventCard({ event, now }: { readonly event: EventCalendarItem; readonly now: number }) {
+  const phase = calendarPhase(event, now);
+  const isEnding = phase === 'active' && event.endsAt !== null &&
+    event.endsAt > now && event.endsAt - now <= THREE_DAYS;
+  const countdown = eventCountdown(event, now, phase);
+  const progress = eventProgress(event, now);
+  const phaseBadge = isEnding ? '即将结束' : PHASE_BADGES[phase];
+  return (
+    <li className="event-calendar__item">
+      <div className="event-calendar__item-head">
+        <div className="event-calendar__tags">
+          <span className={'badge event-calendar__phase--' + (isEnding ? 'ending' : phase)}>{phaseBadge}</span>
+          <span className="badge">{event.category || '其他'}</span>
+          {event.allDay && <span className="badge">全天</span>}
+        </div>
+        <span className="event-calendar__countdown" aria-label={countdown.label + countdown.value}>
+          <small>{countdown.label}</small><strong>{countdown.value}</strong>
+        </span>
+      </div>
+      <h4 className="event-calendar__title">{event.title}</h4>
+      <p className="event-calendar__time">
+        开始：{event.startsAt === null ? '暂无可靠时间' : chinaTime(event.startsAt)}
+        <span>结束：{event.endsAt === null ? '尚未公布' : chinaTime(event.endsAt)}</span>
+      </p>
+      {phase === 'active' && progress !== null && (
+        <div className="event-calendar__progress" role="progressbar"
+          aria-label={event.title + ' 活动进度'} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
+          <span style={{ width: progress + '%' }} />
+        </div>
+      )}
+      {event.location && <p className="event-calendar__meta">地点：{event.location}</p>}
+      {event.description && <details className="event-calendar__details"><summary>活动说明</summary>
+        <p>{event.description}</p></details>}
+      {event.sourceUrl && <a className="event-calendar__source" href={event.sourceUrl}
+        target="_blank" rel="noreferrer noopener">查看活动原文 ↗</a>}
+    </li>
+  );
+}
+
 export function EventsCalendarWidget(props: WidgetRuntimeProps) {
   const { data, config, reportReady, reportEmpty, reportAsyncError, retryToken } = props;
   const [state, setState] = useState<CalendarState>({ kind: 'loading' });
@@ -96,7 +158,7 @@ export function EventsCalendarWidget(props: WidgetRuntimeProps) {
 
   const current = state.kind === 'loaded' ? now + state.clockOffset : now;
   const events = useMemo(() => state.kind === 'loaded' ? state.data.events : [], [state]);
-  const categories = useMemo(() => [...new Set(events.map((e) => e.category))].sort(), [events]);
+  const categories = useMemo(() => [...new Set(events.map((e) => e.category))].sort((a, b) => a.localeCompare(b, 'zh-CN')), [events]);
   const counts = useMemo(() => ({
     active: events.filter((e) => calendarPhase(e, current) === 'active').length,
     upcoming: events.filter((e) => calendarPhase(e, current) === 'upcoming').length,
@@ -160,52 +222,7 @@ export function EventsCalendarWidget(props: WidgetRuntimeProps) {
           </div>
           {visible.length === 0 ? <p className="panel__muted">当前条件下没有活动，可切换筛选条件查看。</p> : (
             <ul className="event-calendar__list" aria-label="国服活动">
-              {visible.map((event) => {
-                const stateName = calendarPhase(event, current);
-                const isEnding = stateName === 'active' && event.endsAt !== null &&
-                  event.endsAt > current && event.endsAt - current <= THREE_DAYS;
-                const span = event.endsAt === null || event.startsAt === null ? 0 : event.endsAt - event.startsAt;
-                const progress = span > 0 ? Math.min(100, Math.max(0,
-                  Math.round((current - (event.startsAt ?? current)) / span * 100))) : 0;
-                const remainingLabel = stateName === 'upcoming' ? '距开始'
-                  : stateName === 'ended' ? '已结束'
-                  : stateName === 'unknown' ? '倒计时不可用' : '距结束';
-                const remainingValue = stateName === 'upcoming' && event.startsAt !== null ? calendarCountdown(event.startsAt, current)
-                  : stateName === 'ended' ? '已结束'
-                  : stateName === 'unknown' || event.endsAt === null ? '官方时间待核实' : calendarCountdown(event.endsAt, current);
-                return (
-                  <li className="event-calendar__item" key={event.id}>
-                    <div className="event-calendar__item-head">
-                      <div className="event-calendar__tags">
-                        <span className={'badge event-calendar__phase--' + (isEnding ? 'ending' : stateName)}>
-                          {isEnding ? '即将结束' : stateName === 'active' ? '进行中' : stateName === 'upcoming' ? '未开始' : stateName === 'unknown' ? '时间待确认' : '已结束'}
-                        </span>
-                        <span className="badge">{event.category || '其他'}</span>
-                        {event.allDay ? <span className="badge">全天</span> : null}
-                      </div>
-                      <span className="event-calendar__countdown" aria-label={remainingLabel + remainingValue}>
-                        <small>{remainingLabel}</small><strong>{remainingValue}</strong>
-                      </span>
-                    </div>
-                    <h4 className="event-calendar__title">{event.title}</h4>
-                    <p className="event-calendar__time">
-                      开始：{event.startsAt === null ? '暂无可靠时间' : chinaTime(event.startsAt)}
-                      <span>结束：{event.endsAt === null ? '尚未公布' : chinaTime(event.endsAt)}</span>
-                    </p>
-                    {stateName === 'active' && span > 0 ? (
-                      <div className="event-calendar__progress" role="progressbar"
-                        aria-label={event.title + ' 活动进度'} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
-                        <span style={{ width: progress + '%' }} />
-                      </div>
-                    ) : null}
-                    {event.location ? <p className="event-calendar__meta">地点：{event.location}</p> : null}
-                    {event.description ? <details className="event-calendar__details"><summary>活动说明</summary>
-                      <p>{event.description}</p></details> : null}
-                    {event.sourceUrl ? <a className="event-calendar__source" href={event.sourceUrl}
-                      target="_blank" rel="noreferrer noopener">查看活动原文 ↗</a> : null}
-                  </li>
-                );
-              })}
+              {visible.map((event) => <OfficialEventCard key={event.id} event={event} now={current} />)}
             </ul>
           )}
           <div className="event-calendar__footer">
