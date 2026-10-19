@@ -30,9 +30,9 @@ function getAvailableWindows(windows:readonly FishWindow[],now:number){
   const next=windows.find(w=>w.startsAtUtcMs>now)??null;
   return {open,next};
 }
-export function FishingPanel({data,initialRegion='cn',hours=72,onReady,onError}:{
+export function FishingPanel({data,initialRegion='cn',hours=72,onReady,onError,compact=false}:{
   data:ModuleDataPort|undefined;initialRegion?:FishRegion;hours?:number;
-  onReady?:()=>void;onError?:(e:unknown)=>void;
+  onReady?:()=>void;onError?:(e:unknown)=>void;compact?:boolean;
 }){
   const [region,setRegion]=useState<FishRegion>(initialRegion);
   const [range,setRange]=useState(hours);
@@ -133,7 +133,7 @@ export function FishingPanel({data,initialRegion='cn',hours=72,onReady,onError}:
   const et=eorzeaTime(clock);
   const hasDemo=pageFish.some(f=>f.demo);
   const clearFilters=():void=>{setFilter('all');setAvailability('all');setText('');setCategory('all');setOffset(0);setSnapshot(null);};
-  return <section className="fishing-panel" aria-label="钓鱼手账">
+  return <section className={'fishing-panel'+(compact?' fishing-panel--widget':'')} aria-label="钓鱼手账">
     <header className="fishing-header">
       <div><span className="fishing-kicker">FISHING · WINDOW TRACKER</span><h2>钓鱼手账</h2>
         <p>国服优先的鱼窗查询、收集进度与提醒入口</p></div>
@@ -180,7 +180,7 @@ export function FishingPanel({data,initialRegion='cn',hours=72,onReady,onError}:
     {snapshot!==null&&snapshot.fish.total>0&&fish.length===0?<div className="fishing-empty"><p>当前页没有符合筛选条件的鱼。</p><button onClick={clearFilters}>清除筛选</button></div>:null}
     {hasDemo?<p className="fishing-notice" role="status">包含合成测试鱼类：这些数据不是游戏真实钓鱼条件，不应用于安排鱼窗。</p>:null}
     <div className="fishing-list">
-      {fish.map(f=>{
+      {(compact?fish.slice(0,3):fish).map(f=>{
         const all=(windowsByFish.get(f.id)??[]).filter(w=>w.endsAtUtcMs>clock);
         const {open,next}=getAvailableWindows(all,clock);
         const current=open??next;
@@ -236,7 +236,7 @@ export function FishingPanel({data,initialRegion='cn',hours=72,onReady,onError}:
 export function FishingWidget(props:WidgetRuntimeProps){
   const config=fishWidgetConfigSchema.parse(props.config);
   return <FishingPanel data={props.data} initialRegion={config.region} hours={config.hours}
-    onReady={props.reportReady} onError={props.reportAsyncError}/>;
+    onReady={props.reportReady} onError={props.reportAsyncError} compact/>;
 }
 export const fishWidgetComponents={[FISH_WIDGET_ID]:FishingWidget};
 export function FishingPage({dataPortFor,status}:{dataPortFor:(moduleId:string)=>ModuleDataPort|undefined;status:ModuleGateStatus}){
