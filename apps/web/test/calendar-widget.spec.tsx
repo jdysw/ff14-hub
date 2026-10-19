@@ -9,9 +9,9 @@ import type { ModuleDataPort, WidgetRuntimeProps } from '../src/app/widgets/type
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 function widget(response: unknown) {
-  const call = vi.fn(async (operation: string) => {
-    if (operation !== EVENTS_PORT_OPERATIONS.calendar) throw new Error('incorrect operation');
-    return response;
+  const call = vi.fn((operation: string) => {
+    if (operation !== EVENTS_PORT_OPERATIONS.calendar) return Promise.reject(new Error('incorrect operation'));
+    return Promise.resolve(response);
   });
   const port: ModuleDataPort = {
     moduleId: EVENTS_MODULE_ID,
