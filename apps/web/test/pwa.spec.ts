@@ -561,6 +561,37 @@ describe('sw.js：与 cache-policy.ts 一一对应', () => {
   });
 });
 
+
+describe('sw.js：首页 HTML 更新策略', () => {
+  it('在线优先读取最新首页而不是缓存的旧工作空间页面；离线仍能回退', async () => {
+    const sandbox = await loadServiceWorker();
+    const cached = new Response('旧版首页：连接工作空间', { headers: { 'Content-Type': 'text/html' } });
+    const cache = {
+      match: vi.fn(() => Promise.resolve(cached.clone())),
+      put: vi.fn(() => Promise.resolve()),
+    };
+    vi.stubGlobal('caches', { open: () => Promise.resolve(cache) });
+    const live = vi.fn(() => Promise.resolve(new Response('新版首页：进入钓鱼中心', {
+      headers: { 'Content-Type': 'text/html' },
+    })));
+    vi.stubGlobal('fetch', live);
+    const visit = async (pathname: string): Promise<string> => {
+      const results: Promise<Response>[] = [];
+      handlerOf(sandbox, 'fetch')({
+        request: { url: APP_ORIGIN + pathname, method: 'GET', mode: 'navigate', headers: new Headers() },
+        respondWith: (response: Promise<Response>) => { results.push(response); },
+      });
+      expect(results).toHaveLength(1);
+      return (await results[0]!.then(r => r.text()));
+    };
+    expect(await visit('/')).toContain('新版首页');
+    expect(await visit('/index.html')).toContain('新版首页');
+    expect(live).toHaveBeenCalledTimes(2);
+    live.mockRejectedValueOnce(new Error('offline'));
+    expect(await visit('/')).toContain('旧版首页');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 4. 离线 / 可安装 / 更新提示状态
 // ---------------------------------------------------------------------------
