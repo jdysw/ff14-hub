@@ -43,7 +43,7 @@ export function extractOfficialActivityRange(html: string): { startsAt: number; 
   const plain = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
     .replace(/<[^>]*>/g, ' ').replace(/&nbsp;|&#160;/gi, ' ')
-    .replace(/&(?:mdash|ndash);/gi, '-').replace(/[　\s]+/g, ' ').slice(0, 100_000);
+    .replace(/&(?:mdash|ndash);/gi, '-').replace(/[\u3000\s]+/g, ' ').slice(0, 100_000);
   const date = '(\\d{4}年\\d{1,2}月\\d{1,2}日\\s*\\d{1,2}:\\d{2}(?::\\d{2})?)';
   const pattern = new RegExp('(?:活动时间|活动期间|举办时间|起止时间)\\s*[：:]?\\s*' + date +
     '\\s*(?:至|到|~|～|—|－|-|–)\\s*' + date);
