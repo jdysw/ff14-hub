@@ -2,6 +2,7 @@
 import { eventCalendarResponseSchema, type EventCalendarItem, type EventCalendarResponse } from '@ff14-hub/shared';
 import { useEffect, useMemo, useState } from 'react';
 import './public-calendar.css';
+import { CalendarAdminEditor } from './CalendarAdminEditor';
 import {
   calendarOverview, chinaDateTime, chinaMonthDays, chinaToday,
   displayCalendarTitle, eventStatus, eventsForChinaDay, isScheduled,
@@ -13,11 +14,12 @@ type DataState =
   | { readonly status: 'loaded'; readonly data: EventCalendarResponse; readonly offset: number };
 
 type DisplayMode = 'month' | 'list';
-type PhaseFilter = 'all' | 'active' | 'upcoming' | 'ending' | 'unscheduled';
+type PhaseFilter = 'all' | 'active' | 'upcoming' | 'ending' | 'unscheduled' | 'ended';
 const PHASES: ReadonlyArray<{ value: PhaseFilter; label: string }> = [
   { value: 'all', label: '全部' }, { value: 'active', label: '进行中' },
   { value: 'upcoming', label: '即将开始' }, { value: 'ending', label: '即将结束' },
   { value: 'unscheduled', label: '时间待确认' },
+  { value: 'ended', label: '历史活动' },
 ];
 const ICAL_URL = '/api/v1/events/calendar.ics';
 
@@ -47,9 +49,10 @@ function currentMonthKey(day: string, direction: number): string {
   return new Date(Date.UTC(year, month - 1 + direction, 1)).toISOString().slice(0, 10);
 }
 
-export function PublicCalendarPage({ onBack }: { readonly onBack: () => void }) {
+export function PublicCalendarPage({ onBack, getToken }: { readonly onBack: () => void; readonly getToken: () => string | null }) {
   const [state, setState] = useState<DataState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
+  const reload = () => { setState({ status: 'loading' }); setAttempt(v => v + 1); };
   const [clock, setClock] = useState(Date.now);
   const [selectedDay, setSelectedDay] = useState(() => chinaToday(Date.now()));
   const [mode, setMode] = useState<DisplayMode>('month');
@@ -94,6 +97,7 @@ export function PublicCalendarPage({ onBack }: { readonly onBack: () => void }) 
   const filtered = useMemo(() => events.filter(event => {
     if (category !== 'all' && (event.category || '官方公告') !== category) return false;
     const status = eventStatus(event, now);
+    if (phase === 'all' && status === 'ended') return false;
     if (phase !== 'all' && !(phase === 'active' && status === 'ending') && status !== phase) return false;
     const term = search.trim().normalize('NFKC').toLowerCase();
     return !term || (event.title + ' ' + event.description + ' ' + event.category).normalize('NFKC').toLowerCase().includes(term);
@@ -122,7 +126,7 @@ export function PublicCalendarPage({ onBack }: { readonly onBack: () => void }) 
       <div className="calendar-center__actions">
         <a className="button" href={ICAL_URL} title="在日历应用中订阅，不包含未确认日期的活动">订阅日历（ICS） ↗</a>
         <button type="button" className="text-button" onClick={() => {
-          setState({ status: 'loading' }); setAttempt(i => i + 1);
+          reload();
         }}>刷新</button>
       </div>
     </header>
@@ -134,10 +138,9 @@ export function PublicCalendarPage({ onBack }: { readonly onBack: () => void }) 
     {state.status === 'loaded' && <>
       {state.data.source.stale && <p className="notice notice--warn" role="status">官方源暂时无法更新，当前展示的是历史快照，时间可能已变更。</p>}
       <div className="calendar-center__stats" aria-label="活动概览">
-        {summary('今天', overview.today.length, 'all')}
         {summary('进行中', overview.active.length, 'active')}
         {summary('未来 7 天开始', overview.upcoming.length, 'upcoming')}
-        {summary('72 小时内结束', overview.ending.length, 'ending')}
+        {summary('24 小时内结束', overview.ending.length, 'ending')}
       </div>
       <div className="calendar-center__toolbar">
         <div className="calendar-center__mode" role="group" aria-label="活动视图">
@@ -201,5 +204,6 @@ export function PublicCalendarPage({ onBack }: { readonly onBack: () => void }) 
         <a href={state.data.source.homeUrl} target="_blank" rel="noopener noreferrer">核对官方公告 ↗</a>
       </footer>
     </>}
+    <CalendarAdminEditor getToken={getToken} events={events} onSaved={reload}/>
   </div>;
 }

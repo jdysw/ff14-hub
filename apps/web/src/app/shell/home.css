@@ -199,7 +199,7 @@ code { background: #f0f3f6; }
 
 /* 小尺寸日程摘要，不把长公告全部塞进导航首页。 */
 .home-official__actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-.home-official__stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:16px 0; }
+.home-official__stats { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:16px 0; }
 .home-official__stats button { display:flex; align-items:baseline; flex-wrap:wrap; gap:9px; text-align:left; min-width:0; padding:10px 14px; border:1px solid var(--border); background:var(--bg-elevated); border-radius:8px; cursor:pointer; }
 .home-official__stats button:hover { border-color:var(--accent); }
 .home-official__stats strong { font-size:22px; line-height:1.2; color:var(--accent); font-variant-numeric:tabular-nums; }
@@ -209,7 +209,7 @@ code { background: #f0f3f6; }
 .settings-calendar-preference :is(input,select) { accent-color:var(--accent); cursor:pointer; }
 .settings-calendar-preference select { border:1px solid var(--border); color:var(--text); padding:6px; background:var(--bg-elevated); border-radius:5px; }
 .settings-calendar-preference p { width:100%; margin:0; color:var(--text-muted); font-size:11px; }
-@media(max-width:590px) { .home-official__stats { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+@media(max-width:590px) { .home-official__stats { grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
   .home-official__stats button { padding:10px 7px; flex-direction:column; gap:3px; }
   .home-official__stats strong { font-size:20px; }
   .home-official__stats span { font-size:10px; }

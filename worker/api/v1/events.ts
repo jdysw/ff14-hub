@@ -30,6 +30,7 @@ import { createEventService } from '../../modules/events/service';
 import { readCnCalendar } from '../../modules/events/calendar-feed';
 import { createOfficialCalendarIcs } from '../../modules/events/calendar-ics';
 import { readOfficialCalendarSnapshot } from '../../modules/events/calendar-snapshot';
+import { mergePublicCalendar } from '../../modules/events/calendar-curation';
 import type { AppBindings } from '../../types';
 
 export const publicEventRoutes = new Hono<AppBindings>();
@@ -89,10 +90,10 @@ publicEventRoutes.get('/calendar', async (c) => {
   // 优先读取有持久保证的公共官方快照，避免 Cloudflare 不同边缘实例各自冷缓存，
   // 或从边缘节点无法直接连接盛趣官网时整个首页活动列表 503。
   const snapshot = await readOfficialCalendarSnapshot(c.env.DB);
-  if (snapshot !== null) return noStoreJson(c, snapshot);
+  if (snapshot !== null) return noStoreJson(c, await mergePublicCalendar(c.env.DB, snapshot));
   try {
     const calendar = eventCalendarResponseSchema.parse(await readCnCalendar());
-    return noStoreJson(c, calendar);
+    return noStoreJson(c, await mergePublicCalendar(c.env.DB, calendar));
   } catch {
     return c.json({ code: 'service_unavailable', message: '官方活动数据暂时无法同步；尚无可用的历史快照' }, 503);
   }
@@ -103,7 +104,7 @@ publicEventRoutes.get('/calendar.ics', async (c) => {
   try {
     const snapshot = await readOfficialCalendarSnapshot(c.env.DB);
     const data = eventCalendarResponseSchema.parse(snapshot ?? await readCnCalendar());
-    const ics = createOfficialCalendarIcs(data);
+    const ics = createOfficialCalendarIcs(await mergePublicCalendar(c.env.DB, data));
     return new Response(ics, {
       status: 200,
       headers: {
