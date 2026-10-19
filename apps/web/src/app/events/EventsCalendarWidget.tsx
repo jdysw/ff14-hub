@@ -79,7 +79,6 @@ export function EventsCalendarWidget(props: WidgetRuntimeProps) {
     let cancelled = false;
     // 官方详情可能较慢：组件已有加载/筛选 UI，先向 Host 报告可见内容，避免 4 秒统一超时误报。
     reportReady();
-    setState({ kind: 'loading' });
     void (async () => {
       try {
         const response = eventCalendarResponseSchema.parse(await data.call(EVENTS_PORT_OPERATIONS.calendar, {}));
@@ -96,7 +95,7 @@ export function EventsCalendarWidget(props: WidgetRuntimeProps) {
   }, [data, config, retryToken, reload, reportReady, reportEmpty, reportAsyncError]);
 
   const current = state.kind === 'loaded' ? now + state.clockOffset : now;
-  const events = state.kind === 'loaded' ? state.data.events : [];
+  const events = useMemo(() => state.kind === 'loaded' ? state.data.events : [], [state]);
   const categories = useMemo(() => [...new Set(events.map((e) => e.category))].sort(), [events]);
   const counts = useMemo(() => ({
     active: events.filter((e) => calendarPhase(e, current) === 'active').length,
@@ -124,7 +123,7 @@ export function EventsCalendarWidget(props: WidgetRuntimeProps) {
           <h3 className="subsection-title" id={props.instanceId + '-calendar-title'}>{options.data.title}</h3>
           <p className="panel__muted">国服 · 北京时间 (UTC+8) · 盛趣官方活动公告接口</p>
         </div>
-        <button className="button" type="button" onClick={() => setReload((v) => v + 1)}>刷新</button>
+        <button className="button" type="button" onClick={() => { setState({ kind: 'loading' }); setReload((v) => v + 1); }}>刷新</button>
       </div>
 
       {state.kind === 'loading' ? <p className="panel__muted">正在读取国服活动日历…</p> : null}
