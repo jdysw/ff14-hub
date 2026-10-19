@@ -56,6 +56,9 @@ for(const [key,fish] of Object.entries(data.FISH)){
   const previousWeather=weatherNames(fish.previousWeatherSet);
   const startHour=fish.startHour;
   const endHour=fish.endHour;
+  if(currentWeather&&previousWeather&&![...currentWeather,...previousWeather].every(w=>weatherRates.some(rate=>rate.weather===w))){
+    skipped.push(key+':weather-condition-not-in-zone');continue;
+  }
   if(!currentWeather||!previousWeather||!Number.isFinite(startHour)||!Number.isFinite(endHour)||
     startHour<0||startHour>24||endHour<0||endHour>24||startHour===endHour){
     skipped.push(key+':invalid-window');continue;

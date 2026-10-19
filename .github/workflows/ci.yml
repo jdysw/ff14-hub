@@ -64,6 +64,12 @@ jobs:
       - name: 运维脚本测试
         if: matrix.kind == 'core'
         run: pnpm run test:ops
+      - name: 国服和国际服鱼类数据源交叉验证（只读，不部署）
+        if: matrix.kind == 'core'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: '1'
+        run: bash scripts/ops/refresh-fish-catalog.sh
       - name: 独立本地环境备份及恢复演练
         if: matrix.kind == 'core'
         run: pnpm run ops:rehearse
@@ -134,6 +140,13 @@ jobs:
           node scripts/ops/snapshot-official-calendar.mjs "$RUNNER_TEMP/official-calendar.sql"
           pnpm exec wrangler d1 execute DB --remote --env production --file "$RUNNER_TEMP/official-calendar.sql"
           pnpm exec wrangler deploy --env production
+      - name: 将国服及国际服候选鱼类导入 D1（原有进度不变）
+        if: steps.current.outputs.deploy == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: bash scripts/ops/refresh-fish-catalog.sh
       - name: Verify deployed assets and database health
         if: steps.current.outputs.deploy == 'true'
         run: node scripts/ops/verify-live.mjs production

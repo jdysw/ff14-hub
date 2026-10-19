@@ -178,6 +178,7 @@ export function FishingPanel({data,initialRegion='cn',hours=72,onReady,onError,c
         {' '}<a href="https://ff14fish.carbuncleplushy.com/" target="_blank" rel="noopener noreferrer">FFX|V Fish Tracker</a> 查询。</p>
     </div>:null}
     {snapshot!==null&&snapshot.fish.total>0&&fish.length===0?<div className="fishing-empty"><p>当前页没有符合筛选条件的鱼。</p><button onClick={clearFilters}>清除筛选</button></div>:null}
+    {snapshot?.windows.truncatedFishIds?.length?<p className="fishing-notice" role="status">为避免超大窗口列表，已有 {String(snapshot.windows.truncatedFishIds.length)} 种鱼最多展示前 90 个候选窗口；可缩小查询时长查看其余时间段。</p>:null}
     {hasDemo?<p className="fishing-notice" role="status">包含合成测试鱼类：这些数据不是游戏真实钓鱼条件，不应用于安排鱼窗。</p>:null}
     <div className="fishing-list">
       {(compact?fish.slice(0,3):fish).map(f=>{

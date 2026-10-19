@@ -20,7 +20,8 @@ export const fishListResponseSchema = z.object({ fish: z.array(fishRecordSchema)
 export const fishWindowSchema = z.object({ occurrenceKey:z.string(),region:regionSchema,fishId:z.number().int(),ruleVersion:z.string(),
   startsAtUtcMs:utcSchema,endsAtUtcMs:utcSchema,weatherChain:z.object({previous:z.string(),current:z.string()}),
   validationStatus:verificationSchema,candidateOnly:z.boolean(),conditions:fishRuleSchema.shape.conditions });
-export const fishWindowsResponseSchema = z.object({ windows:z.array(fishWindowSchema),from:utcSchema,to:utcSchema });
+export const fishWindowsResponseSchema = z.object({ windows:z.array(fishWindowSchema),from:utcSchema,to:utcSchema,
+  truncatedFishIds:z.array(z.number().int().positive()).optional() });
 export const fishProgressFieldSchema = z.enum(['caught','pinned','alarm']);
 export type FishProgressField = z.infer<typeof fishProgressFieldSchema>;
 export const fishProgressSchema = z.object({ region: regionSchema, fishId: z.number().int().positive(), field: fishProgressFieldSchema,
