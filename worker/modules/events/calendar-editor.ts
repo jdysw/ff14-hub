@@ -71,6 +71,8 @@ export async function saveCalendarEdit(
     : await db.prepare(`UPDATE calendar_editor_entries SET mode=?,payload=?,revision=revision+1,
         editor_account_id=?,updated_at=? WHERE id=? AND revision=?`)
       .bind(mode, payload, accountId, now, id, expectedRevision).run();
-  if (changed.meta.changes !== 1) throw new ApiError('conflict', '活动已经在其他页面修改，请刷新后重试');
+  // D1 changes 统计可能包含审计触发器的写入：成功时不保证恰好为 1。
+  // 乐观锁冲突只会让 INSERT DO NOTHING / 带 revision 的 UPDATE 修改 0 行。
+  if (!changed.success || changed.meta.changes < 1) throw new ApiError('conflict', '活动已经在其他页面修改，请刷新后重试');
   return expectedRevision + 1;
 }
