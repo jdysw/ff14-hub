@@ -21,7 +21,7 @@ export const publicSiteRoutes = new Hono<AppBindings>();
 const loginSchema=z.object({
   username:z.string().regex(/^[A-Za-z0-9._-]{3,40}$/),
   password:z.string().min(14).max(128),
-  code:z.string().regex(/^\\d{6}$/),
+  code:z.string().regex(/^\d{6}$/),
 }).strict();
 
 export function adminAuth(): AppMiddleware {
