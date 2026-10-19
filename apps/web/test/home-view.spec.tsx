@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEMO_WIDGET_IDS, type NavCatalogEntry } from '@ff14-hub/shared';
 import { HomeView } from '../src/app/shell/HomeView';
+import { DEFAULT_SITE_SETTINGS } from '../src/app/admin/site-settings';
 import { useNav } from '../src/app/nav/use-nav';
 import { catalogEntry, fakeNavApi, fakeSyncApi, link, linkView, snapshot } from './nav-fixtures';
 import { groupDirectoryLinks } from '../src/app/shell/NavigationDirectory';
@@ -28,7 +29,7 @@ function Harness({ authenticated = false, workbench = readOnlyWorkbench, catalog
   const stable = useStableApi(fake.api);
   const nav = useNav({ getToken: () => authenticated ? 'test-token' : null, enabled: authenticated, api: stable, syncApi: sync, syncIntervalMs: 0 });
   return <HomeView nav={nav} workbench={workbench} authenticated={authenticated}
-    access={() => ({ status: 'disabled', grantedCapabilities: [] })} dataPortFor={() => undefined} onOpen={onOpen}/>;
+    access={() => ({ status: 'disabled', grantedCapabilities: [] })} dataPortFor={() => undefined} onOpen={onOpen} siteSettings={DEFAULT_SITE_SETTINGS}/>;
 }
 function useStableApi<T>(value: T): T { return useState(() => value)[0]; }
 

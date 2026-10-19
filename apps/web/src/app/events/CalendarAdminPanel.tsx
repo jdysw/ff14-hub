@@ -91,8 +91,8 @@ export function CalendarAdminPanel({ getToken, onClose, onSaved }: {
 
   const fetchList = useCallback(async (signal?: AbortSignal) => {
     const token = getToken();
-    if (!token) throw new Error('管理员会话已过期，请返回活动中心使用账号密码和 TOTP 重新登录');
-    const response = await fetch('/api/v1/events/admin/items', {
+    if (!token) throw new Error('管理员会话已过期，请返回管理后台重新登录');
+    const response = await fetch('/api/v1/admin/calendar/items', {
       headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' },
       method: 'GET', cache: 'no-store', credentials: 'omit', ...(signal ? { signal } : {}),
     });
@@ -129,8 +129,8 @@ export function CalendarAdminPanel({ getToken, onClose, onSaved }: {
   }
   async function submit(method: 'upsert' | 'hide' | 'restore') {
     const token = getToken();
-    if (!token) { setMessage('管理员会话已失效，请返回活动中心重新登录'); return; }
-    let url = '/api/v1/events/admin/items';
+    if (!token) { setMessage('管理员会话已失效，请返回管理后台重新登录'); return; }
+    let url = '/api/v1/admin/calendar/items';
     let httpMethod = 'POST';
     const revision = selected?.revision ?? 0;
     let body: unknown = { expectedRevision: revision };
@@ -166,10 +166,10 @@ export function CalendarAdminPanel({ getToken, onClose, onSaved }: {
   const patch = (field: keyof Draft, value: string | boolean) =>
     setDraft(old => ({ ...old, [field]: value }));
 
-  return <section className="calendar-admin" aria-label="国服活动后台管理">
+  return <section className="calendar-admin" aria-label="国服活动内容管理">
     <header className="calendar-admin__header">
-      <div><button type="button" className="text-button" onClick={onClose}>← 返回活动日历</button>
-        <h2>活动后台管理</h2>
+      <div><button type="button" className="text-button" onClick={onClose}>← 返回管理概览</button>
+        <h2>活动内容管理</h2>
         <p>编辑活动会直接写入 D1，定时同步官方公告不会覆盖你的修改。</p></div>
       <button className="button" type="button" onClick={createNew}>＋ 新建活动</button>
     </header>
