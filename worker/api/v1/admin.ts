@@ -3,7 +3,7 @@
  * 所有业务修改在此统一授权，未认证设备 Token 与浏览器端口令均不得替代管理员会话。
  * 不提供任何 HTTP 注册 / 初始账号创建接口。
  */
-import { ApiError, eventCalendarResponseSchema } from '@ff14-hub/shared';
+import { ApiError } from '@ff14-hub/shared';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { noStoreJson } from '../../lib/response';
