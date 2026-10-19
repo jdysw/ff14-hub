@@ -47,7 +47,7 @@ export async function listEditorEntries(db: D1Database): Promise<CalendarEditorE
     .all<EditorRow>();
   return rows.results.map(row => {
     let item: EventCalendarItem | null = null;
-    if (row.mode === 'upsert' && row.payload !== null) {
+    if (row.payload !== null) {
       try {
         const parsed = eventCalendarItemSchema.safeParse(JSON.parse(row.payload));
         if (parsed.success && parsed.data.id === row.id) item = parsed.data;
@@ -72,7 +72,7 @@ export async function saveCalendarEdit(
   item: EventCalendarItem | null, expectedRevision: number,
 ): Promise<number> {
   const now = Date.now();
-  const payload = mode === 'upsert' && item !== null ? JSON.stringify(eventCalendarItemSchema.parse(item)) : null;
+  const payload = mode !== 'restore' && item !== null ? JSON.stringify(eventCalendarItemSchema.parse(item)) : null;
   const changed = expectedRevision === 0
     ? await db.prepare(`INSERT INTO calendar_editor_entries
         (id,mode,payload,revision,editor_device_id,updated_at)
