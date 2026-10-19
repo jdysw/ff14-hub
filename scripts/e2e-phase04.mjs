@@ -18,6 +18,7 @@
  * 端口默认 8788（与阶段 02/03 的 8787 分开），可用 E2E_PORT 覆盖。
  */
 import { spawn } from 'node:child_process';
+import { stopE2EServer } from './e2e-process.mjs';
 import { randomBytes } from 'node:crypto';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -73,29 +74,6 @@ function run(command) {
 }
 
 /** 结束整棵子进程树（Windows 下 shell 包装会挡住直接 kill）。 */
-function killTree(child) {
-  const pid = child.pid;
-  if (typeof pid !== 'number') return;
-  if (process.platform === 'win32') {
-    // Windows 下显式结束包装 shell 及其所有子进程。
-    spawn('C:\\Windows\\System32\\taskkill.exe', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' });
-    return;
-  }
-  // POSIX 下 npm/pnpm -> shell -> wrangler -> workerd 有多层进程。
-  // 只向 shell PID 发 SIGTERM 会遗留监听端口的后代，导致同一 CI runner 后续阶段误连旧实例。
-  // server 以独立进程组启动，此处停止整个组，而不是仅结束首层 shell。
-  const signalGroup = (signal) => {
-    try { process.kill(-pid, signal); }
-    catch (error) {
-      if (error?.code !== 'ESRCH') {
-        console.error('[e2e] 停止测试服务进程组失败', error);
-      }
-    }
-  };
-  signalGroup('SIGTERM');
-  setTimeout(() => signalGroup('SIGKILL'), 3000).unref();
-}
-
 async function waitForHealth(timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   let lastError = 'unknown';
@@ -274,7 +252,7 @@ async function main() {
     process.exitCode = 0;
   } finally {
     log('关闭本地服务并删除临时凭证文件');
-    killTree(server);
+    stopE2EServer(server);
     await rm(CREDENTIALS_FILE, { force: true });
   }
 }
