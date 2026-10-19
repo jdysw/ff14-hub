@@ -5,7 +5,7 @@ async function enter(page:Page):Promise<void>{
   await page.goto(credentials.baseUrl);
   await page.getByRole('button', { name: '设置', exact: true }).click();await page.getByRole('button',{name:/会话凭证/}).click();
   await page.getByLabel('设备令牌（Bearer）').fill(credentials.token);await page.getByRole('button',{name:'保存到会话内存'}).click();
-  await page.getByRole('button',{name:/^同步与备份/}).click();await expect(page.getByRole('heading',{name:'数据同步',exact:true})).toBeVisible();
+  await page.getByRole('button',{name:/^数据同步/}).click();await expect(page.getByRole('heading',{name:'数据同步',exact:true})).toBeVisible();
 }
 async function download(page:Page,label:string):Promise<unknown>{
   const [file]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:label,exact:true}).click()]);
@@ -20,7 +20,7 @@ test('三集合导入、未知字段保留、备份门禁、跨客户端和撤�
   test.skip(info.project.name==='mobile-chromium','完整链路在桌面执行');await enter(page);
   const source={completed:[9000001,9999999],pinned:[9000001],alarmFish:[9999999],future:{note:'extension-marker'}};
   await page.getByLabel('鱼糕JSON内容').fill(JSON.stringify(source));
-  await page.getByRole('button',{name:/工作台概览/}).click();await page.getByRole('button',{name:/^同步与备份/}).click();
+  await page.getByRole('button',{name:/工作台概览/}).click();await page.getByRole('button',{name:/^数据同步/}).click();
   await expect(page.getByLabel('鱼糕JSON内容')).toHaveValue(JSON.stringify(source));
   await page.getByRole('button',{name:'预览导入'}).click();
   await expect(page.getByRole('heading',{name:'变更预览：4项'})).toBeVisible();await confirm(page);
