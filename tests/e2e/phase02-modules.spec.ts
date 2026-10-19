@@ -48,13 +48,15 @@ async function horizontalOverflow(page: Page): Promise<number> {
 async function tabUntilFocused(page: Page, includes: string, maxTries = 80): Promise<boolean> {
   for (let attempt = 0; attempt < maxTries; attempt += 1) {
     await page.keyboard.press('Tab');
-    const focusedText = await page.evaluate((): string => {
+    const focused = await page.evaluate((target): boolean => {
       const element = document.activeElement;
-      return element === null ? '' : (element.textContent ?? '');
-    });
-    if (focusedText.includes(includes)) {
-      return true;
-    }
+      if (!(element instanceof HTMLButtonElement)) return false;
+      // 首页包含大量用户自定义网站：其它按钮的文字可能也包含“设置”。
+      // 对系统设置入口严格定位，避免 Tab 误命中业务内容导致 Enter 未打开设置。
+      if (target === '设置') return element.classList.contains('shell__settings');
+      return (element.textContent ?? '').includes(target);
+    }, includes);
+    if (focused) return true;
   }
   return false;
 }
