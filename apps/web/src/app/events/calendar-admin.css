@@ -1,0 +1,22 @@
+.calendar-admin {display:grid; gap:18px; min-width:0}
+.calendar-admin__header {display:flex;justify-content:space-between;align-items:end;flex-wrap:wrap;gap:14px}
+.calendar-admin__header h2{font-size:25px;margin:8px 0 2px}
+.calendar-admin__header p{font-size:13px;color:var(--text-muted);margin:0}
+.calendar-admin__layout{display:grid;grid-template-columns:minmax(200px,.8fr) minmax(0,1.4fr);gap:16px;align-items:start}
+.calendar-admin__list,.calendar-admin__form{background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:18px;min-width:0}
+.calendar-admin__list{display:grid;gap:10px}
+.calendar-admin__list>input{width:100%;min-width:0}
+.calendar-admin__list>label{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--text-muted)}
+.calendar-admin__list ul{list-style:none;margin:0;padding:0;display:grid;gap:5px;max-height:70vh;overflow-y:auto}
+.calendar-admin__list li>button{display:grid;gap:4px;text-align:left;color:var(--text);width:100%;padding:10px 12px;min-height:72px;background:var(--bg);border:1px solid var(--border);border-radius:8px;cursor:pointer}
+.calendar-admin__list li>button[aria-current=true]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--bg))}
+.calendar-admin__list li>button strong{font-size:13px;line-height:1.45}
+.calendar-admin__list li>button :is(span,small){font-size:11px;color:var(--text-muted)}
+.calendar-admin__form{display:grid;gap:14px}
+.calendar-admin__form h3{margin:0;font-size:18px}
+.calendar-admin__form label{display:grid;gap:6px;font-size:13px;color:var(--text)}
+.calendar-admin__form :is(input,textarea),.calendar-admin__list>input{font:inherit;min-height:42px;padding:9px 11px;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:7px;width:100%;max-width:100%}
+.calendar-admin__form textarea{resize:vertical}
+.calendar-admin__dates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.calendar-admin__actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+@media(max-width:760px){.calendar-admin__layout{grid-template-columns:minmax(0,1fr)}.calendar-admin__list ul{max-height:200px}.calendar-admin__dates{grid-template-columns:minmax(0,1fr)}}
