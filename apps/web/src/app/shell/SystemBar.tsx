@@ -26,7 +26,7 @@ const DATA_LINKS: readonly SettingLink[] = [
 const ADVANCED_LINKS: readonly SettingLink[] = [
   { id: 'modules', label: '模块管理', hint: '启用、停用或恢复模块', view: 'modules' },
   { id: 'widgets', label: '组件验收', hint: '检查组件行为与运行状态', view: 'widgets' },
-  { id: 'overview', label: '运行诊断', hint: '检查服务连接与状态', view: 'overview' },
+  { id: 'overview', label: '工作台概览', hint: '查看运行状态与健康检查', view: 'overview' },
 ];
 
 function SettingGroup({ title, description, items, currentView, onSelectView }: {
