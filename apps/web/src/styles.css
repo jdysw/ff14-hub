@@ -1251,3 +1251,44 @@ code {
     min-width: 100%;
   }
 }
+
+/* 国服官方活动日历 Widget：布局独立于导航及其他工作台模块。 */
+.event-calendar { display: grid; gap: 12px; min-width: 0; }
+.event-calendar__heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.event-calendar__heading .subsection-title { margin-bottom: 2px; }
+.event-calendar__heading p { margin: 0; font-size: .8rem; }
+.event-calendar__stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.event-calendar__stats > div { display: flex; flex-direction: column; gap: 3px; padding: 10px 8px; border: 1px solid var(--border); border-radius: var(--radius); background: rgb(200 162 74 / 5%); }
+.event-calendar__stats strong { font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+.event-calendar__stats span { color: var(--text-muted); font-size: .72rem; }
+.event-calendar__controls { display: grid; gap: 8px; }
+.event-calendar__tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.event-calendar__tabs .button { font-size: .79rem; }
+.event-calendar__fields { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(9rem, 2fr); gap: 8px; }
+.event-calendar__fields label { display: grid; gap: 5px; font-size: .78rem; color: var(--text-muted); min-width: 0; }
+.event-calendar__fields select,.event-calendar__fields input { max-width: 100%; width: 100%; min-width: 0; }
+.event-calendar__list { display: grid; gap: 8px; padding: 0; margin: 0; list-style: none; }
+.event-calendar__item { display: grid; gap: 8px; border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; min-width: 0; background: var(--bg-elevated); }
+.event-calendar__item-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.event-calendar__tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.event-calendar__phase--active { border-color: var(--ok); }
+.event-calendar__phase--ending { border-color: var(--warn); }
+.event-calendar__phase--unknown { border-style: dashed; }
+.event-calendar__countdown { display: grid; gap: 2px; text-align: right; }
+.event-calendar__countdown small { color: var(--text-muted); }
+.event-calendar__countdown strong { color: var(--accent); font-size: .94rem; font-variant-numeric: tabular-nums; }
+.event-calendar__title { font-size: 1rem; margin: 0; line-height: 1.5; }
+.event-calendar__time { display: flex; gap: 4px 18px; flex-wrap: wrap; color: var(--text-muted); margin: 0; font-size: .82rem; }
+.event-calendar__progress { width: 100%; height: 5px; background: var(--border); border-radius: 999px; overflow: hidden; }
+.event-calendar__progress span { display: block; height: 100%; background: var(--accent); }
+.event-calendar__meta { margin: 0; font-size: .8rem; color: var(--text-muted); }
+.event-calendar__details { overflow-wrap: anywhere; font-size: .84rem; }
+.event-calendar__details summary { cursor: pointer; color: var(--text-muted); }
+.event-calendar__details p { white-space: normal; line-height: 1.5; }
+.event-calendar__source { font-size: .82rem; overflow-wrap: anywhere; }
+.event-calendar__footer { display: flex; justify-content: space-between; gap: 6px; flex-wrap: wrap; font-size: .78rem; color: var(--text-muted); }
+@media (max-width: 580px) {
+  .event-calendar__stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .event-calendar__fields { grid-template-columns: 1fr; }
+  .event-calendar__countdown { text-align: left; }
+}
