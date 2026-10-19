@@ -130,6 +130,9 @@ jobs:
           : "${CLOUDFLARE_API_TOKEN:?Missing repository secret CLOUDFLARE_API_TOKEN}"
           : "${CLOUDFLARE_ACCOUNT_ID:?Missing repository secret CLOUDFLARE_ACCOUNT_ID}"
           pnpm exec wrangler d1 migrations apply DB --remote --env production
+          # 由部署运行器主动取回官方公告；Worker 直接读取 D1，避免边缘出站故障。
+          node scripts/ops/snapshot-official-calendar.mjs "$RUNNER_TEMP/official-calendar.sql"
+          pnpm exec wrangler d1 execute DB --remote --env production --file "$RUNNER_TEMP/official-calendar.sql"
           pnpm exec wrangler deploy --env production
       - name: Verify deployed assets and database health
         if: steps.current.outputs.deploy == 'true'

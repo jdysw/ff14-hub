@@ -38,7 +38,7 @@
     "e2e:phase06c": "node scripts/e2e-phase06c.mjs",
     "ops:preflight": "node scripts/ops/preflight.mjs",
     "ops:rehearse": "node scripts/ops/rehearse.mjs",
-    "test:ops": "node --test scripts/ops/ops.test.mjs scripts/ops/verify-live.test.mjs",
+    "test:ops": "node --test scripts/ops/ops.test.mjs scripts/ops/verify-live.test.mjs scripts/ops/snapshot-official-calendar.test.mjs",
     "audit:prod": "pnpm audit --prod --registry=https://registry.npmjs.org",
     "verify": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run test:ops && pnpm run build"
   },

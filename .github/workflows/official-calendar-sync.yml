@@ -1,0 +1,38 @@
+# 公开国服活动数据不依赖 Cloudflare Worker 访问境内官方源。
+# 定时从 GitHub Actions 运行器抓取固定的官方公告，原子替换 D1 公共快照。
+name: 更新国服官方活动
+on:
+  schedule:
+    - cron: '17 */3 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cloudflare-production
+  cancel-in-progress: false
+jobs:
+  sync:
+    name: Refresh CN official calendar snapshot
+    if: github.repository == 'jdysw/ff14-hub' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Setup Node/pnpm and frozen dependencies
+        uses: ./.github/actions/setup-ci
+      - name: Fetch only official feed and update public snapshot
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${CLOUDFLARE_API_TOKEN:?Missing repository secret CLOUDFLARE_API_TOKEN}"
+          : "${CLOUDFLARE_ACCOUNT_ID:?Missing repository secret CLOUDFLARE_ACCOUNT_ID}"
+          node scripts/ops/snapshot-official-calendar.mjs "$RUNNER_TEMP/official-calendar.sql"
+          pnpm exec wrangler d1 execute DB --remote --env production --file "$RUNNER_TEMP/official-calendar.sql"
+          echo 'Official CN calendar D1 snapshot updated.' >> "$GITHUB_STEP_SUMMARY"
