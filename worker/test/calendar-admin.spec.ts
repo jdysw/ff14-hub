@@ -77,6 +77,12 @@ beforeEach(async()=>{
 });
 
 describe('独立管理员账号密码 + TOTP 双因子',()=>{
+  it('已经停用旧版设备白名单管理接口，不能绕过双因素认证', async () => {
+    const legacy = await SELF.fetch('https://example.com/api/v1/admin/calendar/me');
+    expect(legacy.status).toBe(404);
+    expect((await request('/items')).status).toBe(401);
+  });
+
   it('拒绝匿名和工作空间设备令牌，只有一次性安全初始化可绑定 TOTP',async()=>{
     expect((await request('/status')).status).toBe(401);
     expect((await request('/items')).status).toBe(401);
