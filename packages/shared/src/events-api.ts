@@ -36,6 +36,8 @@ export const EVENTS_WIDGET_IDS = {
   upcoming: 'events-upcoming',
   /** 活动维护：手工增删改个人活动。 */
   manage: 'events-manage',
+  /** 国服来源日历：开始/结束倒计时及状态过滤。 */
+  calendar: 'events-calendar',
 } as const;
 
 export type EventsWidgetId = (typeof EVENTS_WIDGET_IDS)[keyof typeof EVENTS_WIDGET_IDS];
@@ -509,6 +511,40 @@ export const publicEventListResponseSchema = z
 
 export type PublicEventListResponse = z.infer<typeof publicEventListResponseSchema>;
 
+/** 国服官方活动公告的展示契约：时间允许缺失，绝不把发布日期伪装成起止时间。 */
+export const eventCalendarItemSchema = z.object({
+  id: z.string().min(1).max(300),
+  region: z.literal('cn'),
+  title: z.string().min(1).max(120),
+  description: z.string().max(600),
+  category: z.string().max(32),
+  location: z.string().max(120),
+  startsAt: z.number().int().nonnegative().nullable(),
+  endsAt: z.number().int().nonnegative().nullable(),
+  allDay: z.boolean(),
+  sourceUrl: eventSourceUrlSchema.nullable(),
+}).strict();
+export type EventCalendarItem = z.infer<typeof eventCalendarItemSchema>;
+
+export const eventCalendarResponseSchema = z.object({
+  events: z.array(eventCalendarItemSchema).max(250),
+  serverTimeMs: z.number().int().nonnegative(),
+  source: z.object({
+    name: z.string().min(1).max(80),
+    homeUrl: eventSourceUrlSchema,
+    checkedAtMs: z.number().int().nonnegative(),
+    stale: z.boolean(),
+  }).strict(),
+}).strict();
+export type EventCalendarResponse = z.infer<typeof eventCalendarResponseSchema>;
+
+export const EVENTS_CALENDAR_CONFIG_VERSION = 1;
+export const eventsCalendarConfigSchema = z.object({
+  title: z.string().min(1).max(40).default('国服活动日历'),
+  limit: z.number().int().min(1).max(50).default(20),
+}).strict();
+export type EventsCalendarConfig = z.infer<typeof eventsCalendarConfigSchema>;
+
 /** 个人活动列表响应（`GET /api/v1/me/events`，设备鉴权）。 */
 export const eventListResponseSchema = z
   .object({
@@ -565,6 +601,13 @@ export const EVENTS_WIDGET_CONFIG_CONTRACTS: readonly WidgetConfigContract[] = [
     migrations: {},
   },
   {
+    widgetId: EVENTS_WIDGET_IDS.calendar,
+    configSchemaVersion: EVENTS_CALENDAR_CONFIG_VERSION,
+    schema: eventsCalendarConfigSchema,
+    defaultConfig: { title: '国服活动日历', limit: 20 },
+    migrations: {},
+  },
+  {
     widgetId: EVENTS_WIDGET_IDS.manage,
     configSchemaVersion: EVENTS_MANAGE_CONFIG_VERSION,
     schema: eventsManageConfigSchema,
@@ -593,9 +636,18 @@ export function findEventsWidgetConfigContract(widgetId: string): WidgetConfigCo
 export const EVENTS_MODULE_MANIFEST: ModuleManifest = {
   id: EVENTS_MODULE_ID,
   version: '1.0.0',
-  displayName: '活动（人工维护）',
+  displayName: '活动（日历与个人维护）',
   capabilities: ['storage:own'],
   widgets: [
+    {
+      id: EVENTS_WIDGET_IDS.calendar,
+      moduleId: EVENTS_MODULE_ID,
+      displayName: '国服活动日历（倒计时）',
+      allowMultiple: true,
+      defaultSize: { w: 8, h: 6 },
+      minSize: { w: 4, h: 3 },
+      configSchemaVersion: EVENTS_CALENDAR_CONFIG_VERSION,
+    },
     {
       id: EVENTS_WIDGET_IDS.upcoming,
       moduleId: EVENTS_MODULE_ID,

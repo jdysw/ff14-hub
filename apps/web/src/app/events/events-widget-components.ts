@@ -10,6 +10,7 @@
 import { EVENTS_WIDGET_IDS } from '@ff14-hub/shared';
 import type { ComponentType } from 'react';
 import { EventsManageWidget } from './EventsManageWidget';
+import { EventsCalendarWidget } from './EventsCalendarWidget';
 import { EventsUpcomingWidget } from './EventsUpcomingWidget';
 import type { WidgetRuntimeProps } from '../widgets/types';
 
@@ -17,4 +18,5 @@ import type { WidgetRuntimeProps } from '../widgets/types';
 export const eventsWidgetComponents: Readonly<Record<string, ComponentType<WidgetRuntimeProps>>> = {
   [EVENTS_WIDGET_IDS.upcoming]: EventsUpcomingWidget,
   [EVENTS_WIDGET_IDS.manage]: EventsManageWidget,
+  [EVENTS_WIDGET_IDS.calendar]: EventsCalendarWidget,
 };
