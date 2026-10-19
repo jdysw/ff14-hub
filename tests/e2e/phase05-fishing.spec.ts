@@ -7,7 +7,7 @@ async function enter(page:Page):Promise<void>{
   await page.getByRole('button',{name:/会话凭证/}).click();
   await page.getByLabel('设备令牌（Bearer）').fill(credentials.token);
   await page.getByRole('button',{name:'保存到会话内存'}).click();
-  await page.getByRole('button',{name:/钓鱼手账 天气/}).click();
+  await page.getByRole('button',{name:/^钓鱼手账/}).click();
   await expect(page.getByText('示例·海港鱼（非真实鱼类）',{exact:true})).toBeVisible();
 }
 test('钓鱼三字段独立、区服隔离、跨会话同步与禁用门禁',async({browser,page},testInfo)=>{
@@ -34,7 +34,7 @@ test('钓鱼三字段独立、区服隔离、跨会话同步与禁用门禁',asy
   const createdPage=await created.json() as {page:{id:string}};
   const widget=await page.request.post(`${credentials.baseUrl}/api/v1/me/pages/${createdPage.page.id}/widgets`,{headers:{Authorization:`Bearer ${credentials.token}`},data:{widgetType:'fishing-windows',operationId:crypto.randomUUID(),config:{region:'cn',hours:1}}});
   expect(widget.status()).toBe(201);
-  await page.getByRole('button',{name:/自定义工作台 多页面/}).click();
+  await page.getByRole('button',{name:/^自定义工作台/}).click();
   await expect(page.getByText('示例·海港鱼（非真实鱼类）',{exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:'收藏',exact:true})).toHaveAttribute('aria-pressed','true');
   await page.setViewportSize({width:390,height:844});
