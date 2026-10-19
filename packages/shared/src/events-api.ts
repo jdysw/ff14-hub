@@ -511,7 +511,7 @@ export const publicEventListResponseSchema = z
 
 export type PublicEventListResponse = z.infer<typeof publicEventListResponseSchema>;
 
-/** 第三方公开 ICS 源的最小可信展示契约，独立于私有活动和人工公共表。 */
+/** 国服官方活动公告的展示契约：时间允许缺失，绝不把发布日期伪装成起止时间。 */
 export const eventCalendarItemSchema = z.object({
   id: z.string().min(1).max(300),
   region: z.literal('cn'),
@@ -519,7 +519,7 @@ export const eventCalendarItemSchema = z.object({
   description: z.string().max(600),
   category: z.string().max(32),
   location: z.string().max(120),
-  startsAt: z.number().int().nonnegative(),
+  startsAt: z.number().int().nonnegative().nullable(),
   endsAt: z.number().int().nonnegative().nullable(),
   allDay: z.boolean(),
   sourceUrl: eventSourceUrlSchema.nullable(),
@@ -531,7 +531,7 @@ export const eventCalendarResponseSchema = z.object({
   serverTimeMs: z.number().int().nonnegative(),
   source: z.object({
     name: z.string().min(1).max(80),
-    subscribeUrl: eventSourceUrlSchema,
+    homeUrl: eventSourceUrlSchema,
     checkedAtMs: z.number().int().nonnegative(),
     stale: z.boolean(),
   }).strict(),
