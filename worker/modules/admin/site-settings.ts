@@ -45,6 +45,7 @@ export async function updateSiteSettings(
         revision=site_admin_settings.revision+1,updated_at=excluded.updated_at
         WHERE site_admin_settings.revision=?`)
     .bind(JSON.stringify(settings),Date.now(),input.expectedRevision,input.expectedRevision).run();
-  if (result.meta.changes !== 1) throw new ApiError('conflict','配置已由其他会话修改，请重新读取');
+  // D1 的 changes 统计可包含审计触发器写入；只把零变更视为并发版本冲突。
+  if (result.meta.changes < 1) throw new ApiError('conflict','配置已由其他会话修改，请重新读取');
   return readSiteSettings(db);
 }
