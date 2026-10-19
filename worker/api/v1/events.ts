@@ -121,7 +121,6 @@ publicEventRoutes.get('/calendar', async (c) => {
 /** 标准 ICS 订阅：只包含官方明确起止时间的公共活动，不包含用户私有活动。 */
 publicEventRoutes.get('/calendar.ics', async (c) => {
   try {
-    const snapshot = await readOfficialCalendarSnapshot(c.env.DB);
     const data = await calendarForPublic(c.env.DB);
     const ics = createOfficialCalendarIcs(data);
     return new Response(ics, {
@@ -179,7 +178,11 @@ publicEventRoutes.post('/admin/items/:id/hide', validateJsonBody(calendarToggleS
   const id = c.req.param('id');
   await assertEditableId(c.env.DB, id);
   const body = parsedJsonBody(c, calendarToggleSchema);
-  const revision = await saveCalendarEdit(c.env.DB, c.get('deviceId'), id, 'hide', null, body.expectedRevision);
+  const overrides = await listEditorEntries(c.env.DB);
+  const existing = overrides.find(entry => entry.id === id);
+  const original = (await readOfficialCalendarSnapshot(c.env.DB))?.events.find(item => item.id === id);
+  const hiddenItem = existing?.item ?? original ?? null;
+  const revision = await saveCalendarEdit(c.env.DB, c.get('deviceId'), id, 'hide', hiddenItem, body.expectedRevision);
   return noStoreJson(c, { id, revision });
 });
 
@@ -188,7 +191,13 @@ publicEventRoutes.post('/admin/items/:id/restore', validateJsonBody(calendarTogg
   await assertEditableId(c.env.DB, id);
   const body = parsedJsonBody(c, calendarToggleSchema);
   if (body.expectedRevision === 0) throw new ApiError('conflict', '此活动暂无人工修改记录');
-  const revision = await saveCalendarEdit(c.env.DB, c.get('deviceId'), id, 'restore', null, body.expectedRevision);
+  const existing = (await listEditorEntries(c.env.DB)).find(entry => entry.id === id);
+  const manual = id.startsWith('manual:');
+  if (manual && (!existing?.item || existing.mode !== 'hide')) {
+    throw new ApiError('conflict', '手动活动无可恢复的内容');
+  }
+  const revision = await saveCalendarEdit(c.env.DB, c.get('deviceId'), id,
+    manual ? 'upsert' : 'restore', manual ? existing?.item ?? null : null, body.expectedRevision);
   return noStoreJson(c, { id, revision });
 });
 
