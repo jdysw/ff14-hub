@@ -48,17 +48,17 @@ jobs:
                   print('REQUEST_ERROR',type(e).__name__,str(e))
               return None
           for category in ['5311','5203']:
-              params=urlencode({'gameCode':'ff','CategoryCode':category,'pageIndex':0,'pageSize':5})
+              params=urlencode({'gameCode':'ff','CategoryCode':category,'pageIndex':0,'pageSize':20})
               data=fetch(base+'/api/news/newsList?'+params,'newsList category '+category)
               if not isinstance(data,dict): continue
               rows=data.get('Data')
               print('DATA_TYPE',type(rows).__name__)
               if isinstance(rows,list):
                   print('COUNT',len(rows))
-                  for row in rows[:3]:
+                  for row in rows[:12]:
                       if not isinstance(row,dict):continue
                       print('ITEM_KEYS',list(row.keys()))
-                      print('ITEM_ID',repr(row.get('Id')),'TITLE',repr(str(row.get('Title'))[:150]),'PUBLISHED',repr(row.get('PublishDate')))
+                      print('ITEM_ID',repr(row.get('Id')),'TITLE',repr(str(row.get('Title'))[:150]),'PUBLISHED',repr(row.get('PublishDate')),'CATEGORY',repr(row.get('CategoryCode')),'OUTLINK',repr(row.get('OutLink')))
                   first=next((r for r in rows if isinstance(r,dict) and str(r.get('Id','')).isdigit()),None)
                   if first:
                       i=int(first['Id'])
@@ -70,4 +70,11 @@ jobs:
                           print('DETAIL_PLAIN_FIRST_500',repr(' '.join(text.split())[:500]))
               else:
                   print('DATA_SAMPLE',repr(str(rows)[:500]))
+          for target_id in [394275,394013,392697,393660]:
+              detail=fetch(base+'/api/news/newsDetail?'+urlencode({'gameCode':'ff','id':target_id}),'targeted newsDetail '+str(target_id))
+              if isinstance(detail,dict) and isinstance(detail.get('Data'),dict):
+                  item=detail['Data']
+                  print('TARGET_DETAIL_ID',target_id,'OUTLINK',repr(item.get('OutLink')),'CATEGORY',repr(item.get('CategoryCode')))
+                  text=html.unescape(re.sub(r'<[^>]+>',' ',str(item.get('Content',''))))
+                  print('TARGET_DETAIL_PLAIN_FIRST_700',repr(' '.join(text.split())[:700]))
           PY
