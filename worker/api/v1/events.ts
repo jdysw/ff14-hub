@@ -12,6 +12,7 @@
  * - 阶段 04 不做抓取器 / 提醒调度，也不注册 Cron（ADR-0004 D9 / D12）。
  */
 import {
+  ApiError,
   EVENT_SORT_ORDERS,
   eventCalendarResponseSchema,
   eventPhaseSchema,
@@ -24,12 +25,15 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { noStoreJson } from '../../lib/response';
 import { nowUtcMs } from '../../lib/util';
+import { deviceAuth } from '../../middleware/auth';
+import { parsedJsonBody, validateJsonBody } from '../../middleware/validation';
 import { methodNotAllowed } from '../../middleware/error-handler';
 import { validateQuery } from '../../middleware/validation';
 import { createEventService } from '../../modules/events/service';
 import { readCnCalendar } from '../../modules/events/calendar-feed';
 import { createOfficialCalendarIcs } from '../../modules/events/calendar-ics';
 import { readOfficialCalendarSnapshot } from '../../modules/events/calendar-snapshot';
+import { applyCalendarEdits, calendarMutationSchema, calendarToggleSchema, isCalendarAdmin, listEditorEntries, saveCalendarEdit } from '../../modules/events/calendar-editor';
 import type { AppBindings } from '../../types';
 
 export const publicEventRoutes = new Hono<AppBindings>();
@@ -84,14 +88,30 @@ publicEventRoutes.get('/', validateQuery(publicEventQuerySchema), async (c) => {
   );
 });
 
+async function calendarForPublic(db: D1Database) {
+  const snapshot = await readOfficialCalendarSnapshot(db);
+  return await applyCalendarEdits(db, eventCalendarResponseSchema.parse(snapshot ?? await readCnCalendar()));
+}
+
+async function assertEditableId(db: D1Database, id: string): Promise<void> {
+  if (!/^(official:[A-Za-z0-9_-]+|manual:[0-9a-f-]{36})$/.test(id)) {
+    throw new ApiError('validation_failed', '活动标识不合法');
+  }
+  const saved = await db.prepare('SELECT id FROM calendar_editor_entries WHERE id=?').bind(id).first<{id: string}>();
+  if (saved !== null) return;
+  const base = await readOfficialCalendarSnapshot(db);
+  if (base?.events.some(event => event.id === id)) return;
+  throw new ApiError('not_found', '活动不存在');
+}
+
 /** 国服活动公共 JSON，由 D1 已验证快照提供，不需要工作空间授权。 */
 publicEventRoutes.get('/calendar', async (c) => {
   // 优先读取有持久保证的公共官方快照，避免 Cloudflare 不同边缘实例各自冷缓存，
   // 或从边缘节点无法直接连接盛趣官网时整个首页活动列表 503。
   const snapshot = await readOfficialCalendarSnapshot(c.env.DB);
-  if (snapshot !== null) return noStoreJson(c, snapshot);
+  if (snapshot !== null) return noStoreJson(c, await applyCalendarEdits(c.env.DB, snapshot));
   try {
-    const calendar = eventCalendarResponseSchema.parse(await readCnCalendar());
+    const calendar = await calendarForPublic(c.env.DB);
     return noStoreJson(c, calendar);
   } catch {
     return c.json({ code: 'service_unavailable', message: '官方活动数据暂时无法同步；尚无可用的历史快照' }, 503);
@@ -102,7 +122,7 @@ publicEventRoutes.get('/calendar', async (c) => {
 publicEventRoutes.get('/calendar.ics', async (c) => {
   try {
     const snapshot = await readOfficialCalendarSnapshot(c.env.DB);
-    const data = eventCalendarResponseSchema.parse(snapshot ?? await readCnCalendar());
+    const data = await calendarForPublic(c.env.DB);
     const ics = createOfficialCalendarIcs(data);
     return new Response(ics, {
       status: 200,
@@ -116,6 +136,60 @@ publicEventRoutes.get('/calendar.ics', async (c) => {
   } catch {
     return c.json({ code: 'service_unavailable', message: '官方活动日历订阅暂时不可用' }, 503);
   }
+});
+
+/** 管理员必须同时持有有效设备 Token 和管理员授权，匿名/普通设备都不能更改公共内容。 */
+publicEventRoutes.use('/admin/*', deviceAuth(), async (c, next) => {
+  if (!await isCalendarAdmin(c.env.DB, c.get('deviceId'), c.get('workspaceId'))) {
+    throw new ApiError('forbidden', '当前设备没有活动管理员权限');
+  }
+  await next();
+});
+
+publicEventRoutes.get('/admin/status', (c) => noStoreJson(c, { administrator: true }));
+
+/** 管理台显示官方原始数据和人工修改的版本号，避免普通访问取得编辑审计信息。 */
+publicEventRoutes.get('/admin/items', async (c) => {
+  const official = await readOfficialCalendarSnapshot(c.env.DB);
+  return noStoreJson(c, {
+    official: official?.events ?? [],
+    edits: await listEditorEntries(c.env.DB),
+  });
+});
+
+publicEventRoutes.post('/admin/items', validateJsonBody(calendarMutationSchema), async (c) => {
+  const input = parsedJsonBody(c, calendarMutationSchema);
+  if (input.expectedRevision !== 0) throw new ApiError('validation_failed', '新建活动的版本号必须为 0');
+  const id = 'manual:' + crypto.randomUUID();
+  const revision = await saveCalendarEdit(c.env.DB, c.get('deviceId'), id, 'upsert',
+    { ...input.item, id, region: 'cn' }, 0);
+  return noStoreJson(c, { id, revision }, 201);
+});
+
+publicEventRoutes.put('/admin/items/:id', validateJsonBody(calendarMutationSchema), async (c) => {
+  const id = c.req.param('id');
+  await assertEditableId(c.env.DB, id);
+  const input = parsedJsonBody(c, calendarMutationSchema);
+  const revision = await saveCalendarEdit(c.env.DB, c.get('deviceId'), id, 'upsert',
+    { ...input.item, id, region: 'cn' }, input.expectedRevision);
+  return noStoreJson(c, { id, revision });
+});
+
+publicEventRoutes.post('/admin/items/:id/hide', validateJsonBody(calendarToggleSchema), async (c) => {
+  const id = c.req.param('id');
+  await assertEditableId(c.env.DB, id);
+  const body = parsedJsonBody(c, calendarToggleSchema);
+  const revision = await saveCalendarEdit(c.env.DB, c.get('deviceId'), id, 'hide', null, body.expectedRevision);
+  return noStoreJson(c, { id, revision });
+});
+
+publicEventRoutes.post('/admin/items/:id/restore', validateJsonBody(calendarToggleSchema), async (c) => {
+  const id = c.req.param('id');
+  await assertEditableId(c.env.DB, id);
+  const body = parsedJsonBody(c, calendarToggleSchema);
+  if (body.expectedRevision === 0) throw new ApiError('conflict', '此活动暂无人工修改记录');
+  const revision = await saveCalendarEdit(c.env.DB, c.get('deviceId'), id, 'restore', null, body.expectedRevision);
+  return noStoreJson(c, { id, revision });
 });
 
 // 只支持 GET：其他方法给结构化 405（不落入 404，便于区分「路径写错」与「方法写错」）。
