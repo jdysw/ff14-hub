@@ -26,7 +26,7 @@ export function SiteSettingsPanel() {
   },[]);
   useEffect(()=>{
     const controller=new AbortController();
-    void load(controller.signal).catch(e=>{if(!controller.signal.aborted)setMessage(e instanceof Error?e.message:'读取失败');})
+    void Promise.resolve().then(()=>load(controller.signal)).catch(e=>{if(!controller.signal.aborted)setMessage(e instanceof Error?e.message:'读取失败');})
       .finally(()=>{if(!controller.signal.aborted)setLoading(false);});
     return ()=>controller.abort();
   },[load]);
