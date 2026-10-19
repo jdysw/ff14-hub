@@ -1,6 +1,6 @@
 /**
  * 管理员认证：单一站点 owner，独立于玩家设备登录。
- * 密码 PBKDF2-SHA256 310000 轮+随机盐，TOTP RFC6238(SHA1/6位/30秒)，
+ * 密码 PBKDF2-SHA256 100000 轮+随机盐+服务端 HMAC 密钥，TOTP RFC6238(SHA1/6位/30秒)，
  * TOTP 种子 AES-GCM 加密，密钥由部署 BOOTSTRAP_SECRET 派生。
  * 明文密码、OTP 种子与 Bearer 不记日志、不入普通前端存储。
  */
@@ -8,7 +8,9 @@ import { ApiError } from '@ff14-hub/shared';
 import { constantTimeEqualStrings } from '../../lib/util';
 import { hashCredential, credentialsEqual } from '../identity/credentials';
 
-const ITERATIONS = 310_000;
+/** Cloudflare 生产 workerd 对单次 PBKDF2 限制 100000；本地 Vitest 可能无法复现超限。 */
+export const ADMIN_PBKDF2_ITERATIONS = 100_000;
+const ADMIN_PASSWORD_HASH_VERSION = 'pbkdf2-sha256-100k-hmac-v2:';
 const SESSION_MS = 8 * 60 * 60_000;
 const STEP_MS = 30_000;
 const DIGITS = 1_000_000;
@@ -56,13 +58,27 @@ async function decryptSeed(stored: string, setupSecret: string): Promise<Uint8Ar
   return new Uint8Array(await crypto.subtle.decrypt({ name:'AES-GCM',iv:decode64(a) },
     await encryptionKey(setupSecret),decode64(b)));
 }
-async function passwordHash(password: string, salt: Uint8Array): Promise<string> {
-  const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt,iterations:ITERATIONS},key,256);
-  return bytesHex(new Uint8Array(bits));
+/**
+ * 在 Workers 单次 PBKDF2 上限内加盐派生，再以部署初始化密钥派生的独立 HMAC key 加密摘要。
+ * 即使单独泄露 D1，攻击者也不能仅用数据库中的盐与摘要离线猜测口令。
+ * HMAC 域与 TOTP AES key 的用途隔离；变更 BOOTSTRAP_SECRET 将使已注册管理员失效，
+ * 因此初始化成功后应固定该 secret（不要以重置 secret 代替账号恢复）。
+ */
+async function passwordHash(password: string, salt: Uint8Array, setupSecret: string): Promise<string> {
+  const passwordKey = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits']);
+  const derived = await crypto.subtle.deriveBits({
+    name: 'PBKDF2', hash: 'SHA-256', salt, iterations: ADMIN_PBKDF2_ITERATIONS,
+  }, passwordKey, 256);
+  const pepperKeyBytes = await crypto.subtle.digest('SHA-256',
+    encoder.encode('ff14-hub/calendar-admin/password/v2/' + setupSecret));
+  const pepperKey = await crypto.subtle.importKey('raw', pepperKeyBytes,
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const signed = await crypto.subtle.sign('HMAC', pepperKey, derived);
+  return ADMIN_PASSWORD_HASH_VERSION + bytesHex(new Uint8Array(signed));
 }
-async function matchesPassword(password: string, row: AdminAccountRow): Promise<boolean> {
-  const candidate = await passwordHash(password,hexBytes(row.password_salt));
+async function matchesPassword(password: string, row: AdminAccountRow, setupSecret: string): Promise<boolean> {
+  if (!row.password_hash.startsWith(ADMIN_PASSWORD_HASH_VERSION)) return false;
+  const candidate = await passwordHash(password,hexBytes(row.password_salt),setupSecret);
   return constantTimeEqualStrings(candidate,row.password_hash);
 }
 async function otpAt(secret: Uint8Array, counter: number): Promise<string> {
@@ -108,7 +124,7 @@ export async function startAdminSetup(db: D1Database, configured: string,
   const salt=crypto.getRandomValues(new Uint8Array(16));
   const secretBytes=crypto.getRandomValues(new Uint8Array(20));
   const seed=base32(secretBytes);
-  const hash=await passwordHash(password,salt);
+  const hash=await passwordHash(password,salt,configured);
   const ciphertext=await encryptSeed(secretBytes,configured);
   const result=await db.prepare(`INSERT INTO calendar_admin_accounts
     (id,username,password_salt,password_hash,totp_ciphertext,created_at)
@@ -130,7 +146,8 @@ export async function validateAdminCredentials(db: D1Database, configured: strin
   const row=await accountRow(db);
   if (!row || row.username.toLowerCase()!==username.toLowerCase() ||
       Boolean(row.activated_at)!==!activate ||
-      !await matchesPassword(password,row) || !configured) return false;
+      !configured || configured.length<32 ||
+      !await matchesPassword(password,row,configured)) return false;
   let seed: Uint8Array;
   try { seed=await decryptSeed(row.totp_ciphertext,configured); }
   catch { return false; }

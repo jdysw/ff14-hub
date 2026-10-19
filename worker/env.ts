@@ -10,7 +10,7 @@
  *   因此它在类型上是可选的。
  *
  * 运行时校验（HUB-002）：
- * - 所有绑定与变量在使用前都必须经过 `parseEnv`；失败返回**脱敏**的 500，不把 zod 明细发给调用方。
+ * - 必需绑定及变量形状在使用前经过 `parseEnv`；失败返回脱敏 500。弱初始化密钥仅禁用受保护的初始化流程，不会关闭公开站点。
  * - 本文件只做形状校验，不读取、不记录任何凭证的值。`hasBootstrapSecret` 只记录**是否存在**。
  * - `ASSETS` 是静态资源绑定，仅在 wrangler 运行时存在，因此允许缺失并由调用方降级处理。
  */
@@ -55,10 +55,9 @@ const envSchema = z.object({
   ENVIRONMENT: z.enum(ENVIRONMENTS).optional(),
   ENABLE_TEST_ROUTES: z.enum(['0', '1']).optional(),
   ALLOWED_ORIGINS: z.string().optional(),
-  // 高熵初始化密钥：只校验长度，值永不落日志、永不进入任何响应。
-  // 注意这里是**强校验**：配置了过短的密钥会让整个 Worker 拒绝服务（fail-closed），
-  // 以避免带着弱初始化密钥上线。
-  BOOTSTRAP_SECRET: z.string().min(MIN_BOOTSTRAP_SECRET_LENGTH).optional(),
+  // 密钥本身由初始化/管理员认证路由按最小长度检查并拒绝弱密钥。
+  // 不在全局 envSchema 强制长度：短密钥不得导致公开首页、健康检查、静态文件全部 500。
+  BOOTSTRAP_SECRET: z.string().optional(),
 });
 
 /** 经过校验的运行时配置（不含任何凭证值）。 */
@@ -67,7 +66,7 @@ export interface AppConfig {
   /** 除同源之外额外允许的 Origin；已剔除空项与通配符。 */
   readonly allowedOrigins: readonly string[];
   readonly enableTestRoutes: boolean;
-  /** 是否已配置 Bootstrap 密钥——只暴露布尔，不暴露值。 */
+  /** 是否已配置符合最小长度要求的 Bootstrap 密钥——只暴露布尔，不暴露值。 */
   readonly hasBootstrapSecret: boolean;
   /** 静态资源绑定是否存在。 */
   readonly hasAssetsBinding: boolean;
@@ -114,7 +113,7 @@ export function parseEnv(raw: unknown): EnvParseResult {
       environment: data.ENVIRONMENT ?? 'development',
       allowedOrigins: parseAllowedOrigins(data.ALLOWED_ORIGINS),
       enableTestRoutes: data.ENABLE_TEST_ROUTES === '1',
-      hasBootstrapSecret: data.BOOTSTRAP_SECRET !== undefined,
+      hasBootstrapSecret: data.BOOTSTRAP_SECRET !== undefined && data.BOOTSTRAP_SECRET.length >= MIN_BOOTSTRAP_SECRET_LENGTH,
       hasAssetsBinding: raw !== null && typeof raw === 'object' && 'ASSETS' in raw && (raw as RuntimeEnv).ASSETS !== undefined,
     },
   };
