@@ -157,7 +157,7 @@ export function FishingPanel({data,initialRegion='cn',hours=72,onReady,onError}:
         <option value={24}>未来 24 小时</option><option value={72}>未来 72 小时</option><option value={168}>未来 7 天</option></select></label>
       <label className="fishing-search">搜索鱼名<input type="search" value={text} onChange={e=>{setText(e.target.value);setOffset(0);setSnapshot(null);}}
         placeholder="输入鱼名查找"/></label>
-      <button type="button" className="fishing-refresh" disabled={busy} onClick={()=>{setPending(null);setReload(n=>n+1);}}>刷新数据 ↻</button>
+      <button type="button" className="fishing-refresh" aria-label="刷新数据" disabled={busy} onClick={()=>{setPending(null);setReload(n=>n+1);}}>刷新数据 ↻</button>
     </div>
     <div className="fishing-filterbar">
       <div className="fishing-tabs" role="group" aria-label="鱼窗状态筛选">
@@ -238,6 +238,6 @@ export function FishingWidget(props:WidgetRuntimeProps){
 export const fishWidgetComponents={[FISH_WIDGET_ID]:FishingWidget};
 export function FishingPage({dataPortFor,status}:{dataPortFor:(moduleId:string)=>ModuleDataPort|undefined;status:ModuleGateStatus}){
   const privatePort=useMemo(()=>dataPortFor(FISH_MODULE_ID),[dataPortFor]);
-  const data=status==='enabled'?privatePort:publicFishPort;
+  const data=status==='enabled'&&privatePort!==undefined?privatePort:publicFishPort;
   return <FishingPanel data={data}/>;
 }
