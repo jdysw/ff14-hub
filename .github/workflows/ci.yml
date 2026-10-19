@@ -1,268 +1,77 @@
-# CI（HUB-005）
-#
-# 明确立场：
-# - **不隐藏失败**：全流程不使用 `continue-on-error`、不使用 `|| true`、
-#   不使用 `--passWithNoTests` 之类的「无测试即通过」开关。
-# - 静态检查、类型检查、测试、构建都是必需门槛，任何一步失败都会让 CI 变红。
-# - Cloudflare 侧只做**本地**操作（`wrangler ... --local`）：
-#   不部署、不创建远程资源、不绑定域名、不读取仓库 Secrets。
-# - 依赖版本由 pnpm catalog 在 pnpm-workspace.yaml 中集中锁定，
-#   `--frozen-lockfile` 保证 CI 使用的正是提交进仓库的解析结果。
-
+# FF14 Hub CI：3 个矩阵检查结果，统一安装环境，不丢失任何原验收链。
+# core：质量、两环境 dry-run、D1 双重迁移、备份恢复；其余两组跑共 8 条隔离 E2E。
 name: CI
-
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
-
 permissions:
   contents: read
-
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
-  recovery-rehearsal:
-    name: 阶段 06D 本地整库备份恢复演练
+  check:
+    name: ${{ matrix.label }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run test:ops
-      # Generated isolated local configs only. No default development state, cloud APIs or real secrets.
-      # SQL and diagnostics stay ignored/private; do not upload raw database artifacts.
-      - run: pnpm run ops:rehearse
-  e2e-phase06c:
-    name: 阶段 06C 客户端运行时浏览器验收链
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
-      # Actual browser Web Locks, Worker HTTP and local D1; synthetic DAV/local-source fixtures only.
-      - run: pnpm run e2e:phase06c
-  e2e-phase06b:
-    name: 阶段 06B 本机保险箱浏览器验收链
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
-      # 只用本地 wrangler dev + 本地 D1：验证真实 IndexedDB 的加密记录、刷新后可解密、
-      # CryptoKey 不可导出（exportKey 被拒绝），以及本阶段不发起任何 WebDAV 请求。
-      - run: pnpm run e2e:phase06b
-  e2e-phase06a:
-    name: 阶段 06A 同步框架浏览器验收链
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm run e2e:phase06a
-  e2e-phase05b:
-    name: 阶段 05B 提醒框架浏览器验收链
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm run e2e:phase05b
-  e2e-phase05:
-    name: 阶段 05A 钓鱼浏览器验收链
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm run e2e:phase05
-  verify:
-    name: lint / typecheck / test / build
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - kind: core
+            label: lint / typecheck / test / build
+            e2e: ''
+          - kind: product
+            label: 浏览器验收 / product-flows
+            e2e: e2e:phase02 e2e:phase03 e2e:phase04 e2e:phase05
+          - kind: privacy
+            label: 浏览器验收 / privacy-and-sync
+            e2e: e2e:phase05b e2e:phase06a e2e:phase06b e2e:phase06c
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-
-      - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          # 与 package.json 的 engines 和 .nvmrc 保持同一来源，避免版本漂移。
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: 冻结安装（frozen lockfile）
-        run: pnpm install --frozen-lockfile
-
-      - name: 生产依赖已知漏洞审计（官方npm接口）
+      - name: Setup Node/pnpm and frozen dependencies
+        uses: ./.github/actions/setup-ci
+      - name: 已知生产依赖漏洞审计
+        if: matrix.kind == 'core'
         run: pnpm run audit:prod
-
-      # 绑定类型由 wrangler types 从 wrangler.jsonc 生成（已提交）。
-      # 这一步确保配置与类型没有漂移：改了 wrangler.jsonc 却忘了重新生成会被 CI 拦下。
-      - name: 绑定类型与 wrangler 配置一致性
+      - name: Worker 绑定类型与 Wrangler 配置一致性
+        if: matrix.kind == 'core'
         run: pnpm run types:worker:check
-
-      - name: Lint（ESLint，含类型感知规则）
+      - name: Lint
+        if: matrix.kind == 'core'
         run: pnpm run lint
-
-      - name: Typecheck（strict TypeScript）
+      - name: Typecheck
+        if: matrix.kind == 'core'
         run: pnpm run typecheck
-
-      - name: Test（Workers 运行时 + Node）
+      - name: Workers 与 Node 测试
+        if: matrix.kind == 'core'
         run: pnpm run test
-
-      - name: Build（前端产物 + Worker 打包干跑）
+      - name: 前端/Worker 构建
+        if: matrix.kind == 'core'
         run: pnpm run build
-
-      - name: 预览与生产配置分别打包干跑（不部署）
+      - name: Cloudflare 两环境打包 dry-run（不部署）
+        if: matrix.kind == 'core'
         run: pnpm run validate:config
-
-      # 迁移门槛：先全新应用一次，再重复应用一次。
-      # 第二次必须是安全的空操作——这正是 HUB-003「重复应用安全」的验收点。
-      # 使用 --local：只在 CI runner 的临时目录里操作本地 SQLite，不访问 Cloudflare API。
-      - name: D1 本地迁移（全新应用）
-        run: pnpm exec wrangler d1 migrations apply DB --local
-
-      - name: D1 本地迁移（重复应用必须安全）
-        run: pnpm exec wrangler d1 migrations apply DB --local
-
-      - name: 迁移清单（供审查留痕）
-        run: pnpm exec wrangler d1 migrations list DB --local
-
-  e2e:
-    name: 阶段 02 真实浏览器验收链
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-
-      - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: 冻结安装（frozen lockfile）
-        run: pnpm install --frozen-lockfile
-
-      # 浏览器驱动只在本地运行：整个验收链使用本地 wrangler dev + 本地 D1，
-      # 不部署、不创建远程资源、不读取仓库 Secrets。
-      - name: 安装 Playwright chromium（含系统依赖）
+      - name: D1 本地首次及重复迁移
+        if: matrix.kind == 'core'
+        run: |
+          pnpm exec wrangler d1 migrations apply DB --local
+          pnpm exec wrangler d1 migrations apply DB --local
+      - name: 运维脚本测试
+        if: matrix.kind == 'core'
+        run: pnpm run test:ops
+      - name: 独立本地环境备份及恢复演练
+        if: matrix.kind == 'core'
+        run: pnpm run ops:rehearse
+      - name: 安装 Chromium（每组一次）
+        if: matrix.kind != 'core'
         run: pnpm exec playwright install --with-deps chromium
-
-      # 编排脚本负责：清空专用本地 D1 目录 → 构建前端 → 应用迁移 → 启动 wrangler dev
-      # （用随机生成的一次性初始化密钥，不写 .dev.vars）→ 通过真实 HTTP 端点初始化设备
-      # → playwright test → 关闭服务并删除临时凭证文件。
-      - name: 阶段 02 浏览器验收链（本地 wrangler dev + 本地 D1）
-        run: pnpm run e2e:phase02
-
-  e2e-phase03:
-    name: 阶段 03 真实浏览器验收链
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-
-      - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: 冻结安装（frozen lockfile）
-        run: pnpm install --frozen-lockfile
-
-      # 与阶段 02 同理：整条链只用本地 wrangler dev + 本地 D1，
-      # 不部署、不创建远程资源、不读取仓库 Secrets。
-      - name: 安装 Playwright chromium（含系统依赖）
-        run: pnpm exec playwright install --with-deps chromium
-
-      # 编排脚本：清空专用本地 D1 → 构建前端 → 迁移 → 启动 wrangler dev
-      # （用随机的一次性初始化密钥）→ 通过真实 HTTP 端点初始化设备并启用演示模块
-      # → playwright test（桌面拖动/缩放、键盘替代、窄屏、导出导入 round-trip、双客户端并发冲突）
-      # → 关闭服务并删除临时凭证文件。
-      - name: 阶段 03 浏览器验收链（工作台布局与备份恢复）
-        run: pnpm run e2e:phase03
-
-  e2e-phase04:
-    name: 阶段 04 真实浏览器验收链
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-
-      - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: 冻结安装（frozen lockfile）
-        run: pnpm install --frozen-lockfile
-
-      # 与阶段 02/03 同理：整条链只用本地 wrangler dev + 本地 D1，
-      # 不部署、不创建远程资源、不读取仓库 Secrets、不访问外网。
-      - name: 安装 Playwright chromium（含系统依赖）
-        run: pnpm exec playwright install --with-deps chromium
-
-      # 编排脚本：清空专用本地 D1 → 构建前端 → 迁移 → 启动 wrangler dev
-      # （随机一次性初始化密钥）→ 真实 HTTP 初始化设备、启用 ff14.navigation / ff14.events、
-      # 预置个人链接与活动 → playwright test（目录导入→改私人副本→删除→目录升级仍删除、
-      # 书签/JSON 预览与往返、导航与活动 Widget 放入/移除/模块停用、PWA 安装元数据与缓存隐私、
-      # 窄屏与键盘、双浏览器上下文的导航/布局并发冲突与草稿保留）
-      # → 关闭服务并删除临时凭证文件。
-      - name: 阶段 04 浏览器验收链（自由导航、活动、PWA 与跨设备同步）
-        run: pnpm run e2e:phase04
+      - name: 保留全部独立环境验收链及失败诊断
+        if: matrix.kind != 'core'
+        shell: bash
+        env:
+          E2E_SCRIPTS: ${{ matrix.e2e }}
+        run: node scripts/ci-e2e-runner.mjs ${E2E_SCRIPTS}
