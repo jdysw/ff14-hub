@@ -1,6 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "ff14-hub",
+  "account_id": "c1fc6fb71be2eaf8c73c78fd5bacaf6c",
+  "workers_dev": true,
   "main": "worker/index.ts",
   // 兼容日期必须 <= 所锁定测试运行时（@cloudflare/vitest-pool-workers 0.23.0 内置
   // miniflare 5.20260815.0-alpha / workerd 1.20260815.1）支持的最大日期，
@@ -47,6 +49,7 @@
   "env": {
     "preview": {
       "name": "ff14-hub-preview",
+      "routes": [{ "pattern": "ff14-preview.zhixia.uk", "custom_domain": true }],
       "vars": {
         "ENVIRONMENT": "preview",
         "ENABLE_TEST_ROUTES": "0",
@@ -56,13 +59,14 @@
         {
           "binding": "DB",
           "database_name": "ff14-hub-preview",
-          "database_id": "00000000-0000-0000-0000-00000000000a",
+          "database_id": "dc1e8d15-74ea-42a5-9090-b553002cce28",
           "migrations_dir": "migrations"
         }
       ]
     },
     "production": {
       "name": "ff14-hub",
+      "routes": [{ "pattern": "ff14.zhixia.uk", "custom_domain": true }],
       "vars": {
         "ENVIRONMENT": "production",
         "ENABLE_TEST_ROUTES": "0",
@@ -72,7 +76,7 @@
         {
           "binding": "DB",
           "database_name": "ff14-hub-production",
-          "database_id": "00000000-0000-0000-0000-00000000000b",
+          "database_id": "8293ac2b-5245-4788-9756-6225330a3526",
           "migrations_dir": "migrations"
         }
       ]

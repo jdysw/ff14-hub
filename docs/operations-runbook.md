@@ -11,7 +11,7 @@
 | `pnpm run test:ops` | 预检及备份损坏/版本/迁移漂移的负例测试 | 任一断言失败即非零 |
 | `pnpm run ops:rehearse` | 从空的独立本地 D1 开始，创建测试数据、停写、导出、校验、导入另一个空库、比较并访问恢复后的 API | 0 = 此次本地演练通过；失败保留现场且不返回成功报告 |
 
-当前预览/生产的 D1 ID 仍是占位值，预检返回 2 是真实的发布阻塞，不应该通过关闭预检来消除。两环境显式声明 `ENABLE_TEST_ROUTES=0` 和 `ALLOWED_ORIGINS`；`vars` 与 bindings 不继承，main/assets/兼容日期沿用顶层。
+06G 已配置实际且独立的预览/生产 D1 ID，静态预检已通过；云端迁移、Secrets 与发布结果仍需分别验证。占位值导致的退出 2 仍是必须处理的发布阻塞，不应关闭预检。两环境显式声明 `ENABLE_TEST_ROUTES=0` 和 `ALLOWED_ORIGINS`；`vars` 与 bindings 不继承，main/assets/兼容日期沿用顶层。
 
 ## 演练输出与数据边界
 
