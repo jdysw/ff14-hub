@@ -23,7 +23,9 @@ Cloudflare 的 `BOOTSTRAP_SECRET` 等应用 Secrets 已在 Worker 配置，GitHu
 
 ## 验证与维护
 
-部署后 `scripts/ops/verify-live.mjs production` 无需私有凭证，验证数据库/环境、安全头和线上 JS/CSS 与当前构建的哈希。最多 5 次，每次网络请求超时 15 秒，间隔 5 秒；它不会忽略 TLS 错误、跳转到其他主机或输出凭证。失败后查看 Actions，再定位网络、权限、迁移或发布错误。
+部署后 `scripts/ops/verify-live.mjs production` 无需私有凭证，验证数据库/环境、安全头和线上 JS/CSS 与当前构建的哈希。最多 5 次，每次网络请求超时 15 秒，间隔 5 秒；不忽略 TLS 错误、不跟随跳转、不输出凭证。失败后查看 Actions，再定位网络、权限、迁移或发布错误。
+
+2026-10-19 实测 GitHub runner 访问自定义域名得到 `403 / cf-mitigated: challenge`，同一 Worker 的现有 workers.dev 入口为 200。检查仅在明确浏览器 challenge 时改用写死的同一 Worker 入口，并输出 `customDomainVerified:false` 与警告；不会把这个结果当作自定义域名检查通过。普通 403、重定向、环境/数据库错误或资源哈希不一致均不走这一降级。该处理不修改区域安全规则；主域名对自动客户端的挑战仍保留，用户访问体验需要单独确认。
 
 Token 轮换：创建同范围新 Token，更新 GitHub Secret，成功重跑 CI/部署后撤销旧 Token。不要把 Token 粘贴到聊天、Issue、workflow YAML 或命令参数中。可通过 `gh secret set CLOUDFLARE_API_TOKEN --repo jdysw/ff14-hub` 的交互输入保存；仓库列表只能验证 Secret 名称和更新时间，不能取回原值。
 
