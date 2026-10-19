@@ -13,7 +13,7 @@ function data(): EventCalendarResponse {
       checkedAtMs: now, stale: false,
     },
     events: [
-      { id: 'official:1', title: '守护天节，活动;更新', region: 'cn', category: '季节活动',
+      { id: 'official:1', title: '守护天节,活动;更新', region: 'cn', category: '季节活动',
         description: '官方公告\n请参与', location: '', allDay: false,
         startsAt: now, endsAt: now + 3_600_000,
         sourceUrl: 'https://actff1.web.sdo.com/project/seasonal/index.html' },
@@ -34,7 +34,7 @@ describe('公开活动 ICS 格式和安全边界', () => {
     expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(1);
     expect(ics).toContain('DTSTART:20261019T080000Z');
     expect(ics).toContain('DTEND:20261019T090001Z');
-    expect(ics).toContain('SUMMARY:守护天节\\，活动\\;更新');
+    expect(ics).toContain('SUMMARY:守护天节\\,活动\\;更新');
     expect(ics).not.toContain('不确定时间');
     expect(ics).not.toContain('时间点');
     expect(ics).toContain('URL:https://actff1.web.sdo.com/project/seasonal/index.html');
