@@ -53,6 +53,58 @@ export function extractOfficialActivityRange(html: string): { startsAt: number; 
   const endsAt = chinaTimestamp(m[2] ?? '');
   return startsAt !== null && endsAt !== null && endsAt >= startsAt ? { startsAt, endsAt } : null;
 }
+
+/** 仅允许官网活动专题 URL（固定官方域名和 /project/ 路径），拒绝任意网页代理。 */
+function officialProjectUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  try {
+    const url = new URL(value);
+    if (url.protocol === 'https:' && url.hostname === 'actff1.web.sdo.com' &&
+        url.pathname.startsWith('/project/') && !url.username && !url.password) return url.toString();
+  } catch { /* 拒绝非法 URL */ }
+  return null;
+}
+
+/**
+ * 官方专题 HTML 可能只给起始年份，如“2026年10月15日16:00 ～ 11月2日22:59”。
+ * 只推导明确在同一日历年的结束日；跨年缺失年份则保持未知。
+ */
+export function extractOfficialLandingRange(html: string): { startsAt: number; endsAt: number } | null {
+  const content = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ').replace(/&nbsp;|&#160;/gi, ' ')
+    .replace(/[\u3000\s]+/g, ' ').slice(0, 100_000);
+  const start = '(\\d{4}年\\d{1,2}月\\d{1,2}日\\s*\\d{1,2}:\\d{2}(?::\\d{2})?)';
+  const end = '((?:\\d{4}年)?\\d{1,2}月\\d{1,2}日\\s*\\d{1,2}:\\d{2}(?::\\d{2})?)';
+  const pattern = new RegExp(start + '\\s*(?:至|到|~|～|—|－|-|–)\\s*' + end);
+  const match = pattern.exec(content);
+  if (!match) return null;
+  const startsAt = chinaTimestamp(match[1] ?? '');
+  const rawEnd = match[2] ?? '';
+  const firstYear = match[1]?.match(/^\d{4}/)?.[0];
+  const firstMonth = Number(match[1]?.match(/年(\d{1,2})月/)?.[1]);
+  const lastMonth = Number(rawEnd.match(/(?:年|^)(\d{1,2})月/)?.[1]);
+  const completedEnd = /^\d{4}年/.test(rawEnd)
+    ? rawEnd
+    : firstYear !== undefined && lastMonth >= firstMonth ? firstYear + '年' + rawEnd : '';
+  const endsAt = chinaTimestamp(completedEnd);
+  return startsAt !== null && endsAt !== null && endsAt >= startsAt ? { startsAt, endsAt } : null;
+}
+
+/** 只允许官方固定 URL 或经严格校验的官方活动专题，响应超过 1MB 拒绝。 */
+async function officialHtml(url: string): Promise<string | null> {
+  if (officialProjectUrl(url) === null) return null;
+  try {
+    const response = await fetch(url, {
+      method: 'GET', redirect: 'error', headers: { Accept: 'text/html' },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok || Number(response.headers.get('content-length') ?? 0) > 1_000_000) return null;
+    const body = await response.text();
+    return body.length <= 1_000_000 ? body : null;
+  } catch { return null; }
+}
+
 async function json(path: string): Promise<unknown> {
   const response = await fetch(HOST + path, {
     method: 'GET', redirect: 'error', headers: { Accept: 'application/json' },
