@@ -4,6 +4,7 @@ const credentials=JSON.parse(readFileSync(new URL('./.credentials.phase05b.json'
 const auth={Authorization:`Bearer ${credentials.token}`};
 async function enter(page:Page):Promise<void>{
   await page.goto(credentials.baseUrl);
+  await page.getByRole('button', { name: '设置', exact: true }).click();
   await page.getByRole('button',{name:/会话凭证/}).click();
   await page.getByLabel('设备令牌（Bearer）').fill(credentials.token);
   await page.getByRole('button',{name:'保存到会话内存'}).click();
@@ -41,3 +42,4 @@ test('窄屏提醒表单可用且不横向溢出',async({page},info)=>{
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:'test-results/phase05b-reminders-mobile.png',fullPage:true});
 });
+

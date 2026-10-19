@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
 import { registerServiceWorker } from './app/pwa/register-service-worker';
 import './styles.css';
+import './app/shell/home.css';
 
 const container = document.getElementById('root');
 if (container === null) {
@@ -23,3 +24,4 @@ createRoot(container).render(
 // - 更新激活一律由页面在用户确认后进行（存在未保存草稿时会被拒绝），
 //   这里不会触发任何自动重载。
 void registerServiceWorker();
+

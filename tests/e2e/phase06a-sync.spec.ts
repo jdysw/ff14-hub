@@ -2,7 +2,8 @@ import { expect,test,type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 const credentials=JSON.parse(readFileSync(new URL('./.credentials.phase06a.json',import.meta.url),'utf8')) as {token:string;baseUrl:string};
 async function enter(page:Page):Promise<void>{
-  await page.goto(credentials.baseUrl);await page.getByRole('button',{name:/会话凭证/}).click();
+  await page.goto(credentials.baseUrl);
+  await page.getByRole('button', { name: '设置', exact: true }).click();await page.getByRole('button',{name:/会话凭证/}).click();
   await page.getByLabel('设备令牌（Bearer）').fill(credentials.token);await page.getByRole('button',{name:'保存到会话内存'}).click();
   await page.getByRole('button',{name:/数据同步 鱼糕/}).click();await expect(page.getByRole('heading',{name:'数据同步',exact:true})).toBeVisible();
 }
@@ -38,3 +39,4 @@ test('窄屏导入入口可用，非法输入不发送预览请求',async({page}
   expect(writes).toBe(0);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:'test-results/phase06a-sync-mobile.png',fullPage:true});
 });
+

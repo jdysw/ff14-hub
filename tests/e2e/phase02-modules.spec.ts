@@ -83,6 +83,8 @@ test.describe('阶段 02：模块状态驱动 Widget Host', () => {
     test.skip(testInfo.project.name !== 'desktop-chromium', '完整链路只在桌面项目执行一次（两个项目共用同一个服务）');
 
     await page.goto('/');
+    expect(await tabUntilFocused(page, '设置'), '首页设置入口必须可用键盘到达').toBe(true);
+    await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: 'FF14 Hub' })).toBeVisible();
 
     // 1) 匿名可以浏览公开目录，但私有状态不可读写。
@@ -101,6 +103,8 @@ test.describe('阶段 02：模块状态驱动 Widget Host', () => {
 
     // 3) 纯键盘导航：重新加载以复位焦点，然后 Tab 到「会话凭证」并回车进入。
     await page.goto('/');
+    expect(await tabUntilFocused(page, '设置'), '首页设置入口必须可用键盘到达').toBe(true);
+    await page.keyboard.press('Enter');
     await expect(page.getByRole('navigation', { name: '系统级入口（不可移除）' })).toBeVisible();
     expect(await tabUntilFocused(page, '会话凭证'), '未能用 Tab 键聚焦到「会话凭证」入口').toBe(true);
     await page.keyboard.press('Enter');
@@ -196,6 +200,8 @@ test.describe('阶段 02：模块状态驱动 Widget Host', () => {
     await ensureModuleEnabled(request, credentials.moduleIds.basics);
 
     await page.goto('/');
+    expect(await tabUntilFocused(page, '设置'), '首页设置入口必须可用键盘到达').toBe(true);
+    await page.keyboard.press('Enter');
     await expect(page.getByRole('navigation', { name: '系统级入口（不可移除）' })).toBeVisible();
 
     // 纯键盘进入凭证视图并保存凭证。
@@ -228,3 +234,4 @@ test.describe('阶段 02：模块状态驱动 Widget Host', () => {
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
   });
 });
+
