@@ -1,8 +1,9 @@
 /** 独立公开活动中心：日历和列表双视图，匿名访问，和个人工作台数据完全隔离。 */
 import { eventCalendarResponseSchema, type EventCalendarItem, type EventCalendarResponse } from '@ff14-hub/shared';
 import { useEffect, useMemo, useState } from 'react';
+import './public-calendar.css';
 import {
-  calendarOverview, chinaDateTime, chinaDayKey, chinaMonthDays, chinaToday,
+  calendarOverview, chinaDateTime, chinaMonthDays, chinaToday,
   displayCalendarTitle, eventStatus, eventsForChinaDay, isScheduled,
 } from './public-calendar-utils';
 
