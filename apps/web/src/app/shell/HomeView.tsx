@@ -1,5 +1,5 @@
 /** 首页只投影现有控制器；不安装模块、不创建实例、不保存布局。 */
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { NavController } from '../nav/use-nav';
 import type { WorkbenchController } from '../workbench/use-workbench';
 import { WidgetHost } from '../widgets/WidgetHost';
@@ -7,6 +7,7 @@ import type { ModuleAccess, ModuleDataPort } from '../widgets/types';
 import type { ShellView } from './shell-view';
 import { NavigationDirectory } from './NavigationDirectory';
 import { HomeOfficialEvents } from './HomeOfficialEvents';
+import { PUBLIC_EVENTS_PREF_CHANGE, readPublicEventsPreference, savePublicEventsPreference } from '../events/public-events-preferences';
 
 interface HomeViewProps {
   readonly nav: NavController;
@@ -18,6 +19,18 @@ interface HomeViewProps {
 }
 
 export function HomeView({ nav, workbench, authenticated, access, dataPortFor, onOpen }: HomeViewProps) {
+  const [publicEvents, setPublicEvents] = useState(readPublicEventsPreference);
+  useEffect(() => {
+    const refresh = () => setPublicEvents(readPublicEventsPreference());
+    window.addEventListener(PUBLIC_EVENTS_PREF_CHANGE, refresh);
+    window.addEventListener('storage', refresh);
+    return () => {
+      window.removeEventListener(PUBLIC_EVENTS_PREF_CHANGE, refresh);
+      window.removeEventListener('storage', refresh);
+    };
+  }, []);
+  const calendarModule = <HomeOfficialEvents onOpenCalendar={() => onOpen('calendar')}
+    onHide={() => savePublicEventsPreference({ ...publicEvents, visible: false })}/>;
   const loadCatalog = nav.loadCatalog;
   useEffect(() => { void loadCatalog(); }, [loadCatalog]);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -53,7 +66,7 @@ export function HomeView({ nav, workbench, authenticated, access, dataPortFor, o
     </form>
     <p className="home-search__hint">搜索当前导航 <span aria-hidden="true">·</span> 按 / 快速搜索</p>
 
-    <HomeOfficialEvents />
+    {publicEvents.visible && publicEvents.position === 'before-nav' ? calendarModule : null}
 
     {authenticated && (workbench.status === 'loading' || workbench.status === 'idle') ? <p className="home-state" role="status">正在读取你的首页配置…</p> :
       workbench.error !== null ? <div className="notice notice--error" role="alert">首页配置读取失败。<button className="text-button" onClick={() => { void workbench.reload(); }}>重试</button></div> :
@@ -70,5 +83,6 @@ export function HomeView({ nav, workbench, authenticated, access, dataPortFor, o
       </section>}
 
     <NavigationDirectory nav={nav} authenticated={authenticated} onOpen={onOpen}/>
+    {publicEvents.visible && publicEvents.position === 'after-nav' ? calendarModule : null}
   </div>;
 }
