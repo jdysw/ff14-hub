@@ -42,7 +42,7 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
   const [clock, setClock] = useState(Date.now);
 
   useEffect(() => {
-    const id = window.setInterval(() => setClock(Date.now()), 60_000);
+    const id = window.setInterval(() => setClock(Date.now()), 1_000);
     return () => window.clearInterval(id);
   }, []);
   useEffect(() => {
