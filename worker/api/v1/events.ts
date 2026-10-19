@@ -13,6 +13,7 @@
  */
 import {
   EVENT_SORT_ORDERS,
+  eventCalendarResponseSchema,
   eventPhaseSchema,
   eventRegionSchema,
   type EventPhase,
@@ -26,6 +27,7 @@ import { nowUtcMs } from '../../lib/util';
 import { methodNotAllowed } from '../../middleware/error-handler';
 import { validateQuery } from '../../middleware/validation';
 import { createEventService } from '../../modules/events/service';
+import { readCnCalendar } from '../../modules/events/calendar-feed';
 import type { AppBindings } from '../../types';
 
 export const publicEventRoutes = new Hono<AppBindings>();
@@ -78,6 +80,16 @@ publicEventRoutes.get('/', validateQuery(publicEventQuerySchema), async (c) => {
       sort,
     }),
   );
+});
+
+/** 国服社区 ICS 活动日历：由 Worker 固定拉取、校验与缓存，不接受外部 URL。 */
+publicEventRoutes.get('/calendar', async (c) => {
+  try {
+    const calendar = eventCalendarResponseSchema.parse(await readCnCalendar());
+    return noStoreJson(c, calendar);
+  } catch {
+    return c.json({ code: 'service_unavailable', message: '国服活动日历数据源暂时不可用，请稍后重试' }, 503);
+  }
 });
 
 // 只支持 GET：其他方法给结构化 405（不落入 404，便于区分「路径写错」与「方法写错」）。
