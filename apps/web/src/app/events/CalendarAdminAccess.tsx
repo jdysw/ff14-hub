@@ -27,10 +27,14 @@ export function CalendarAdminAccess({onReady,onClose}:{
 
   async function submit(form:HTMLFormElement) {
     const fields=new FormData(form);
-    const username=String(fields.get('username')??'').trim();
-    const password=String(fields.get('password')??'');
-    const code=String(fields.get('code')??'').trim();
-    const setupSecret=String(fields.get('setupSecret')??'');
+    const field=(name:string):string=>{
+      const value=fields.get(name);
+      return typeof value==='string'?value:'';
+    };
+    const username=field('username').trim();
+    const password=field('password');
+    const code=field('code').trim();
+    const setupSecret=field('setupSecret');
     const path=stage==='setup'?'setup':stage==='confirm'?'setup/confirm':'login';
     const body=stage==='setup'?{username,password}:{username,password,code};
     setBusy(true);setMessage('');
