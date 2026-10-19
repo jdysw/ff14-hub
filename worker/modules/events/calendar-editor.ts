@@ -32,16 +32,6 @@ export interface CalendarEditorEntry {
   item: EventCalendarItem | null;
 }
 
-export async function isCalendarAdmin(db: D1Database, deviceId: string, workspaceId: string): Promise<boolean> {
-  const row = await db.prepare(
-    `SELECT 1 AS allowed FROM calendar_admin_devices a
-     INNER JOIN devices d ON d.id=a.device_id
-     WHERE a.device_id=? AND a.workspace_id=? AND d.workspace_id=?
-       AND d.revoked_at IS NULL LIMIT 1`,
-  ).bind(deviceId, workspaceId, workspaceId).first<{ allowed: number }>();
-  return row !== null;
-}
-
 export async function listEditorEntries(db: D1Database): Promise<CalendarEditorEntry[]> {
   const rows = await db.prepare('SELECT id, mode, payload, revision, updated_at FROM calendar_editor_entries ORDER BY updated_at DESC')
     .all<EditorRow>();
@@ -68,19 +58,19 @@ export async function applyCalendarEdits(db: D1Database, source: EventCalendarRe
 }
 
 export async function saveCalendarEdit(
-  db: D1Database, deviceId: string, id: string, mode: EditorRow['mode'],
+  db: D1Database, accountId: string, id: string, mode: EditorRow['mode'],
   item: EventCalendarItem | null, expectedRevision: number,
 ): Promise<number> {
   const now = Date.now();
   const payload = mode !== 'restore' && item !== null ? JSON.stringify(eventCalendarItemSchema.parse(item)) : null;
   const changed = expectedRevision === 0
     ? await db.prepare(`INSERT INTO calendar_editor_entries
-        (id,mode,payload,revision,editor_device_id,updated_at)
+        (id,mode,payload,revision,editor_account_id,updated_at)
         VALUES (?,?,?,1,?,?) ON CONFLICT(id) DO NOTHING`)
-      .bind(id, mode, payload, deviceId, now).run()
+      .bind(id, mode, payload, accountId, now).run()
     : await db.prepare(`UPDATE calendar_editor_entries SET mode=?,payload=?,revision=revision+1,
-        editor_device_id=?,updated_at=? WHERE id=? AND revision=?`)
-      .bind(mode, payload, deviceId, now, id, expectedRevision).run();
+        editor_account_id=?,updated_at=? WHERE id=? AND revision=?`)
+      .bind(mode, payload, accountId, now, id, expectedRevision).run();
   if (changed.meta.changes !== 1) throw new ApiError('conflict', '活动已经在其他页面修改，请刷新后重试');
   return expectedRevision + 1;
 }
