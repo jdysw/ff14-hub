@@ -14,7 +14,7 @@ calendarAdminRoutes.use('*', async (c, next) => {
     'SELECT device_id FROM site_admin_devices WHERE device_id = ?',
   ).bind(deviceId).first<{ device_id: string }>();
   if (row === null) return c.json({ code: 'forbidden', message: '仅站点管理员可以编辑公开活动' }, 403);
-  await next();
+  return await next();
 });
 
 const eventInput = eventCalendarItemSchema.omit({ id: true }).superRefine((item, ctx) => {
