@@ -87,3 +87,20 @@
   .fishing-windows li{padding:.65rem 1rem}
   .fishing-detail{padding:.7rem 1rem}
 }
+
+/* 工作台卡片优先显示前三条临近鱼窗，不把完整检索页塞进小组件。 */
+.fishing-panel--widget{padding:.65rem;border:0;background:transparent}
+.fishing-panel--widget .fishing-summary,.fishing-panel--widget .fishing-toolbar,
+.fishing-panel--widget .fishing-filterbar,.fishing-panel--widget .fishing-pagination{display:none}
+.fishing-panel--widget .fishing-header{gap:.4rem}
+.fishing-panel--widget .fishing-header h2{font-size:1.17rem}
+.fishing-panel--widget .fishing-kicker{font-size:.55rem}
+.fishing-panel--widget .fishing-header p{font-size:.74rem}
+.fishing-panel--widget .fishing-clock{padding:.3rem .5rem}
+.fishing-panel--widget .fishing-clock strong{font-size:1.1rem}
+.fishing-panel--widget .fishing-disclaimer{font-size:.7rem;margin:.8rem 0}
+.fishing-panel--widget .fishing-entry__main{padding:.65rem .75rem}
+.fishing-panel--widget .fishing-entry__heading h3{font-size:.94rem}
+.fishing-panel--widget .fishing-windows li{padding:.45rem .75rem}
+.fishing-panel--widget .fishing-detail{padding:.5rem .75rem}
+.fishing-panel--widget .fishing-actions button{min-height:1.8rem}
