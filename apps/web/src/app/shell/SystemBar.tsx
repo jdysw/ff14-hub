@@ -81,7 +81,7 @@ export function SystemBar({ currentView, onSelectView }: SystemBarProps) {
       <label>
         <input type="checkbox" checked={calendarPreference.visible}
           onChange={event => savePublicEventsPreference({ ...calendarPreference, visible: event.target.checked })}/>
-        在首页显示国服活动模块
+        在首页显示国服活动模块（关闭后在此重新开启）
       </label>
       <label>活动模块位置
         <select aria-label="国服活动模块在首页的位置" value={calendarPreference.position}
