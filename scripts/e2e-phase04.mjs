@@ -18,7 +18,6 @@
  * 端口默认 8788（与阶段 02/03 的 8787 分开），可用 E2E_PORT 覆盖。
  */
 import { spawn } from 'node:child_process';
-import { stopE2EServer } from './e2e-process.mjs';
 import { randomBytes } from 'node:crypto';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -74,6 +73,21 @@ function run(command) {
 }
 
 /** 结束整棵子进程树（Windows 下 shell 包装会挡住直接 kill）。 */
+function killTree(child) {
+  if (child.exitCode !== null || child.killed) {
+    return;
+  }
+  if (process.platform === 'win32') {
+    // 用**绝对路径**调用系统工具：不通过 PATH 解析可执行文件。
+    spawn('C:\\Windows\\System32\\taskkill.exe', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    return;
+  }
+  child.kill('SIGTERM');
+  setTimeout(() => {
+    child.kill('SIGKILL');
+  }, 3000).unref();
+}
+
 async function waitForHealth(timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   let lastError = 'unknown';
@@ -193,7 +207,7 @@ async function main() {
   log(`启动本地 wrangler dev（端口 ${String(PORT)}）`);
   const server = spawn(
     `pnpm exec wrangler dev --local --ip 127.0.0.1 --port ${String(PORT)} --persist-to ${PERSIST_DIR} --var BOOTSTRAP_SECRET:${BOOTSTRAP_SECRET}`,
-    { cwd: root, stdio: 'inherit', shell: true, detached: process.platform !== 'win32', env: childEnv },
+    { cwd: root, stdio: 'inherit', shell: true, env: childEnv },
   );
 
   try {
@@ -252,7 +266,7 @@ async function main() {
     process.exitCode = 0;
   } finally {
     log('关闭本地服务并删除临时凭证文件');
-    stopE2EServer(server);
+    killTree(server);
     await rm(CREDENTIALS_FILE, { force: true });
   }
 }
