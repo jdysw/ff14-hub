@@ -8,7 +8,7 @@ interface SettingLink {
   readonly id: string;
   readonly label: string;
   readonly hint: string;
-  readonly view: ShellView;
+  readonly view?: ShellView;
 }
 
 const PERSONAL_LINKS: readonly SettingLink[] = [
@@ -20,6 +20,7 @@ const PERSONAL_LINKS: readonly SettingLink[] = [
 
 const DATA_LINKS: readonly SettingLink[] = [
   { id: 'sync', label: '同步与备份', hint: '同步鱼糕、管理数据', view: 'sync' },
+  { id: 'backup', label: '导入 / 恢复', hint: '备份或恢复个人工作台', view: 'workbench' },
   { id: 'credentials', label: '会话凭证', hint: '连接个人空间；浏览公共内容无需连接', view: 'credentials' },
 ];
 
@@ -27,6 +28,7 @@ const ADVANCED_LINKS: readonly SettingLink[] = [
   { id: 'modules', label: '模块管理', hint: '启用、停用或恢复模块', view: 'modules' },
   { id: 'widgets', label: '组件验收', hint: '检查组件行为与运行状态', view: 'widgets' },
   { id: 'overview', label: '工作台概览', hint: '查看运行状态与健康检查', view: 'overview' },
+  { id: 'devices', label: '设备管理', hint: '即将开放：设备列表与移除', },
 ];
 
 function SettingGroup({ title, description, items, currentView, onSelectView }: {
@@ -42,8 +44,9 @@ function SettingGroup({ title, description, items, currentView, onSelectView }: 
       {items.map(item => <li key={item.id}>
         <button type="button" className={currentView === item.view ?
           'system-bar__item system-bar__item--active' : 'system-bar__item system-bar__item--enabled'}
-          aria-current={currentView === item.view ? 'page' : undefined}
-          onClick={() => onSelectView(item.view)}>
+          aria-current={item.view !== undefined && currentView === item.view ? 'page' : undefined}
+          disabled={item.view === undefined}
+          onClick={() => { if (item.view !== undefined) onSelectView(item.view); }}>
           <span className="system-bar__label">{item.label}</span>
           <span className="system-bar__hint">{item.hint}</span>
         </button>
