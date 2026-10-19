@@ -77,4 +77,21 @@ jobs:
                   print('TARGET_DETAIL_ID',target_id,'OUTLINK',repr(item.get('OutLink')),'CATEGORY',repr(item.get('CategoryCode')))
                   text=html.unescape(re.sub(r'<[^>]+>',' ',str(item.get('Content',''))))
                   print('TARGET_DETAIL_PLAIN_FIRST_700',repr(' '.join(text.split())[:700]))
+          for label,url in [
+              ('seasonal official special','https://actff1.web.sdo.com/project/20261005All_Saints_Wake/hjwff6jkcti4/index.html'),
+              ('fallguys official special','https://actff1.web.sdo.com/project/20260928ff14fallguys/4kkmxknj3rno/index.html'),
+          ]:
+              print('---',label,'---')
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0','Accept':'text/html'}),timeout=15) as response:
+                      body=response.read(350000)
+                      print('SPECIAL_HTTP',response.status,'CTYPE',response.headers.get('content-type'),'BYTES',len(body),'FINAL',response.geturl())
+                      decoded=body.decode('utf-8','replace')
+                      compact=' '.join(html.unescape(re.sub(r'<[^>]+>',' ',decoded)).split())
+                      print('SPECIAL_PLAIN_FIRST',repr(compact[:500]))
+                      for needle in ['活动时间','2026年10月15日','10月15日','2026/10/15','2026-10-15','22:59','开始时间','活动期间','10.15']:
+                          at=decoded.find(needle)
+                          print('NEEDLE',needle,'FOUND',at>=0,'SNIPPET',repr(decoded[max(0,at-150):at+240] if at>=0 else ''))
+              except Exception as e:
+                  print('SPECIAL_ERROR',type(e).__name__,str(e))
           PY
