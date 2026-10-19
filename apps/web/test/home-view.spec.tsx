@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DEMO_WIDGET_IDS } from '@ff14-hub/shared';
+import { DEMO_WIDGET_IDS, type NavCatalogEntry } from '@ff14-hub/shared';
 import { HomeView } from '../src/app/shell/HomeView';
 import { useNav } from '../src/app/nav/use-nav';
-import { catalogEntry, fakeNavApi, fakeSyncApi, link, snapshot } from './nav-fixtures';
+import { catalogEntry, fakeNavApi, fakeSyncApi, link, linkView, snapshot } from './nav-fixtures';
+import { groupDirectoryLinks } from '../src/app/shell/NavigationDirectory';
 import { instance, page } from './workbench-fixtures';
 
 afterEach(cleanup);
@@ -15,12 +16,13 @@ const readOnlyWorkbench = {
   dirty: false, conflict: null, reload: vi.fn(async () => {}),
 };
 const onOpen = vi.fn();
-function Harness({ authenticated = false, workbench = readOnlyWorkbench }: {
+function Harness({ authenticated = false, workbench = readOnlyWorkbench, catalog }: {
   authenticated?: boolean; workbench?: Parameters<typeof HomeView>[0]['workbench'];
+  catalog?: readonly NavCatalogEntry[];
 }) {
   const fake = fakeNavApi({
     snapshot: snapshot({ links: [link('personal', { title: '我的收藏', isFavorite: true })] }),
-    catalog: [catalogEntry('catalog', { title: '资料检索', aliases: ['wiki'] })],
+    catalog: catalog ?? [catalogEntry('catalog', { title: '资料检索', aliases: ['wiki'] })],
   });
   // API 替身保持稳定；交互经过真实导航控制器。
   const stable = useStableApi(fake.api);
@@ -31,6 +33,47 @@ function Harness({ authenticated = false, workbench = readOnlyWorkbench }: {
 function useStableApi<T>(value: T): T { return useState(() => value)[0]; }
 
 describe('日常首页', () => {
+  it('400 个站点按 20 个真实分类呈现，索引可定位且简介按需显示', async () => {
+    const catalog = Array.from({ length: 400 }, (_, index) => catalogEntry(`site-${index}`, {
+      title: `站点 ${index}`, category: `分类 ${Math.floor(index / 20)}`, description: `用途说明 ${index}`,
+    }));
+    render(<Harness catalog={catalog}/>);
+    await screen.findByRole('link', { name: '站点 399' });
+    const index = screen.getByRole('navigation', { name: '网站分类索引' });
+    expect(within(index).getAllByRole('link')).toHaveLength(20);
+    const anchor = within(index).getAllByRole('link')[19];
+    const target = document.getElementById((anchor?.getAttribute('href') ?? '').slice(1));
+    expect(target?.textContent).toBe('分类 1920');
+    expect(screen.queryByText('用途说明 399')).toBeNull();
+    fireEvent.click(screen.getByRole('checkbox', { name: '显示简介' }));
+    expect(screen.getByText('用途说明 399')).toBeDefined();
+    expect(screen.getByText('400 个站点 · 20 个分类')).toBeDefined();
+  });
+  it('国服与国际服筛选均保留通用站点，清空筛选恢复目录', async () => {
+    render(<Harness catalog={[
+      catalogEntry('cn', { title: '国服入口', region: 'cn' }),
+      catalogEntry('global', { title: '国际服入口', region: 'global' }),
+      catalogEntry('both', { title: '通用工具', region: 'both' }),
+    ]}/>);
+    await screen.findByRole('link', { name: '国服入口' });
+    fireEvent.change(screen.getByRole('combobox', { name: '导航区服' }), { target: { value: 'cn' } });
+    expect(screen.queryByRole('link', { name: '国际服入口' })).toBeNull();
+    expect(screen.getByRole('link', { name: '通用工具' })).toBeDefined();
+    fireEvent.change(screen.getByRole('combobox', { name: '导航区服' }), { target: { value: 'global' } });
+    expect(screen.queryByRole('link', { name: '国服入口' })).toBeNull();
+    expect(screen.getByRole('link', { name: '通用工具' })).toBeDefined();
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '无结果' } });
+    fireEvent.click(screen.getByRole('button', { name: '清空筛选' }));
+    expect(screen.getByRole('link', { name: '国服入口' })).toBeDefined();
+    expect(screen.getByRole('link', { name: '国际服入口' })).toBeDefined();
+  });
+  it('个人多分组保留归属和配置顺序，未分组链接不会丢失', () => {
+    const shared = linkView(link('shared'), ['a', 'b'], ['攻略', '采集']);
+    const plain = linkView(link('plain'));
+    const groups = groupDirectoryLinks([shared, plain], [{ id: 'b', name: '采集' }, { id: 'a', name: '攻略' }]);
+    expect(groups.map(group => group.name)).toEqual(['采集', '攻略', '未分组']);
+    expect(groups.map(group => group.links.map(item => item.id))).toEqual([['shared'], ['shared'], ['plain']]);
+  });
   it('公开目录可搜索别名，空态可恢复，并保留链接的安全打开属性', async () => {
     render(<Harness/>);
     const anchor = await screen.findByRole('link', { name: /资料检索/ });

@@ -1,11 +1,11 @@
 /** 首页只投影现有控制器；不安装模块、不创建实例、不保存布局。 */
 import { useEffect, useMemo, useRef } from 'react';
-import { validateNavUrl } from '@ff14-hub/shared';
 import type { NavController } from '../nav/use-nav';
 import type { WorkbenchController } from '../workbench/use-workbench';
 import { WidgetHost } from '../widgets/WidgetHost';
 import type { ModuleAccess, ModuleDataPort } from '../widgets/types';
 import type { ShellView } from './shell-view';
+import { NavigationDirectory } from './NavigationDirectory';
 
 interface HomeViewProps {
   readonly nav: NavController;
@@ -40,12 +40,6 @@ export function HomeView({ nav, workbench, authenticated, access, dataPortFor, o
       return (left?.y ?? 0) - (right?.y ?? 0) || (left?.x ?? 0) - (right?.x ?? 0) || a.id.localeCompare(b.id);
     });
   }, [workbench.instances, workbench.persistedRects]);
-  const text = (nav.filter.text ?? '').trim().toLocaleLowerCase();
-  const usePersonal = authenticated;
-  const links = usePersonal ? nav.visibleLinks : (nav.catalog ?? []).filter(link =>
-    (!nav.filter.favoritesOnly) && (!nav.filter.groupId) &&
-    [link.title, link.description, ...link.tags, ...link.aliases].join(' ').toLocaleLowerCase().includes(text));
-  const error = usePersonal ? nav.error : nav.catalogError;
 
   return <div className="home" data-testid="home-view">
     <form className="home-search" role="search" onSubmit={event => {
@@ -76,20 +70,6 @@ export function HomeView({ nav, workbench, authenticated, access, dataPortFor, o
         </section>
       </section>}
 
-    <section id="home-navigation" className="home-navigation" aria-labelledby="home-navigation-title">
-      <header className="home-section-heading"><div className="home-heading-group"><h2 id="home-navigation-title">导航站</h2><span className="home-section-kicker">{usePersonal ? '我的导航' : '推荐目录'}</span></div><button className="text-button" onClick={() => onOpen(authenticated ? 'nav' : 'credentials')}>{authenticated ? '管理导航' : '连接个人导航'} <span aria-hidden="true">↗</span></button></header>
-      <div className="home-nav-filters" aria-label="导航筛选">
-        <button className="home-filter" aria-pressed={!nav.filter.favoritesOnly && !nav.filter.groupId} onClick={() => nav.patchFilter({ favoritesOnly: undefined, groupId: undefined })}>全部</button>
-        {usePersonal ? <><button className="home-filter" aria-pressed={nav.filter.favoritesOnly === true} onClick={() => nav.patchFilter({ favoritesOnly: nav.filter.favoritesOnly ? undefined : true })}>收藏</button>
-          <label className="home-group-filter"><span className="visually-hidden">导航分组</span><select aria-label="导航分组" value={nav.filter.groupId ?? ''} onChange={event => nav.patchFilter({ groupId: event.target.value || undefined })}><option value="">所有分组</option>{nav.activeGroups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label></> : null}
-        <span className="home-result-count" role="status" aria-live="polite">{links.length} 个站点</span>
-      </div>
-      {error !== null ? <p className="notice notice--error" role="alert">{error} <button className="text-button" onClick={() => { void (usePersonal ? nav.reload() : nav.loadCatalog()); }}>重试</button></p> : null}
-      {((!usePersonal && nav.catalog === null) || (usePersonal && nav.snapshot === null)) && error === null ? <p className="home-state" role="status">正在读取导航目录…</p> :
-        links.length === 0 ? <div className="home-nav-empty"><p>{text ? `没有找到与「${nav.filter.text ?? ''}」匹配的站点。` : '当前筛选下没有站点。'}</p><button className="text-button" onClick={() => nav.patchFilter({ text: undefined, favoritesOnly: undefined, groupId: undefined })}>清空筛选</button></div> :
-          <ul className="home-links">{links.map(link => <li key={link.id}>
-            {validateNavUrl(link.url).ok ? <a href={link.url} {...(link.openMode === 'same_tab' ? {} : { target: '_blank' })} rel="noopener noreferrer"><span className="home-link-icon" aria-hidden="true">{link.icon || '↗'}</span><span className="home-link-copy"><span className="home-link-title">{link.title}</span><span className="home-link-description">{link.description}</span></span><span className="home-link-arrow" aria-hidden="true">↗</span></a> : <span>{link.title}（地址不可用）</span>}
-          </li>)}</ul>}
-    </section>
+    <NavigationDirectory nav={nav} authenticated={authenticated} onOpen={onOpen}/>
   </div>;
 }
