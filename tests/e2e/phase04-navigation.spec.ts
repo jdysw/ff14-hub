@@ -184,6 +184,11 @@ async function openWorkbench(page: Page): Promise<void> {
 }
 
 async function openModules(page: Page): Promise<void> {
+  // 普通玩家设置页默认折叠高级工具；测试也通过真实可见交互进入。
+  const advanced = page.locator('details.settings-advanced');
+  if (await advanced.isVisible() && await advanced.getAttribute('open') === null) {
+    await advanced.locator('summary').click();
+  }
   await systemBar(page).getByRole('button', { name: /模块管理/ }).click();
   await expect(page.getByTestId('module-card').first()).toBeVisible();
 }
