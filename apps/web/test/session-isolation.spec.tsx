@@ -282,7 +282,7 @@ async function openModules(user: ReturnType<typeof userEvent.setup>): Promise<vo
   // 高级模块维护默认折叠：真实交互应先展开，而非假定所有控制项常驻。
   const advanced = document.querySelector('details.settings-advanced');
   if (advanced instanceof HTMLDetailsElement && !advanced.open) {
-    await user.click(screen.getByText(/高级设置/));
+    await user.click(within(advanced as HTMLElement).getByText(/高级设置/));
   }
   await user.click(screen.getByRole('button', { name: /^模块管理/ }));
   await screen.findByTestId('module-card');
