@@ -191,14 +191,17 @@ async function precachePublicShell() {
 /**
  * 公开请求的处理策略。
  * - 公开目录数据（JSON）：网络优先，失败回退缓存副本——离线时仍能看到上次的公开目录。
- * - 公开静态资源：缓存优先，命中后后台刷新（不阻塞响应）。
+ * - 首页 HTML（/、/index.html）：在线网络优先，离线才使用旧外壳，避免持久显示过期的前端。
+ * - 其它指纹静态资源：缓存优先，命中后后台刷新（不阻塞响应）。
  */
 async function respondWithPublicStrategy(request) {
   const cache = await caches.open(PUBLIC_CACHE_NAME);
   const cached = await cache.match(request);
   const pathname = new URL(request.url).pathname;
 
-  if (isPublicApiPath(pathname)) {
+  // 首页 HTML 不是带哈希的不可变资源，必须网络优先。
+  // 缓存优先会令发布后用户持续读到上个版本的首页（例如旧的「连接工作空间」提示）。
+  if (isPublicApiPath(pathname) || pathname === '/' || pathname === '/index.html') {
     try {
       const response = await fetch(request);
       await putIfPolicyAllows(cache, request, response.clone());
