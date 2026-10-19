@@ -236,7 +236,7 @@ function SessionWorkbench(props: SessionWorkbenchProps) {
         />
       ) : null}
 
-      {props.view === 'calendar' ? <PublicCalendarPage onBack={() => props.onSelectView('home')}/> : null}
+      {props.view === 'calendar' ? <PublicCalendarPage onBack={() => props.onSelectView('home')} getToken={getToken}/> : null}
       {props.view === 'nav' ? <NavView state={nav} /> : null}
       {props.view === 'fishing' ? <FishingPage dataPortFor={dataPortFor} status={moduleAccess(FISH_MODULE_ID).status}/> : null}
       {props.view === 'reminders' ? <ReminderPage dataPortFor={dataPortFor} status={moduleAccess(REMINDER_MODULE_ID).status}/> : null}
