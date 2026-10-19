@@ -9,7 +9,7 @@ export function downloadJson(text:string,filename:string){
   const link=document.createElement('a');link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 const labels:Record<HomeSection,string>={events:'国服活动',fishing:'钓鱼',notes:'我的备忘'};
-export function LocalSettings({store,data,onSaved}:{store:LocalStore;data:LocalData;onSaved:()=>void}){
+export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=false}:{store:LocalStore;data:LocalData;onSaved:()=>void;onAdmin?:()=>void;adminAuthenticated?:boolean}){
   const [region,setRegion]=useState<FishRegion>(data.configuration.region);
   const [fishFile,setFishFile]=useState<{text:string;document:FishDocument}|null>(null);
   const [preferences,setPreferences]=useState(false);
@@ -33,7 +33,7 @@ export function LocalSettings({store,data,onSaved}:{store:LocalStore;data:LocalD
     await store.change(document=>{const order=document.data.configuration.order;const index=order.indexOf(section);const other=order[index+delta];if(other){order[index+delta]=section;order[index]=other;}});
   });};
   return <div className="local-settings">
-    <header><h2>个人设置</h2><p>数据保存在当前浏览器。更换设备或清理站点数据前，请先导出备份。</p></header>
+    <header><h2><button type="button" className="local-settings__heading-button" onClick={onAdmin}>我的设置</button></h2><p>数据保存在当前浏览器。更换设备或清理站点数据前，请先导出备份。</p>{adminAuthenticated?<button type="button" onClick={onAdmin}>站点管理后台</button>:null}</header>
     {error?<p role="alert" className="notice notice--error">{error}</p>:null}{notice?<p role="status" className="notice notice--ok">{notice}</p>:null}
     <section><h3>首页模块</h3><p>搜索框固定在最上方，导航站固定在最下方。中间的内容可以调整。</p>
       {data.configuration.order.map((section,index)=><div className="local-settings__module" key={section}>

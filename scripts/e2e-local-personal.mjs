@@ -53,12 +53,27 @@ try{
  const finalDownload=page.waitForEvent('download');await page.getByRole('button',{name:'导出全部个人数据'}).click();
  const finalBackup=JSON.parse(await readFile(await (await finalDownload).path(),'utf8'));
  assert.equal(finalBackup.data.links.filter(link=>link.url.includes('/concurrent-')).length,2);
+ // Public app/catalog caches support a subsequent offline visit; personal writes stay in IDB.
+ await page.getByRole('button',{name:'返回首页',exact:true}).click();
+ await page.waitForFunction('navigator.serviceWorker.controller !== null');
+ await context.setOffline(true);await page.reload({waitUntil:'domcontentloaded'});
+ const offlineBoard=await search(page);
+ const offlinePin=offlineBoard.getByRole('button',{name:'收藏 扎尔艾拉',exact:true});
+ await expect(offlinePin).toHaveAttribute('aria-pressed','true');await offlinePin.click();
+ await expect(offlinePin).toHaveAttribute('aria-pressed','false');
+ await page.reload({waitUntil:'domcontentloaded'});await search(page);
+ await expect(offlinePin).toHaveAttribute('aria-pressed','false');
+ await context.setOffline(false);
+ await page.getByRole('button',{name:'设置',exact:true}).click();
  // Storage denial is visible; the app must not fall back to falsely claiming memory-only saves.
  const denied=await browser.newContext();await denied.addInitScript("Object.defineProperty(window, 'indexedDB', {get(){throw new Error('storage denied');}})");
  const deniedPage=await denied.newPage();await deniedPage.goto('http://127.0.0.1:8897/',{waitUntil:'domcontentloaded'});
  await expect(deniedPage.getByRole('alert')).toContainText('浏览器不支持本地存储');await denied.close();
  assert.equal(requests.some(r=>new URL(r.url).pathname.startsWith('/api/v1/me')||r.authorized),false);
  assert.equal(requests.some(r=>r.method!=='GET'),false);assert.deepEqual(errors,[]);
- console.log(JSON.stringify({passed:true,importedIds:source.completed.length,checks:['no workspace or credentials','real IndexedDB persistence after reload','1754-entry Fishcake format import','empty favorites retained','Fishcake-compatible export','full backup and restore','navigation and custom notes persistence','concurrent tabs preserve both writes','storage denial fails visibly','320/390px layout','no private API or write requests']}));
+ // Keep the existing hidden site-owner login, separate from all personal data.
+ for(let i=0;i<5;i++)await page.getByRole('button',{name:'我的设置',exact:true}).click();
+ await page.getByRole('heading',{name:'站点管理员登录',exact:true}).waitFor();
+ console.log(JSON.stringify({passed:true,importedIds:source.completed.length,checks:['no workspace or credentials','real IndexedDB persistence after reload','1754-entry Fishcake format import','empty favorites retained','Fishcake-compatible export','full backup and restore','navigation and custom notes persistence','concurrent tabs preserve both writes','offline reload and local write','storage denial fails visibly','320/390px layout','no private API or write requests','hidden site-owner login retained']}));
 }finally{await browser.close();}
 

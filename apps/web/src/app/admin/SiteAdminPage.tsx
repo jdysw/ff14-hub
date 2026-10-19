@@ -59,7 +59,7 @@ export function SiteAdminPage({onClose}: {readonly onClose:()=>void}) {
     </nav>
     {tab==='overview'&&<div className="site-admin__overview">
       <h3>站点管理概览</h3>
-      <p>当前身份：唯一站点所有者（Owner）。公共导航与个人工作空间保持独立，管理员不会自动取得玩家私有数据。</p>
+      <p>当前身份：唯一站点所有者（Owner）。公共内容管理与浏览器本地个人数据分开，管理员不会取得玩家的本地数据。</p>
       <div className="site-admin__cards">
         <button type="button" onClick={()=>setTab('settings')}><strong>网站设置</strong><span>网站名称、全站公告与首页模块全局开关</span></button>
         <button type="button" onClick={()=>setTab('calendar')}><strong>活动内容</strong><span>新建、修订、隐藏及恢复活动；同步到公开日历</span></button>
