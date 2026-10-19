@@ -47,9 +47,9 @@ describe('盛趣官方活动 API 适配器', () => {
     }));
     const response = await readCnCalendar();
     expect(response.events).toHaveLength(2);
-    expect(response.events[0]?.startsAt).toBe(Date.UTC(2026, 9, 20, 2, 0));
-    expect(response.events[1]?.startsAt).toBeNull();
-    expect(response.events[1]?.sourceUrl).toContain('ff.web.sdo.com');
+    expect(response.events.find((item) => item.id === 'official:41')?.startsAt).toBe(Date.UTC(2026, 9, 20, 2, 0));
+    expect(response.events.find((item) => item.id === 'official:42')?.startsAt).toBeNull();
+    expect(response.events.find((item) => item.id === 'official:42')?.sourceUrl).toContain('ff.web.sdo.com');
     expect(response.source.name).toContain('盛趣游戏');
     expect(urls.length).toBeGreaterThan(1);
     expect(urls.every((url) => url.startsWith('https://cqnews.web.sdo.com/api/news/'))).toBe(true);
