@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { extractOfficialActivityRange, readCnCalendar, resetCnCalendarCacheForTests } from '../modules/events/calendar-feed';
+import { extractOfficialActivityRange, extractOfficialLandingRange, readCnCalendar, resetCnCalendarCacheForTests } from '../modules/events/calendar-feed';
 
 afterEach(() => { resetCnCalendarCacheForTests(); vi.unstubAllGlobals(); });
 
@@ -53,5 +53,64 @@ describe('盛趣官方活动 API 适配器', () => {
     expect(response.source.name).toContain('盛趣游戏');
     expect(urls.length).toBeGreaterThan(1);
     expect(urls.every((url) => url.startsWith('https://cqnews.web.sdo.com/api/news/'))).toBe(true);
+  });
+});
+
+describe('官方专题时间与两个栏目去重', () => {
+  it('解析官方专题明确的同年短格式，并拒绝缺年份的跨年区间', () => {
+    expect(extractOfficialLandingRange(
+      '<script>不应提取脚本日期</script><p class="jp">2026年10月15日16:00 ～ 11月2日22:59</p>',
+    )).toEqual({
+      startsAt: Date.UTC(2026, 9, 15, 8, 0),
+      endsAt: Date.UTC(2026, 10, 2, 14, 59),
+    });
+    expect(extractOfficialLandingRange('2026年12月28日16:00 ～ 1月3日22:59')).toBeNull();
+    expect(extractOfficialActivityRange('2026年10月15日16:00 ～ 11月2日22:59')).toBeNull();
+  });
+
+  it('合并 5311 与 5203 的同名活动，直接取官方专题时间，排除非活动商城新闻', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      const uri = String(url);
+      calls.push(uri);
+      let data: unknown;
+      if (uri.includes('CategoryCode=5311')) {
+        data = { Code: '0', Data: [{ Id: 393660, Title: 'FF14 x 糖豆人联动复刻限时开启！',
+          Summary: '', PublishDate: '2026/09/30 17:03:43', OutLink: '' }] };
+      } else if (uri.includes('CategoryCode=5203')) {
+        data = { Code: '0', Data: [
+          { Id: 394275, Title: '【季节活动】守护天节与奇妙的捉迷藏',
+            Summary: '', PublishDate: '2026/10/15 14:21:38',
+            OutLink: 'https://actff1.web.sdo.com/project/seasonal/index.html' },
+          { Id: 393967, Title: 'FF14 x 糖豆人联动复刻限时开启！',
+            Summary: '', PublishDate: '2026/10/08 15:26:13',
+            OutLink: 'https://actff1.web.sdo.com/project/fallguys/index.html' },
+          { Id: 394286, Title: '道具商城上新：往年守护天节道具',
+            Summary: '', PublishDate: '2026/10/15 17:04:39',
+            OutLink: 'https://ff.web.sdo.com/web7/news/news.html?id=394286' },
+        ] };
+      } else if (uri.includes('newsDetail?id=invalid')) {
+        data = { Code: '500' };
+      } else if (uri.includes('newsDetail')) {
+        data = { Code: '0', Data: { Content: uri.includes('393660')
+          ? '<p>活动时间：2026年10月7日16:00～2026年10月27日22:59</p>' : '' } };
+      } else {
+        return Promise.resolve(new Response('<p class="jp">2026年10月15日16:00 ～ 11月2日22:59</p>', { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify(data), { status: 200,
+        headers: { 'Content-Type': 'application/json' } }));
+    }));
+    const value = await readCnCalendar();
+    expect(value.events).toHaveLength(2);
+    expect(value.events.map((e) => e.title).join(' ')).not.toContain('商城');
+    const seasonal = value.events.find((e) => e.title.includes('守护天节'));
+    const collab = value.events.find((e) => e.title.includes('糖豆人'));
+    expect(seasonal?.startsAt).toBe(Date.UTC(2026, 9, 15, 8, 0));
+    expect(seasonal?.endsAt).toBe(Date.UTC(2026, 10, 2, 14, 59));
+    expect(collab?.startsAt).toBe(Date.UTC(2026, 9, 7, 8, 0));
+    expect(collab?.sourceUrl).toContain('/project/fallguys/');
+    expect(calls.some((url) => url.includes('/project/seasonal/'))).toBe(true);
+    expect(calls.every((url) => url.startsWith('https://cqnews.web.sdo.com/api/news/') ||
+      url.startsWith('https://actff1.web.sdo.com/project/'))).toBe(true);
   });
 });
