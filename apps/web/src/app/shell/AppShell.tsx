@@ -61,6 +61,9 @@ import type { ShellView } from './shell-view';
 import { HomeView } from './HomeView';
 import { PublicCalendarPage } from '../events/PublicCalendarPage';
 import { registerPrivateDraftSource } from '../pwa/draft-registry';
+import { SiteAdminPage } from '../admin/SiteAdminPage';
+import { useSiteSettings, type SiteSettings } from '../admin/site-settings';
+import { useCalendarAdminSession } from '../events/calendar-admin-session';
 
 function ShellRegion(props: { readonly children: React.ReactNode }) {
   const [failure, setFailure] = useState<string | null>(null);
@@ -109,6 +112,7 @@ interface SessionWorkbenchProps {
   readonly onUnauthorized: () => void;
   readonly authenticated: boolean;
   readonly view: ShellView;
+  readonly siteSettings: SiteSettings;
   readonly onRequestCredential: () => void;
   readonly onSelectView: (view: ShellView) => void;
 }
@@ -212,7 +216,7 @@ function SessionWorkbench(props: SessionWorkbenchProps) {
 
   return (
     <>
-      {props.view === 'home' ? <HomeView nav={nav} workbench={workbench} authenticated={props.authenticated} access={moduleAccess} dataPortFor={dataPortFor} onOpen={props.onSelectView}/> : null}
+      {props.view === 'home' ? <HomeView nav={nav} workbench={workbench} authenticated={props.authenticated} access={moduleAccess} dataPortFor={dataPortFor} onOpen={props.onSelectView} siteSettings={props.siteSettings}/> : null}
       {showsModuleViews && instanceNotice !== null ? (
         <p className="notice notice--ok" role="status">
           {instanceNotice}
@@ -265,6 +269,18 @@ export function AppShell() {
   const [credentialStore] = useState(createSessionCredentialStore);
   const [view, setView] = useState<ShellView>(() => new URLSearchParams(window.location.search).get('view') === 'reminders' ? 'reminders' : 'home');
   const session = useSession(credentialStore);
+  const siteSettings = useSiteSettings();
+  const adminSession = useCalendarAdminSession();
+  const adminClicks = useRef<number[]>([]);
+  const openSecretAdmin = useCallback(() => {
+    const now = Date.now();
+    adminClicks.current = [...adminClicks.current.filter(t => now - t < 4000), now];
+    if (adminClicks.current.length >= 5) {
+      adminClicks.current = [];
+      setView('admin');
+    }
+  }, []);
+  useEffect(() => { document.title = siteSettings.siteName; }, [siteSettings.siteName]);
 
   const api = useMemo(
     () => createModulesApi(createApiClient({ getToken: () => credentialStore.get() })),
@@ -308,7 +324,7 @@ export function AppShell() {
       <header className="shell__header">
         <button type="button" className="brand__home" aria-label="FF14 Hub 首页" onClick={() => setView('home')}>
           <span className="brand__mark" aria-hidden="true">XIV</span>
-          <h1 className="brand__title">FF14 Hub</h1>
+          <h1 className="brand__title">{siteSettings.siteName}</h1>
         </button>
         <button type="button" className="shell__settings" aria-expanded={view !== 'home'} aria-controls="settings-navigation" onClick={() => setView(view === 'home' ? 'settings' : 'home')}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m9.5 3-.7 2.4-2 .9-2.4-.6-2.5 4.4 1.7 1.8v2.2l-1.7 1.8 2.5 4.4 2.4-.6 2 .9.7 2.4h5l.7-2.4 2-.9 2.4.6 2.5-4.4-1.7-1.8v-2.2l1.7-1.8-2.5-4.4-2.4.6-2-.9-.7-2.4z" transform="translate(0 -1) scale(1 .96)"/><circle cx="12" cy="12" r="3"/></svg>
@@ -316,16 +332,19 @@ export function AppShell() {
         </button>
       </header>
       <PwaStatusBar />
-      <div id="settings-navigation" className="settings-navigation" hidden={view === 'home' || view === 'calendar'}>
-        <div className="settings-navigation__heading"><h2>我的设置</h2><button className="text-button" type="button" onClick={() => setView('home')}>返回首页 ↗</button></div>
+      <div id="settings-navigation" className="settings-navigation" hidden={view === 'home' || view === 'calendar' || view === 'admin'}>
+        <div className="settings-navigation__heading"><h2><button className="settings-admin-heading" type="button" onClick={openSecretAdmin}>我的设置</button></h2><button className="text-button" type="button" onClick={() => setView('home')}>返回首页 ↗</button></div>
         <p className="settings-navigation__intro">自定义常用功能，管理提醒与同步。公开导航和官方活动无需登录，复杂功能请在底部的「高级设置」中按需打开。</p>
         <SystemBar currentView={view} onSelectView={setView}/>
+        {adminSession.authenticated && <button type="button" className="text-button" onClick={() => setView('admin')}>站点管理后台 ↗</button>}
         <nav className="settings-navigation__links" aria-label="导航与帮助">
           <button className="text-button" type="button" data-testid="nav-entry" onClick={() => setView('nav')}>管理个人导航</button>
         </nav>
       </div>
       <main className="shell__main" id="main-content" tabIndex={-1}>
         <ShellRegion>
+          {siteSettings.announcementEnabled && siteSettings.announcement.trim() !== '' &&
+            <aside className="site-public-announcement" aria-label="站点公告">{siteSettings.announcement}</aside>}
           {/*
             会话作用域容器**始终挂载**（只按 generation 重挂）。
             切到概览 / 会话凭证视图时它只是不渲染内容，实例、导航状态与模块状态因此得以保留。
@@ -340,11 +359,14 @@ export function AppShell() {
             onUnauthorized={handleUnauthorized}
             authenticated={session.authenticated}
             view={view}
+            siteSettings={siteSettings}
             onSelectView={setView}
             onRequestCredential={() => {
               setView('credentials');
             }}
           />
+
+          {view === 'admin' ? <SiteAdminPage onClose={() => setView('settings')}/> : null}
 
           {view === 'overview' ? (
             <>
