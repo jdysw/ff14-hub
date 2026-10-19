@@ -55,17 +55,6 @@
   .calendar-center__grid { gap: 2px; }
 }
 
-/* 网站管理员表单：字段化编辑、不露出原始 JSON 或任何设备凭证。 */
-.calendar-admin { border:1px solid var(--border); border-radius:12px; background:var(--bg-elevated); padding:18px; display:grid; gap:14px; }
-.calendar-admin header h3 { font-size:18px; margin:0; }
-.calendar-admin header p { margin:4px 0 0; font-size:12px; color:var(--text-muted); }
-.calendar-admin__layout { display:grid; grid-template-columns:minmax(180px,0.8fr) minmax(0,1.7fr); gap:20px; }
-.calendar-admin__layout>div, .calendar-admin form { display:grid; align-content:start; gap:12px; min-width:0; }
-.calendar-admin label { display:grid; gap:5px; font-size:13px; color:var(--text); }
-.calendar-admin :is(input,textarea,select) { width:100%; min-width:0; border:1px solid var(--border); border-radius:7px; background:var(--bg); color:var(--text); padding:9px 11px; font:inherit; font-size:13px; }
-.calendar-admin__actions { display:flex; flex-wrap:wrap; gap:8px; }
-.calendar-admin details { border-top:1px solid var(--border); padding-top:10px; }
-.calendar-admin summary { cursor:pointer; font-size:13px; }
-.calendar-admin details button { display:block; border:0; background:transparent; color:var(--accent); cursor:pointer; text-align:left; margin:5px 0; }
-.calendar-admin form [role=status] { color:var(--text-muted); font-size:12px; margin:0; }
-@media(max-width:660px) { .calendar-admin__layout { grid-template-columns:minmax(0,1fr); } }
+/* 移除重复的今日统计后，改为三列响应式摘要。 */
+.calendar-center__stats{grid-template-columns:repeat(3,minmax(0,1fr));}
+@media(max-width:590px){.calendar-center__stats{grid-template-columns:repeat(2,minmax(0,1fr));}}

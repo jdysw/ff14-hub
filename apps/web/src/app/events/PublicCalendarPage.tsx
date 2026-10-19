@@ -2,7 +2,9 @@
 import { eventCalendarResponseSchema, type EventCalendarItem, type EventCalendarResponse } from '@ff14-hub/shared';
 import { useEffect, useMemo, useState } from 'react';
 import './public-calendar.css';
-import { CalendarAdminEditor } from './CalendarAdminEditor';
+import { CalendarAdminPanel } from './CalendarAdminPanel';
+import { CalendarAdminAccess } from './CalendarAdminAccess';
+import { calendarAdminSession, useCalendarAdminSession } from './calendar-admin-session';
 import {
   calendarOverview, chinaDateTime, chinaMonthDays, chinaToday,
   displayCalendarTitle, eventStatus, eventsForChinaDay, isScheduled,
@@ -14,12 +16,12 @@ type DataState =
   | { readonly status: 'loaded'; readonly data: EventCalendarResponse; readonly offset: number };
 
 type DisplayMode = 'month' | 'list';
-type PhaseFilter = 'all' | 'active' | 'upcoming' | 'ending' | 'unscheduled' | 'ended';
+type PhaseFilter = 'all' | 'active' | 'upcoming' | 'ending' | 'unscheduled' | 'history';
 const PHASES: ReadonlyArray<{ value: PhaseFilter; label: string }> = [
-  { value: 'all', label: '全部' }, { value: 'active', label: '进行中' },
+  { value: 'all', label: '未结束' }, { value: 'active', label: '进行中' },
   { value: 'upcoming', label: '即将开始' }, { value: 'ending', label: '即将结束' },
   { value: 'unscheduled', label: '时间待确认' },
-  { value: 'ended', label: '历史活动' },
+  { value: 'history', label: '历史已结束' },
 ];
 const ICAL_URL = '/api/v1/events/calendar.ics';
 
@@ -49,16 +51,31 @@ function currentMonthKey(day: string, direction: number): string {
   return new Date(Date.UTC(year, month - 1 + direction, 1)).toISOString().slice(0, 10);
 }
 
-export function PublicCalendarPage({ onBack, getToken }: { readonly onBack: () => void; readonly getToken: () => string | null }) {
+export function PublicCalendarPage({ onBack }: { readonly onBack: () => void }) {
+  const adminSession=useCalendarAdminSession();
+  const getToken=calendarAdminSession.get;
   const [state, setState] = useState<DataState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
-  const reload = () => { setState({ status: 'loading' }); setAttempt(v => v + 1); };
   const [clock, setClock] = useState(Date.now);
   const [selectedDay, setSelectedDay] = useState(() => chinaToday(Date.now()));
   const [mode, setMode] = useState<DisplayMode>('month');
   const [category, setCategory] = useState('all');
   const [phase, setPhase] = useState<PhaseFilter>('all');
   const [search, setSearch] = useState('');
+  const [canEdit, setCanEdit] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+  useEffect(() => {
+    const token = getToken();
+    if (!token) { void Promise.resolve().then(() => setCanEdit(false)); return; }
+    const controller = new AbortController();
+    void fetch('/api/v1/events/admin/status', {
+      credentials: 'omit', cache: 'no-store', signal: controller.signal,
+      headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' },
+    }).then(response => {
+      if (!controller.signal.aborted) setCanEdit(response.ok);
+    }).catch(() => { if (!controller.signal.aborted) setCanEdit(false); });
+    return () => controller.abort();
+  }, [adminSession.version, getToken]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 60_000);
@@ -97,8 +114,11 @@ export function PublicCalendarPage({ onBack, getToken }: { readonly onBack: () =
   const filtered = useMemo(() => events.filter(event => {
     if (category !== 'all' && (event.category || '官方公告') !== category) return false;
     const status = eventStatus(event, now);
+    // 默认未结束：历史只在明确点选「历史已结束」时显示。
     if (phase === 'all' && status === 'ended') return false;
-    if (phase !== 'all' && !(phase === 'active' && status === 'ending') && status !== phase) return false;
+    if (phase === 'history' && status !== 'ended') return false;
+    if (phase !== 'all' && phase !== 'history' &&
+      !(phase === 'active' && status === 'ending') && status !== phase) return false;
     const term = search.trim().normalize('NFKC').toLowerCase();
     return !term || (event.title + ' ' + event.description + ' ' + event.category).normalize('NFKC').toLowerCase().includes(term);
   }), [events, now, phase, category, search]);
@@ -116,6 +136,13 @@ export function PublicCalendarPage({ onBack, getToken }: { readonly onBack: () =
       <strong>{count}</strong><span>{label}</span>
     </button>;
 
+  if (adminOpen && !canEdit) return <CalendarAdminAccess
+    onClose={() => setAdminOpen(false)}
+    onReady={() => { setCanEdit(true); setAdminOpen(true); }}/>;
+  if (adminOpen && canEdit) return <CalendarAdminPanel
+    getToken={getToken} onClose={() => setAdminOpen(false)}
+    onSaved={() => { setAttempt(value => value + 1); }}/>;
+
   return <div className="calendar-center">
     <header className="calendar-center__header">
       <div>
@@ -124,9 +151,19 @@ export function PublicCalendarPage({ onBack, getToken }: { readonly onBack: () =
         <p>北京时间 · 官方已核实的时间进入日历，其余公告单独显示</p>
       </div>
       <div className="calendar-center__actions">
+        <button className="button button--secondary" type="button" onClick={() => setAdminOpen(true)}>
+          {canEdit ? '管理活动 ↗' : '管理员登录'}
+        </button>
+        {canEdit && <button type="button" className="text-button" onClick={() => {
+          const token=getToken();
+          if(token) void fetch('/api/v1/events/admin/logout',{
+            method:'POST',credentials:'omit',headers:{ Authorization:'Bearer '+token },
+          }).catch(()=>undefined);
+          calendarAdminSession.clear(); setCanEdit(false);
+        }}>退出管理</button>}
         <a className="button" href={ICAL_URL} title="在日历应用中订阅，不包含未确认日期的活动">订阅日历（ICS） ↗</a>
         <button type="button" className="text-button" onClick={() => {
-          reload();
+          setState({ status: 'loading' }); setAttempt(i => i + 1);
         }}>刷新</button>
       </div>
     </header>
@@ -190,11 +227,11 @@ export function PublicCalendarPage({ onBack, getToken }: { readonly onBack: () =
           {PHASES.map(f => <button type="button" key={f.value} aria-pressed={phase === f.value}
             onClick={() => setPhase(f.value)}>{f.label}</button>)}
         </div>
-        <h3>已确认日程 · {knownList.length} 项</h3>
+        <h3>{phase === 'history' ? '历史已结束' : '未结束的已确认日程'} · {knownList.length} 项</h3>
         {knownList.length ? <ul className="calendar-center__events">{knownList.map(x => <CalendarEvent key={x.id} event={x} now={now}/>)}</ul>
           : <p className="home-state">此筛选条件下暂无已确认日程。</p>}
       </section>}
-      {(mode === 'list' || unknownList.length > 0) && <details className="calendar-center__unknown">
+      {(unknownList.length > 0) && <details className="calendar-center__unknown">
         <summary>尚无可靠起止时间的公告（{unknownList.length}）</summary>
         <p>此类信息只提供原文，无法计算倒计时，也不会进入 ICS 订阅。</p>
         <ul className="calendar-center__events">{unknownList.map(x => <CalendarEvent key={x.id} event={x} now={now}/>)}</ul>
@@ -204,6 +241,5 @@ export function PublicCalendarPage({ onBack, getToken }: { readonly onBack: () =
         <a href={state.data.source.homeUrl} target="_blank" rel="noopener noreferrer">核对官方公告 ↗</a>
       </footer>
     </>}
-    <CalendarAdminEditor getToken={getToken} events={events} onSaved={reload}/>
   </div>;
 }
