@@ -14,6 +14,7 @@ import { issueAdminSession, revokeAdminSession, throttleAdmin, validateAdminCred
 import { siteSettingsMutationSchema, readSiteSettings, updateSiteSettings } from '../../modules/admin/site-settings';
 import { readOfficialCalendarSnapshot } from '../../modules/events/calendar-snapshot';
 import { calendarMutationSchema, calendarToggleSchema, listEditorEntries, saveCalendarEdit } from '../../modules/events/calendar-editor';
+import { registerAdminNavigation } from './admin-navigation';
 
 export const adminRoutes = new Hono<AppBindings>();
 export const publicSiteRoutes = new Hono<AppBindings>();
@@ -121,4 +122,5 @@ adminRoutes.post('/calendar/items/:id/restore', adminAuth(), validateJsonBody(ca
 });
 
 
-adminRoutes.all('*',methodNotAllowed(['GET']));
+registerAdminNavigation(adminRoutes,adminAuth());
+adminRoutes.all('*',methodNotAllowed(['GET','POST','PUT']));

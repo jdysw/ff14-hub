@@ -21,5 +21,6 @@ export * from './module-api';
 export * from './module-manifest';
 export * from './operations-api';
 export * from './nav-api';
+export * from './nav-directory';
 export * from './sync-api';
 export * from './workbench-api';

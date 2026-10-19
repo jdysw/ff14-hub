@@ -1,0 +1,135 @@
+{
+  "checkedAt": "2026-10-20",
+  "sources": [
+    {
+      "url": "https://www.ff14.cafe/",
+      "name": "背水咖啡厅",
+      "sha256": "6333d5d51acb170b5ea6f20d16041417889ca7e4184266a7764183801c261dac"
+    },
+    {
+      "url": "https://ff14nav.tianbianyu.com/",
+      "name": "光之导航站",
+      "sha256": "1fb5dd47518f3b33663f65fcf72dd8e3c95a211c73a7b97310cfa697e2dabb42"
+    },
+    {
+      "url": "https://ff14.wiki/",
+      "name": "FF14.wiki",
+      "sha256": "691bf01bf7d5204ee274476f4b27cec0ef26b62b0d9e4bbc85973e54888e9688"
+    }
+  ],
+  "rawCount": 264,
+  "importedCount": 197,
+  "mergedCount": 55,
+  "skippedCount": 12,
+  "categories": {
+    "官方服务": 26,
+    "社区与创作": 48,
+    "新手与百科": 13,
+    "副本与战斗": 26,
+    "狩猎与探索": 12,
+    "生产采集与钓鱼": 20,
+    "市场与经济": 2,
+    "休闲与成就": 13,
+    "住房装修": 6,
+    "开发与辅助工具": 25,
+    "幻化与外观": 6
+  },
+  "skipped": [
+    {
+      "title": "俺Tools",
+      "url": "http://ffxiv.es.exdreams.net/",
+      "section": "综合型网站&数据库",
+      "source": "https://www.ff14.cafe/",
+      "sourceName": "背水咖啡厅",
+      "reason": "非 HTTPS 或无效地址，需人工核对"
+    },
+    {
+      "title": "刮刮乐工具",
+      "url": "http://super-aardvark.github.io/yuryu/",
+      "section": "金碟游乐场",
+      "source": "https://www.ff14.cafe/",
+      "sourceName": "背水咖啡厅",
+      "reason": "非 HTTPS 或无效地址，需人工核对"
+    },
+    {
+      "title": "獭窝",
+      "url": "http://xn--v9x.net/",
+      "section": "科技",
+      "source": "https://www.ff14.cafe/",
+      "sourceName": "背水咖啡厅",
+      "reason": "非 HTTPS 或无效地址，需人工核对"
+    },
+    {
+      "title": "青魔法电子书",
+      "url": "http://kdygsz.vps6.mydnns.com/BlueMagicebook/",
+      "section": "攻略数据",
+      "source": "https://ff14nav.tianbianyu.com/",
+      "sourceName": "光之导航站",
+      "reason": "非 HTTPS 或无效地址，需人工核对"
+    },
+    {
+      "title": "无人岛",
+      "url": "http://wrd.ffxiv.cn/",
+      "section": "攻略数据",
+      "source": "https://ff14nav.tianbianyu.com/",
+      "sourceName": "光之导航站",
+      "reason": "非 HTTPS 或无效地址，需人工核对"
+    },
+    {
+      "title": "天书奇谈计算器",
+      "url": "http://ashtender.com/ffxiv/tails?stickers=37999",
+      "section": "工具插件",
+      "source": "https://ff14nav.tianbianyu.com/",
+      "sourceName": "光之导航站",
+      "reason": "非 HTTPS 或无效地址，需人工核对"
+    },
+    {
+      "title": "FF14工具集",
+      "url": "#",
+      "section": "工具插件",
+      "source": "https://ff14nav.tianbianyu.com/",
+      "sourceName": "光之导航站",
+      "reason": "非 HTTPS 或无效地址，需人工核对"
+    },
+    {
+      "title": "最终幻想14生产模拟器",
+      "url": "http://ffxiv.tk/crafter/#/simulator",
+      "section": "生产采集",
+      "source": "https://ff14nav.tianbianyu.com/",
+      "sourceName": "光之导航站",
+      "reason": "非 HTTPS 或无效地址，需人工核对"
+    },
+    {
+      "title": "海钓航班表",
+      "url": "http://fish.senriakane.com/ocean.html",
+      "section": "生产采集",
+      "source": "https://ff14nav.tianbianyu.com/",
+      "sourceName": "光之导航站",
+      "reason": "非 HTTPS 或无效地址，需人工核对"
+    },
+    {
+      "title": "钓鱼时钟",
+      "url": "http://fish.senriakane.com/",
+      "section": "生产采集",
+      "source": "https://ff14nav.tianbianyu.com/",
+      "sourceName": "光之导航站",
+      "reason": "非 HTTPS 或无效地址，需人工核对"
+    },
+    {
+      "title": "国服狩猎时间",
+      "url": "http://ffxivhunt.cn/",
+      "section": "怪物狩猎",
+      "source": "https://ff14nav.tianbianyu.com/",
+      "sourceName": "光之导航站",
+      "reason": "非 HTTPS 或无效地址，需人工核对"
+    },
+    {
+      "title": "青魔法（电子）书",
+      "url": "http://www.timelysnow.com.cn/bluemagicebook/",
+      "section": "实用工具 / Simplified Chinese Only",
+      "source": "https://ff14.wiki/",
+      "sourceName": "FF14.wiki",
+      "reason": "非 HTTPS 或无效地址，需人工核对"
+    }
+  ]
+}

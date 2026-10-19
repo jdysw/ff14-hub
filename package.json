@@ -11,6 +11,8 @@
     "pnpm": ">=10.0.0"
   },
   "scripts": {
+    "e2e:navigation": "node scripts/e2e-navigation.mjs",
+    "import:navigation": "node scripts/import-navigation.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "types:worker": "wrangler types --include-runtime=false --strict-vars=false",

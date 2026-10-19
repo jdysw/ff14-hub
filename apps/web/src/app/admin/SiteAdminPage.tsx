@@ -4,9 +4,10 @@ import { CalendarAdminAccess } from '../events/CalendarAdminAccess';
 import { CalendarAdminPanel } from '../events/CalendarAdminPanel';
 import { calendarAdminSession, useCalendarAdminSession } from '../events/calendar-admin-session';
 import { SiteSettingsPanel } from './SiteSettingsPanel';
+import { SiteDirectoryPanel } from './SiteDirectoryPanel';
 import './site-admin.css';
 
-type Tab='overview'|'settings'|'calendar'|'security';
+type Tab='overview'|'settings'|'calendar'|'security'|'directory';
 type Gate='checking'|'ready'|'signedOut'|'failed';
 
 export function SiteAdminPage({onClose}: {readonly onClose:()=>void}) {
@@ -52,7 +53,7 @@ export function SiteAdminPage({onClose}: {readonly onClose:()=>void}) {
       <button type="button" className="button button--secondary" onClick={logout}>安全退出</button>
     </header>
     <nav className="site-admin__tabs" aria-label="站点管理模块">
-      {([['overview','管理概览'],['settings','网站设置'],['calendar','国服活动'],['security','账号与安全']] as const).map(([id,label])=>
+      {([['overview','管理概览'],['settings','网站设置'],['directory','网站目录'],['calendar','国服活动'],['security','账号与安全']] as const).map(([id,label])=>
         <button key={id} type="button" aria-current={tab===id?'page':undefined}
           className={tab===id?'site-admin__tab site-admin__tab--active':'site-admin__tab'}
           onClick={()=>setTab(id)}>{label}</button>)}
@@ -62,12 +63,14 @@ export function SiteAdminPage({onClose}: {readonly onClose:()=>void}) {
       <p>当前身份：唯一站点所有者（Owner）。公共内容管理与浏览器本地个人数据分开，管理员不会取得玩家的本地数据。</p>
       <div className="site-admin__cards">
         <button type="button" onClick={()=>setTab('settings')}><strong>网站设置</strong><span>网站名称、全站公告与首页模块全局开关</span></button>
+        <button type="button" onClick={()=>setTab('directory')}><strong>网站目录</strong><span>新增、编辑、下架与恢复网站，直接同步后端</span></button>
         <button type="button" onClick={()=>setTab('calendar')}><strong>活动内容</strong><span>新建、修订、隐藏及恢复活动；同步到公开日历</span></button>
         <button type="button" onClick={()=>setTab('security')}><strong>安全与会话</strong><span>查看管理员安全说明并退出会话</span></button>
       </div>
       <p className="panel__muted">需要修改程序代码、Cloudflare 密钥、数据库结构及安全策略的操作仍必须走受控发布流程。</p>
     </div>}
     {tab==='settings'&&<SiteSettingsPanel/>}
+    {tab==='directory'&&<SiteDirectoryPanel/>}
     {tab==='calendar'&&<CalendarAdminPanel getToken={calendarAdminSession.get}
       onClose={()=>setTab('overview')} onSaved={()=>window.dispatchEvent(new Event('ff14hub:admin-calendar-changed'))}/>}
     {tab==='security'&&<section className="site-admin__overview">

@@ -24,6 +24,9 @@ import {
   type NavCatalogEntry,
   type NavRegion,
 } from '@ff14-hub/shared';
+import { readDirectoryRecords } from './directory-editor';
+import importedDirectory from '../../../data/navigation/catalog.json';
+import { canonicalNavUrl } from '@ff14-hub/shared';
 
 /**
  * 种子版本。**单调递增**：改种子内容时必须把它 +1，否则旧的（已写入的）行不会被覆盖。
@@ -34,13 +37,13 @@ import {
  * 从 2 开始，库内版本可以被改小到 1（合法）来做验证——这是把不变量变成可测行为的代价，
  * 而不是把版本号当成装饰。
  */
-export const NAV_CATALOG_SOURCE_VERSION = 2;
+export const NAV_CATALOG_SOURCE_VERSION = 3;
 
 /**
  * 本阶段核对时间（UTC 毫秒，固定常量：核对时间必须可复现，不能在每次请求时取 `Date.now()`）。
  * 取 2026-10-18T00:00:00Z —— 阶段 04 实现当日。
  */
-export const NAV_CATALOG_VERIFIED_AT = Date.parse('2026-10-18T00:00:00Z');
+export const NAV_CATALOG_VERIFIED_AT = Date.parse('2026-10-19T16:00:00Z');
 
 /**
  * 系统推荐目录种子（3–8 条）。每条注释写明**据以核对的来源页面**。
@@ -49,7 +52,7 @@ export const NAV_CATALOG_VERIFIED_AT = Date.parse('2026-10-18T00:00:00Z');
  * 落成默认图标 `🔗`，于是刚导入的行立刻被判定为「用户改过」（`navCatalogEntryState`
  * 逐字段比较图标）。种子显式给图标可以避免这个假冲突。
  */
-export const NAV_CATALOG_SEED: readonly NavCatalogEntry[] = [
+const LEGACY_CATALOG_SEED: readonly NavCatalogEntry[] = [
   {
     // 来源：Square Enix 运营的 FINAL FANTASY XIV 官方门户（www.finalfantasyxiv.com）
     // 及其 Lodestone 分区（na./eu./jp.finalfantasyxiv.com/lodestone/，本条目取北美入口）。
@@ -162,6 +165,29 @@ export const NAV_CATALOG_SEED: readonly NavCatalogEntry[] = [
     updatedAt: NAV_CATALOG_VERIFIED_AT,
   },
 ];
+
+/** Reviewed multi-source snapshot. Stable legacy IDs survive the expansion. */
+export const NAV_CATALOG_SEED: readonly NavCatalogEntry[] = (() => {
+  const entries = new Map(LEGACY_CATALOG_SEED.map(entry => [canonicalNavUrl(entry.url),entry]));
+  for (const imported of importedDirectory) {
+    const key=canonicalNavUrl(imported.url);
+    const old=entries.get(key);
+    const origin=imported.sources[0];
+    if(!origin) throw new Error('目录导入缺少来源');
+    entries.set(key,navCatalogEntrySchema.parse({
+      id:old?.id??imported.id, sourceVersion:NAV_CATALOG_SOURCE_VERSION,
+      title:old?.title??imported.title,url:old?.url??imported.url,
+      description:old?.description??imported.description,category:imported.category,
+      tags:[...new Set([...(old?.tags??[]),...imported.tags])].slice(0,20),
+      aliases:[...new Set([...(old?.aliases??[]),...imported.aliases,...(old?[imported.title]:[])])].slice(0,10),
+      icon:old?.icon??imported.icon,openMode:old?.openMode??imported.openMode,
+      region:old?.region??imported.region,sortOrder:old?.sortOrder??imported.sortOrder,
+      sourceUrl:origin.url,sourceName:imported.sources.map(source=>source.name).filter((name,index,list)=>list.indexOf(name)===index).join(' / '),
+      verifiedAt:NAV_CATALOG_VERIFIED_AT,verificationStatus:'verified',updatedAt:NAV_CATALOG_VERIFIED_AT,
+    }));
+  }
+  return [...entries.values()];
+})();
 
 /**
  * 目录行（与 `migrations/0008_navigation.sql` 的列一一对应）。
@@ -309,7 +335,11 @@ export async function applyCatalogSeed(input: {
     }
   }
 
-  const statements = NAV_CATALOG_SEED.map((entry) =>
+  const existing = await input.db.prepare('SELECT id,source_version FROM nav_catalog_links').all<{id:string;source_version:number}>();
+  const versions=new Map(existing.results.map(row=>[row.id,row.source_version]));
+  const pending=NAV_CATALOG_SEED.filter(entry=>(versions.get(entry.id)??0)<entry.sourceVersion);
+  if(pending.length===0)return {sourceVersion:NAV_CATALOG_SOURCE_VERSION,entryCount:NAV_CATALOG_SEED.length,changedRows:0};
+  const statements = pending.map((entry) =>
     input.db
       .prepare(UPSERT_CATALOG_SQL)
       .bind(
@@ -350,7 +380,9 @@ export async function applyCatalogSeed(input: {
  */
 export async function readCatalogSourceVersion(db: D1Database): Promise<number> {
   const row = await db
-    .prepare('SELECT COALESCE(MAX(source_version), 0) AS value FROM nav_catalog_links')
+    .prepare(`SELECT COALESCE(MAX(version), 0) AS value FROM (
+      SELECT source_version AS version FROM nav_catalog_links
+      UNION ALL SELECT json_extract(payload,'$.sourceVersion') AS version FROM nav_catalog_edits)`)
     .first<{ value: number }>();
   return row?.value ?? 0;
 }
@@ -370,18 +402,18 @@ export async function readCatalog(input: {
   readonly region?: NavRegion;
   readonly category?: string;
 }): Promise<NavCatalogEntry[]> {
-  const result = await input.db
+  const records = await readDirectoryRecords(input.db, await readBaseCatalog(input.db));
+  return records.filter(record => !record.hidden).map(record => record.entry).filter(entry =>
+    (input.category === undefined || entry.category === input.category) &&
+    (input.region === undefined || entry.region === input.region || entry.region === 'both'));
+}
+
+/** Raw imported data for the owner overlay; public callers use readCatalog. */
+export async function readBaseCatalog(db: D1Database): Promise<NavCatalogEntry[]> {
+  const result = await db
     .prepare(
       `SELECT ${CATALOG_COLUMNS} FROM nav_catalog_links
-        WHERE (? IS NULL OR category = ?)
-          AND (? IS NULL OR region = ? OR region = 'both')
         ORDER BY sort_order ASC, id ASC`,
-    )
-    .bind(
-      input.category ?? null,
-      input.category ?? null,
-      input.region ?? null,
-      input.region ?? null,
     )
     .all<NavCatalogRow>();
   return result.results.map(toCatalogEntry);
