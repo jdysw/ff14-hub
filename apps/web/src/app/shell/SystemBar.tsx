@@ -19,7 +19,7 @@ const PERSONAL_LINKS: readonly SettingLink[] = [
 ];
 
 const DATA_LINKS: readonly SettingLink[] = [
-  { id: 'sync', label: '同步与备份', hint: '同步鱼糕、管理数据', view: 'sync' },
+  { id: 'sync', label: '数据同步', hint: '同步鱼糕、管理数据', view: 'sync' },
   { id: 'backup', label: '导入 / 恢复', hint: '备份或恢复个人工作台', view: 'workbench' },
   { id: 'credentials', label: '会话凭证', hint: '连接个人空间；浏览公共内容无需连接', view: 'credentials' },
 ];
