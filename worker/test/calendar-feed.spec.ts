@@ -35,15 +35,15 @@ describe('盛趣官方公告活动时间提取', () => {
 describe('盛趣官方活动 API 适配器', () => {
   it('仅访问盛趣官方固定路径并保留无法确认起止时间的活动', async () => {
     const urls: string[] = [];
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
       urls.push(String(url));
       if (String(url).includes('newsDetail')) {
-        return new Response(JSON.stringify({ Code: 0, Data: { Content: '<p>活动时间：2026年10月20日10:00-2026年11月2日23:59</p>' } }), { status: 200 });
+        return Promise.resolve(new Response(JSON.stringify({ Code: 0, Data: { Content: '<p>活动时间：2026年10月20日10:00-2026年11月2日23:59</p>' } }), { status: 200 }));
       }
-      return new Response(JSON.stringify({ Code: 0, Data: [
+      return Promise.resolve(new Response(JSON.stringify({ Code: 0, Data: [
         { Id: 41, Title: '季节活动', Summary: '官方公告', OutLink: 'https://ff.web.sdo.com/act' },
         { Id: 42, Title: '未知起止活动', Summary: '等待详细日程', OutLink: 'https://example.com/phishing' },
-      ] }), { status: 200 });
+      ] }), { status: 200 }));
     }));
     const response = await readCnCalendar();
     expect(response.events).toHaveLength(2);
