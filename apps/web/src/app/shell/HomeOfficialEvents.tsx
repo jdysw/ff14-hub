@@ -16,7 +16,7 @@ function OfficialEventSummary({ item, now }: { readonly item: EventCalendarItem;
   const target = status === 'upcoming' ? item.startsAt : status === 'active' || status === 'ending' ? item.endsAt : null;
   const label = status === 'ending' ? '即将结束' :
     status === 'active' ? '进行中' : status === 'upcoming' ? '即将开始' :
-      status === 'ended' ? '已结束' : '时间待确认';
+      status === 'ended' ? '已结束' : '待核实公告';
   return <li className="home-official-event">
     <div className="home-official-event__main">
       <span className="home-official-event__category">{item.category || '官方公告'}</span>
