@@ -8,7 +8,7 @@ const HOST = 'https://cqnews.web.sdo.com';
 const NEWS_INDEX = 'https://ff.web.sdo.com/web8/index.html#/newstab/newslist';
 const CACHE_MS = 20 * 60_000;
 const STALE_MS = 12 * 60 * 60_000;
-let cache: { checkedAtMs: number; events: EventCalendarItem[] } | null = null;
+let cache: { checkedAtMs: number; events: EventCalendarItem[]; partial: boolean } | null = null;
 let request: Promise<void> | null = null;
 
 function record(v: unknown): v is Record<string, unknown> {
@@ -123,36 +123,102 @@ async function articleDetail(id: number): Promise<string | null> {
     return typeof content === 'string' ? content : null;
   } catch { return null; }
 }
+interface OfficialEntry {
+  id: number;
+  title: string;
+  description: string;
+  category: string;
+  published: string;
+  detailId: number;
+  sourceUrl: string;
+  projectUrl: string | null;
+}
+
+async function newsCategory(code: '5311' | '5203'): Promise<Record<string, unknown>[]> {
+  const payload = await json('/api/news/newsList?gameCode=ff&CategoryCode=' + code + '&pageIndex=0&pageSize=30');
+  if (!record(payload) || String(payload['Code']) !== '0' || !Array.isArray(payload['Data'])) {
+    throw new Error('official_list_shape_changed');
+  }
+  return (payload['Data'] as unknown[]).filter(record).slice(0, 30);
+}
+
+/**
+ * 两个官方分类可能发布同名新闻（例如糖豆人 ID 393660 / 393967）。
+ * 保留 5311 的正文接口以提取时间，保留 5203 的活动专题作为用户来源链接。
+ */
+function deduplicate(rows: {
+  code: '5311' | '5203';
+  values: Record<string, unknown>[];
+}[]): OfficialEntry[] {
+  const unique = new Map<string, OfficialEntry>();
+  for (const group of rows) {
+    for (const row of group.values) {
+      const id = typeof row['Id'] === 'number' ? row['Id'] : Number(row['Id']);
+      const title = clean(row['Title']);
+      if (!Number.isSafeInteger(id) || id <= 0 || !title) continue;
+      const projectUrl = officialProjectUrl(row['OutLink']);
+      // 实测 5203 同时包含商城资讯，不能整栏当作活动。
+      if (group.code === '5203' && projectUrl === null &&
+          !/(?:【季节活动】|〖季节活动〗|官方转播)/i.test(title)) continue;
+      const category = /季节活动|守护天节/.test(title) ? '季节活动'
+        : /联动/.test(title) ? '联动活动'
+        : /Fan Festival|转播/i.test(title) ? '线下与直播' : '官方活动';
+      const key = title.normalize('NFKC').replace(/[\s！!。·・~～【】]/g, '').toLowerCase();
+      const existing = unique.get(key);
+      const entry: OfficialEntry = {
+        id, title, description: clean(row['Summary'], 600),
+        category, published: clean(row['PublishDate'], 30),
+        detailId: id, sourceUrl: officialLink(row['OutLink'], id), projectUrl,
+      };
+      if (existing) {
+        unique.set(key, {
+          ...existing,
+          published: existing.published >= entry.published ? existing.published : entry.published,
+          detailId: group.code === '5311' ? id : existing.detailId,
+          projectUrl: existing.projectUrl ?? projectUrl,
+          sourceUrl: projectUrl ?? existing.projectUrl ?? existing.sourceUrl,
+          description: existing.description || entry.description,
+        });
+      } else unique.set(key, entry);
+    }
+  }
+  return [...unique.values()].sort((a, b) => b.published.localeCompare(a.published) || b.id - a.id);
+}
+
 async function refresh(): Promise<void> {
-  // 分类 5311：RSSHub 国服适配器采用的官方活动资讯分类。
-  const payload = await json('/api/news/newsList?gameCode=ff&CategoryCode=5311&pageIndex=0&pageSize=30');
-  if (!record(payload) || !Array.isArray(payload['Data'])) throw new Error('official_list_shape_changed');
-  const seen = new Set<number>();
-  const events: EventCalendarItem[] = (payload['Data'] as unknown[]).slice(0, 30).flatMap((row) => {
-    if (!record(row)) return [];
-    const id = typeof row['Id'] === 'number' ? row['Id'] : Number(row['Id']);
-    const title = clean(row['Title']);
-    if (!Number.isSafeInteger(id) || id <= 0 || !title || seen.has(id)) return [];
-    seen.add(id);
-    const category = title.includes('季节活动') ? '季节活动' :
-      title.includes('联动') ? '联动活动' : '官方活动';
-    const result: EventCalendarItem = {
-      id: 'official:' + id, region: 'cn', title, description: clean(row['Summary'], 600),
-      category, location: '', startsAt: null, endsAt: null, allDay: false,
-      sourceUrl: officialLink(row['OutLink'], id),
-    };
-    return [result];
-  });
-  // 逐批处理以限制对上游接口的瞬时负载。详情失败只影响倒计时，不影响标题列表。
-  for (let i = 0; i < Math.min(events.length, 12); i += 3) {
-    await Promise.all(events.slice(i, i + 3).map(async (event) => {
-      const id = Number(event.id.slice('official:'.length));
-      const html = await articleDetail(id);
-      const range = html === null ? null : extractOfficialActivityRange(html);
-      if (range) { event.startsAt = range.startsAt; event.endsAt = range.endsAt; }
+  const sources = await Promise.allSettled([newsCategory('5311'), newsCategory('5203')]);
+  const successful: { code: '5311' | '5203'; values: Record<string, unknown>[] }[] = [];
+  const first = sources[0];
+  const second = sources[1];
+  if (first?.status === 'fulfilled') successful.push({ code: '5311', values: first.value });
+  if (second?.status === 'fulfilled') successful.push({ code: '5203', values: second.value });
+  if (successful.length === 0) throw new Error('official_sources_unavailable');
+
+  const entries = deduplicate(successful).slice(0, 30);
+  const events: EventCalendarItem[] = entries.map((entry) => ({
+    id: 'official:' + entry.id, region: 'cn',
+    title: entry.title, description: entry.description, category: entry.category,
+    location: '', startsAt: null, endsAt: null, allDay: false, sourceUrl: entry.sourceUrl,
+  }));
+
+  // 最新的 16 条按 3 路并发查询官方详情/专题。其余公告仍展示，但不伪造时间。
+  for (let i = 0; i < Math.min(events.length, 16); i += 3) {
+    await Promise.all(events.slice(i, i + 3).map(async (event, offset) => {
+      const entry = entries[i + offset];
+      if (!entry) return;
+      const content = await articleDetail(entry.detailId);
+      let range = content === null ? null : extractOfficialActivityRange(content);
+      if (range === null && entry.projectUrl !== null) {
+        const landing = await officialHtml(entry.projectUrl);
+        range = landing === null ? null : extractOfficialLandingRange(landing);
+      }
+      if (range !== null) {
+        event.startsAt = range.startsAt;
+        event.endsAt = range.endsAt;
+      }
     }));
   }
-  cache = { checkedAtMs: Date.now(), events };
+  cache = { checkedAtMs: Date.now(), events, partial: sources.some((value) => value.status === 'rejected') };
 }
 export async function readCnCalendar(nowMs = Date.now()): Promise<EventCalendarResponse> {
   let stale = false;
@@ -169,7 +235,7 @@ export async function readCnCalendar(nowMs = Date.now()): Promise<EventCalendarR
   return {
     events: cache.events,
     serverTimeMs: nowMs,
-    source: { name: '盛趣游戏 · FF14 国服官方公告', homeUrl: NEWS_INDEX, checkedAtMs: cache.checkedAtMs, stale },
+    source: { name: '盛趣游戏 · FF14 国服官方公告', homeUrl: NEWS_INDEX, checkedAtMs: cache.checkedAtMs, stale: stale || cache.partial },
   };
 }
 export function resetCnCalendarCacheForTests(): void { cache = null; request = null; }
