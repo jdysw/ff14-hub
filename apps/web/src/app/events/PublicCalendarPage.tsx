@@ -13,11 +13,12 @@ type DataState =
   | { readonly status: 'loaded'; readonly data: EventCalendarResponse; readonly offset: number };
 
 type DisplayMode = 'month' | 'list';
-type PhaseFilter = 'all' | 'active' | 'upcoming' | 'ending' | 'unscheduled';
+type PhaseFilter = 'all' | 'active' | 'upcoming' | 'ending' | 'unscheduled' | 'ended';
 const PHASES: ReadonlyArray<{ value: PhaseFilter; label: string }> = [
   { value: 'all', label: '全部' }, { value: 'active', label: '进行中' },
   { value: 'upcoming', label: '即将开始' }, { value: 'ending', label: '即将结束' },
   { value: 'unscheduled', label: '时间待确认' },
+  { value: 'ended', label: '历史活动' },
 ];
 const ICAL_URL = '/api/v1/events/calendar.ics';
 
@@ -94,6 +95,7 @@ export function PublicCalendarPage({ onBack }: { readonly onBack: () => void }) 
   const filtered = useMemo(() => events.filter(event => {
     if (category !== 'all' && (event.category || '官方公告') !== category) return false;
     const status = eventStatus(event, now);
+    if (phase === 'all' && status === 'ended') return false;
     if (phase !== 'all' && !(phase === 'active' && status === 'ending') && status !== phase) return false;
     const term = search.trim().normalize('NFKC').toLowerCase();
     return !term || (event.title + ' ' + event.description + ' ' + event.category).normalize('NFKC').toLowerCase().includes(term);
@@ -134,10 +136,9 @@ export function PublicCalendarPage({ onBack }: { readonly onBack: () => void }) 
     {state.status === 'loaded' && <>
       {state.data.source.stale && <p className="notice notice--warn" role="status">官方源暂时无法更新，当前展示的是历史快照，时间可能已变更。</p>}
       <div className="calendar-center__stats" aria-label="活动概览">
-        {summary('今天', overview.today.length, 'all')}
         {summary('进行中', overview.active.length, 'active')}
         {summary('未来 7 天开始', overview.upcoming.length, 'upcoming')}
-        {summary('72 小时内结束', overview.ending.length, 'ending')}
+        {summary('24 小时内结束', overview.ending.length, 'ending')}
       </div>
       <div className="calendar-center__toolbar">
         <div className="calendar-center__mode" role="group" aria-label="活动视图">
