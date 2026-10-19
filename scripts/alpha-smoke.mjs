@@ -5,18 +5,43 @@ import {fileURLToPath} from 'node:url';
 
 // Deliberately fixed deployment targets: never send release credentials to a caller-provided URL.
 const environment=process.argv[2];
-if(!['preview','production'].includes(environment))throw new Error('Choose preview or production');
+if(environment!=='preview'&&environment!=='production'){
+  throw new Error('Choose preview or production');
+}
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const baseUrl=`https://${environment==='preview'?'ff14-preview':'ff14'}.zhixia.uk`;
-const legacyBaseUrl=`https://${environment==='preview'?'ff14-hub-preview':'ff14-hub'}.3347759490.workers.dev`;
+// 目标域名必须为常量，不能从 argv 拼接主机名。
+const baseUrl=environment==='preview'?'https://ff14-preview.zhixia.uk':'https://ff14.zhixia.uk';
+const legacyBaseUrl=environment==='preview'
+  ?'https://ff14-hub-preview.3347759490.workers.dev'
+  :'https://ff14-hub.3347759490.workers.dev';
 const directory=path.join(root,'.wrangler','release');await mkdir(directory,{recursive:true,mode:0o700});
 const ownerFile=path.join(directory,`access.${environment}.json`);
 const reportFile=path.join(directory,`smoke.${environment}.json`);
 const seededFile=path.join(directory,`seeded.${environment}.json`);
 const checks=[];
 const check=(value,name)=>{if(!value)throw new Error(`Release check failed: ${name}`);checks.push(name);};
+/** 只在固定发布域名内选择经过路径白名单验证的 API/静态资源。 */
+function releaseRequestUrl(route){
+  if(typeof route!=='string'||route.includes('#')){
+    throw new Error('Invalid release verification path');
+  }
+  const separator=route.indexOf('?');
+  const pathname=separator===-1?route:route.slice(0,separator);
+  const query=separator===-1?'':route.slice(separator+1);
+  const segments=pathname.split('/').slice(1);
+  if(!pathname.startsWith('/')||pathname.startsWith('//')||
+    (pathname!=='/'&&segments.some((segment)=>!segment||segment==='.'||segment==='..'||!/^[a-zA-Z0-9._~-]+$/.test(segment)))){
+    throw new Error('Unexpected release verification route');
+  }
+  // 修改 URL 的 pathname/search 不会修改已固定的 origin；不会向用户输入的主机发送凭证。
+  const target=new URL(baseUrl);
+  target.pathname=pathname;
+  target.search=query;
+  if(target.origin!==baseUrl)throw new Error('Release origin mismatch');
+  return target;
+}
 async function request(route,{token,body,method=body===undefined?'GET':'POST',status=200,headers={}}={}){
-  const response=await fetch(`${baseUrl}${route}`,{method,headers:{...headers,
+  const response=await fetch(releaseRequestUrl(route),{method,headers:{...headers,
     ...(token===undefined?{}:{Authorization:`Bearer ${token}`}),...(body===undefined?{}:{'Content-Type':'application/json'}),
   },...(body===undefined?{}:{body:JSON.stringify(body)}),redirect:'error',cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(20000)});
   if(response.status!==status)throw new Error(`HTTP ${response.status} for ${method} ${route.split('?')[0]}; expected ${status}`);
@@ -29,7 +54,7 @@ async function main(){
   const htmlResponse=await request('/');const html=await htmlResponse.text();
   check(htmlResponse.headers.get('Content-Security-Policy')?.includes("script-src 'self'"),'strict CSP');
   check(htmlResponse.headers.has('Strict-Transport-Security'),'HTTPS HSTS');
-  const assetPaths=[...html.matchAll(/(?:src|href)="(\/assets\/[^"?]+)"/g)].map((m)=>m[1]);
+  const assetPaths=[...html.matchAll(/(?:src|href)="(\/assets\/[a-zA-Z0-9._~-]+)"/g)].map((m)=>m[1]);
   check(assetPaths.length>=2,'HTML references built assets');
   for(const route of new Set(assetPaths)){
     const local=await readFile(path.join(root,'apps/web/dist',route));
