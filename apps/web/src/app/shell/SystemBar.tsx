@@ -1,123 +1,72 @@
 /**
- * 系统级入口栏。
- *
- * 硬约束（INV-02 / 规划 4.3）：系统设置、工作台切换、组件库、导入/恢复、设备管理
- * 必须永久位于 App Shell，**不能被用户删除或隐藏**。
- * 因此这里的条目是壳层的一部分，而不是可由页面配置的 Widget 实例。
- *
- * 阶段 02 的状态：模块管理与组件验收（含会话凭证）已经接入真实视图并可点击；
- * 其余条目仍然 disabled，作为后续阶段的**可见**占位（而不是靠文档口头说明）。
+ * 玩家设置入口：先展示日常操作，高级调试功能按需展开。
+ * 导航入口永远由 App Shell 提供，和业务组件的增删完全独立。
  */
 import type { ShellView } from './shell-view';
 
-interface SystemEntry {
+interface SettingLink {
   readonly id: string;
   readonly label: string;
   readonly hint: string;
-  /** 该能力计划落地的阶段/任务，便于对照规划而不是靠记忆。 */
-  readonly stage: string;
-  /** 已接入的视图。没有该字段即表示尚未接入，按钮保持不可用。 */
-  readonly view?: ShellView;
+  readonly view: ShellView;
 }
 
-/**
- * 系统级入口（顺序有意义）：
- * 「自定义工作台」**排第一**，因为端到端测试用
- * `getByRole('navigation', {name:'系统级入口（不可移除）'}).getByRole('button', {name:/工作台/}).first()`
- * 打开工作台——「工作台概览」也匹配 /工作台/，所以主入口必须排在它前面。
- */
-const SYSTEM_ENTRIES: readonly SystemEntry[] = [
-  {id:'fishing',label:'钓鱼手账',hint:'天气窗口与独立进度',stage:'阶段 05A',view:'fishing'},
-  {id:'reminders',label:'提醒管理',hint:'规则、设备与投递记录',stage:'阶段 05B',view:'reminders'},
-  {id:'sync',label:'数据同步',hint:'鱼糕文件与导入恢复',stage:'阶段 06A',view:'sync'},
-  {
-    id: 'workbench',
-    label: '自定义工作台',
-    hint: '多页面、拖拽布局、模板与备份恢复',
-    stage: '阶段 03 / HUB-045 · 046 · 049 · 054',
-    view: 'workbench',
-  },
-  {
-    id: 'overview',
-    label: '工作台概览',
-    hint: '阶段说明与 API 连通性',
-    stage: '当前可用',
-    view: 'overview',
-  },
-  {
-    id: 'widget-library',
-    label: '组件验收',
-    hint: '添加 Widget 实例（演示组件）',
-    stage: '阶段 02 / HUB-044',
-    view: 'widgets',
-  },
-  {
-    id: 'modules',
-    label: '模块管理',
-    hint: '启用、停用、逻辑卸载、恢复',
-    stage: '阶段 02 / HUB-050',
-    view: 'modules',
-  },
-  {
-    id: 'credentials',
-    label: '会话凭证',
-    hint: '仅本次会话内存，刷新即失效',
-    stage: '阶段 02 / HUB-050',
-    view: 'credentials',
-  },
-  {
-    id: 'backup',
-    label: '导入 / 恢复',
-    hint: '配置备份与恢复默认（就位于工作台视图内）',
-    stage: '阶段 03 / HUB-054',
-    view: 'workbench',
-  },
-  { id: 'devices', label: '设备管理', hint: '设备列表与撤销', stage: '后端 API 已就绪 · 界面后续' },
+const PERSONAL_LINKS: readonly SettingLink[] = [
+  { id: 'workbench', label: '自定义工作台', hint: '调整首页模块与布局', view: 'workbench' },
+  { id: 'nav', label: '我的网站', hint: '整理常用工具和收藏', view: 'nav' },
+  { id: 'fishing', label: '钓鱼手账', hint: '鱼窗与钓获进度', view: 'fishing' },
+  { id: 'reminders', label: '提醒管理', hint: '调整提醒规则', view: 'reminders' },
 ];
+
+const DATA_LINKS: readonly SettingLink[] = [
+  { id: 'sync', label: '同步与备份', hint: '同步鱼糕、管理数据', view: 'sync' },
+  { id: 'credentials', label: '会话凭证', hint: '连接个人空间；浏览公共内容无需连接', view: 'credentials' },
+];
+
+const ADVANCED_LINKS: readonly SettingLink[] = [
+  { id: 'modules', label: '模块管理', hint: '启用、停用或恢复模块', view: 'modules' },
+  { id: 'widgets', label: '组件验收', hint: '检查组件行为与运行状态', view: 'widgets' },
+  { id: 'overview', label: '运行诊断', hint: '检查服务连接与状态', view: 'overview' },
+];
+
+function SettingGroup({ title, description, items, currentView, onSelectView }: {
+  readonly title: string;
+  readonly description: string;
+  readonly items: readonly SettingLink[];
+  readonly currentView: ShellView;
+  readonly onSelectView: (view: ShellView) => void;
+}) {
+  return <section className="settings-group">
+    <div className="settings-group__heading"><h3>{title}</h3><p>{description}</p></div>
+    <ul className="system-bar__list">
+      {items.map(item => <li key={item.id}>
+        <button type="button" className={currentView === item.view ?
+          'system-bar__item system-bar__item--active' : 'system-bar__item system-bar__item--enabled'}
+          aria-current={currentView === item.view ? 'page' : undefined}
+          onClick={() => onSelectView(item.view)}>
+          <span className="system-bar__label">{item.label}</span>
+          <span className="system-bar__hint">{item.hint}</span>
+        </button>
+      </li>)}
+    </ul>
+  </section>;
+}
 
 export interface SystemBarProps {
   readonly currentView: ShellView;
   readonly onSelectView: (view: ShellView) => void;
 }
 
-export function SystemBar(props: SystemBarProps) {
-  return (
-    <nav className="system-bar" aria-label="系统级入口（不可移除）">
-      <p className="system-bar__note">
-        以下入口属于 App Shell，永久保留，用户清空全部业务组件后仍可进入。
-        标注为后续阶段的条目尚未接入，按钮保持不可用。
-      </p>
-      <ul className="system-bar__list">
-        {SYSTEM_ENTRIES.map((entry) => {
-          const view = entry.view;
-          const active = view !== undefined && view === props.currentView;
-          return (
-            <li key={entry.id}>
-              <button
-                type="button"
-                className={
-                  active ? 'system-bar__item system-bar__item--active' : 'system-bar__item system-bar__item--enabled'
-                }
-                disabled={view === undefined}
-                aria-disabled={view === undefined}
-                aria-current={active ? 'page' : undefined}
-                onClick={
-                  view === undefined
-                    ? undefined
-                    : () => {
-                        props.onSelectView(view);
-                      }
-                }
-              >
-                <span className="system-bar__label">{entry.label}</span>
-                <span className="system-bar__hint">{entry.hint}</span>
-                <span className="system-bar__stage">{entry.stage}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
+export function SystemBar({ currentView, onSelectView }: SystemBarProps) {
+  return <nav className="system-bar" aria-label="系统级入口（不可移除）">
+    <SettingGroup title="个性化" description="把常用内容放到顺手的位置"
+      items={PERSONAL_LINKS} currentView={currentView} onSelectView={onSelectView}/>
+    <SettingGroup title="数据与连接" description="只有使用个人同步功能时才需要连接"
+      items={DATA_LINKS} currentView={currentView} onSelectView={onSelectView}/>
+    <details className="settings-advanced" open={currentView !== 'settings' ? true : undefined}>
+      <summary>高级设置 <span>模块维护与故障排查</span></summary>
+      <SettingGroup title="高级工具" description="普通浏览无需使用以下功能"
+        items={ADVANCED_LINKS} currentView={currentView} onSelectView={onSelectView}/>
+    </details>
+  </nav>;
 }
-
