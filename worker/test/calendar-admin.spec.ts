@@ -1,6 +1,6 @@
 import { SELF, env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { totpForTests } from '../modules/events/calendar-admin-auth';
+import { ADMIN_PBKDF2_ITERATIONS, totpForTests } from '../modules/events/calendar-admin-auth';
 import type { EventCalendarResponse } from '@ff14-hub/shared';
 
 const API='https://example.com/api/v1/events';
@@ -77,6 +77,19 @@ beforeEach(async()=>{
 });
 
 describe('独立管理员账号密码 + TOTP 双因子',()=>{
+  it('密码 PBKDF2 单次迭代严格遵守 Cloudflare 生产运行时 100k 上限',()=>{
+    expect(ADMIN_PBKDF2_ITERATIONS).toBeGreaterThanOrEqual(100_000);
+    expect(ADMIN_PBKDF2_ITERATIONS).toBeLessThanOrEqual(100_000);
+  });
+  it('首次创建的密码散列带版本、盐和服务端密钥保护，且不保存原始口令',async()=>{
+    const res=await request('/setup','POST',undefined,{username:USER,password:PASSWORD},true);
+    expect(res.status).toBe(201);
+    const row=await env.DB.prepare("SELECT password_hash,password_salt FROM calendar_admin_accounts WHERE id='owner'")
+      .first<{password_hash:string;password_salt:string}>();
+    expect(row?.password_hash).toMatch(/^pbkdf2-sha256-100k-hmac-v2:[a-f0-9]{64}$/);
+    expect(row?.password_hash).not.toContain(PASSWORD);
+    expect(row?.password_salt).toMatch(/^[a-f0-9]{32}$/);
+  });
   it('已经停用旧版设备白名单管理接口，不能绕过双因素认证', async () => {
     const legacy = await SELF.fetch('https://example.com/api/v1/admin/calendar/me');
     expect(legacy.status).toBe(404);
