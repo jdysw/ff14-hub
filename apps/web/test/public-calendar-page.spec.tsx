@@ -37,7 +37,7 @@ describe('公开国服活动中心', () => {
     const get = vi.fn(() => Promise.resolve(new Response(JSON.stringify(response()), { status: 200 })));
     vi.stubGlobal('fetch', get);
     const back = vi.fn();
-    render(<PublicCalendarPage onBack={back}/>);
+    render(<PublicCalendarPage onBack={back} getToken={() => null}/>);
     expect(await screen.findByRole('heading', { name: '国服活动日历' })).toBeTruthy();
     await waitFor(() => expect(screen.getByText('守护天节')).toBeTruthy());
     expect(screen.getByRole('region', { name: '活动月历' })).toBeTruthy();
@@ -57,7 +57,7 @@ describe('公开国服活动中心', () => {
 
   it('未知官方日期仅在待核实区，绝不塞入月历日程', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(Response.json(response()))));
-    render(<PublicCalendarPage onBack={vi.fn()}/>);
+    render(<PublicCalendarPage onBack={vi.fn()} getToken={() => null}/>);
     expect(await screen.findByText(/尚无可靠起止时间的公告（1）/)).toBeTruthy();
     expect(within(screen.getByRole('region', { name: '选定日期的活动' })).queryByText('官方时间待确认公告')).toBeNull();
     fireEvent.click(screen.getByText(/尚无可靠起止时间的公告（1）/));
