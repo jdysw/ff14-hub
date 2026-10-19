@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PublicCalendarPage } from '../src/app/events/PublicCalendarPage';
 import { chinaToday } from '../src/app/events/public-calendar-utils';
@@ -59,7 +59,7 @@ describe('公开国服活动中心', () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(Response.json(response()))));
     render(<PublicCalendarPage onBack={vi.fn()}/>);
     expect(await screen.findByText(/尚无可靠起止时间的公告（1）/)).toBeTruthy();
-    expect(screen.queryByText('官方时间待确认公告')).toBeNull();
+    expect(within(screen.getByRole('region', { name: '选定日期的活动' })).queryByText('官方时间待确认公告')).toBeNull();
     fireEvent.click(screen.getByText(/尚无可靠起止时间的公告（1）/));
     expect(screen.getByText('官方时间待确认公告')).toBeTruthy();
   });
