@@ -42,7 +42,7 @@ async function setupAdmin() {
   const confirmed=await request('/setup/confirm','POST',undefined,{
     username:USER,password:PASSWORD,code,
   },true);
-  expect(confirmed.status).toBe(200);
+  expect(confirmed.status, `管理员首次 TOTP 确认失败：${await confirmed.clone().text()}`).toBe(200);
   const {token}=await confirmed.json<{token:string}>();
   return {token,totpKey};
 }
