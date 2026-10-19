@@ -226,8 +226,15 @@ describe('环境解析', () => {
     }
   });
 
-  it('拒绝过短的 Bootstrap 密钥（只暴露存在性，不暴露值）', () => {
-    expect(parseEnv({ DB: env.DB, BOOTSTRAP_SECRET: 'too-short' }).ok).toBe(false);
+  it('过短 Bootstrap 密钥仅禁用初始化能力，不让公开站点因全局环境校验失败（只暴露状态）', () => {
+    const short = parseEnv({ DB: env.DB, BOOTSTRAP_SECRET: 'too-short' });
+    expect(short.ok).toBe(true);
+    if (short.ok) {
+      expect(short.config.hasBootstrapSecret).toBe(false);
+      expect(JSON.stringify(short.config)).not.toContain('too-short');
+    }
+    // 类型错误依旧视为环境异常，不放宽绑定/配置结构验证。
+    expect(parseEnv({ DB: env.DB, BOOTSTRAP_SECRET: 123 }).ok).toBe(false);
     const ok = parseEnv({ DB: env.DB, BOOTSTRAP_SECRET: 'x'.repeat(32) });
     expect(ok.ok).toBe(true);
     if (ok.ok) {
