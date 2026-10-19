@@ -19,8 +19,8 @@ export function readPublicEventsPreference(): PublicEventsPreference {
     if (!data || typeof data !== 'object') return DEFAULT;
     const raw = data as Record<string, unknown>;
     return {
-      visible: typeof raw.visible === 'boolean' ? raw.visible : true,
-      position: raw.position === 'after-nav' ? 'after-nav' : 'before-nav',
+      visible: typeof raw['visible'] === 'boolean' ? raw['visible'] : true,
+      position: raw['position'] === 'after-nav' ? 'after-nav' : 'before-nav',
     };
   } catch {
     return DEFAULT;
