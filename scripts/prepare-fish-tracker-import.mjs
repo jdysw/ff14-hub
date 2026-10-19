@@ -13,7 +13,7 @@ const info=await stat(sourcePath);
 if(info.size>16*1024*1024)throw new Error('数据文件超过16 MiB上限');
 const raw=await readFile(sourcePath,'utf8');
 if(!raw.startsWith('const DATA = {')||!raw.trimEnd().endsWith('}'))throw new Error('不支持的数据文件格式');
-const jsonText=raw.replace(/^const DATA = /,'').replace(/^  ([A-Z_]+):/gm,'  "$1":');
+const jsonText=raw.replace(/^const DATA = /,'').replace(/^ {2}([A-Z_]+):/gm,'  "$1":');
 const data=JSON.parse(jsonText);
 if(!data||typeof data!=='object'||!data.FISH||!data.ITEMS||!data.FISHING_SPOTS||
   !data.WEATHER_RATES||!data.WEATHER_TYPES)throw new Error('上游数据结构发生变化，已停止导入');
