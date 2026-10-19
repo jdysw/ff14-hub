@@ -1,50 +1,60 @@
--- 公共活动编辑权限与人工修订，独立于定时覆盖的官方新闻快照。
--- 设备角色由服务器 D1 明确授予：普通配对设备不会自动继承。
-CREATE TABLE IF NOT EXISTS calendar_admin_devices (
-  device_id TEXT PRIMARY KEY NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
-  workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  granted_at INTEGER NOT NULL
+-- 管理员与普通工作空间完全分离：本站最多一个站点 owner，必须完成密码+TOTP 注册。
+-- 账号创建只允许掌握 BOOTSTRAP_SECRET 的部署所有者，一次性注册，不支持匿名注册。
+CREATE TABLE IF NOT EXISTS calendar_admin_accounts (
+  id TEXT PRIMARY KEY CHECK (id='owner'),
+  username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  password_salt TEXT NOT NULL,
+  password_hash TEXT NOT NULL,
+  totp_ciphertext TEXT NOT NULL,
+  totp_last_step INTEGER NOT NULL DEFAULT -1,
+  activated_at INTEGER,
+  created_at INTEGER NOT NULL
+);
+-- Bearer 只在管理员本次内存会话持有，D1 中只存 SHA-256 摘要，8h 后过期。
+CREATE TABLE IF NOT EXISTS calendar_admin_sessions (
+  token_hash TEXT PRIMARY KEY NOT NULL,
+  account_id TEXT NOT NULL REFERENCES calendar_admin_accounts(id) ON DELETE CASCADE,
+  expires_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_calendar_admin_sessions_expires ON calendar_admin_sessions(expires_at);
+
+-- 失败尝试计数由 D1 事务维护，不按 IP 写入敏感信息；每次请求都校验。
+CREATE TABLE IF NOT EXISTS calendar_admin_rate_limits (
+  scope TEXT PRIMARY KEY,
+  window_started INTEGER NOT NULL,
+  attempts INTEGER NOT NULL
 );
 
--- 首次初始化工作空间的首台有效设备视为此部署的 owner。
--- 并非全部工作空间设备；后续配对设备仍需要数据库运维显式授权。
-INSERT OR IGNORE INTO calendar_admin_devices (device_id, workspace_id, granted_at)
-SELECT d.id, d.workspace_id, d.created_at
-FROM devices d
-INNER JOIN workspace_bootstrap_guard g ON g.workspace_id = d.workspace_id
-WHERE g.singleton_key = 'primary' AND d.revoked_at IS NULL
-ORDER BY d.created_at ASC, d.id ASC LIMIT 1;
-
--- upsert: 人工创建或覆盖官方条目；hide: 隐藏活动（不会破坏官方源快照）。
+-- upsert: 人工创建或覆盖官方条目；hide: 隐藏活动；restore: 恢复官方源的当前内容。
 CREATE TABLE IF NOT EXISTS calendar_editor_entries (
   id TEXT PRIMARY KEY NOT NULL,
   mode TEXT NOT NULL CHECK(mode IN ('upsert','hide','restore')),
   payload TEXT,
   revision INTEGER NOT NULL CHECK(revision >= 1),
-  editor_device_id TEXT NOT NULL,
+  editor_account_id TEXT NOT NULL,
   updated_at INTEGER NOT NULL,
   CHECK((mode='upsert' AND payload IS NOT NULL) OR mode='hide' OR (mode='restore' AND payload IS NULL))
 );
 CREATE INDEX IF NOT EXISTS idx_calendar_editor_entries_updated ON calendar_editor_entries(updated_at);
 
--- 每一次后台编辑与可恢复隐藏保留服务端审计，拒绝匿名或普通设备写入。
+-- 人工操作永久审计，不泄露密码、TOTP seed 或会话令牌。
 CREATE TABLE IF NOT EXISTS calendar_admin_audit (
   id TEXT PRIMARY KEY NOT NULL,
   event_id TEXT NOT NULL,
   operation TEXT NOT NULL CHECK(operation IN ('upsert','hide','restore')),
-  editor_device_id TEXT NOT NULL,
+  editor_account_id TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_calendar_admin_audit_recent ON calendar_admin_audit(created_at);
 
--- 审计由数据库触发器在同一写入事务内产生：乐观锁冲突时不会留下假审计。
 CREATE TRIGGER IF NOT EXISTS calendar_admin_audit_insert AFTER INSERT ON calendar_editor_entries
 BEGIN
-  INSERT INTO calendar_admin_audit (id,event_id,operation,editor_device_id,created_at)
-  VALUES (lower(hex(randomblob(16))),NEW.id,NEW.mode,NEW.editor_device_id,NEW.updated_at);
+  INSERT INTO calendar_admin_audit (id,event_id,operation,editor_account_id,created_at)
+  VALUES (lower(hex(randomblob(16))),NEW.id,NEW.mode,NEW.editor_account_id,NEW.updated_at);
 END;
 CREATE TRIGGER IF NOT EXISTS calendar_admin_audit_update AFTER UPDATE ON calendar_editor_entries
 BEGIN
-  INSERT INTO calendar_admin_audit (id,event_id,operation,editor_device_id,created_at)
-  VALUES (lower(hex(randomblob(16))),NEW.id,NEW.mode,NEW.editor_device_id,NEW.updated_at);
+  INSERT INTO calendar_admin_audit (id,event_id,operation,editor_account_id,created_at)
+  VALUES (lower(hex(randomblob(16))),NEW.id,NEW.mode,NEW.editor_account_id,NEW.updated_at);
 END;
