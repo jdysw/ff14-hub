@@ -77,6 +77,8 @@ export function EventsCalendarWidget(props: WidgetRuntimeProps) {
     if (!data) { reportAsyncError(new Error('国服活动日历缺少受限数据端口')); return; }
     if (!options.success) { reportAsyncError(new Error('国服活动日历配置无效')); return; }
     let cancelled = false;
+    // 官方详情可能较慢：组件已有加载/筛选 UI，先向 Host 报告可见内容，避免 4 秒统一超时误报。
+    reportReady();
     setState({ kind: 'loading' });
     void (async () => {
       try {
