@@ -37,7 +37,9 @@ describe('首页公开活动', () => {
     expect(screen.getByRole('link', { name: '官方测试活动' }).getAttribute('href')).toBe(response.events[0].sourceUrl);
     expect(screen.queryByText('连接工作空间')).toBeNull();
     expect(screen.getByRole('button', { name: '完整日历 ↗' })).toBeTruthy();
-    expect(screen.getByText('今日活动')).toBeTruthy();
+    expect(screen.queryByText('今日活动')).toBeNull();
+    expect(screen.getByText('未来 7 天开始')).toBeTruthy();
+    expect(screen.getByText('24 小时内结束')).toBeTruthy();
   });
 
   it('来源时间缺失时不伪造倒计时', async () => {
