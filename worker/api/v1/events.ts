@@ -142,7 +142,7 @@ const adminSetupSchema = z.object({
   username: z.string().regex(/^[A-Za-z0-9._-]{3,40}$/),
   password: z.string().min(14).max(128),
 }).strict();
-const adminVerifySchema = adminSetupSchema.extend({ code: z.string().regex(/^\\d{6}$/) }).strict();
+const adminVerifySchema = adminSetupSchema.extend({ code: z.string().regex(/^\d{6}$/) }).strict();
 
 function adminAuth(): AppMiddleware {
   return async (c,next) => {
