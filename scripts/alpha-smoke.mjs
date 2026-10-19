@@ -1,4 +1,4 @@
-import {access,mkdir,readFile,writeFile} from 'node:fs/promises';
+import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import {randomUUID,createHash} from 'node:crypto';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -39,7 +39,7 @@ async function main(){
   await api('/me/profile',{status:401});checks.push('anonymous private access denied');
   await api('/__test__/boom',{status:404});checks.push('test route disabled');
   let owner;
-  try{await access(ownerFile);owner=JSON.parse(await readFile(ownerFile,'utf8'));}
+  try{owner=JSON.parse(await readFile(ownerFile,'utf8'));}
   catch(error){
     if(error?.code!=='ENOENT')throw error;
     const secrets=JSON.parse(await readFile(path.join(directory,`secrets.${environment}.json`),'utf8'));
@@ -60,7 +60,9 @@ async function main(){
     const current=(await api(`/me/modules/${id}`,{token})).module;
     if(current.status!=='enabled')await api(`/me/modules/${id}`,{token,method:'PATCH',body:{action:'enable',expectedRevision:current.revision}});
   }
-  let seeded=false;try{await access(seededFile);seeded=true;}catch{/* First release only. */}
+  let seeded=false;
+  try{await readFile(seededFile,'utf8');seeded=true;}
+  catch(error){if(error?.code!=='ENOENT')throw error;}
   if(!seeded){
     const pages=(await api('/me/pages',{token})).pages;
     const page=pages.find((p)=>p.name==='起始页')??(await api('/me/pages',{token,status:201,body:{name:'起始页',operationId:randomUUID()}})).page;
