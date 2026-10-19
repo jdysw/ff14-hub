@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # 国服与国际服鱼类候选目录同步：只下载数据并调用已存在的转换器，不执行上游脚本。
 set -euo pipefail
-: "${CLOUDFLARE_API_TOKEN:?Missing Cloudflare deployment token}"
-: "${CLOUDFLARE_ACCOUNT_ID:?Missing Cloudflare account ID}"
 : "${GH_TOKEN:?Missing GitHub read token}"
+if [[ "${DRY_RUN:-0}" != "1" ]]; then
+  : "${CLOUDFLARE_API_TOKEN:?Missing Cloudflare deployment token}"
+  : "${CLOUDFLARE_ACCOUNT_ID:?Missing Cloudflare account ID}"
+fi
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 sha_global=$(gh api repos/icykoneko/ff14-fish-tracker-app/commits/master --jq '.sha')
@@ -26,6 +28,10 @@ node scripts/prepare-fish-cn-import.mjs "$tmp/global.json" "$tmp/data.js" \
   "$tmp/FishingSpot.csv" "$tmp/PlaceName.csv" "$sha_cn" "$tmp/cn.json"
 node --experimental-strip-types scripts/prepare-fish-import.mjs "$tmp/cn.json" "$tmp/cn.sql"
 node --experimental-strip-types scripts/prepare-fish-import.mjs "$tmp/global.json" "$tmp/global.sql"
+if [[ "${DRY_RUN:-0}" == "1" ]]; then
+  echo "两个区服数据转换和完整 Schema 校验通过（dry-run，未连接 Cloudflare）"
+  exit 0
+fi
 # 小批量幂等 upsert；若失败，中断并保留线上已有目录。下次运行可重试汇聚。
 for region in cn global; do
   split -l 150 -d -a 3 --additional-suffix=.sql "$tmp/$region.sql" "$tmp/$region-"
