@@ -27,7 +27,7 @@ describe('首页公开活动', () => {
       status: 200, headers: { 'Content-Type': 'application/json' },
     })));
     vi.stubGlobal('fetch', fetchSpy);
-    render(<HomeOfficialEvents />);
+    render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
     expect(await screen.findByText('官方测试活动')).toBeTruthy();
     const [url, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('/api/v1/events/calendar');
@@ -36,12 +36,14 @@ describe('首页公开活动', () => {
     expect(init.headers).not.toHaveProperty('Authorization');
     expect(screen.getByRole('link', { name: '官方测试活动' }).getAttribute('href')).toBe(response.events[0].sourceUrl);
     expect(screen.queryByText('连接工作空间')).toBeNull();
+    expect(screen.getByRole('button', { name: '完整日历 ↗' })).toBeTruthy();
+    expect(screen.getByText('今日活动')).toBeTruthy();
   });
 
   it('来源时间缺失时不伪造倒计时', async () => {
     const unknown = { ...response, events: [{ ...response.events[0], startsAt: null, endsAt: null }] };
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify(unknown), { status: 200 }))));
-    render(<HomeOfficialEvents />);
+    render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
     expect(await screen.findByText('官方测试活动')).toBeTruthy();
     expect(screen.getByText('时间待确认')).toBeTruthy();
     expect(screen.getByText('—')).toBeTruthy();
@@ -52,7 +54,7 @@ describe('首页公开活动', () => {
       .mockResolvedValueOnce(new Response('', { status: 503 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(response), { status: 200 }));
     vi.stubGlobal('fetch', fetchSpy);
-    render(<HomeOfficialEvents />);
+    render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(screen.queryByText('目前还没有获取到官方活动公告。')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '重试' }));
