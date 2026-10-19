@@ -30,13 +30,6 @@ function parseCsv(text){
   if(rows[0]?.[0]?.charCodeAt(0)===0xfeff)rows[0][0]=rows[0][0].slice(1);
   return rows;
 }
-function csvRecords(raw,name){
-  const rows=parseCsv(raw);
-  if(rows.length<4||rows[0][0]!=='key'||rows[1][0]!=='#'||rows[2][0]!=='int32'){
-    throw new Error(name+' 的 CSV 表头不是预期格式');
-  }
-  return {headers:rows[1],rows:rows.slice(3)};
-}
 function indexOfHeader(table,header,name){
   const index=table.headers.indexOf(header);
   if(index<0)throw new Error(name+' 缺少列 '+header);
