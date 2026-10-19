@@ -1,7 +1,7 @@
 /** 国服活动后台：通过现有设备令牌和服务端管理员白名单授权，不创建新账号。 */
 import { eventCalendarItemSchema, type EventCalendarItem } from '@ff14-hub/shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { chinaDateTime, isScheduled } from './public-calendar-utils';
+import { chinaDateTime } from './public-calendar-utils';
 import './calendar-admin.css';
 
 type Mode = 'upsert' | 'hide' | 'restore';
@@ -63,7 +63,7 @@ function parseDraft(draft: Draft) {
   return parsed.data;
 }
 function recordsFrom(list: AdminList): AdminRecord[] {
-  const records = new Map(list.official.map(item => [item.id, { id: item.id, item, revision: 0, mode: 'official' as const }]));
+  const records = new Map<string, AdminRecord>(list.official.map(item => [item.id, { id: item.id, item, revision: 0, mode: 'official' as const }]));
   for (const change of list.edits) {
     const original = records.get(change.id);
     const item = change.item ?? original?.item;
@@ -94,7 +94,7 @@ export function CalendarAdminPanel({ getToken, onClose, onSaved }: {
     if (!token) throw new Error('请在「设置 → 会话凭证」中连接管理员设备');
     const response = await fetch('/api/v1/events/admin/items', {
       headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' },
-      method: 'GET', cache: 'no-store', credentials: 'omit', signal,
+      method: 'GET', cache: 'no-store', credentials: 'omit', ...(signal ? { signal } : {}),
     });
     if (response.status === 401 || response.status === 403) throw new Error('该设备没有管理员权限，或凭证已失效');
     if (!response.ok) throw new Error('管理员活动列表暂时不可用');
@@ -205,7 +205,7 @@ export function CalendarAdminPanel({ getToken, onClose, onSaved }: {
         <div className="calendar-admin__actions">
           <button className="button" type="submit" disabled={saving}>{saving ? '保存中…' : '保存到后端'}</button>
           {selected && selected.mode !== 'hide' && <button className="button button--secondary" type="button" disabled={saving} onClick={()=>void submit('hide')}>隐藏活动</button>}
-          {selected && (selected.mode === 'hide' || selected.mode === 'upsert') && <button className="button button--secondary" type="button" disabled={saving} onClick={()=>void submit('restore')}>恢复原始内容</button>}
+          {selected && (selected.mode === 'hide' || (selected.mode === 'upsert' && !selected.id.startsWith('manual:'))) && <button className="button button--secondary" type="button" disabled={saving} onClick={()=>void submit('restore')}{selected.mode === 'hide' ? '恢复显示' : '恢复官方原文'}</button>}
           <button className="text-button" type="button" onClick={()=>setDraft(selected ? inputFromEvent(selected.item) : { ...EMPTY })}>撤销表单修改</button>
         </div>
         {message && <p className="notice" role="status">{message}</p>}
