@@ -28,6 +28,7 @@ import { methodNotAllowed } from '../../middleware/error-handler';
 import { validateQuery } from '../../middleware/validation';
 import { createEventService } from '../../modules/events/service';
 import { readCnCalendar } from '../../modules/events/calendar-feed';
+import { readOfficialCalendarSnapshot } from '../../modules/events/calendar-snapshot';
 import type { AppBindings } from '../../types';
 
 export const publicEventRoutes = new Hono<AppBindings>();
@@ -84,11 +85,15 @@ publicEventRoutes.get('/', validateQuery(publicEventQuerySchema), async (c) => {
 
 /** 国服社区 ICS 活动日历：由 Worker 固定拉取、校验与缓存，不接受外部 URL。 */
 publicEventRoutes.get('/calendar', async (c) => {
+  // 优先读取有持久保证的公共官方快照，避免 Cloudflare 不同边缘实例各自冷缓存，
+  // 或从边缘节点无法直接连接盛趣官网时整个首页活动列表 503。
+  const snapshot = await readOfficialCalendarSnapshot(c.env.DB);
+  if (snapshot !== null) return noStoreJson(c, snapshot);
   try {
     const calendar = eventCalendarResponseSchema.parse(await readCnCalendar());
     return noStoreJson(c, calendar);
   } catch {
-    return c.json({ code: 'service_unavailable', message: '国服活动日历数据源暂时不可用，请稍后重试' }, 503);
+    return c.json({ code: 'service_unavailable', message: '官方活动数据暂时无法同步；尚无可用的历史快照' }, 503);
   }
 });
 
