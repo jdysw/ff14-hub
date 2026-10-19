@@ -30,7 +30,7 @@ function officialLink(v: unknown, id: number): string {
 function chinaTimestamp(v: string): number | null {
   const m = /^(\d{4})年(\d{1,2})月(\d{1,2})日\s*(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(v);
   if (!m) return null;
-  const [y, mo, d, h, mi, s] = m.slice(1).map(Number);
+  const [y, mo, d, h, mi, s] = m.slice(1).map((part) => part === undefined ? 0 : Number(part));
   if (y === undefined || mo === undefined || d === undefined || h === undefined || mi === undefined ||
       !Number.isInteger(y) || mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59 || (s ?? 0) > 59) return null;
   const utc = Date.UTC(y, mo - 1, d, h, mi, s ?? 0);
