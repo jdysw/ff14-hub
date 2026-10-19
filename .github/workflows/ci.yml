@@ -1,5 +1,5 @@
 # FF14 Hub 质量门禁
-# - 每次 PR 与 main 更新：静态检查/测试/构建、全部 8 条真实浏览器验收链及恢复演练
+# - 每次 PR 与 main 更新：静态检查/测试/构建及恢复演练、全部 8 条真实浏览器验收链
 # - E2E 依功能划为两组，在组内复用 checkout、pnpm、Node、Chromium，避免 8 次重复安装
 # - 即使组内某一阶段失败，也继续执行同组剩余阶段并最终报告失败，不吞掉错误
 # - Wrangler 只使用本地 D1 或 dry-run；CI 不使用 Cloudflare 生产密钥、不部署
@@ -47,6 +47,10 @@ jobs:
         run: pnpm exec wrangler d1 migrations apply DB --local
       - name: D1 迁移重复应用安全性
         run: pnpm exec wrangler d1 migrations apply DB --local
+      - name: 运维脚本测试
+        run: pnpm run test:ops
+      - name: 隔离环境整库备份/恢复演练
+        run: pnpm run ops:rehearse
 
   browser-e2e:
     name: 浏览器验收 / ${{ matrix.suite }}
@@ -87,16 +91,3 @@ jobs:
           done
           exit "${failed}"
 
-  recovery-rehearsal:
-    name: 本地整库备份与恢复演练
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: 安装项目依赖（共享固定环境）
-        uses: ./.github/actions/setup-ci
-      - name: 运维脚本测试
-        run: pnpm run test:ops
-      - name: 隔离环境整库备份/恢复演练
-        run: pnpm run ops:rehearse
