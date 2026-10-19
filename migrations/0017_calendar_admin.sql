@@ -18,12 +18,12 @@ ORDER BY d.created_at ASC, d.id ASC LIMIT 1;
 -- upsert: 人工创建或覆盖官方条目；hide: 隐藏活动（不会破坏官方源快照）。
 CREATE TABLE IF NOT EXISTS calendar_editor_entries (
   id TEXT PRIMARY KEY NOT NULL,
-  mode TEXT NOT NULL CHECK(mode IN ('upsert','hide')),
+  mode TEXT NOT NULL CHECK(mode IN ('upsert','hide','restore')),
   payload TEXT,
   revision INTEGER NOT NULL CHECK(revision >= 1),
   editor_device_id TEXT NOT NULL REFERENCES devices(id),
   updated_at INTEGER NOT NULL,
-  CHECK((mode='upsert' AND payload IS NOT NULL) OR (mode='hide' AND payload IS NULL))
+  CHECK((mode='upsert' AND payload IS NOT NULL) OR (mode IN ('hide','restore') AND payload IS NULL))
 );
 CREATE INDEX IF NOT EXISTS idx_calendar_editor_entries_updated ON calendar_editor_entries(updated_at);
 
@@ -36,3 +36,15 @@ CREATE TABLE IF NOT EXISTS calendar_admin_audit (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_calendar_admin_audit_recent ON calendar_admin_audit(created_at);
+
+-- 审计由数据库触发器在同一写入事务内产生：乐观锁冲突时不会留下假审计。
+CREATE TRIGGER IF NOT EXISTS calendar_admin_audit_insert AFTER INSERT ON calendar_editor_entries
+BEGIN
+  INSERT INTO calendar_admin_audit (id,event_id,operation,editor_device_id,created_at)
+  VALUES (lower(hex(randomblob(16))),NEW.id,NEW.mode,NEW.editor_device_id,NEW.updated_at);
+END;
+CREATE TRIGGER IF NOT EXISTS calendar_admin_audit_update AFTER UPDATE ON calendar_editor_entries
+BEGIN
+  INSERT INTO calendar_admin_audit (id,event_id,operation,editor_device_id,created_at)
+  VALUES (lower(hex(randomblob(16))),NEW.id,NEW.mode,NEW.editor_device_id,NEW.updated_at);
+END;
