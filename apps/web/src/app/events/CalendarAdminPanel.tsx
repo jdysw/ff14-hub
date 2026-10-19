@@ -205,7 +205,7 @@ export function CalendarAdminPanel({ getToken, onClose, onSaved }: {
         <div className="calendar-admin__actions">
           <button className="button" type="submit" disabled={saving}>{saving ? '保存中…' : '保存到后端'}</button>
           {selected && selected.mode !== 'hide' && <button className="button button--secondary" type="button" disabled={saving} onClick={()=>void submit('hide')}>隐藏活动</button>}
-          {selected && (selected.mode === 'hide' || (selected.mode === 'upsert' && !selected.id.startsWith('manual:'))) && <button className="button button--secondary" type="button" disabled={saving} onClick={()=>void submit('restore')}{selected.mode === 'hide' ? '恢复显示' : '恢复官方原文'}</button>}
+          {selected && (selected.mode === 'hide' || (selected.mode === 'upsert' && !selected.id.startsWith('manual:'))) && <button className="button button--secondary" type="button" disabled={saving} onClick={()=>void submit('restore')}>{selected.mode === 'hide' ? '恢复显示' : '恢复官方原文'}</button>}
           <button className="text-button" type="button" onClick={()=>setDraft(selected ? inputFromEvent(selected.item) : { ...EMPTY })}>撤销表单修改</button>
         </div>
         {message && <p className="notice" role="status">{message}</p>}
