@@ -9,7 +9,8 @@ export type { FishRule, FishWindow, FishRegion, FishRecord } from '@ff14-hub/fis
 export { fishSourceSchema,fishRecordSchema,fishDataBundleSchema } from '@ff14-hub/fish-engine';
 export const FISH_MODULE_ID = 'ff14.fishing';
 export const FISH_WIDGET_ID = 'fishing-windows';
-export const fishListQuerySchema = z.object({ region: regionSchema, offset: z.coerce.number().int().min(0).max(100000).default(0),
+export const fishCategorySchema = z.enum(['all','rare','normal','big','legendary']);
+export const fishListQuerySchema = z.object({ region: regionSchema, category:fishCategorySchema.default('all'), offset: z.coerce.number().int().min(0).max(100000).default(0),
   limit: z.coerce.number().int().min(1).max(50).default(30), text: z.string().max(100).default('') });
 export const fishWindowQuerySchema = z.object({ region: regionSchema, from: z.coerce.number().pipe(utcSchema).optional(),
   hours: z.coerce.number().int().min(1).max(168).default(72),
@@ -30,7 +31,7 @@ export const fishProgressWriteSchema = z.object({ region: regionSchema, fishId: 
   value: z.boolean(), expectedRevision: z.number().int().min(0), operationId: operationIdSchema }).strict();
 export type FishProgressWrite = z.infer<typeof fishProgressWriteSchema>;
 export const fishWidgetConfigSchema = z.object({ region: regionSchema.default('cn'), hours: z.number().int().min(1).max(168).default(72) }).strict();
-export const fishSnapshotQuerySchema = fishWidgetConfigSchema.extend({offset:z.number().int().min(0).max(100000).default(0),text:z.string().max(100).default('')});
+export const fishSnapshotQuerySchema = fishWidgetConfigSchema.extend({category:fishCategorySchema.default('all'),offset:z.number().int().min(0).max(100000).default(0),text:z.string().max(100).default('')});
 export const FISH_WIDGET_CONFIG_CONTRACTS: readonly WidgetConfigContract[] = [{widgetId: FISH_WIDGET_ID,configSchemaVersion:1,
   schema:fishWidgetConfigSchema, defaultConfig:{region:'cn',hours:72}, migrations:{}}];
 export const FISH_MODULE_MANIFEST: ModuleManifest = { id:FISH_MODULE_ID,version:'1.0.0',displayName:'钓鱼手账',

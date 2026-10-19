@@ -11,7 +11,9 @@ export const fishRoutes = new Hono<AppBindings>();
 const queryOf = (url: string): Record<string,string> => Object.fromEntries(new URL(url).searchParams.entries());
 fishRoutes.get('/',validateQuery(fishListQuerySchema),async (c) => {
   const q = fishListQuerySchema.parse(queryOf(c.req.url));
-  const records = (await readFish(c.env.DB,q.region)).filter((f) => f.name.toLocaleLowerCase().includes(q.text.toLocaleLowerCase()));
+  const records = (await readFish(c.env.DB,q.region)).filter((f) =>
+    f.name.toLocaleLowerCase().includes(q.text.toLocaleLowerCase()) &&
+    (q.category==='all' || (q.category==='rare' ? f.fishType!=='normal' : f.fishType===q.category)));
   return noStoreJson(c,{fish:records.slice(q.offset,q.offset+q.limit),total:records.length,offset:q.offset});
 });
 fishRoutes.get('/windows',validateQuery(fishWindowQuerySchema),async (c) => {

@@ -1,6 +1,7 @@
 import { afterEach,it,expect,vi } from 'vitest';
 import { FISH_MODULE_ID } from '@ff14-hub/shared';
 import { createModuleDataPort } from '../src/app/widgets/module-data-ports';
+import { publicFishPort } from '../src/app/fish/fish-data-port';
 afterEach(()=>vi.unstubAllGlobals());
 it('uses fixed paths with bearer credentials, validates responses and keeps private requests uncached',async()=>{
   const urls:string[]=[];
@@ -18,4 +19,22 @@ it('blocks disabled modules before any network request',async()=>{
   const fetch=vi.fn();vi.stubGlobal('fetch',fetch);
   const data=createModuleDataPort({moduleId:FISH_MODULE_ID,context:{token:'test-token',apiBaseUrl:'',moduleAccess:()=>({status:'disabled',grantedCapabilities:['storage:own']})}});
   await expect(data.call('fish.snapshot',{region:'cn'})).rejects.toThrow();expect(fetch).not.toHaveBeenCalled();
+});
+
+it('exposes anonymous fish windows but never sends credentials or writes progress',async()=>{
+  const urls:string[]=[];
+  vi.stubGlobal('fetch',vi.fn((url:string,options:RequestInit)=>{
+    urls.push(url);
+    expect(options.credentials).toBe('omit');
+    expect(options.cache).toBe('no-store');
+    expect(options.headers).toBeUndefined();
+    if(url.includes('/windows'))return Promise.resolve(Response.json({windows:[],from:Date.now(),to:Date.now()+3600000}));
+    return Promise.resolve(Response.json({fish:[],total:0,offset:0}));
+  }));
+  const result=await publicFishPort.call<{progress:{fields:unknown[]}}>('fish.snapshot',{region:'cn',hours:1});
+  expect(result.progress.fields).toHaveLength(0);
+  expect(urls).toHaveLength(1);
+  expect(urls[0]).toContain('/api/v1/fish?region=cn&category=all');
+  await expect(publicFishPort.call('fish.progress',{fishId:100,field:'caught'})).rejects.toThrow();
+  expect(urls).toHaveLength(1);
 });
