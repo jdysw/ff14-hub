@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS calendar_editor_entries (
   mode TEXT NOT NULL CHECK(mode IN ('upsert','hide','restore')),
   payload TEXT,
   revision INTEGER NOT NULL CHECK(revision >= 1),
-  editor_device_id TEXT NOT NULL REFERENCES devices(id),
+  editor_device_id TEXT NOT NULL,
   updated_at INTEGER NOT NULL,
   CHECK((mode='upsert' AND payload IS NOT NULL) OR mode='hide' OR (mode='restore' AND payload IS NULL))
 );
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS calendar_admin_audit (
   id TEXT PRIMARY KEY NOT NULL,
   event_id TEXT NOT NULL,
   operation TEXT NOT NULL CHECK(operation IN ('upsert','hide','restore')),
-  editor_device_id TEXT NOT NULL REFERENCES devices(id),
+  editor_device_id TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_calendar_admin_audit_recent ON calendar_admin_audit(created_at);
