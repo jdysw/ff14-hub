@@ -1,4 +1,4 @@
-/** 国服活动后台：通过现有设备令牌和服务端管理员白名单授权，不创建新账号。 */
+/** 国服活动后台：通过独立管理员密码＋TOTP 认证签发的临时会话授权，不使用玩家设备令牌。 */
 import { eventCalendarItemSchema, type EventCalendarItem } from '@ff14-hub/shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { chinaDateTime } from './public-calendar-utils';
@@ -91,12 +91,12 @@ export function CalendarAdminPanel({ getToken, onClose, onSaved }: {
 
   const fetchList = useCallback(async (signal?: AbortSignal) => {
     const token = getToken();
-    if (!token) throw new Error('请在「设置 → 会话凭证」中连接管理员设备');
+    if (!token) throw new Error('管理员会话已过期，请返回活动中心使用账号密码和 TOTP 重新登录');
     const response = await fetch('/api/v1/events/admin/items', {
       headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' },
       method: 'GET', cache: 'no-store', credentials: 'omit', ...(signal ? { signal } : {}),
     });
-    if (response.status === 401 || response.status === 403) throw new Error('该设备没有管理员权限，或凭证已失效');
+    if (response.status === 401 || response.status === 403) throw new Error('管理员会话已失效，请使用账号密码和 TOTP 重新登录');
     if (!response.ok) throw new Error('管理员活动列表暂时不可用');
     const data = await response.json() as AdminList;
     if (!Array.isArray(data.official) || !Array.isArray(data.edits)) throw new Error('后台数据格式异常');
@@ -129,7 +129,7 @@ export function CalendarAdminPanel({ getToken, onClose, onSaved }: {
   }
   async function submit(method: 'upsert' | 'hide' | 'restore') {
     const token = getToken();
-    if (!token) { setMessage('管理员凭证已失效，请重新连接'); return; }
+    if (!token) { setMessage('管理员会话已失效，请返回活动中心重新登录'); return; }
     let url = '/api/v1/events/admin/items';
     let httpMethod = 'POST';
     const revision = selected?.revision ?? 0;
