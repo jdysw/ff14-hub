@@ -13,11 +13,12 @@ type DataState =
   | { readonly status: 'loaded'; readonly data: EventCalendarResponse; readonly offset: number };
 
 type DisplayMode = 'month' | 'list';
-type PhaseFilter = 'all' | 'active' | 'upcoming' | 'ending' | 'unscheduled';
+type PhaseFilter = 'all' | 'active' | 'upcoming' | 'ending' | 'unscheduled' | 'history';
 const PHASES: ReadonlyArray<{ value: PhaseFilter; label: string }> = [
-  { value: 'all', label: '全部' }, { value: 'active', label: '进行中' },
+  { value: 'all', label: '未结束' }, { value: 'active', label: '进行中' },
   { value: 'upcoming', label: '即将开始' }, { value: 'ending', label: '即将结束' },
   { value: 'unscheduled', label: '时间待确认' },
+  { value: 'history', label: '历史已结束' },
 ];
 const ICAL_URL = '/api/v1/events/calendar.ics';
 
@@ -94,7 +95,11 @@ export function PublicCalendarPage({ onBack }: { readonly onBack: () => void }) 
   const filtered = useMemo(() => events.filter(event => {
     if (category !== 'all' && (event.category || '官方公告') !== category) return false;
     const status = eventStatus(event, now);
-    if (phase !== 'all' && !(phase === 'active' && status === 'ending') && status !== phase) return false;
+    // 默认未结束：历史只在明确点选「历史已结束」时显示。
+    if (phase === 'all' && status === 'ended') return false;
+    if (phase === 'history' && status !== 'ended') return false;
+    if (phase !== 'all' && phase !== 'history' &&
+      !(phase === 'active' && status === 'ending') && status !== phase) return false;
     const term = search.trim().normalize('NFKC').toLowerCase();
     return !term || (event.title + ' ' + event.description + ' ' + event.category).normalize('NFKC').toLowerCase().includes(term);
   }), [events, now, phase, category, search]);
@@ -134,10 +139,9 @@ export function PublicCalendarPage({ onBack }: { readonly onBack: () => void }) 
     {state.status === 'loaded' && <>
       {state.data.source.stale && <p className="notice notice--warn" role="status">官方源暂时无法更新，当前展示的是历史快照，时间可能已变更。</p>}
       <div className="calendar-center__stats" aria-label="活动概览">
-        {summary('今天', overview.today.length, 'all')}
         {summary('进行中', overview.active.length, 'active')}
         {summary('未来 7 天开始', overview.upcoming.length, 'upcoming')}
-        {summary('72 小时内结束', overview.ending.length, 'ending')}
+        {summary('24 小时内结束', overview.ending.length, 'ending')}
       </div>
       <div className="calendar-center__toolbar">
         <div className="calendar-center__mode" role="group" aria-label="活动视图">
@@ -187,11 +191,11 @@ export function PublicCalendarPage({ onBack }: { readonly onBack: () => void }) 
           {PHASES.map(f => <button type="button" key={f.value} aria-pressed={phase === f.value}
             onClick={() => setPhase(f.value)}>{f.label}</button>)}
         </div>
-        <h3>已确认日程 · {knownList.length} 项</h3>
+        <h3>{phase === 'history' ? '历史已结束' : '未结束的已确认日程'} · {knownList.length} 项</h3>
         {knownList.length ? <ul className="calendar-center__events">{knownList.map(x => <CalendarEvent key={x.id} event={x} now={now}/>)}</ul>
           : <p className="home-state">此筛选条件下暂无已确认日程。</p>}
       </section>}
-      {(mode === 'list' || unknownList.length > 0) && <details className="calendar-center__unknown">
+      {(unknownList.length > 0) && <details className="calendar-center__unknown">
         <summary>尚无可靠起止时间的公告（{unknownList.length}）</summary>
         <p>此类信息只提供原文，无法计算倒计时，也不会进入 ICS 订阅。</p>
         <ul className="calendar-center__events">{unknownList.map(x => <CalendarEvent key={x.id} event={x} now={now}/>)}</ul>
