@@ -146,11 +146,17 @@ async function newsCategory(code: '5311' | '5203'): Promise<Record<string, unkno
  * 两个官方分类可能发布同名新闻（例如糖豆人 ID 393660 / 393967）。
  * 保留 5311 的正文接口以提取时间，保留 5203 的活动专题作为用户来源链接。
  */
-function eventCategory(title: string): string {
-  if (/季节活动|守护天节/.test(title)) return '季节活动';
-  if (/联动/.test(title)) return '联动活动';
-  if (/Fan Festival|转播/i.test(title)) return '线下与直播';
-  return '官方活动';
+/** 分类只根据官方公告明确文案，不按日期或内容猜测活动性质。 */
+export function eventCategory(title: string): string {
+  if (/季节活动|守护天节|降神节|恋人节|星芒节|红莲节|金蝶游乐场庆典|女儿节|猎蛋节|新生祭/.test(title)) return '季节活动';
+  if (/莫古莫古|大收集/.test(title)) return '莫古莫古大收集';
+  if (/联动|联名|糖豆人|Fall Guys/i.test(title)) return '限时联动';
+  if (/Fan Festival|FanFest|转播|直播|粉丝节/i.test(title)) return '直播与线下';
+  if (/版本更新|(?:^|[【〖 ])\\d{1,2}\\.\\d{1,2}(?:版本|更新|补丁)|补丁说明/.test(title)) return '版本更新';
+  if (/月卡|商城|商品|道具商店/.test(title)) return '月卡与商城';
+  if (/通行证/.test(title)) return '通行证';
+  // 官方新闻可能只是宣传报道；不能把它们当成有真实时间段的活动。
+  return '官方公告';
 }
 function entryKey(title: string): string {
   return title.normalize('NFKC').replace(/[\s！!。·・~～【】]/g, '').toLowerCase();
