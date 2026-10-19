@@ -146,6 +146,40 @@ async function newsCategory(code: '5311' | '5203'): Promise<Record<string, unkno
  * 两个官方分类可能发布同名新闻（例如糖豆人 ID 393660 / 393967）。
  * 保留 5311 的正文接口以提取时间，保留 5203 的活动专题作为用户来源链接。
  */
+function eventCategory(title: string): string {
+  if (/季节活动|守护天节/.test(title)) return '季节活动';
+  if (/联动/.test(title)) return '联动活动';
+  if (/Fan Festival|转播/i.test(title)) return '线下与直播';
+  return '官方活动';
+}
+function entryKey(title: string): string {
+  return title.normalize('NFKC').replace(/[\s！!。·・~～【】]/g, '').toLowerCase();
+}
+function officialEntry(row: Record<string, unknown>, code: '5311' | '5203'): OfficialEntry | null {
+  const id = typeof row['Id'] === 'number' ? row['Id'] : Number(row['Id']);
+  const title = clean(row['Title']);
+  if (!Number.isSafeInteger(id) || id <= 0 || !title) return null;
+  const projectUrl = officialProjectUrl(row['OutLink']);
+  // 5203 栏还包含道具商城公告；不能将整个栏目都当作活动。
+  if (code === '5203' && projectUrl === null &&
+      !/(?:【季节活动】|〖季节活动〗|官方转播)/i.test(title)) return null;
+  return {
+    id, title, category: eventCategory(title), description: clean(row['Summary'], 600),
+    published: clean(row['PublishDate'], 30),
+    detailId: id, sourceUrl: officialLink(row['OutLink'], id), projectUrl,
+  };
+}
+function combineEntry(existing: OfficialEntry, current: OfficialEntry, code: '5311' | '5203'): OfficialEntry {
+  // 5311 公告详情通常有完整正文；5203 通常携带完整官网活动专题链接。
+  return {
+    ...existing,
+    published: existing.published >= current.published ? existing.published : current.published,
+    detailId: code === '5311' ? current.id : existing.detailId,
+    projectUrl: existing.projectUrl ?? current.projectUrl,
+    sourceUrl: current.projectUrl ?? existing.projectUrl ?? existing.sourceUrl,
+    description: existing.description || current.description,
+  };
+}
 function deduplicate(rows: {
   code: '5311' | '5203';
   values: Record<string, unknown>[];
@@ -153,36 +187,15 @@ function deduplicate(rows: {
   const unique = new Map<string, OfficialEntry>();
   for (const group of rows) {
     for (const row of group.values) {
-      const id = typeof row['Id'] === 'number' ? row['Id'] : Number(row['Id']);
-      const title = clean(row['Title']);
-      if (!Number.isSafeInteger(id) || id <= 0 || !title) continue;
-      const projectUrl = officialProjectUrl(row['OutLink']);
-      // 实测 5203 同时包含商城资讯，不能整栏当作活动。
-      if (group.code === '5203' && projectUrl === null &&
-          !/(?:【季节活动】|〖季节活动〗|官方转播)/i.test(title)) continue;
-      const category = /季节活动|守护天节/.test(title) ? '季节活动'
-        : /联动/.test(title) ? '联动活动'
-        : /Fan Festival|转播/i.test(title) ? '线下与直播' : '官方活动';
-      const key = title.normalize('NFKC').replace(/[\s！!。·・~～【】]/g, '').toLowerCase();
+      const entry = officialEntry(row, group.code);
+      if (!entry) continue;
+      const key = entryKey(entry.title);
       const existing = unique.get(key);
-      const entry: OfficialEntry = {
-        id, title, description: clean(row['Summary'], 600),
-        category, published: clean(row['PublishDate'], 30),
-        detailId: id, sourceUrl: officialLink(row['OutLink'], id), projectUrl,
-      };
-      if (existing) {
-        unique.set(key, {
-          ...existing,
-          published: existing.published >= entry.published ? existing.published : entry.published,
-          detailId: group.code === '5311' ? id : existing.detailId,
-          projectUrl: existing.projectUrl ?? projectUrl,
-          sourceUrl: projectUrl ?? existing.projectUrl ?? existing.sourceUrl,
-          description: existing.description || entry.description,
-        });
-      } else unique.set(key, entry);
+      unique.set(key, existing ? combineEntry(existing, entry, group.code) : entry);
     }
   }
-  return [...unique.values()].sort((a, b) => b.published.localeCompare(a.published) || b.id - a.id);
+  return [...unique.values()].sort((left, right) =>
+    right.published.localeCompare(left.published) || right.id - left.id);
 }
 
 async function refresh(): Promise<void> {
