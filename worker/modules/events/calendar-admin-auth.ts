@@ -130,7 +130,7 @@ export async function validateAdminCredentials(db: D1Database, configured: strin
   const row=await accountRow(db);
   if (!row || row.username.toLowerCase()!==username.toLowerCase() ||
       Boolean(row.activated_at)!==!activate ||
-      !await matchesPassword(password,row) || !configured) return false;
+      !await matchesPassword(password,row) || !configured || configured.length<32) return false;
   let seed: Uint8Array;
   try { seed=await decryptSeed(row.totp_ciphertext,configured); }
   catch { return false; }
