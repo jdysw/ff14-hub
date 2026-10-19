@@ -77,8 +77,8 @@ export function HomeView({ nav, workbench, authenticated, access, dataPortFor, o
           <WidgetHost instances={ordered.map(instance => ({ instanceId: instance.id, moduleId: instance.moduleId, widgetId: instance.widgetType, config: instance.config, configVersion: instance.configVersion, hidden: false }))} access={access} dataPortFor={dataPortFor}/>}
       </section> : <section className="home-daily home-daily--single" aria-label="日常信息">
         <section><header className="home-section-heading"><h2>钓鱼提醒</h2><span className="home-section-kicker">FISHING</span></header>
-          <p className="home-state">{authenticated ? '还没有配置鱼窗模块。' : '连接工作空间后，查看鱼窗与钓获进度。'}</p>
-          <button className="text-button" onClick={() => onOpen(authenticated ? 'fishing' : 'credentials')}>{authenticated ? '查看钓鱼手账' : '连接工作空间'} <span aria-hidden="true">↗</span></button>
+          <p className="home-state">{authenticated ? '查看鱼王鱼皇窗口和钓获进度。' : '无需账号即可查看公开鱼窗；连接个人空间后可记录进度。'}</p>
+          <button className="text-button" onClick={() => onOpen('fishing')}>查看钓鱼手账 <span aria-hidden="true">↗</span></button>
         </section>
       </section>}
 
