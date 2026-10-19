@@ -89,7 +89,9 @@ test.describe('阶段 02：模块状态驱动 Widget Host', () => {
     await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: 'FF14 Hub' })).toBeVisible();
 
-    // 1) 匿名可以浏览公开目录，但私有状态不可读写。
+    // 1) 普通设置默认隐藏高级工具，先由玩家主动展开。
+    await page.locator('details.settings-advanced > summary').click();
+    // 匿名可以浏览公开目录，但私有状态不可读写。
     await page.getByRole('button', { name: /模块管理/ }).click();
     await expect(page.getByText(/尚未保存设备凭证/)).toBeVisible();
     const basics = moduleCard(page, credentials.moduleIds.basics);
