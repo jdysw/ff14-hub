@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS calendar_editor_entries (
   revision INTEGER NOT NULL CHECK(revision >= 1),
   editor_device_id TEXT NOT NULL REFERENCES devices(id),
   updated_at INTEGER NOT NULL,
-  CHECK((mode='upsert' AND payload IS NOT NULL) OR (mode IN ('hide','restore') AND payload IS NULL))
+  CHECK((mode='upsert' AND payload IS NOT NULL) OR mode='hide' OR (mode='restore' AND payload IS NULL))
 );
 CREATE INDEX IF NOT EXISTS idx_calendar_editor_entries_updated ON calendar_editor_entries(updated_at);
 
