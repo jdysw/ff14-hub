@@ -2,6 +2,7 @@
 import { eventCalendarResponseSchema, type EventCalendarItem, type EventCalendarResponse } from '@ff14-hub/shared';
 import { useEffect, useMemo, useState } from 'react';
 import './public-calendar.css';
+import { CalendarAdminEditor } from './CalendarAdminEditor';
 import {
   calendarOverview, chinaDateTime, chinaMonthDays, chinaToday,
   displayCalendarTitle, eventStatus, eventsForChinaDay, isScheduled,
@@ -48,9 +49,10 @@ function currentMonthKey(day: string, direction: number): string {
   return new Date(Date.UTC(year, month - 1 + direction, 1)).toISOString().slice(0, 10);
 }
 
-export function PublicCalendarPage({ onBack }: { readonly onBack: () => void }) {
+export function PublicCalendarPage({ onBack, getToken }: { readonly onBack: () => void; readonly getToken: () => string | null }) {
   const [state, setState] = useState<DataState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
+  const reload = () => { setState({ status: 'loading' }); setAttempt(v => v + 1); };
   const [clock, setClock] = useState(Date.now);
   const [selectedDay, setSelectedDay] = useState(() => chinaToday(Date.now()));
   const [mode, setMode] = useState<DisplayMode>('month');
@@ -124,7 +126,7 @@ export function PublicCalendarPage({ onBack }: { readonly onBack: () => void }) 
       <div className="calendar-center__actions">
         <a className="button" href={ICAL_URL} title="在日历应用中订阅，不包含未确认日期的活动">订阅日历（ICS） ↗</a>
         <button type="button" className="text-button" onClick={() => {
-          setState({ status: 'loading' }); setAttempt(i => i + 1);
+          reload();
         }}>刷新</button>
       </div>
     </header>
@@ -202,5 +204,6 @@ export function PublicCalendarPage({ onBack }: { readonly onBack: () => void }) 
         <a href={state.data.source.homeUrl} target="_blank" rel="noopener noreferrer">核对官方公告 ↗</a>
       </footer>
     </>}
+    <CalendarAdminEditor getToken={getToken} events={events} onSaved={reload}/>
   </div>;
 }
