@@ -120,12 +120,17 @@ describe('独立管理员账号密码 + TOTP 双因子',()=>{
     expect(current.revision).toBe(1);
     expect(current.settings.siteName).toBe('站点维护');
     expect(current.settings.homeCalendarEnabled).toBe(false);
+    const next={expectedRevision:1,settings:{...update.settings,siteName:'第二次修订'}};
+    expect((await request('/settings','PUT',token,next)).status).toBe(200);
+    const second=await (await SELF.fetch(SITE_API)).json<{revision:number;settings:{siteName:string}}>();
+    expect(second.revision).toBe(2);
+    expect(second.settings.siteName).toBe('第二次修订');
     expect((await request('/settings','PUT',token,update)).status).toBe(409);
     expect((await request('/settings','PUT',token,{
-      expectedRevision:1,settings:{...update.settings,BOOTSTRAP_SECRET:'not allowed'},
+      expectedRevision:2,settings:{...update.settings,BOOTSTRAP_SECRET:'not allowed'},
     })).status).toBe(422);
     const audit=await env.DB.prepare('SELECT COUNT(*) AS total FROM site_admin_settings_audit').first<{total:number}>();
-    expect(audit?.total).toBe(1);
+    expect(audit?.total).toBe(2);
   });
   it('账户口令、TOTP 两个因素都必需，动态验证码不允许重放',async()=>{
     const {totpKey}=await setupAdmin();
