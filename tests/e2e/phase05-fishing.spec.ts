@@ -56,3 +56,12 @@ test('窄屏钓鱼视图没有横向溢出，区服与进度控件可访问',asy
   await page.screenshot({path:'test-results/phase05-fishing-mobile.png',fullPage:true});
 });
 
+
+test('未连接工作空间时首页直接进入公开钓鱼中心',async({page})=>{
+  await page.goto(credentials.baseUrl);
+  await expect(page.getByText('无需连接工作空间即可查看鱼窗；个人钓获记录与云同步仍需连接。')).toBeVisible();
+  await expect(page.getByRole('button',{name:/连接工作空间/})).toHaveCount(0);
+  await page.getByRole('button',{name:/进入钓鱼中心/}).click();
+  await expect(page.getByRole('heading',{name:'钓鱼手账'})).toBeVisible();
+  await expect(page.getByLabel('钓鱼区服')).toBeVisible();
+});
