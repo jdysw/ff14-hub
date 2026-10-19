@@ -58,6 +58,8 @@ import { SessionCredentialPanel } from './SessionCredentialPanel';
 import { StageNotice } from './StageNotice';
 import { SystemBar } from './SystemBar';
 import type { ShellView } from './shell-view';
+import { HomeView } from './HomeView';
+import { registerPrivateDraftSource } from '../pwa/draft-registry';
 
 function ShellRegion(props: { readonly children: React.ReactNode }) {
   const [failure, setFailure] = useState<string | null>(null);
@@ -107,6 +109,7 @@ interface SessionWorkbenchProps {
   readonly authenticated: boolean;
   readonly view: ShellView;
   readonly onRequestCredential: () => void;
+  readonly onSelectView: (view: ShellView) => void;
 }
 
 /**
@@ -135,7 +138,7 @@ function SessionWorkbench(props: SessionWorkbenchProps) {
   );
   const workbench = useWorkbench({
     api: props.workbenchApi,
-    enabled: props.view === 'workbench',
+    enabled: props.view === 'workbench' || (props.view === 'home' && props.authenticated),
     widgetOf,
     moduleAccess,
   });
@@ -146,10 +149,16 @@ function SessionWorkbench(props: SessionWorkbenchProps) {
    */
   const nav = useNav({
     getToken,
-    enabled: props.view === 'nav',
+    enabled: props.view === 'nav' || (props.view === 'home' && props.authenticated),
     onUnauthorized,
     syncApi: props.syncChangesApi,
   });
+  // 首页与设置往返时，更新保护也必须能看到控制器里保留的草稿。
+  const privateDraftRef = useRef(false);
+  useEffect(() => {
+    privateDraftRef.current = workbench.dirty || workbench.conflict !== null || nav.draft !== null;
+  });
+  useEffect(() => registerPrivateDraftSource(() => privateDraftRef.current), []);
 
   /**
    * 受信档案读取（06B 本机保险箱面板）：包一层**稳定引用**的箭头函数，
@@ -202,6 +211,7 @@ function SessionWorkbench(props: SessionWorkbenchProps) {
 
   return (
     <>
+      {props.view === 'home' ? <HomeView nav={nav} workbench={workbench} authenticated={props.authenticated} access={moduleAccess} dataPortFor={dataPortFor} onOpen={props.onSelectView}/> : null}
       {showsModuleViews && instanceNotice !== null ? (
         <p className="notice notice--ok" role="status">
           {instanceNotice}
@@ -249,41 +259,9 @@ function SessionWorkbench(props: SessionWorkbenchProps) {
   );
 }
 
-/**
- * 「个人导航」系统级入口。
- *
- * 为什么它是 AppShell 里的一小段、而不是 SystemBar 的一项：
- * `SystemBar.tsx` 的 `SYSTEM_ENTRIES` 属于阶段 02 的既有实现，本阶段不改那个文件，
- * 因此把新入口渲染在与它**同级**的位置（同一个 `<nav>` 语义、同样的按钮样式），
- * 并保持所有既有入口原样可用（不改、不移除任何一个）。
- */
-function NavEntryBar(props: { readonly active: boolean; readonly onOpen: () => void }) {
-  return (
-    <nav className="system-bar system-bar--nav" aria-label="导航入口（不可移除）">
-      <ul className="system-bar__list">
-        <li>
-          <button
-            type="button"
-            className={
-              props.active ? 'system-bar__item system-bar__item--active' : 'system-bar__item system-bar__item--enabled'
-            }
-            aria-current={props.active ? 'page' : undefined}
-            data-testid="nav-entry"
-            onClick={props.onOpen}
-          >
-            <span className="system-bar__label">个人导航</span>
-            <span className="system-bar__hint">个人链接、分组、推荐目录导入与导出</span>
-            <span className="system-bar__stage">阶段 04 / HUB-007 · 008 · 009 · 047 · 048</span>
-          </button>
-        </li>
-      </ul>
-    </nav>
-  );
-}
-
 export function AppShell() {
   const [credentialStore] = useState(createSessionCredentialStore);
-  const [view, setView] = useState<ShellView>(() => new URLSearchParams(window.location.search).get('view') === 'reminders' ? 'reminders' : 'overview');
+  const [view, setView] = useState<ShellView>(() => new URLSearchParams(window.location.search).get('view') === 'reminders' ? 'reminders' : 'home');
   const session = useSession(credentialStore);
 
   const api = useMemo(
@@ -324,37 +302,26 @@ export function AppShell() {
 
   return (
     <div className="shell">
+      <a className="skip-link" href="#main-content">跳转到主要内容</a>
       <header className="shell__header">
-        <div className="brand">
-          <span className="brand__mark" aria-hidden="true">
-            FF
-          </span>
-          <div>
-            <h1 className="brand__title">FF14 Hub</h1>
-            <p className="brand__subtitle">个人导航与模块化工作台 · 国服优先</p>
-          </div>
-        </div>
-        <p className="shell__stage">个人导航 · 天气窗口 · 钓鱼进度</p>
+        <button type="button" className="brand__home" aria-label="FF14 Hub 首页" onClick={() => setView('home')}>
+          <span className="brand__mark" aria-hidden="true">XIV</span>
+          <h1 className="brand__title">FF14 Hub</h1>
+        </button>
+        <button type="button" className="shell__settings" aria-expanded={view !== 'home'} aria-controls="settings-navigation" onClick={() => setView(view === 'home' ? 'settings' : 'home')}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m9.5 3-.7 2.4-2 .9-2.4-.6-2.5 4.4 1.7 1.8v2.2l-1.7 1.8 2.5 4.4 2.4-.6 2 .9.7 2.4h5l.7-2.4 2-.9 2.4.6 2.5-4.4-1.7-1.8v-2.2l1.7-1.8-2.5-4.4-2.4.6-2-.9-.7-2.4z" transform="translate(0 -1) scale(1 .96)"/><circle cx="12" cy="12" r="3"/></svg>
+          {view === 'home' ? '设置' : '返回首页'}
+        </button>
       </header>
-
-      {/* 离线提示与「安全更新」入口：始终在 Shell 顶层，因此任何视图下都可见。 */}
       <PwaStatusBar />
-
-      <NavEntryBar
-        active={view === 'nav'}
-        onOpen={() => {
-          setView('nav');
-        }}
-      />
-
-      <SystemBar
-        currentView={view}
-        onSelectView={(next) => {
-          setView(next);
-        }}
-      />
-
-      <main className="shell__main">
+      <div id="settings-navigation" className="settings-navigation" hidden={view === 'home'}>
+        <div className="settings-navigation__heading"><h2>设置</h2><button className="text-button" type="button" onClick={() => setView('home')}>返回首页 ↗</button></div>
+        <SystemBar currentView={view} onSelectView={setView}/>
+        <nav className="settings-navigation__links" aria-label="导航与帮助">
+          <button className="text-button" type="button" data-testid="nav-entry" onClick={() => setView('nav')}>管理个人导航</button>
+        </nav>
+      </div>
+      <main className="shell__main" id="main-content" tabIndex={-1}>
         <ShellRegion>
           {/*
             会话作用域容器**始终挂载**（只按 generation 重挂）。
@@ -370,6 +337,7 @@ export function AppShell() {
             onUnauthorized={handleUnauthorized}
             authenticated={session.authenticated}
             view={view}
+            onSelectView={setView}
             onRequestCredential={() => {
               setView('credentials');
             }}
@@ -394,12 +362,10 @@ export function AppShell() {
       </main>
 
       <footer className="shell__footer">
-        <p>
-          凭证说明：设备 Token 只通过 <code>Authorization</code> 头传递，不出现在 URL 中；
-          本页把它保存在**会话内存**里，不写入浏览器存储、不记录到日志、不回显内容，
-          也不放进组件的 props/state。切换或清除凭证会立即清空当前会话的私有数据与组件实例。
-        </p>
+        <p>FF14 Hub <span aria-hidden="true">/</span> 艾欧泽亚的日常入口</p>
+        <p>FINAL FANTASY XIV · 非官方玩家工具</p>
       </footer>
     </div>
   );
 }
+

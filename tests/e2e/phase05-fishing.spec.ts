@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 const credentials=JSON.parse(readFileSync(new URL('./.credentials.phase05.json',import.meta.url),'utf8')) as {token:string;baseUrl:string};
 async function enter(page:Page):Promise<void>{
   await page.goto(credentials.baseUrl);
+  await page.getByRole('button', { name: '设置', exact: true }).click();
   await page.getByRole('button',{name:/会话凭证/}).click();
   await page.getByLabel('设备令牌（Bearer）').fill(credentials.token);
   await page.getByRole('button',{name:'保存到会话内存'}).click();
@@ -54,3 +55,4 @@ test('窄屏钓鱼视图没有横向溢出，区服与进度控件可访问',asy
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
   await page.screenshot({path:'test-results/phase05-fishing-mobile.png',fullPage:true});
 });
+

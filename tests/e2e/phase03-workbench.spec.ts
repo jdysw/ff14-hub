@@ -78,6 +78,7 @@ async function horizontalOverflow(page: Page): Promise<number> {
 /** 通过 UI 保存会话内存凭证（阶段 02 已有的最小入口）。 */
 async function signIn(page: Page): Promise<void> {
   await page.goto('/');
+  await page.getByRole('button', { name: '设置', exact: true }).click();
   await page.getByRole('button', { name: /会话凭证/ }).click();
   await page.getByLabel('设备令牌（Bearer）').fill(credentials.token);
   await page.getByRole('button', { name: '保存到会话内存' }).click();
@@ -590,3 +591,4 @@ test.describe('阶段 03：工作台布局编辑与备份恢复', () => {
 async function closeContext(context: BrowserContext): Promise<void> {
   await context.close();
 }
+

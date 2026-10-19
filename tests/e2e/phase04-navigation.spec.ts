@@ -154,6 +154,7 @@ interface EventListBody {
 /** 通过界面保存会话内存凭证（阶段 02 已有的最小入口）。 */
 async function signIn(page: Page): Promise<void> {
   await page.goto('/');
+  await page.getByRole('button', { name: '设置', exact: true }).click();
   await page.getByRole('button', { name: /会话凭证/ }).click();
   await page.getByLabel('设备令牌（Bearer）').fill(credentials.token);
   await page.getByRole('button', { name: '保存到会话内存' }).click();
@@ -1087,6 +1088,7 @@ test.describe('阶段 04：PWA（HUB-012）', () => {
      * 本用例按真实用户路径走「第二次访问」（此时请求经过 SW 并被写入缓存），再验证离线降级。
      */
     await page.reload();
+    await page.getByRole('button', { name: '设置', exact: true }).click();
     await expect(page.getByTestId('nav-entry')).toBeVisible();
     await page.waitForFunction(
       async () => {
@@ -1162,6 +1164,7 @@ test.describe('阶段 04：PWA（HUB-012）', () => {
     await context.setOffline(true);
     try {
       await page.reload();
+    await page.getByRole('button', { name: '设置', exact: true }).click();
       const offlineNotice = page.getByTestId('offline-notice');
       await expect(offlineNotice, '离线时必须出现明确的降级文案').toBeVisible();
       await expect(offlineNotice).toContainText(OFFLINE_DISCLOSURE);
@@ -1173,6 +1176,7 @@ test.describe('阶段 04：PWA（HUB-012）', () => {
       await context.setOffline(false);
     }
     await page.reload();
+    await page.getByRole('button', { name: '设置', exact: true }).click();
     await expect(page.getByTestId('nav-entry')).toBeVisible();
   });
 
@@ -1526,3 +1530,4 @@ test.describe('阶段 04：跨设备同步（HUB-051）', () => {
     }
   });
 });
+

@@ -8,6 +8,7 @@ const DAV_URL='https://dav.e2e.test/remote.php/dav/files/e2e/';
 
 async function enter(page:Page):Promise<void>{
   await page.goto(credentials.baseUrl);
+  await page.getByRole('button', { name: '设置', exact: true }).click();
   await page.getByRole('button',{name:/会话凭证/}).click();
   await page.getByLabel('设备令牌（Bearer）').fill(credentials.token);
   await page.getByRole('button',{name:'保存到会话内存'}).click();
@@ -102,3 +103,4 @@ test('窄屏下本机档案面板可用且无横向溢出',async({page},info)=>{
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:'test-results/phase06b-vault-mobile.png',fullPage:true});
 });
+

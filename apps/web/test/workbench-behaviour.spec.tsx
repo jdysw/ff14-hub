@@ -1104,6 +1104,7 @@ describe('AppShell 集成：Shell 入口与工作台状态', () => {
     installRouter();
     const user = userEvent.setup();
     render(<AppShell />);
+    await user.click(screen.getByRole('button', { name: '设置' }));
     await saveCredential(user, 'ffh_dev_workbench');
     await openWorkbenchFromShell(user);
 
@@ -1124,7 +1125,7 @@ describe('AppShell 集成：Shell 入口与工作台状态', () => {
     expect(document.querySelectorAll('[data-testid="template-option"]').length).toBeGreaterThan(0);
     expect(screen.getByTestId('backup-import-file')).toBeDefined();
     expect(screen.getByTestId('backup-export')).toBeDefined();
-    for (const name of [/^模块管理/, /^会话凭证/, /^系统设置/, /^导入 \/ 恢复/, /^设备管理/]) {
+    for (const name of [/^模块管理/, /^会话凭证/, /^导入 \/ 恢复/, /^设备管理/]) {
       expect(screen.getByRole('button', { name })).toBeDefined();
     }
   });
@@ -1133,6 +1134,7 @@ describe('AppShell 集成：Shell 入口与工作台状态', () => {
     const router = installRouter();
     const user = userEvent.setup();
     render(<AppShell />);
+    await user.click(screen.getByRole('button', { name: '设置' }));
     await saveCredential(user, 'ffh_dev_keep');
     await openWorkbenchFromShell(user);
 
@@ -1157,6 +1159,7 @@ describe('AppShell 集成：Shell 入口与工作台状态', () => {
     const router = installRouter();
     const user = userEvent.setup();
     render(<AppShell />);
+    await user.click(screen.getByRole('button', { name: '设置' }));
     await saveCredential(user, 'ffh_dev_old');
 
     // 第一次（已授权）的工作台快照请求挂起，模拟「旧会话的响应还没回来」。
@@ -1229,3 +1232,4 @@ describe('窄屏与可访问性样式契约', () => {
     expect(css).toContain(':focus-visible');
   });
 });
+

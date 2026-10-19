@@ -65,7 +65,6 @@ const SYSTEM_ENTRIES: readonly SystemEntry[] = [
     stage: '阶段 02 / HUB-050',
     view: 'credentials',
   },
-  { id: 'settings', label: '系统设置', hint: '区服、时区、主题', stage: '阶段 03' },
   {
     id: 'backup',
     label: '导入 / 恢复',
@@ -121,3 +120,4 @@ export function SystemBar(props: SystemBarProps) {
     </nav>
   );
 }
+

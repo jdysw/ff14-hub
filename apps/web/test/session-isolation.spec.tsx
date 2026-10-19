@@ -301,6 +301,7 @@ describe('AppShell 会话隔离', () => {
   it('旧会话的私有 GET 晚到时不会复活：清除凭证后立刻隐藏旧私有状态', async () => {
     const user = userEvent.setup();
     render(<AppShell />);
+    await user.click(screen.getByRole('button', { name: '设置' }));
 
     await openModules(user);
     await waitFor(() => {
@@ -344,6 +345,7 @@ describe('AppShell 会话隔离', () => {
   it('切换凭证会立刻清空旧会话的 Host 实例（新会话从空开始）', async () => {
     const user = userEvent.setup();
     render(<AppShell />);
+    await user.click(screen.getByRole('button', { name: '设置' }));
 
     await saveCredential(user, 'ffh_dev_first');
     await waitFor(() => {
@@ -372,6 +374,7 @@ describe('AppShell 会话隔离', () => {
   it('切到概览/会话凭证再回来不会丢实例与配置（只有换凭证才清）', async () => {
     const user = userEvent.setup();
     render(<AppShell />);
+    await user.click(screen.getByRole('button', { name: '设置' }));
 
     await saveCredential(user, 'ffh_dev_keep');
     await waitFor(() => {
@@ -471,3 +474,4 @@ describe('写入 revision fence', () => {
     expect(await screen.findByText('状态：enabled@3')).toBeDefined();
   });
 });
+
