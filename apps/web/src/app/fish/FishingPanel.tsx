@@ -45,6 +45,7 @@ export function FishingPanel({data,initialRegion='cn',hours=72,onReady,onError}:
   const [error,setError]=useState<string|null>(null);
   const [busy,setBusy]=useState(false);
   const [clock,setClock]=useState(()=>Date.now());
+  const [expanded,setExpanded]=useState<Record<number,boolean>>({});
   const [pending,setPending]=useState<{fishId:number;field:FishProgressField;value:boolean;operationId:string;expectedRevision:number}|null>(null);
   const [reload,setReload]=useState(0);
   const generation=useRef(0);
@@ -205,13 +206,15 @@ export function FishingPanel({data,initialRegion='cn',hours=72,onReady,onError}:
                 {LABELS[field]}</button>)}</div>:null}
           </div>
           {all.length===0?<p className="fishing-no-window">未来 {String(range)} 小时内没有匹配的窗口，不代表该鱼无法钓获。</p>:
-            <ol className="fishing-windows" aria-label={f.name+'未来窗口'}>{all.slice(0,3).map(w=>
+            <ol className="fishing-windows" aria-label={f.name+'未来窗口'}>{all.slice(0,expanded[f.id]?undefined:3).map(w=>
               <li key={w.occurrenceKey}>
                 <span className="fishing-window__date">{localTime(w.startsAtUtcMs)} — {localTime(w.endsAtUtcMs)}</span>
                 <span className="fishing-window__et">ET {etLabel(w.startsAtUtcMs)}–{etLabel(w.endsAtUtcMs)}</span>
                 <span className="fishing-window__weather">{w.weatherChain.previous} → {w.weatherChain.current}</span>
                 {w.candidateOnly?<span className="fishing-window__candidate">候选</span>:null}
-              </li>)}</ol>}
+              </li>)}{all.length>3?<li className="fishing-windows__more"><button type="button" aria-expanded={expanded[f.id]??false}
+                onClick={()=>setExpanded(previous=>({...previous,[f.id]:!previous[f.id]}))}>
+                {expanded[f.id]?'收起后续窗口':'查看全部 '+String(all.length)+' 个未来窗口'}</button></li>:null}</ol>}
           <details className="fishing-detail"><summary>钓鱼条件与数据来源</summary>
             {f.rule.conditions.length>0?<ul>{f.rule.conditions.map((c,i)=><li key={c.kind+String(i)}>{c.description}</li>)}</ul>:
               <p>没有额外条件记录；不代表实际无其他要求。</p>}
