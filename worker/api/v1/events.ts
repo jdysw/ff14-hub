@@ -12,7 +12,6 @@
  * - 阶段 04 不做抓取器 / 提醒调度，也不注册 Cron（ADR-0004 D9 / D12）。
  */
 import {
-  ApiError,
   EVENT_SORT_ORDERS,
   eventCalendarResponseSchema,
   eventPhaseSchema,
