@@ -66,7 +66,7 @@ export function PublicCalendarPage({ onBack }: { readonly onBack: () => void }) 
   const [adminOpen, setAdminOpen] = useState(false);
   useEffect(() => {
     const token = getToken();
-    if (!token) { setCanEdit(false); return; }
+    if (!token) { void Promise.resolve().then(() => setCanEdit(false)); return; }
     const controller = new AbortController();
     void fetch('/api/v1/events/admin/status', {
       credentials: 'omit', cache: 'no-store', signal: controller.signal,
@@ -75,7 +75,7 @@ export function PublicCalendarPage({ onBack }: { readonly onBack: () => void }) 
       if (!controller.signal.aborted) setCanEdit(response.ok);
     }).catch(() => { if (!controller.signal.aborted) setCanEdit(false); });
     return () => controller.abort();
-  }, [adminSession.version]);
+  }, [adminSession.version, getToken]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 60_000);
