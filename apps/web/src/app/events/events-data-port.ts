@@ -23,6 +23,8 @@ import {
   createWorkspaceEventRequestSchema,
   deleteWorkspaceEventRequestSchema,
   eventListResponseSchema,
+  eventCalendarResponseSchema,
+  type EventCalendarResponse,
   eventRegionSchema,
   publicEventListResponseSchema,
   syncConflictSchema,
@@ -40,6 +42,7 @@ import type { ModulePortContext, ModulePortFactory } from '../widgets/module-dat
 const ME_EVENTS_PATH = `${API_V1_PREFIX}/me/events`;
 /** 公共来源活动（匿名只读，本阶段为空表）。 */
 const PUBLIC_EVENTS_PATH = `${API_V1_PREFIX}/events`;
+const CALENDAR_EVENTS_PATH = `${API_V1_PREFIX}/events/calendar`;
 
 /**
  * 本模块允许的操作名。键名是**契约**：组件只能引用这里的常量，避免两处各写一遍字符串。
@@ -48,6 +51,7 @@ const PUBLIC_EVENTS_PATH = `${API_V1_PREFIX}/events`;
 export const EVENTS_PORT_OPERATIONS = {
   listPersonal: 'events.listPersonal',
   listPublic: 'events.listPublic',
+  calendar: 'events.calendar',
   create: 'events.create',
   update: 'events.update',
   delete: 'events.delete',
@@ -346,6 +350,18 @@ export const eventsModulePortFactory: ModulePortFactory = (context) => {
       if (!parsed.success) {
         throw contractError('个人活动列表的响应不符合共享契约，已丢弃（未返回半可信数据）。');
       }
+      return parsed.data;
+    },
+
+    [EVENTS_PORT_OPERATIONS.calendar]: async (input): Promise<EventCalendarResponse> => {
+      // 无客户端传入 URL / token 参数：读取固定的同源只读日历端点。
+      if (input !== undefined && (input === null || typeof input !== 'object' ||
+          Array.isArray(input) || Object.keys(input).length > 0)) {
+        throw contractError('国服日历不接受额外参数');
+      }
+      const payload = await requestJson(context, { method: 'GET', path: CALENDAR_EVENTS_PATH });
+      const parsed = eventCalendarResponseSchema.safeParse(payload);
+      if (!parsed.success) throw contractError('国服日历响应不符合契约，已丢弃');
       return parsed.data;
     },
 
