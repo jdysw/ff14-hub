@@ -27,15 +27,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Setup pnpm
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-      - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - name: 冻结安装（frozen lockfile）
-        run: pnpm install --frozen-lockfile
+      - name: 安装项目依赖（共享固定环境）
+        uses: ./.github/actions/setup-ci
       - name: 生产依赖已知漏洞审计
         run: pnpm run audit:prod
       - name: Worker 绑定类型一致性
@@ -70,15 +63,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Setup pnpm
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-      - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - name: 冻结安装（frozen lockfile）
-        run: pnpm install --frozen-lockfile
+      - name: 安装项目依赖（共享固定环境）
+        uses: ./.github/actions/setup-ci
       - name: 安装 Chromium 与系统依赖（每组一次）
         run: pnpm exec playwright install --with-deps chromium
       # 每条原有 E2E 脚本仍单独初始化隔离的 wrangler dev / D1 环境。
@@ -108,15 +94,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Setup pnpm
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-      - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - name: 冻结安装（frozen lockfile）
-        run: pnpm install --frozen-lockfile
+      - name: 安装项目依赖（共享固定环境）
+        uses: ./.github/actions/setup-ci
       - name: 运维脚本测试
         run: pnpm run test:ops
       - name: 隔离环境整库备份/恢复演练
