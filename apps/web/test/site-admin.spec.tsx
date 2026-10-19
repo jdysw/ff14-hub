@@ -35,7 +35,7 @@ describe('站点管理员独立登录与全站在线设置',()=>{
   it('网站设置可由已登录 owner 保存 D1，触发公开配置更新',async()=>{
     const first={revision:0,settings:{siteName:'FF14 Hub',announcement:'',announcementEnabled:false,homeCalendarEnabled:true}};
     const updated={revision:1,settings:{...first.settings,siteName:'测试中心'}};
-    const fn=vi.fn((url:string,request?:RequestInit)=>Promise.resolve(
+    const fn=vi.fn((_url:string,request?:RequestInit)=>Promise.resolve(
       Response.json(request?.method==='PUT'?updated:first)));
     vi.stubGlobal('fetch',fn);
     calendarAdminSession.set('ffh_admin_'+'b'.repeat(64));
