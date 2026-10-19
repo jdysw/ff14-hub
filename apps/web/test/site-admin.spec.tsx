@@ -30,7 +30,7 @@ describe('站点管理员独立登录与全站在线设置',()=>{
     expect(url).toBe('/api/v1/admin/login');
     expect(init.credentials).toBe('omit');
     expect(init.headers).not.toHaveProperty('X-Calendar-Setup-Key');
-    expect(JSON.parse(String(init.body))).toEqual({username:'owner',password:'strong-password-for-tests',code:'123456'});
+    expect(JSON.parse(init.body as string)).toEqual({username:'owner',password:'strong-password-for-tests',code:'123456'});
   });
   it('网站设置可由已登录 owner 保存 D1，触发公开配置更新',async()=>{
     const first={revision:0,settings:{siteName:'FF14 Hub',announcement:'',announcementEnabled:false,homeCalendarEnabled:true}};
@@ -47,7 +47,7 @@ describe('站点管理员独立登录与全站在线设置',()=>{
     const [url,init]=fn.mock.calls[1] as unknown as [string,RequestInit];
     expect(url).toBe('/api/v1/admin/settings');
     expect(init.method).toBe('PUT');
-    expect(JSON.parse(String(init.body))).toMatchObject({expectedRevision:0,settings:{siteName:'测试中心'}});
+    expect(JSON.parse(init.body as string)).toMatchObject({expectedRevision:0,settings:{siteName:'测试中心'}});
     expect(init.headers).toHaveProperty('Authorization');
     expect(await screen.findByText(/配置版本 1/)).toBeTruthy();
   });
