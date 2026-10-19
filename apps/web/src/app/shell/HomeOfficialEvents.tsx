@@ -85,7 +85,7 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
 
   return <section className="home-official" aria-label="国服官方活动">
     <header className="home-section-heading">
-      <div className="home-heading-group"><h2>国服活动</h2><span className="home-section-kicker">TODAY & UPCOMING</span></div>
+      <div className="home-heading-group"><h2>国服活动</h2><span className="home-section-kicker">ACTIVE & UPCOMING</span></div>
       <div className="home-official__actions">
         <button className="text-button" type="button" onClick={onOpenCalendar}>完整日历 ↗</button>
         <button className="text-button" type="button" onClick={reload}>刷新活动</button>
@@ -102,9 +102,8 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
     {state.kind === 'ready' && <>
       {state.value.source.stale && <p className="home-official__notice" role="status">当前展示缓存数据，官方活动可能已有变更。</p>}
       <div className="home-official__stats" aria-label="国服活动摘要">
-        <button type="button" onClick={onOpenCalendar}><strong>{overview.today.length}</strong><span>今日活动</span></button>
         <button type="button" onClick={onOpenCalendar}><strong>{overview.upcoming.length}</strong><span>未来 7 天开始</span></button>
-        <button type="button" onClick={onOpenCalendar}><strong>{overview.ending.length}</strong><span>72 小时内结束</span></button>
+        <button type="button" onClick={onOpenCalendar}><strong>{overview.ending.length}</strong><span>24 小时内结束</span></button>
       </div>
       {important.length === 0 && <p className="home-state">暂无已确认的近期日程，可在活动中心查看官方公告。</p>}
       {important.length > 0 && <ul className="home-official__list">
