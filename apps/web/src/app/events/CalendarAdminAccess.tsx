@@ -45,9 +45,10 @@ export function CalendarAdminAccess({onReady,onClose}:{
         body:JSON.stringify(body),
       });
       if(!res.ok){
-        if(res.status===429)throw new Error('验证过于频繁，请稍后再试');
+        if(res.status===429)throw new Error('操作过于频繁，服务器临时限制了请求。请至少间隔 5 分钟后再尝试。');
         if(res.status===409)throw new Error('管理员账号已经创建，请进入登录页面');
-        throw new Error('登录或初始化失败：请检查管理员账号、密码、初始化密钥和验证码');
+        if(res.status>=500)throw new Error('管理员服务出现内部错误，与你填写的账号密码不一定有关。请停止重复提交并检查服务状态。');
+        throw new Error('登录或初始化失败：请核对管理员账号、密码、初始化密钥和验证码');
       }
       if(stage==='setup') {
         const result=await res.json() as SetupState;
