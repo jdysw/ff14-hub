@@ -38,7 +38,7 @@ describe('盛趣官方活动 API 适配器', () => {
     vi.stubGlobal('fetch', vi.fn((url: string) => {
       urls.push(String(url));
       if (String(url).includes('newsDetail')) {
-        return Promise.resolve(new Response(JSON.stringify({ Code: 0, Data: { Content: '<p>活动时间：2026年10月20日10:00-2026年11月2日23:59</p>' } }), { status: 200 }));
+        return Promise.resolve(new Response(JSON.stringify({ Code: 0, Data: { Content: String(url).includes('id=41') ? '<p>活动时间：2026年10月20日10:00-2026年11月2日23:59</p>' : '<p>活动时间未公布</p>' } }), { status: 200 }));
       }
       return Promise.resolve(new Response(JSON.stringify({ Code: 0, Data: [
         { Id: 41, Title: '季节活动', Summary: '官方公告', OutLink: 'https://ff.web.sdo.com/act' },
