@@ -2,6 +2,8 @@
  * 玩家设置入口：先展示日常操作，高级调试功能按需展开。
  * 导航入口永远由 App Shell 提供，和业务组件的增删完全独立。
  */
+import { useEffect, useState } from 'react';
+import { PUBLIC_EVENTS_PREF_CHANGE, readPublicEventsPreference, savePublicEventsPreference } from '../events/public-events-preferences';
 import type { ShellView } from './shell-view';
 
 interface SettingLink {
@@ -12,6 +14,7 @@ interface SettingLink {
 }
 
 const PERSONAL_LINKS: readonly SettingLink[] = [
+  { id: 'calendar', label: '国服活动日历', hint: '按日期查看官方活动，支持订阅', view: 'calendar' },
   { id: 'workbench', label: '自定义工作台', hint: '调整首页模块与布局', view: 'workbench' },
   { id: 'nav', label: '我的网站', hint: '整理常用工具和收藏', view: 'nav' },
   { id: 'fishing', label: '钓鱼手账', hint: '鱼窗与钓获进度', view: 'fishing' },
@@ -61,9 +64,36 @@ export interface SystemBarProps {
 }
 
 export function SystemBar({ currentView, onSelectView }: SystemBarProps) {
+  const [calendarPreference, setCalendarPreference] = useState(readPublicEventsPreference);
+  useEffect(() => {
+    const update = () => setCalendarPreference(readPublicEventsPreference());
+    window.addEventListener(PUBLIC_EVENTS_PREF_CHANGE, update);
+    window.addEventListener('storage', update);
+    return () => {
+      window.removeEventListener(PUBLIC_EVENTS_PREF_CHANGE, update);
+      window.removeEventListener('storage', update);
+    };
+  }, []);
   return <nav className="system-bar" aria-label="系统级入口（不可移除）">
     <SettingGroup title="个性化" description="把常用内容放到顺手的位置"
       items={PERSONAL_LINKS} currentView={currentView} onSelectView={onSelectView}/>
+    <div className="settings-calendar-preference" aria-label="首页官方活动模块设置">
+      <label>
+        <input type="checkbox" checked={calendarPreference.visible}
+          onChange={event => savePublicEventsPreference({ ...calendarPreference, visible: event.target.checked })}/>
+        在首页显示国服活动模块
+      </label>
+      <label>活动模块位置
+        <select aria-label="国服活动模块在首页的位置" value={calendarPreference.position}
+          onChange={event => savePublicEventsPreference({
+            ...calendarPreference, position: event.target.value === 'after-nav' ? 'after-nav' : 'before-nav',
+          })}>
+          <option value="before-nav">导航之前</option>
+          <option value="after-nav">导航之后</option>
+        </select>
+      </label>
+      <p>这些偏好仅保存在当前浏览器，不需要创建账号。活动中心始终可以独立访问。</p>
+    </div>
     <SettingGroup title="数据与连接" description="只有使用个人同步功能时才需要连接"
       items={DATA_LINKS} currentView={currentView} onSelectView={onSelectView}/>
     <details className="settings-advanced" open={currentView !== 'settings' ? true : undefined}>

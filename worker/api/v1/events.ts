@@ -28,6 +28,7 @@ import { methodNotAllowed } from '../../middleware/error-handler';
 import { validateQuery } from '../../middleware/validation';
 import { createEventService } from '../../modules/events/service';
 import { readCnCalendar } from '../../modules/events/calendar-feed';
+import { createOfficialCalendarIcs } from '../../modules/events/calendar-ics';
 import { readOfficialCalendarSnapshot } from '../../modules/events/calendar-snapshot';
 import type { AppBindings } from '../../types';
 
@@ -83,7 +84,7 @@ publicEventRoutes.get('/', validateQuery(publicEventQuerySchema), async (c) => {
   );
 });
 
-/** 国服社区 ICS 活动日历：由 Worker 固定拉取、校验与缓存，不接受外部 URL。 */
+/** 国服活动公共 JSON，由 D1 已验证快照提供，不需要工作空间授权。 */
 publicEventRoutes.get('/calendar', async (c) => {
   // 优先读取有持久保证的公共官方快照，避免 Cloudflare 不同边缘实例各自冷缓存，
   // 或从边缘节点无法直接连接盛趣官网时整个首页活动列表 503。
@@ -94,6 +95,26 @@ publicEventRoutes.get('/calendar', async (c) => {
     return noStoreJson(c, calendar);
   } catch {
     return c.json({ code: 'service_unavailable', message: '官方活动数据暂时无法同步；尚无可用的历史快照' }, 503);
+  }
+});
+
+/** 标准 ICS 订阅：只包含官方明确起止时间的公共活动，不包含用户私有活动。 */
+publicEventRoutes.get('/calendar.ics', async (c) => {
+  try {
+    const snapshot = await readOfficialCalendarSnapshot(c.env.DB);
+    const data = eventCalendarResponseSchema.parse(snapshot ?? await readCnCalendar());
+    const ics = createOfficialCalendarIcs(data);
+    return new Response(ics, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/calendar; charset=utf-8',
+        'Content-Disposition': 'inline; filename="ff14-cn-events.ics"',
+        'Cache-Control': 'public, max-age=300',
+        'X-Content-Type-Options': 'nosniff',
+      },
+    });
+  } catch {
+    return c.json({ code: 'service_unavailable', message: '官方活动日历订阅暂时不可用' }, 503);
   }
 });
 
