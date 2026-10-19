@@ -12,7 +12,6 @@
  * - 阶段 04 不做抓取器 / 提醒调度，也不注册 Cron（ADR-0004 D9 / D12）。
  */
 import {
-  ApiError,
   EVENT_SORT_ORDERS,
   eventCalendarResponseSchema,
   eventPhaseSchema,
@@ -25,16 +24,14 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { noStoreJson } from '../../lib/response';
 import { nowUtcMs } from '../../lib/util';
-import { parsedJsonBody, validateJsonBody } from '../../middleware/validation';
 import { methodNotAllowed } from '../../middleware/error-handler';
 import { validateQuery } from '../../middleware/validation';
 import { createEventService } from '../../modules/events/service';
 import { readCnCalendar } from '../../modules/events/calendar-feed';
 import { createOfficialCalendarIcs } from '../../modules/events/calendar-ics';
 import { readOfficialCalendarSnapshot } from '../../modules/events/calendar-snapshot';
-import { applyCalendarEdits, calendarMutationSchema, calendarToggleSchema, listEditorEntries, saveCalendarEdit } from '../../modules/events/calendar-editor';
-import type { AppBindings, AppMiddleware } from '../../types';
-import { accountRow, issueAdminSession, revokeAdminSession, startAdminSetup, throttleAdmin, validateAdminCredentials, validateAdminSession, verifySetupSecret } from '../../modules/events/calendar-admin-auth';
+import { applyCalendarEdits } from '../../modules/events/calendar-editor';
+import type { AppBindings } from '../../types';
 
 export const publicEventRoutes = new Hono<AppBindings>();
 
@@ -93,17 +90,6 @@ async function calendarForPublic(db: D1Database) {
   return await applyCalendarEdits(db, eventCalendarResponseSchema.parse(snapshot ?? await readCnCalendar()));
 }
 
-async function assertEditableId(db: D1Database, id: string): Promise<void> {
-  if (!/^(official:[A-Za-z0-9_-]+|manual:[0-9a-f-]{36})$/.test(id)) {
-    throw new ApiError('validation_failed', '活动标识不合法');
-  }
-  const saved = await db.prepare('SELECT id FROM calendar_editor_entries WHERE id=?').bind(id).first<{id: string}>();
-  if (saved !== null) return;
-  const base = await readOfficialCalendarSnapshot(db);
-  if (base?.events.some(event => event.id === id)) return;
-  throw new ApiError('not_found', '活动不存在');
-}
-
 /** 国服活动公共 JSON，由 D1 已验证快照提供，不需要工作空间授权。 */
 publicEventRoutes.get('/calendar', async (c) => {
   // 优先读取有持久保证的公共官方快照，避免 Cloudflare 不同边缘实例各自冷缓存，
@@ -135,109 +121,6 @@ publicEventRoutes.get('/calendar.ics', async (c) => {
   } catch {
     return c.json({ code: 'service_unavailable', message: '官方活动日历订阅暂时不可用' }, 503);
   }
-});
-
-/** 管理端与玩家设备登录互不关联。首次开户需 Cloudflare 部署初始化密钥；日常操作必须账号密码+TOTP。 */
-const adminSetupSchema = z.object({
-  username: z.string().regex(/^[A-Za-z0-9._-]{3,40}$/),
-  password: z.string().min(14).max(128),
-}).strict();
-const adminVerifySchema = adminSetupSchema.extend({ code: z.string().regex(/^\d{6}$/) }).strict();
-
-function adminAuth(): AppMiddleware {
-  return async (c,next) => {
-    if (!await validateAdminSession(c.env.DB,c.req.header('Authorization'))) {
-      throw new ApiError('unauthorized','请先以管理员账号、密码及身份验证器登录');
-    }
-    await next();
-  };
-}
-
-publicEventRoutes.get('/admin/provisioning', async (c) => {
-  const user=await accountRow(c.env.DB);
-  return noStoreJson(c,{configured:user?.activated_at!==null && user!==null,
-    pending:user!==null && user.activated_at===null});
-});
-publicEventRoutes.post('/admin/setup',validateJsonBody(adminSetupSchema),async (c)=>{
-  await throttleAdmin(c.env.DB,'admin:setup',6);
-  await verifySetupSecret(c.req.header('X-Calendar-Setup-Key')??null,c.env.BOOTSTRAP_SECRET);
-  const input=parsedJsonBody(c,adminSetupSchema);
-  const binding=await startAdminSetup(c.env.DB,c.env.BOOTSTRAP_SECRET!,input.username,input.password);
-  return noStoreJson(c,{totpKey:binding.secret,otpauthUri:binding.uri},201);
-});
-publicEventRoutes.post('/admin/setup/confirm',validateJsonBody(adminVerifySchema),async(c)=>{
-  await throttleAdmin(c.env.DB,'admin:confirm',10);
-  await verifySetupSecret(c.req.header('X-Calendar-Setup-Key')??null,c.env.BOOTSTRAP_SECRET);
-  const input=parsedJsonBody(c,adminVerifySchema);
-  const ok=await validateAdminCredentials(c.env.DB,c.env.BOOTSTRAP_SECRET,input.username,input.password,input.code,true);
-  if(!ok)throw new ApiError('unauthorized','管理员账号或验证信息有误');
-  return noStoreJson(c,{token:await issueAdminSession(c.env.DB)});
-});
-publicEventRoutes.post('/admin/login',validateJsonBody(adminVerifySchema),async(c)=>{
-  await throttleAdmin(c.env.DB,'admin:login',30);
-  const input=parsedJsonBody(c,adminVerifySchema);
-  const ok=await validateAdminCredentials(c.env.DB,c.env.BOOTSTRAP_SECRET,input.username,input.password,input.code,false);
-  if(!ok)throw new ApiError('unauthorized','管理员账号或验证信息有误');
-  return noStoreJson(c,{token:await issueAdminSession(c.env.DB)});
-});
-publicEventRoutes.post('/admin/logout',adminAuth(),async(c)=>{
-  await revokeAdminSession(c.env.DB,c.req.header('Authorization'));
-  return noStoreJson(c,{ok:true});
-});
-publicEventRoutes.get('/admin/status',adminAuth(),(c)=>noStoreJson(c,{administrator:true}));
-
-/** 管理台显示官方原始数据和人工修改的版本号，避免普通访问取得编辑审计信息。 */
-publicEventRoutes.get('/admin/items', adminAuth(), async (c) => {
-  const official = await readOfficialCalendarSnapshot(c.env.DB);
-  return noStoreJson(c, {
-    official: official?.events ?? [],
-    edits: await listEditorEntries(c.env.DB),
-  });
-});
-
-publicEventRoutes.post('/admin/items', adminAuth(), validateJsonBody(calendarMutationSchema), async (c) => {
-  const input = parsedJsonBody(c, calendarMutationSchema);
-  if (input.expectedRevision !== 0) throw new ApiError('validation_failed', '新建活动的版本号必须为 0');
-  const id = 'manual:' + crypto.randomUUID();
-  const revision = await saveCalendarEdit(c.env.DB, 'owner', id, 'upsert',
-    { ...input.item, id, region: 'cn' }, 0);
-  return noStoreJson(c, { id, revision }, 201);
-});
-
-publicEventRoutes.put('/admin/items/:id', adminAuth(), validateJsonBody(calendarMutationSchema), async (c) => {
-  const id = c.req.param('id');
-  await assertEditableId(c.env.DB, id);
-  const input = parsedJsonBody(c, calendarMutationSchema);
-  const revision = await saveCalendarEdit(c.env.DB, 'owner', id, 'upsert',
-    { ...input.item, id, region: 'cn' }, input.expectedRevision);
-  return noStoreJson(c, { id, revision });
-});
-
-publicEventRoutes.post('/admin/items/:id/hide', adminAuth(), validateJsonBody(calendarToggleSchema), async (c) => {
-  const id = c.req.param('id');
-  await assertEditableId(c.env.DB, id);
-  const body = parsedJsonBody(c, calendarToggleSchema);
-  const overrides = await listEditorEntries(c.env.DB);
-  const existing = overrides.find(entry => entry.id === id);
-  const original = (await readOfficialCalendarSnapshot(c.env.DB))?.events.find(item => item.id === id);
-  const hiddenItem = existing?.item ?? original ?? null;
-  const revision = await saveCalendarEdit(c.env.DB, 'owner', id, 'hide', hiddenItem, body.expectedRevision);
-  return noStoreJson(c, { id, revision });
-});
-
-publicEventRoutes.post('/admin/items/:id/restore', adminAuth(), validateJsonBody(calendarToggleSchema), async (c) => {
-  const id = c.req.param('id');
-  await assertEditableId(c.env.DB, id);
-  const body = parsedJsonBody(c, calendarToggleSchema);
-  if (body.expectedRevision === 0) throw new ApiError('conflict', '此活动暂无人工修改记录');
-  const existing = (await listEditorEntries(c.env.DB)).find(entry => entry.id === id);
-  const manual = id.startsWith('manual:');
-  if (manual && (!existing?.item || existing.mode !== 'hide')) {
-    throw new ApiError('conflict', '手动活动无可恢复的内容');
-  }
-  const revision = await saveCalendarEdit(c.env.DB, 'owner', id,
-    manual ? 'upsert' : 'restore', manual ? existing?.item ?? null : null, body.expectedRevision);
-  return noStoreJson(c, { id, revision });
 });
 
 // 只支持 GET：其他方法给结构化 405（不落入 404，便于区分「路径写错」与「方法写错」）。
