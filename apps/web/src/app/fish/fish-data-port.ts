@@ -4,6 +4,20 @@ import { fishListQuerySchema,fishListResponseSchema,fishWindowsResponseSchema,fi
 import type { ModulePortFactory } from '../widgets/module-data-ports';
 import type { ModuleDataPort } from '../widgets/types';
 import { buildApiUrl } from '../../lib/api-client';
+import {fishingCatalogSchema,type FishingCatalog} from './catalog';
+const catalogs=new Map<string,Promise<FishingCatalog>>();
+async function publicCatalog(input:unknown):Promise<FishingCatalog>{
+  const {region}=fishSnapshotQuerySchema.parse(input);
+  let promise=catalogs.get(region);
+  if(!promise){
+    promise=fetch(buildApiUrl('/fishing/catalog-'+region+'.json'),{credentials:'omit',redirect:'error'})
+      .then(async response=>{if(!response.ok)throw new Error('鱼类目录暂时无法加载');return fishingCatalogSchema.parse(await response.json());})
+      .then(catalog=>{if(catalog.region!==region)throw new Error('目录区服不一致');return catalog;});
+    catalogs.set(region,promise);
+    void promise.catch(()=>catalogs.delete(region));
+  }
+  return promise;
+}
 
 export const fishingSnapshotSchema = z.object({fish:fishListResponseSchema,windows:fishWindowsResponseSchema,progress:fishProgressResponseSchema});
 export type FishingSnapshot = z.infer<typeof fishingSnapshotSchema>;
@@ -19,6 +33,11 @@ export const fishModulePortFactory: ModulePortFactory = (context) => {
     return response.json();
   };
   return {
+    'fish.catalog':publicCatalog,
+    'fish.progress.read':async(input)=>{
+      const {region}=fishSnapshotQuerySchema.parse(input);
+      return fishProgressResponseSchema.parse(await request('/me/fish-progress?region='+region));
+    },
     'fish.snapshot':async (input) => {
       const q = fishSnapshotQuerySchema.parse(input);
       const region = encodeURIComponent(q.region);
@@ -43,8 +62,9 @@ export const fishModulePortFactory: ModulePortFactory = (context) => {
  */
 export const publicFishPort: ModuleDataPort = {
   moduleId:FISH_MODULE_ID,
-  operations:['fish.snapshot'],
+  operations:['fish.snapshot','fish.catalog'],
   async call<T = unknown>(operation:string,input?:unknown):Promise<T>{
+    if(operation==='fish.catalog')return await publicCatalog(input) as T;
     if(operation!=='fish.snapshot')throw new Error('公开钓鱼目录不支持修改个人进度');
     const q=fishSnapshotQuerySchema.parse(input);
     const region=encodeURIComponent(q.region);

@@ -27,7 +27,7 @@ function readOnlineFlag(): boolean {
   return typeof nav?.onLine === 'boolean' ? nav.onLine : true;
 }
 
-export function PwaStatusBar() {
+export function PwaStatusBar({localMode=false}:{localMode?:boolean}={}) {
   const [offlineState, setOfflineState] = useState(() =>
     resolveOfflineState({ online: readOnlineFlag(), hasPrivateDraft: false }),
   );
@@ -90,8 +90,8 @@ export function PwaStatusBar() {
     <section className="pwa-status" aria-label="PWA 状态" data-testid="pwa-status">
       {showOffline ? (
         <div className="notice notice--warn" role="status" data-testid="offline-notice">
-          <p>{offlineState.message}</p>
-          <p className="panel__muted">{offlineState.detail}</p>
+          <p>{localMode?'当前离线，钓获、收藏和个人设置仍可保存在本机。':offlineState.message}</p>
+          <p className="panel__muted">{localMode?'公开活动与目录可能无法更新；恢复网络后可重新读取。':offlineState.detail}</p>
         </div>
       ) : null}
 

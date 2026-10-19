@@ -18,3 +18,13 @@ https://github.com/block65/webcrypto-web-push. Its license is retained as
 (MIT, Sindre Sorhus) has its license retained as `third_party/uint8array-extras-LICENSE.txt`.
 We reuse the library as a dependency and add endpoint restrictions, bounded transport, lease fencing
 and private device ownership in this application rather than reimplementing the encryption protocol.
+# Fishing catalog references and factual metadata
+
+The public fishing snapshots reference the MIT-licensed projects
+[FF14 Fish Tracker](https://github.com/icykoneko/ff14-fish-tracker-app) and
+[FFXIV Teamcraft](https://github.com/ffxiv-teamcraft/ffxiv-teamcraft).
+Exact upstream revisions are recorded in `data/fishing-sources.json` and each snapshot.
+Their license texts are retained under `third_party/`. Chinese game-table identities
+and labels are sourced separately from thewakingsands/ffxiv-datamining-cn.
+Game content remains attributable to SQUARE ENIX; no game icons, artwork, descriptive
+prose, or Fishcake application source is copied as part of this change.
