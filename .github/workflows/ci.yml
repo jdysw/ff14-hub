@@ -1,82 +1,79 @@
-# FF14 Hub 质量门禁
-# - 每次 PR 与 main 更新：静态检查/测试/构建及恢复演练、全部 8 条真实浏览器验收链
-# - E2E 依功能划为两组，在组内复用 checkout、pnpm、Node、Chromium，避免 8 次重复安装
-# - 即使组内某一阶段失败，也继续执行同组剩余阶段并最终报告失败，不吞掉错误
-# - Wrangler 只使用本地 D1 或 dry-run；CI 不使用 Cloudflare 生产密钥、不部署
-
+# FF14 Hub CI：3 个矩阵检查结果，统一安装环境，不丢失任何原验收链。
+# core：质量、两环境 dry-run、D1 双重迁移、备份恢复；其余两组跑共 8 条隔离 E2E。
 name: CI
-
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
-
 permissions:
   contents: read
-
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
-  verify:
-    name: lint / typecheck / test / build
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: 安装项目依赖（共享固定环境）
-        uses: ./.github/actions/setup-ci
-      - name: 生产依赖已知漏洞审计
-        run: pnpm run audit:prod
-      - name: Worker 绑定类型一致性
-        run: pnpm run types:worker:check
-      - name: ESLint
-        run: pnpm run lint
-      - name: TypeScript
-        run: pnpm run typecheck
-      - name: Node 与 Workers 测试
-        run: pnpm run test
-      - name: 前端构建与 Worker 打包检查
-        run: pnpm run build
-      - name: Cloudflare 预览/生产配置 dry-run
-        run: pnpm run validate:config
-      - name: D1 本地首次迁移
-        run: pnpm exec wrangler d1 migrations apply DB --local
-      - name: D1 迁移重复应用安全性
-        run: pnpm exec wrangler d1 migrations apply DB --local
-      - name: 运维脚本测试
-        run: pnpm run test:ops
-      - name: 隔离环境整库备份/恢复演练
-        run: pnpm run ops:rehearse
-
-  browser-e2e:
-    name: 浏览器验收 / ${{ matrix.suite }}
+  check:
+    name: ${{ matrix.label }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
         include:
-          - suite: product-flows
-            scripts: 'e2e:phase02 e2e:phase03 e2e:phase04 e2e:phase05'
-          - suite: privacy-and-sync
-            scripts: 'e2e:phase05b e2e:phase06a e2e:phase06b e2e:phase06c'
+          - kind: core
+            label: lint / typecheck / test / build
+            e2e: ''
+          - kind: product
+            label: 浏览器验收 / product-flows
+            e2e: e2e:phase02 e2e:phase03 e2e:phase04 e2e:phase05
+          - kind: privacy
+            label: 浏览器验收 / privacy-and-sync
+            e2e: e2e:phase05b e2e:phase06a e2e:phase06b e2e:phase06c
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: 安装项目依赖（共享固定环境）
+      - name: Setup Node/pnpm and frozen dependencies
         uses: ./.github/actions/setup-ci
-      - name: 安装 Chromium 与系统依赖（每组一次）
+      - name: 已知生产依赖漏洞审计
+        if: matrix.kind == 'core'
+        run: pnpm run audit:prod
+      - name: Worker 绑定类型与 Wrangler 配置一致性
+        if: matrix.kind == 'core'
+        run: pnpm run types:worker:check
+      - name: Lint
+        if: matrix.kind == 'core'
+        run: pnpm run lint
+      - name: Typecheck
+        if: matrix.kind == 'core'
+        run: pnpm run typecheck
+      - name: Workers 与 Node 测试
+        if: matrix.kind == 'core'
+        run: pnpm run test
+      - name: 前端/Worker 构建
+        if: matrix.kind == 'core'
+        run: pnpm run build
+      - name: Cloudflare 两环境打包 dry-run（不部署）
+        if: matrix.kind == 'core'
+        run: pnpm run validate:config
+      - name: D1 本地首次及重复迁移
+        if: matrix.kind == 'core'
+        run: |
+          pnpm exec wrangler d1 migrations apply DB --local
+          pnpm exec wrangler d1 migrations apply DB --local
+      - name: 运维脚本测试
+        if: matrix.kind == 'core'
+        run: pnpm run test:ops
+      - name: 独立本地环境备份及恢复演练
+        if: matrix.kind == 'core'
+        run: pnpm run ops:rehearse
+      - name: 安装 Chromium（每组一次）
+        if: matrix.kind != 'core'
         run: pnpm exec playwright install --with-deps chromium
-      # 每条原有 E2E 脚本仍单独初始化隔离的 wrangler dev / D1 环境。
-      # 不设置 continue-on-error，也不忽略组内失败：各阶段全部运行后返回总体失败。
-      - name: 顺序执行全部阶段，保留各阶段日志与失败状态
+      - name: 保留全部独立环境验收链及失败诊断
+        if: matrix.kind != 'core'
         shell: bash
         env:
-          E2E_SCRIPTS: ${{ matrix.scripts }}
+          E2E_SCRIPTS: ${{ matrix.e2e }}
         run: |
           failed=0
           for script in ${E2E_SCRIPTS}; do
@@ -90,4 +87,3 @@ jobs:
             echo "::endgroup::"
           done
           exit "${failed}"
-
