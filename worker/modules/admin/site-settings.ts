@@ -40,15 +40,11 @@ export async function updateSiteSettings(
 ): Promise<SiteSettingsDocument> {
   const settings = siteSettingsSchema.parse(input.settings);
   const result = await db.prepare(`INSERT INTO site_admin_settings(singleton,payload,revision,updated_at)
-      VALUES(1,?,1,?)
+      SELECT 1,?,1,? WHERE ?=0
       ON CONFLICT(singleton) DO UPDATE SET payload=excluded.payload,
         revision=site_admin_settings.revision+1,updated_at=excluded.updated_at
         WHERE site_admin_settings.revision=?`)
-    .bind(JSON.stringify(settings),Date.now(),input.expectedRevision).run();
-  // 即使初始账户不存在，也禁止以非零 revision 绕过乐观锁。
+    .bind(JSON.stringify(settings),Date.now(),input.expectedRevision,input.expectedRevision).run();
   if (result.meta.changes !== 1) throw new ApiError('conflict','配置已由其他会话修改，请重新读取');
-  if(input.expectedRevision !== 0 && result.meta.changes===1) {
-    // 版本条件由 UPDATE WHERE 原子约束；此处无需额外事务。
-  }
   return readSiteSettings(db);
 }
