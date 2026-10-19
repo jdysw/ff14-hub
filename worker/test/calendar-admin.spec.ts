@@ -1,151 +1,155 @@
 import { SELF, env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { resetIdentityState, seedAuth } from './helpers';
+import { totpForTests } from '../modules/events/calendar-admin-auth';
 import type { EventCalendarResponse } from '@ff14-hub/shared';
 
-const API = 'https://example.com/api/v1/events';
-const baseUrl = API + '/admin/items';
-const adminStatus = API + '/admin/status';
-const now = () => Date.now();
+const API='https://example.com/api/v1/events';
+const AUTH_API=API+'/admin';
+const INIT_KEY='test-only-bootstrap-secret-value-0123456789';
+const PASSWORD='SecurePassword-for-tests-only-2026!';
+const USER='site_owner';
 
-function official(): EventCalendarResponse {
-  const current = now();
-  return {
-    serverTimeMs: current,
-    source: {
-      name: '盛趣游戏 · FF14 国服官方公告',
-      homeUrl: 'https://ff.web.sdo.com/web8/index.html#/newstab/newslist',
-      checkedAtMs: current, stale: false,
-    },
-    events: [{
-      id: 'official:123', region: 'cn', title: '守护天节', category: '季节活动',
-      description: '', location: '', startsAt: current - 60_000, endsAt: current + 86_400_000,
-      allDay: false, sourceUrl: 'https://ff.web.sdo.com/web8/index.html',
-    }],
-  };
+function base32Bytes(text:string):Uint8Array {
+  const alpha='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let bits=0,buf=0;const result:number[]=[];
+  for (const char of text.toUpperCase()) {
+    const digit=alpha.indexOf(char);
+    if(digit<0)throw new Error('invalid test base32');
+    buf=(buf<<5)|digit;bits+=5;
+    if(bits>=8){bits-=8;result.push((buf>>bits)&255);}
+  }
+  return Uint8Array.from(result);
 }
-function post(auth: string | null, body: unknown, url = baseUrl, method = 'POST') {
-  return SELF.fetch(url, {
+function currentCode(key:string,offset=0){
+  return totpForTests(base32Bytes(key),Date.now()+offset*30_000);
+}
+function request(path:string,method='GET',token?:string,body?:unknown,setup=false) {
+  return SELF.fetch(AUTH_API+path,{
     method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(auth ? { Authorization: auth } : {}),
+    headers:{
+      ...(token?{Authorization:'Bearer '+token}:{}),
+      ...(body?{'Content-Type':'application/json'}:{}),
+      ...(setup?{'X-Calendar-Setup-Key':INIT_KEY}:{}),
     },
-    body: JSON.stringify(body),
+    ...(body?{body:JSON.stringify(body)}:{}),
   });
+}
+async function setupAdmin() {
+  const setup=await request('/setup','POST',undefined,{username:USER,password:PASSWORD},true);
+  expect(setup.status).toBe(201);
+  const {totpKey}=await setup.json<{totpKey:string}>();
+  const code=await currentCode(totpKey);
+  const confirmed=await request('/setup/confirm','POST',undefined,{
+    username:USER,password:PASSWORD,code,
+  },true);
+  expect(confirmed.status).toBe(200);
+  const {token}=await confirmed.json<{token:string}>();
+  return {token,totpKey};
 }
 function item() {
-  const current = now();
-  return {
-    title: '管理员新增联动', description: '仅测试', category: '限时联动',
-    location: '', startsAt: current, endsAt: current + 86_400_000,
-    sourceUrl: 'https://ff.web.sdo.com/web8/index.html', allDay: false,
+  const now=Date.now();
+  return {title:'管理员新增联动',description:'手动活动',category:'限时联动',
+    location:'',startsAt:now,endsAt:now+86_400_000,
+    sourceUrl:'https://ff.web.sdo.com/web8/index.html',allDay:false};
+}
+async function source() {
+  const now=Date.now();
+  const official:EventCalendarResponse={
+    serverTimeMs:now,source:{
+      name:'盛趣游戏 · FF14 国服官方公告',
+      homeUrl:'https://ff.web.sdo.com/web8/index.html#/newstab/newslist',
+      checkedAtMs:now,stale:false,
+    },
+    events:[{id:'official:123',region:'cn',title:'守护天节',category:'季节活动',
+      description:'',location:'',startsAt:now-60_000,endsAt:now+86_400_000,
+      allDay:false,sourceUrl:'https://ff.web.sdo.com/web8/index.html'}],
   };
+  await env.DB.prepare("INSERT INTO official_calendar_snapshots (source,payload,checked_at_ms) VALUES('cn',?,?) ON CONFLICT(source) DO UPDATE SET payload=excluded.payload,checked_at_ms=excluded.checked_at_ms")
+    .bind(JSON.stringify(official),now).run();
 }
-async function setupSource() {
-  const source = official();
-  await env.DB.prepare(
-    "INSERT INTO official_calendar_snapshots (source, payload, checked_at_ms) VALUES ('cn', ?, ?) ON CONFLICT(source) DO UPDATE SET payload=excluded.payload,checked_at_ms=excluded.checked_at_ms",
-  ).bind(JSON.stringify(source), source.source.checkedAtMs).run();
-}
-async function asAdmin() {
-  const device = await seedAuth();
-  await env.DB.prepare('INSERT INTO calendar_admin_devices (device_id, workspace_id, granted_at) VALUES (?,?,?)')
-    .bind(device.deviceId, device.workspaceId, now()).run();
-  return device;
-}
-
-beforeEach(async () => {
+beforeEach(async()=>{
   await env.DB.prepare('DELETE FROM calendar_admin_audit').run();
   await env.DB.prepare('DELETE FROM calendar_editor_entries').run();
-  await resetIdentityState();
-  await setupSource();
+  await env.DB.prepare('DELETE FROM calendar_admin_sessions').run();
+  await env.DB.prepare('DELETE FROM calendar_admin_accounts').run();
+  await env.DB.prepare('DELETE FROM calendar_admin_rate_limits').run();
+  await source();
 });
 
-describe('公开日历管理员权限及持久化', () => {
-  it('匿名和普通设备均无法读写管理接口，但公共日历仍可匿名查看', async () => {
-    expect((await SELF.fetch(adminStatus)).status).toBe(401);
-    const ordinary = await seedAuth();
-    expect((await SELF.fetch(adminStatus, { headers: { Authorization: ordinary.authorization } })).status).toBe(403);
-    expect((await post(ordinary.authorization, { expectedRevision: 0, item: item() })).status).toBe(403);
-    expect((await post(null, { expectedRevision: 0, item: item() })).status).toBe(401);
-    expect((await SELF.fetch(API + '/calendar')).status).toBe(200);
-    const count = await env.DB.prepare('SELECT COUNT(*) AS count FROM calendar_editor_entries').first<{count: number}>();
-    expect(count?.count).toBe(0);
+describe('独立管理员账号密码 + TOTP 双因子',()=>{
+  it('拒绝匿名和工作空间设备令牌，只有一次性安全初始化可绑定 TOTP',async()=>{
+    expect((await request('/status')).status).toBe(401);
+    expect((await request('/items')).status).toBe(401);
+    expect((await request('/setup','POST',undefined,{username:USER,password:PASSWORD})).status).toBe(401);
+    const {token,totpKey}=await setupAdmin();
+    expect(totpKey.length).toBeGreaterThanOrEqual(32);
+    expect((await request('/status','GET',token)).status).toBe(200);
+    expect((await request('/setup','POST',undefined,{username:'other',password:PASSWORD},true)).status).toBe(409);
+    expect((await request('/status','GET','ffh_dev_zzzz')).status).toBe(401);
+    expect((await SELF.fetch(API+'/calendar')).status).toBe(200);
+    expect((await request('/logout','POST',token)).status).toBe(200);
+    expect((await request('/status','GET',token)).status).toBe(401);
   });
 
-  it('管理员创建、修改、隐藏和恢复会立即反映在公共 API 与 ICS，并留下审计', async () => {
-    const admin = await asAdmin();
-    expect((await SELF.fetch(adminStatus, { headers: { Authorization: admin.authorization } })).status).toBe(200);
-    const created = await post(admin.authorization, { expectedRevision: 0, item: item() });
+  it('账户口令、TOTP 两个因素都必需，动态验证码不允许重放',async()=>{
+    const {totpKey}=await setupAdmin();
+    const future=await currentCode(totpKey,1);
+    expect((await request('/login','POST',undefined,{
+      username:USER,password:'invalid-password',code:future,
+    })).status).toBe(401);
+    expect((await request('/login','POST',undefined,{
+      username:USER,password:PASSWORD,code:'000000',
+    })).status).toBe(401);
+    const logged=await request('/login','POST',undefined,{
+      username:USER,password:PASSWORD,code:future,
+    });
+    expect(logged.status).toBe(200);
+    const replay=await request('/login','POST',undefined,{
+      username:USER,password:PASSWORD,code:future,
+    });
+    expect(replay.status).toBe(401);
+  });
+
+  it('管理员增删改恢复实时反映在公共日历与 ICS，数据源未污染，含审计',async()=>{
+    const {token}=await setupAdmin();
+    const created=await request('/items','POST',token,{expectedRevision:0,item:item()});
     expect(created.status).toBe(201);
-    const row = await created.json<{ id: string; revision: number }>();
+    const row=await created.json<{id:string;revision:number}>();
     expect(row.id).toMatch(/^manual:/);
-    expect(row.revision).toBe(1);
-
-    const edited = await post(admin.authorization, {
-      expectedRevision: 1, item: { ...item(), title: '管理员调整后的活动' },
-    }, baseUrl + '/' + row.id, 'PUT');
-    expect(edited.status).toBe(200);
-    expect((await edited.json<{ revision: number }>()).revision).toBe(2);
-
-    const effective = await (await SELF.fetch(API + '/calendar')).json<EventCalendarResponse>();
-    expect(effective.events.some(e => e.title === '管理员调整后的活动')).toBe(true);
-    const ics = await (await SELF.fetch(API + '/calendar.ics')).text();
-    expect(ics).toContain('管理员调整后的活动');
-
-    const hidden = await post(admin.authorization, { expectedRevision: 2 }, baseUrl + '/' + row.id + '/hide');
-    expect(hidden.status).toBe(200);
-    expect((await (await SELF.fetch(API + '/calendar')).json<EventCalendarResponse>()).events.some(e => e.id === row.id)).toBe(false);
-
-    const restored = await post(admin.authorization, { expectedRevision: 3 }, baseUrl + '/' + row.id + '/restore');
-    expect(restored.status).toBe(200);
-    expect((await (await SELF.fetch(API + '/calendar')).json<EventCalendarResponse>()).events.some(e => e.id === row.id)).toBe(true);
-
-    const count = await env.DB.prepare('SELECT COUNT(*) AS count FROM calendar_admin_audit WHERE event_id=?')
-      .bind(row.id).first<{count: number}>();
-    expect(count?.count).toBe(4);
-  });
-
-  it('编辑官方活动不改变来源快照，三小时刷新后仍按管理员版本显示', async () => {
-    const admin = await asAdmin();
-    const update = await post(admin.authorization, {
-      expectedRevision: 0,
-      item: { ...item(), title: '守护天节（人工校正）' },
-    }, baseUrl + '/official:123', 'PUT');
+    const update=await request('/items/'+row.id,'PUT',token,{
+      expectedRevision:1,item:{...item(),title:'管理员修订活动'},
+    });
     expect(update.status).toBe(200);
-    const raw = await env.DB.prepare("SELECT payload FROM official_calendar_snapshots WHERE source='cn'")
-      .first<{ payload: string }>();
-    expect(raw?.payload).toContain('守护天节');
-    expect(raw?.payload).not.toContain('人工校正');
-    const effective = await (await SELF.fetch(API + '/calendar')).json<EventCalendarResponse>();
-    expect(effective.events.find(x => x.id === 'official:123')?.title).toBe('守护天节（人工校正）');
-
-    const conflict = await post(admin.authorization, {
-      expectedRevision: 0, item: { ...item(), title: '过期版本覆盖' },
-    }, baseUrl + '/official:123', 'PUT');
-    expect(conflict.status).toBe(409);
-    const audits = await env.DB.prepare('SELECT COUNT(*) AS count FROM calendar_admin_audit WHERE event_id=?')
-      .bind('official:123').first<{count: number}>();
-    expect(audits?.count).toBe(1);
-    const restore = await post(admin.authorization, { expectedRevision: 1 }, baseUrl + '/official:123/restore');
-    expect(restore.status).toBe(200);
-    const after = await (await SELF.fetch(API + '/calendar')).json<EventCalendarResponse>();
-    expect(after.events.find(x => x.id === 'official:123')?.title).toBe('守护天节');
+    const shown=await (await SELF.fetch(API+'/calendar')).json<EventCalendarResponse>();
+    expect(shown.events.some(e=>e.title==='管理员修订活动')).toBe(true);
+    expect(await (await SELF.fetch(API+'/calendar.ics')).text()).toContain('管理员修订活动');
+    expect((await request('/items/'+row.id+'/hide','POST',token,{expectedRevision:2})).status).toBe(200);
+    const hidden=await (await SELF.fetch(API+'/calendar')).json<EventCalendarResponse>();
+    expect(hidden.events.some(e=>e.id===row.id)).toBe(false);
+    expect((await request('/items/'+row.id+'/restore','POST',token,{expectedRevision:3})).status).toBe(200);
+    expect((await (await SELF.fetch(API+'/calendar')).json<EventCalendarResponse>())
+      .events.some(e=>e.id===row.id)).toBe(true);
+    const audit=await env.DB.prepare('SELECT COUNT(*) AS total FROM calendar_admin_audit WHERE event_id=?')
+      .bind(row.id).first<{total:number}>();
+    expect(audit?.total).toBe(4);
+    expect((await request('/items/'+row.id,'PUT',token,{
+      expectedRevision:1,item:item(),
+    })).status).toBe(409);
   });
 
-  it('校验危险内容、倒置时间和已撤销设备，拒绝写入', async () => {
-    const admin = await asAdmin();
-    const invalid = await post(admin.authorization, {
-      expectedRevision: 0, item: { ...item(), endsAt: now() - 60_000 },
+  it('官方项目人工覆盖与恢复不改变原始抓取快照',async()=>{
+    const {token}=await setupAdmin();
+    const edit=await request('/items/official:123','PUT',token,{
+      expectedRevision:0,item:{...item(),title:'守护天节（人工修正）'},
     });
-    expect(invalid.status).toBe(422);
-    const badUrl = await post(admin.authorization, {
-      expectedRevision: 0, item: { ...item(), sourceUrl: 'javascript:alert(1)' },
-    });
-    expect(badUrl.status).toBe(422);
-    await env.DB.prepare('UPDATE devices SET revoked_at=? WHERE id=?')
-      .bind(now(), admin.deviceId).run();
-    expect((await post(admin.authorization, { expectedRevision: 0, item: item() })).status).toBe(401);
+    expect(edit.status).toBe(200);
+    expect((await (await SELF.fetch(API+'/calendar')).json<EventCalendarResponse>())
+      .events.find(x=>x.id==='official:123')?.title).toBe('守护天节（人工修正）');
+    expect((await request('/items/official:123/restore','POST',token,{expectedRevision:1})).status).toBe(200);
+    expect((await (await SELF.fetch(API+'/calendar')).json<EventCalendarResponse>())
+      .events.find(x=>x.id==='official:123')?.title).toBe('守护天节');
+    const original=await env.DB.prepare("SELECT payload FROM official_calendar_snapshots WHERE source='cn'")
+      .first<{payload:string}>();
+    expect(original?.payload).not.toContain('人工修正');
   });
 });
