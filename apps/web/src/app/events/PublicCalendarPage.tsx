@@ -3,6 +3,8 @@ import { eventCalendarResponseSchema, type EventCalendarItem, type EventCalendar
 import { useEffect, useMemo, useState } from 'react';
 import './public-calendar.css';
 import { CalendarAdminPanel } from './CalendarAdminPanel';
+import { CalendarAdminAccess } from './CalendarAdminAccess';
+import { calendarAdminSession, useCalendarAdminSession } from './calendar-admin-session';
 import {
   calendarOverview, chinaDateTime, chinaMonthDays, chinaToday,
   displayCalendarTitle, eventStatus, eventsForChinaDay, isScheduled,
@@ -49,11 +51,9 @@ function currentMonthKey(day: string, direction: number): string {
   return new Date(Date.UTC(year, month - 1 + direction, 1)).toISOString().slice(0, 10);
 }
 
-const anonymousToken = (): string | null => null;
-export function PublicCalendarPage({ onBack, getToken = anonymousToken }: {
-  readonly onBack: () => void;
-  readonly getToken?: () => string | null;
-}) {
+export function PublicCalendarPage({ onBack }: { readonly onBack: () => void }) {
+  const adminSession=useCalendarAdminSession();
+  const getToken=calendarAdminSession.get;
   const [state, setState] = useState<DataState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
   const [clock, setClock] = useState(Date.now);
@@ -75,7 +75,7 @@ export function PublicCalendarPage({ onBack, getToken = anonymousToken }: {
       if (!controller.signal.aborted) setCanEdit(response.ok);
     }).catch(() => { if (!controller.signal.aborted) setCanEdit(false); });
     return () => controller.abort();
-  }, [getToken]);
+  }, [adminSession.version]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 60_000);
@@ -136,9 +136,13 @@ export function PublicCalendarPage({ onBack, getToken = anonymousToken }: {
       <strong>{count}</strong><span>{label}</span>
     </button>;
 
+  if (adminOpen && !canEdit) return <CalendarAdminAccess
+    onClose={() => setAdminOpen(false)}
+    onReady={() => { setCanEdit(true); setAdminOpen(true); }}/>;
   if (adminOpen && canEdit) return <CalendarAdminPanel
     getToken={getToken} onClose={() => setAdminOpen(false)}
     onSaved={() => { setAttempt(value => value + 1); }}/>;
+
   return <div className="calendar-center">
     <header className="calendar-center__header">
       <div>
@@ -147,7 +151,16 @@ export function PublicCalendarPage({ onBack, getToken = anonymousToken }: {
         <p>北京时间 · 官方已核实的时间进入日历，其余公告单独显示</p>
       </div>
       <div className="calendar-center__actions">
-        {canEdit && <button className="button button--secondary" type="button" onClick={() => setAdminOpen(true)}>管理活动 ↗</button>}
+        <button className="button button--secondary" type="button" onClick={() => setAdminOpen(true)}>
+          {canEdit ? '管理活动 ↗' : '管理员登录'}
+        </button>
+        {canEdit && <button type="button" className="text-button" onClick={() => {
+          const token=getToken();
+          if(token) void fetch('/api/v1/events/admin/logout',{
+            method:'POST',credentials:'omit',headers:{ Authorization:'Bearer '+token },
+          }).catch(()=>undefined);
+          calendarAdminSession.clear(); setCanEdit(false);
+        }}>退出管理</button>}
         <a className="button" href={ICAL_URL} title="在日历应用中订阅，不包含未确认日期的活动">订阅日历（ICS） ↗</a>
         <button type="button" className="text-button" onClick={() => {
           setState({ status: 'loading' }); setAttempt(i => i + 1);
