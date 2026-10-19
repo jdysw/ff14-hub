@@ -5,14 +5,17 @@ import path from 'node:path';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 const targets={production:'https://ff14.zhixia.uk',preview:'https://ff14-preview.zhixia.uk'};
+const workerTargets={production:'https://ff14-hub.3347759490.workers.dev',preview:'https://ff14-hub-preview.3347759490.workers.dev'};
 const sha256=(value)=>createHash('sha256').update(new Uint8Array(value)).digest('hex');
+class BrowserChallengeError extends Error {}
 
 export async function verifyLive(environment,{fetcher=fetch,readAsset=(asset)=>readFile(path.join(root,'apps/web/dist',asset))}={}){
   if(!Object.hasOwn(targets,environment))throw new Error('Unknown release environment');
-  const base=targets[environment];
+  const verifyAt=async(base)=>{
   const request=async(route)=>{
     const response=await fetcher(`${base}${route}`,{redirect:'error',cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(15000)});
-    if(response.status!==200)throw new Error(`Unexpected HTTP status for ${route}`);
+    if(response.status===403&&response.headers.get('cf-mitigated')==='challenge')throw new BrowserChallengeError('Cloudflare browser challenge');
+    if(response.status!==200)throw new Error(`Unexpected HTTP ${response.status} for ${route}`);
     return response;
   };
   const healthResponse=await request('/api/v1/health');
@@ -29,13 +32,27 @@ export async function verifyLive(environment,{fetcher=fetch,readAsset=(asset)=>r
     if(sha256(local)!==sha256(remote))throw new Error('Live frontend differs from verified build');
   }
   return {environment,baseUrl:base,assetsVerified:assets.length};
+  };
+  try{return {...await verifyAt(targets[environment]),customDomainVerified:true};}
+  catch(error){
+    // This existing public hostname serves the same Worker. Do not change zone security
+    // or claim a custom-domain check passed when a browser challenge prevents it.
+    if(!(error instanceof BrowserChallengeError))throw error;
+    return {...await verifyAt(workerTargets[environment]),customDomainVerified:false,
+      warning:'Custom domain browser challenge; same Worker verified via existing workers.dev endpoint'};
+  }
 }
 
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   let passed=false;
   for(let attempt=1;attempt<=5;attempt++){
-    try{console.log(JSON.stringify(await verifyLive(process.argv[2])));passed=true;break;}
-    catch{console.error(`Public deployment verification attempt ${attempt}/5 failed`);}
+    try{
+      const report=await verifyLive(process.argv[2]);
+      console.log(JSON.stringify(report));
+      if(!report.customDomainVerified)console.warn(report.warning);
+      passed=true;break;
+    }
+    catch(error){console.error(`Public deployment verification attempt ${attempt}/5 failed: ${error instanceof Error?error.message:'unknown error'}`);}
     if(attempt<5)await new Promise((resolve)=>setTimeout(resolve,5000));
   }
   if(!passed)process.exitCode=1;
