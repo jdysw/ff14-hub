@@ -20,3 +20,13 @@
 .calendar-admin__dates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .calendar-admin__actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 @media(max-width:760px){.calendar-admin__layout{grid-template-columns:minmax(0,1fr)}.calendar-admin__list ul{max-height:200px}.calendar-admin__dates{grid-template-columns:minmax(0,1fr)}}
+
+.calendar-admin-access{max-width:660px;margin:0 auto;display:grid;gap:16px}
+.calendar-admin-access h2{font-size:24px;margin:0}
+.calendar-admin-access__form{display:grid;gap:14px;max-width:480px}
+.calendar-admin-access__form label{display:grid;gap:5px;color:var(--text);font-size:13px}
+.calendar-admin-access__form input{width:100%;min-height:44px;padding:10px 12px;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:7px}
+.calendar-admin-access__form .button{justify-self:start}
+.calendar-admin-access__totp{padding:16px;border:1px solid var(--border);border-radius:9px;background:var(--bg);max-width:100%;overflow-wrap:anywhere}
+.calendar-admin-access__totp code{user-select:all;overflow-wrap:anywhere}
+.calendar-admin-access__totp p{color:var(--text-muted);font-size:13px}
