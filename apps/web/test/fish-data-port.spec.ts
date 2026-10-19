@@ -31,7 +31,7 @@ it('exposes anonymous fish windows but never sends credentials or writes progres
     if(url.includes('/windows'))return Promise.resolve(Response.json({windows:[],from:Date.now(),to:Date.now()+3600000}));
     return Promise.resolve(Response.json({fish:[],total:0,offset:0}));
   }));
-  const result=await publicFishPort.call<{progress:{fields:unknown[]}}> ('fish.snapshot',{region:'cn',hours:1});
+  const result=await publicFishPort.call<{progress:{fields:unknown[]}}>('fish.snapshot',{region:'cn',hours:1});
   expect(result.progress.fields).toHaveLength(0);
   expect(urls).toHaveLength(1);
   expect(urls[0]).toContain('/api/v1/fish?region=cn&category=all');
