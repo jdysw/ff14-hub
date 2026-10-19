@@ -66,6 +66,11 @@ export function HomeView({ nav, workbench, authenticated, access, dataPortFor, o
     </form>
     <p className="home-search__hint">搜索当前导航 <span aria-hidden="true">·</span> 按 / 快速搜索</p>
 
+    {!publicEvents.visible && <div className="home-official-restore" role="status">
+      国服活动模块已隐藏。
+      <button className="text-button" type="button" onClick={() => savePublicEventsPreference({ ...publicEvents, visible: true })}>重新显示国服活动</button>
+      <button className="text-button" type="button" onClick={() => onOpen('calendar')}>查看完整日历 ↗</button>
+    </div>}
     {publicEvents.visible && publicEvents.position === 'before-nav' ? calendarModule : null}
 
     {authenticated && (workbench.status === 'loading' || workbench.status === 'idle') ? <p className="home-state" role="status">正在读取你的首页配置…</p> :
