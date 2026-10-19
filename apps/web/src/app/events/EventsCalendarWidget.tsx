@@ -92,7 +92,7 @@ export function EventsCalendarWidget(props: WidgetRuntimeProps) {
     })();
     return () => { cancelled = true; };
     // 配置按 Host 已校验的引用更新；reload 是用户手动刷新。
-  }, [data, config, retryToken, reload, reportReady, reportEmpty, reportAsyncError]);
+  }, [data, config, retryToken, reload, reportReady, reportEmpty, reportAsyncError, options.success]);
 
   const current = state.kind === 'loaded' ? now + state.clockOffset : now;
   const events = useMemo(() => state.kind === 'loaded' ? state.data.events : [], [state]);
@@ -104,6 +104,7 @@ export function EventsCalendarWidget(props: WidgetRuntimeProps) {
       e.endsAt - current <= THREE_DAYS && e.startsAt <= current).length,
     unknown: events.filter((e) => calendarPhase(e, current) === 'unknown').length,
   }), [events, current]);
+  const limit = options.success ? options.data.limit : 20;
   const visible = useMemo(() => order(events.filter((e) => {
     const itemPhase = calendarPhase(e, current);
     if (phase === 'ending' && !(e.endsAt !== null && e.endsAt > current &&
@@ -112,7 +113,7 @@ export function EventsCalendarWidget(props: WidgetRuntimeProps) {
     if (category !== 'all' && e.category !== category) return false;
     const words = keyword.normalize('NFKC').trim().toLowerCase().split(/\s+/).filter(Boolean);
     return words.every((word) => (e.title + ' ' + e.description + ' ' + e.category).normalize('NFKC').toLowerCase().includes(word));
-  }), current).slice(0, options.success ? options.data.limit : 20), [events, phase, category, keyword, current, config]);
+  }), current).slice(0, limit), [events, phase, category, keyword, current, limit]);
 
   if (!options.success || !data) return null;
 
