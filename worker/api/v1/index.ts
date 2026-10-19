@@ -14,7 +14,6 @@
 import { Hono } from 'hono';
 import type { AppBindings } from '../../types';
 import { publicEventRoutes } from './events';
-import { calendarAdminRoutes } from './calendar-admin';
 import { fishRoutes } from './fish';
 import { healthRoutes } from './health';
 import { identityRoutes } from './identity';
@@ -30,7 +29,6 @@ export function createApiV1(): Hono<AppBindings> {
   // 阶段 04：公开推荐目录与公开活动列表（都只有只读参考数据，匿名可读）。
   v1.route('/navigation', navigationRoutes);
   v1.route('/events', publicEventRoutes);
-  v1.route('/admin/calendar', calendarAdminRoutes);
   v1.route('/fish', fishRoutes);
   v1.route('/identity', identityRoutes);
   v1.route('/me', meRoutes);
