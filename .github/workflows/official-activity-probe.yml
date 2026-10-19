@@ -1,0 +1,73 @@
+name: Official FF14 API probe (temporary)
+on:
+  push:
+    branches: [feat/cn-event-calendar]
+permissions:
+  contents: read
+jobs:
+  direct-official-requests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Probe official newsList and newsDetail over HTTPS
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, urllib.error, socket, re, html
+          from urllib.parse import urlencode
+          host='cqnews.web.sdo.com'
+          print('DNS official host:')
+          try:
+              print(sorted({item[4][0] for item in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)}))
+          except Exception as e: print('DNS_ERROR',type(e).__name__,str(e))
+          base='https://cqnews.web.sdo.com'
+          headers={'Accept':'application/json','User-Agent':'Mozilla/5.0','Referer':'https://ff.web.sdo.com/web8/index.html'}
+          def fetch(url,label):
+              print('---',label,'---')
+              try:
+                  req=urllib.request.Request(url,headers=headers)
+                  with urllib.request.urlopen(req,timeout=16) as response:
+                      body=response.read(400000)
+                      print('HTTP',response.status,'Content-Type',response.headers.get('content-type'),'Bytes',len(body))
+                      if 'json' not in (response.headers.get('content-type') or '').lower():
+                          print('BODY_FIRST',body[:300].decode('utf8','replace'))
+                      try:
+                          data=json.loads(body)
+                          print('JSON_TYPE',type(data).__name__)
+                          if isinstance(data,dict):
+                              print('TOP_KEYS',list(data.keys()))
+                              print('Code',repr(data.get('Code')))
+                              for k in ['Message','Msg','message']:
+                                  if k in data: print(k,repr(str(data[k])[:120]))
+                          return data
+                      except Exception as e:
+                          print('JSON_ERROR',str(e),'TEXT_FIRST',repr(body[:280].decode('utf8','replace')))
+              except urllib.error.HTTPError as e:
+                  print('HTTP_ERROR',e.code,'body',repr(e.read(280).decode('utf8','replace')))
+              except Exception as e:
+                  print('REQUEST_ERROR',type(e).__name__,str(e))
+              return None
+          for category in ['5311','5203']:
+              params=urlencode({'gameCode':'ff','CategoryCode':category,'pageIndex':0,'pageSize':5})
+              data=fetch(base+'/api/news/newsList?'+params,'newsList category '+category)
+              if not isinstance(data,dict): continue
+              rows=data.get('Data')
+              print('DATA_TYPE',type(rows).__name__)
+              if isinstance(rows,list):
+                  print('COUNT',len(rows))
+                  for row in rows[:3]:
+                      if not isinstance(row,dict):continue
+                      print('ITEM_KEYS',list(row.keys()))
+                      print('ITEM_ID',repr(row.get('Id')),'TITLE',repr(str(row.get('Title'))[:150]),'PUBLISHED',repr(row.get('PublishDate')))
+                  first=next((r for r in rows if isinstance(r,dict) and str(r.get('Id','')).isdigit()),None)
+                  if first:
+                      i=int(first['Id'])
+                      detail=fetch(base+'/api/news/newsDetail?'+urlencode({'gameCode':'ff','id':i}),'newsDetail '+str(i))
+                      if isinstance(detail,dict) and isinstance(detail.get('Data'),dict):
+                          item=detail['Data']
+                          print('DETAIL_KEYS',list(item.keys()))
+                          text=html.unescape(re.sub(r'<[^>]+>',' ',str(item.get('Content',''))))
+                          print('DETAIL_PLAIN_FIRST_500',repr(' '.join(text.split())[:500]))
+              else:
+                  print('DATA_SAMPLE',repr(str(rows)[:500]))
+          PY
