@@ -1,7 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { extractOfficialActivityRange, extractOfficialLandingRange, readCnCalendar, resetCnCalendarCacheForTests } from '../modules/events/calendar-feed';
+import { eventCategory, extractOfficialActivityRange, extractOfficialLandingRange, readCnCalendar, resetCnCalendarCacheForTests } from '../modules/events/calendar-feed';
 
 afterEach(() => { resetCnCalendarCacheForTests(); vi.unstubAllGlobals(); });
+
+describe('国服官方活动分类', () => {
+  it('官方明确标注的版本、活动、联动和商城类别互不混淆', () => {
+    expect(eventCategory('7.45版本更新说明')).toBe('版本更新');
+    expect(eventCategory('【季节活动】守护天节')).toBe('季节活动');
+    expect(eventCategory('糖豆人联动复刻')).toBe('限时联动');
+    expect(eventCategory('莫古莫古★大收集')).toBe('莫古莫古大收集');
+    expect(eventCategory('月卡启航计划')).toBe('月卡与商城');
+    expect(eventCategory('系统维护公告')).toBe('官方公告');
+  });
+});
 
 describe('盛趣官方公告活动时间提取', () => {
   it('从明确的北京时间完整区间提取', () => {
