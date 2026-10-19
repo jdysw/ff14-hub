@@ -14,6 +14,7 @@ import {
   EVENTS_MODULE_ID,
   EVENTS_MODULE_MANIFEST,
   EVENTS_UPCOMING_CONFIG_VERSION,
+  EVENTS_CALENDAR_CONFIG_VERSION,
   EVENTS_WIDGET_CONFIG_CONTRACTS,
   EVENTS_WIDGET_IDS,
   EVENT_PHASES,
@@ -25,6 +26,8 @@ import {
   createWorkspaceEventRequestSchema,
   deleteWorkspaceEventRequestSchema,
   eventListResponseSchema,
+  eventCalendarResponseSchema,
+  eventsCalendarConfigSchema,
   eventPhase,
   eventSourceUrlSchema,
   eventsManageConfigSchema,
@@ -114,7 +117,7 @@ describe('常量与迁移 0009 CHECK 一致', () => {
 
   it('模块 ID / Widget ID / 长度上限取自同一份常量', () => {
     expect(EVENTS_MODULE_ID).toBe('ff14.events');
-    expect(EVENTS_WIDGET_IDS).toEqual({ upcoming: 'events-upcoming', manage: 'events-manage' });
+    expect(EVENTS_WIDGET_IDS).toEqual({ upcoming: 'events-upcoming', manage: 'events-manage', calendar: 'events-calendar' });
     expect(MAX_EVENT_TITLE_LENGTH).toBe(120);
     expect(MAX_EVENT_DESCRIPTION_LENGTH).toBe(1000);
     expect(MAX_EVENT_SOURCE_URL_LENGTH).toBe(2048);
@@ -410,7 +413,16 @@ describe('Manifest 与 Widget 配置契约一致', () => {
 
   it('Widget 定义（ID / 多实例 / 尺寸 / 配置版本）与规格一致', () => {
     const byId = new Map(EVENTS_MODULE_MANIFEST.widgets.map((widget) => [widget.id, widget]));
-    expect([...byId.keys()].sort((a, b) => a.localeCompare(b))).toEqual([EVENTS_WIDGET_IDS.manage, EVENTS_WIDGET_IDS.upcoming].sort((a, b) => a.localeCompare(b)));
+    expect([...byId.keys()].sort((a, b) => a.localeCompare(b))).toEqual([EVENTS_WIDGET_IDS.calendar, EVENTS_WIDGET_IDS.manage, EVENTS_WIDGET_IDS.upcoming].sort((a, b) => a.localeCompare(b)));
+
+    const calendar = byId.get(EVENTS_WIDGET_IDS.calendar);
+    expect(calendar).toMatchObject({
+      moduleId: EVENTS_MODULE_ID,
+      allowMultiple: true,
+      defaultSize: { w: 8, h: 6 },
+      minSize: { w: 4, h: 3 },
+      configSchemaVersion: EVENTS_CALENDAR_CONFIG_VERSION,
+    });
 
     const upcoming = byId.get(EVENTS_WIDGET_IDS.upcoming);
     expect(upcoming).toMatchObject({
@@ -435,7 +447,7 @@ describe('Manifest 与 Widget 配置契约一致', () => {
     const manifestVersions = new Map(
       EVENTS_MODULE_MANIFEST.widgets.map((widget) => [widget.id, widget.configSchemaVersion]),
     );
-    expect(EVENTS_WIDGET_CONFIG_CONTRACTS).toHaveLength(2);
+    expect(EVENTS_WIDGET_CONFIG_CONTRACTS).toHaveLength(3);
     for (const contract of EVENTS_WIDGET_CONFIG_CONTRACTS) {
       expect(manifestVersions.get(contract.widgetId)).toBe(contract.configSchemaVersion);
       expect(contract.configSchemaVersion).toBe(1);
@@ -443,6 +455,25 @@ describe('Manifest 与 Widget 配置契约一致', () => {
       // 默认配置必须能通过自己的 Schema（否则新建实例立刻是非法状态）。
       expect(contract.schema.safeParse(contract.defaultConfig).success).toBe(true);
     }
+  });
+
+  it('国服官方公告日历：未知时间明确为 null，响应包含可验证官方来源', () => {
+    expect(eventsCalendarConfigSchema.parse({})).toEqual({ title: '国服活动日历', limit: 20 });
+    expect(eventsCalendarConfigSchema.safeParse({ limit: 51 }).success).toBe(false);
+    const response = {
+      serverTimeMs: T0,
+      events: [{
+        id: 'official:42', region: 'cn', title: '官方活动', description: '', category: '官方活动',
+        location: '', allDay: false, startsAt: null, endsAt: null,
+        sourceUrl: 'https://ff.web.sdo.com/web8/index.html',
+      }],
+      source: { name: '盛趣官方公告', homeUrl: 'https://ff.web.sdo.com/web8/index.html',
+        checkedAtMs: T0, stale: false },
+    };
+    expect(eventCalendarResponseSchema.safeParse(response).success).toBe(true);
+    expect(eventCalendarResponseSchema.safeParse({ ...response, events: [{ ...response.events[0], region: 'global' }] }).success).toBe(false);
+    expect(eventCalendarResponseSchema.safeParse({ ...response, extra: true }).success).toBe(false);
+    expect(eventCalendarResponseSchema.safeParse({ ...response, events: [{ ...response.events[0], startsAt: -1 }] }).success).toBe(false);
   });
 
   it('找不到的 Widget 返回 null（不猜默认契约）', () => {
