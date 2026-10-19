@@ -17,7 +17,7 @@ const PERSONAL_LINKS: readonly SettingLink[] = [
   { id: 'calendar', label: '国服活动日历', hint: '按日期查看官方活动，支持订阅', view: 'calendar' },
   { id: 'workbench', label: '自定义工作台', hint: '调整首页模块与布局', view: 'workbench' },
   { id: 'nav', label: '我的网站', hint: '整理常用工具和收藏', view: 'nav' },
-  { id: 'fishing', label: '钓鱼手账', hint: '鱼窗与钓获进度', view: 'fishing' },
+  { id: 'fishing', label: '钓鱼手账', hint: '公开鱼窗、倒计时与钓获进度', view: 'fishing' },
   { id: 'reminders', label: '提醒管理', hint: '调整提醒规则', view: 'reminders' },
 ];
 
