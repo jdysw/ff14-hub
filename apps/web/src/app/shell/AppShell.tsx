@@ -59,6 +59,7 @@ import { StageNotice } from './StageNotice';
 import { SystemBar } from './SystemBar';
 import type { ShellView } from './shell-view';
 import { HomeView } from './HomeView';
+import { PublicCalendarPage } from '../events/PublicCalendarPage';
 import { registerPrivateDraftSource } from '../pwa/draft-registry';
 
 function ShellRegion(props: { readonly children: React.ReactNode }) {
@@ -235,6 +236,7 @@ function SessionWorkbench(props: SessionWorkbenchProps) {
         />
       ) : null}
 
+      {props.view === 'calendar' ? <PublicCalendarPage onBack={() => props.onSelectView('home')}/> : null}
       {props.view === 'nav' ? <NavView state={nav} /> : null}
       {props.view === 'fishing' ? <FishingPage dataPortFor={dataPortFor} status={moduleAccess(FISH_MODULE_ID).status}/> : null}
       {props.view === 'reminders' ? <ReminderPage dataPortFor={dataPortFor} status={moduleAccess(REMINDER_MODULE_ID).status}/> : null}
@@ -314,7 +316,7 @@ export function AppShell() {
         </button>
       </header>
       <PwaStatusBar />
-      <div id="settings-navigation" className="settings-navigation" hidden={view === 'home'}>
+      <div id="settings-navigation" className="settings-navigation" hidden={view === 'home' || view === 'calendar'}>
         <div className="settings-navigation__heading"><h2>我的设置</h2><button className="text-button" type="button" onClick={() => setView('home')}>返回首页 ↗</button></div>
         <p className="settings-navigation__intro">自定义常用功能，管理提醒与同步。公开导航和官方活动无需登录，复杂功能请在底部的「高级设置」中按需打开。</p>
         <SystemBar currentView={view} onSelectView={setView}/>
