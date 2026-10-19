@@ -6,6 +6,7 @@ import { WidgetHost } from '../widgets/WidgetHost';
 import type { ModuleAccess, ModuleDataPort } from '../widgets/types';
 import type { ShellView } from './shell-view';
 import { NavigationDirectory } from './NavigationDirectory';
+import { HomeOfficialEvents } from './HomeOfficialEvents';
 
 interface HomeViewProps {
   readonly nav: NavController;
@@ -52,6 +53,8 @@ export function HomeView({ nav, workbench, authenticated, access, dataPortFor, o
     </form>
     <p className="home-search__hint">搜索当前导航 <span aria-hidden="true">·</span> 按 / 快速搜索</p>
 
+    <HomeOfficialEvents />
+
     {authenticated && (workbench.status === 'loading' || workbench.status === 'idle') ? <p className="home-state" role="status">正在读取你的首页配置…</p> :
       workbench.error !== null ? <div className="notice notice--error" role="alert">首页配置读取失败。<button className="text-button" onClick={() => { void workbench.reload(); }}>重试</button></div> :
       configured ? <section className="home-workbench" aria-label="已配置的首页模块">
@@ -59,12 +62,8 @@ export function HomeView({ nav, workbench, authenticated, access, dataPortFor, o
         {workbench.dirty || workbench.conflict !== null ? <p className="notice notice--warn" role="status">布局草稿已保留，首页显示已保存的顺序。<button className="text-button" onClick={() => onOpen('workbench')}>继续编辑</button></p> : null}
         {ordered.length === 0 ? <p className="home-state">此页面没有可见模块。<button className="text-button" onClick={() => onOpen('workbench')}>添加模块</button></p> :
           <WidgetHost instances={ordered.map(instance => ({ instanceId: instance.id, moduleId: instance.moduleId, widgetId: instance.widgetType, config: instance.config, configVersion: instance.configVersion, hidden: false }))} access={access} dataPortFor={dataPortFor}/>}
-      </section> : <section className="home-daily" aria-label="日常信息">
-        <section><header className="home-section-heading"><h2>活动</h2><span className="home-section-kicker">EVENTS</span></header>
-          <p className="home-state">{authenticated ? '还没有配置活动时间表。' : '连接工作空间后，查看你的活动安排。'}</p>
-          <button className="text-button" onClick={() => onOpen(authenticated ? 'workbench' : 'credentials')}>{authenticated ? '配置活动模块' : '连接工作空间'} <span aria-hidden="true">↗</span></button>
-        </section>
-        <section><header className="home-section-heading"><h2>捕鱼</h2><span className="home-section-kicker">FISHING</span></header>
+      </section> : <section className="home-daily home-daily--single" aria-label="日常信息">
+        <section><header className="home-section-heading"><h2>钓鱼提醒</h2><span className="home-section-kicker">FISHING</span></header>
           <p className="home-state">{authenticated ? '还没有配置鱼窗模块。' : '连接工作空间后，查看鱼窗与钓获进度。'}</p>
           <button className="text-button" onClick={() => onOpen(authenticated ? 'fishing' : 'credentials')}>{authenticated ? '查看钓鱼手账' : '连接工作空间'} <span aria-hidden="true">↗</span></button>
         </section>
