@@ -52,7 +52,6 @@ export function FishingPanel({data,initialRegion='cn',hours=72,onReady,onError}:
   const watermark=useRef(-1);
   const callbacks=useRef({onReady,onError});
   useEffect(()=>{callbacks.current={onReady,onError};});
-  useEffect(()=>{setRange(hours);},[hours]);
   useEffect(()=>{
     const timer=window.setInterval(()=>setClock(Date.now()),15_000);
     return ()=>window.clearInterval(timer);
@@ -75,8 +74,9 @@ export function FishingPanel({data,initialRegion='cn',hours=72,onReady,onError}:
     };
     void load();
     const timer=window.setInterval(()=>{void load();},30_000);
-    window.addEventListener('focus',load);
-    return()=>{alive=false;window.clearInterval(timer);window.removeEventListener('focus',load);};
+    const focus=():void=>{void load();};
+    window.addEventListener('focus',focus);
+    return()=>{alive=false;window.clearInterval(timer);window.removeEventListener('focus',focus);};
   },[data,region,range,category,offset,text,reload]);
   const canEdit=data?.operations.includes('fish.progress')??false;
   const fields=snapshot?.progress.fields??[];
