@@ -315,7 +315,8 @@ export function AppShell() {
       </header>
       <PwaStatusBar />
       <div id="settings-navigation" className="settings-navigation" hidden={view === 'home'}>
-        <div className="settings-navigation__heading"><h2>设置</h2><button className="text-button" type="button" onClick={() => setView('home')}>返回首页 ↗</button></div>
+        <div className="settings-navigation__heading"><h2>我的设置</h2><button className="text-button" type="button" onClick={() => setView('home')}>返回首页 ↗</button></div>
+        <p className="settings-navigation__intro">自定义常用功能，管理提醒与同步。公开导航和官方活动无需登录，复杂功能请在底部的「高级设置」中按需打开。</p>
         <SystemBar currentView={view} onSelectView={setView}/>
         <nav className="settings-navigation__links" aria-label="导航与帮助">
           <button className="text-button" type="button" data-testid="nav-entry" onClick={() => setView('nav')}>管理个人导航</button>
