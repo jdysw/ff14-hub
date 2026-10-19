@@ -10,7 +10,8 @@ permissions:
   contents: read
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Do not interrupt an in-flight remote migration/deployment on main.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 jobs:
   check:
     name: ${{ matrix.label }}
@@ -75,3 +76,61 @@ jobs:
         env:
           E2E_SCRIPTS: ${{ matrix.e2e }}
         run: node scripts/ci-e2e-runner.mjs ${E2E_SCRIPTS}
+
+  deploy:
+    name: Cloudflare production
+    needs: check
+    # PRs and non-main manual runs never receive deployment credentials.
+    if: >-
+      github.repository == 'jdysw/ff14-hub' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    concurrency:
+      group: cloudflare-production
+      cancel-in-progress: false
+    steps:
+      - name: Checkout exact verified commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node/pnpm and frozen dependencies
+        uses: ./.github/actions/setup-ci
+      - name: Release configuration preflight
+        run: pnpm run ops:preflight
+      - name: Build frontend assets
+        run: pnpm run build:web
+      - name: Skip superseded main commit
+        id: current
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest=$(gh api repos/jdysw/ff14-hub/git/ref/heads/main --jq '.object.sha')
+          if [ "$latest" = "$GITHUB_SHA" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "A newer main commit exists; deployment skipped." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Apply migrations and deploy
+        if: steps.current.outputs.deploy == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${CLOUDFLARE_API_TOKEN:?Missing repository secret CLOUDFLARE_API_TOKEN}"
+          : "${CLOUDFLARE_ACCOUNT_ID:?Missing repository secret CLOUDFLARE_ACCOUNT_ID}"
+          pnpm exec wrangler d1 migrations apply DB --remote --env production
+          pnpm exec wrangler deploy --env production
+      - name: Verify deployed assets and database health
+        if: steps.current.outputs.deploy == 'true'
+        run: node scripts/ops/verify-live.mjs production
