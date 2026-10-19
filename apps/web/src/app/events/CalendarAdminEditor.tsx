@@ -71,7 +71,7 @@ export function CalendarAdminEditor({ getToken, events, onSaved }: {
   }
 
   useEffect(() => {
-    if (!token) { setAllowed(false); return; }
+    if (!token) return;
     const controller = new AbortController();
     void (async () => {
       try {
@@ -79,16 +79,23 @@ export function CalendarAdminEditor({ getToken, events, onSaved }: {
           credentials: 'omit', cache: 'no-store', signal: controller.signal,
           headers: { Authorization: 'Bearer ' + token },
         });
-        if (!controller.signal.aborted) setAllowed(response.ok);
-      } catch { if (!controller.signal.aborted) setAllowed(false); }
+        if (controller.signal.aborted || !response.ok) return;
+        const list = await fetch('/api/v1/admin/calendar/entries', {
+          credentials: 'omit', cache: 'no-store', signal: controller.signal,
+          headers: { Authorization: 'Bearer ' + token },
+        });
+        if (!list.ok) return;
+        const value: unknown = await list.json();
+        if (controller.signal.aborted) return;
+        if (value && typeof value === 'object' && 'entries' in value &&
+            Array.isArray(value.entries)) {
+          setEntries(value.entries as Override[]);
+          setAllowed(true);
+        }
+      } catch { /* 无凭证、无管理员授权或网络错误都不显示写入表单 */ }
     })();
     return () => controller.abort();
   }, [token]);
-
-  useEffect(() => {
-    if (!allowed) return;
-    void load().catch(() => setStatus('管理员修订列表读取失败，请刷新。'));
-  }, [allowed]);
 
   if (!allowed) return null;
 
