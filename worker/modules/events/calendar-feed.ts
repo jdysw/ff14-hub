@@ -152,7 +152,7 @@ export function eventCategory(title: string): string {
   if (/莫古莫古|大收集/.test(title)) return '莫古莫古大收集';
   if (/联动|联名|糖豆人|Fall Guys/i.test(title)) return '限时联动';
   if (/Fan Festival|FanFest|转播|直播|粉丝节/i.test(title)) return '直播与线下';
-  if (/版本更新|(?:^|[【〖 ])\\d{1,2}\\.\\d{1,2}(?:版本|更新|补丁)|补丁说明/.test(title)) return '版本更新';
+  if (/版本更新|(?:^|[【〖 ])\d{1,2}\.\d{1,2}(?:版本|更新|补丁)|补丁说明/.test(title)) return '版本更新';
   if (/月卡|商城|商品|道具商店/.test(title)) return '月卡与商城';
   if (/通行证/.test(title)) return '通行证';
   // 官方新闻可能只是宣传报道；不能把它们当成有真实时间段的活动。
