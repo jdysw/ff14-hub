@@ -23,9 +23,9 @@ const response = {
 
 describe('首页公开活动', () => {
   it('无需登录或个人工作空间，也能从公开接口显示活动及官方链接', async () => {
-    const fetchSpy = vi.fn(async () => new Response(JSON.stringify(response), {
+    const fetchSpy = vi.fn(() => Promise.resolve(new Response(JSON.stringify(response), {
       status: 200, headers: { 'Content-Type': 'application/json' },
-    }));
+    })));
     vi.stubGlobal('fetch', fetchSpy);
     render(<HomeOfficialEvents />);
     expect(await screen.findByText('官方测试活动')).toBeTruthy();
@@ -40,7 +40,7 @@ describe('首页公开活动', () => {
 
   it('来源时间缺失时不伪造倒计时', async () => {
     const unknown = { ...response, events: [{ ...response.events[0], startsAt: null, endsAt: null }] };
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(unknown), { status: 200 })));
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify(unknown), { status: 200 }))));
     render(<HomeOfficialEvents />);
     expect(await screen.findByText('官方测试活动')).toBeTruthy();
     expect(screen.getByText('时间待确认')).toBeTruthy();
