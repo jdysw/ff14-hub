@@ -11,9 +11,13 @@ export function CalendarAdminAccess({onReady,onClose}:{
   const [busy,setBusy]=useState(false);
   async function submit(form:HTMLFormElement) {
     const fields=new FormData(form);
-    const username=String(fields.get('username')??'').trim();
-    const password=String(fields.get('password')??'');
-    const code=String(fields.get('code')??'').trim();
+    const field=(name:string):string=>{
+      const value=fields.get(name);
+      return typeof value==='string'?value:'';
+    };
+    const username=field('username').trim();
+    const password=field('password');
+    const code=field('code').trim();
     setBusy(true);setMessage('');
     try {
       const res=await fetch('/api/v1/admin/login',{
