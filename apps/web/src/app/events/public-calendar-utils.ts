@@ -7,7 +7,7 @@ import type { EventCalendarItem } from '@ff14-hub/shared';
 export const CN_OFFSET = 8 * 60 * 60_000;
 export const DAY_MS = 86_400_000;
 export const SOON_MS = 7 * DAY_MS;
-export const ENDING_MS = 3 * DAY_MS;
+export const ENDING_MS = DAY_MS;
 
 export function chinaDayKey(timeMs: number): string {
   return new Date(timeMs + CN_OFFSET).toISOString().slice(0, 10);
