@@ -15,8 +15,8 @@ let inFlight: Promise<EventCalendarItem[]> | null = null;
 /** 仅接受国内日历常见的北京时间与 UTC，未识别的 TZID 不猜测。 */
 function calendarTime(value: string | undefined, parameters: string): { ms: number; allDay: boolean } | null {
   if (!value) return null;
-  const allDay = /^\\d{8}$/.test(value);
-  const match = /^(\\d{4})(\\d{2})(\\d{2})(?:T(\\d{2})(\\d{2})(\\d{2})(Z)?)?$/.exec(value);
+  const allDay = /^\d{8}$/.test(value);
+  const match = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?$/.exec(value);
   if (!match) return null;
   const [, year, month, day, hour = '00', minute = '00', second = '00', zone] = match;
   const tzid = /(?:^|;)TZID=([^;]+)/i.exec(parameters)?.[1]?.replace(/^"|"$/g, '');
@@ -32,7 +32,7 @@ function calendarTime(value: string | undefined, parameters: string): { ms: numb
 }
 
 function textValue(value: string | undefined): string {
-  return (value ?? '').replace(/\\\\[nN]/g, ' ').replace(/\\\\([,;\\\\])/g, '$1').replace(/\\s+/g, ' ').trim();
+  return (value ?? '').replace(/\\[nN]/g, ' ').replace(/\\([,;\\])/g, '$1').replace(/\s+/g, ' ').trim();
 }
 function safeLink(value: string | undefined): string | null {
   if (!value) return null;
@@ -47,8 +47,8 @@ function field(cells: Map<string, Cell>, key: string): Cell | undefined { return
 /** RFC5545 折行、转义、UTC / Asia/Shanghai / 全天结束日期(不含)处理。 */
 export function parseCnCalendarIcs(ics: string): EventCalendarItem[] {
   if (!ics.includes('BEGIN:VCALENDAR') || !ics.includes('BEGIN:VEVENT')) return [];
-  const unfolded = ics.replace(/\\r?\\n[ \\t]/g, '');
-  const lines = unfolded.split(/\\r?\\n/);
+  const unfolded = ics.replace(/\r?\n[ \t]/g, '');
+  const lines = unfolded.split(/\r?\n/);
   const result: EventCalendarItem[] = [];
   const seen = new Set<string>();
   let event: Map<string, Cell> | null = null;
