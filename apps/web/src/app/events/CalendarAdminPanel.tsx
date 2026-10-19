@@ -104,14 +104,14 @@ export function CalendarAdminPanel({ getToken, onClose, onSaved }: {
   }, [getToken]);
   useEffect(() => {
     const controller = new AbortController();
-    void fetchList(controller.signal).catch(e => {
+    void Promise.resolve().then(() => fetchList(controller.signal)).catch(e => {
       if (!controller.signal.aborted) setMessage(e instanceof Error ? e.message : '读取失败');
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [fetchList]);
 
   const selected = records.find(row => row.id === selectedId);
-  const now = Date.now();
+  const [now] = useState(Date.now);
   const visible = useMemo(() => records.filter(row =>
     (showHistory || row.item.endsAt === null || row.item.endsAt >= now || row.mode === 'hide') &&
     (row.item.title + ' ' + row.item.category).toLowerCase().includes(search.trim().toLowerCase())
