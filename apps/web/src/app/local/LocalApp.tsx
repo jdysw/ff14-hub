@@ -48,7 +48,6 @@ export function LocalApp(){
   };
   const [settingsTab,setSettingsTab]=useState<'home'|'links'|'notes'|'fish'|'backup'>('home');
   const [category,setCategory]=useState('all');
-  const [region,setRegion]=useState<''|'cn'|'global'>('');
   const siteSettings=useSiteSettings();
   const adminSession=useCalendarAdminSession();
   const adminClicks=useRef<number[]>([]);
@@ -80,11 +79,11 @@ export function LocalApp(){
     window.addEventListener('keydown',shortcut);return()=>window.removeEventListener('keydown',shortcut);
   },[]);
   const query=search.trim();
-  // 合并系统与本地目录：本地收藏和人工简介优先，保留系统别名、标签和区服。
+  // 合并系统与本地目录：本地收藏和人工简介优先，搜索覆盖系统别名与标签。
   const allLinks=useMemo(()=>directoryLinks(catalog,data?.links??[]),[catalog,data]);
   const links=useMemo(()=>allLinks.filter(link=>
-    (!favorites||link.favorite)&&(!region||link.region===region||link.region==='both')&&matchesDirectorySearch(link,query)
-  ),[allLinks,query,favorites,region]);
+    (!favorites||link.favorite)&&matchesDirectorySearch(link,query)
+  ),[allLinks,query,favorites]);
   const groups=useMemo(()=>[...new Set(allLinks.map(link=>link.category||'常用网站'))].sort((a,b)=>a.localeCompare(b,'zh-CN')),[allLinks]);
   const filteredLinks=useMemo(()=>category==='all'?links:links.filter(link=>(link.category||'常用网站')===category),[links,category]);
   const enabledSections=data?.configuration.order.filter(section=>data.configuration.visible[section]&&(section!=='events'||siteSettings.homeCalendarEnabled))??[];
@@ -157,11 +156,6 @@ export function LocalApp(){
                 <input id="local-search" ref={searchRef} type="search" value={search} placeholder="搜索网站、攻略、工具…" onChange={event=>{setSearch(event.target.value);setVisibleLimit(36);}}/>
                 <kbd aria-hidden="true">/</kbd>
               </form>
-              <label className="local-directory__region">适用区服
-                <select value={region} onChange={event=>{setRegion(event.target.value as ''|'cn'|'global');setVisibleLimit(36);}}>
-                  <option value="">全部</option><option value="cn">国服</option><option value="global">国际服</option>
-                </select>
-              </label>
               <nav className="local-directory__filters" aria-label="网站分类">
                 <button type="button" aria-pressed={category==='all'} onClick={()=>{setCategory('all');setVisibleLimit(36);}}>全部</button>
                 {groups.map(group=><button type="button" key={group} aria-pressed={category===group} onClick={()=>{setCategory(group);setVisibleLimit(36);}}>{group}</button>)}
