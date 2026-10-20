@@ -2,7 +2,7 @@ import { SELF,env } from 'cloudflare:test';
 import { beforeEach,describe,it,expect } from 'vitest';
 import { SYNC_MODULE_ID,fishSyncSnapshotSchema,fishSyncPreviewSchema,fishSyncResultSchema,type FishSyncChange } from '@ff14-hub/shared';
 import { seedAuth,seedDevice,resetIdentityState,enableDemoModule,jsonPost,jsonPut,opId } from './helpers';
-import { importFishBundle,demoFish } from '../modules/fish/adapter';
+import { importFishBundle,demoFish } from './fixtures/fish';
 const URL='https://hub.test/api/v1/me/fish-sync';
 beforeEach(resetIdentityState);
 async function setup(){const a=await seedAuth();await enableDemoModule(a.authorization,'ff14.fishing');await enableDemoModule(a.authorization,SYNC_MODULE_ID);

@@ -1,1 +1,20 @@
-{"name":"@ff14-hub/fish-sync","version":"0.0.0","private":true,"type":"module","exports":{".":"./src/index.ts","./webdav":"./src/webdav.ts","./vault":"./src/vault.ts","./coordinator":"./src/coordinator.ts","./userscript":"./src/userscript.ts","./hub":"./src/hub.ts","./browser-lock":"./src/browser-lock.ts"},"scripts":{"typecheck":"tsc -p tsconfig.json","test":"vitest run"},"dependencies":{"zod":"catalog:"},"devDependencies":{"typescript":"catalog:","vitest":"catalog:"}}
+{
+  "name": "@ff14-hub/fish-sync",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -44,8 +44,6 @@ catalog:
   hono: 4.13.13
   '@block65/webcrypto-web-push': 2.0.0
   zod: 4.6.7
-  drizzle-orm: 0.45.4
-  drizzle-kit: 0.31.11
 
   # --- Web ----------------------------------------------------------------
   # react-grid-layout 锁定 2.3.0（HUB-045 布局编辑器）：
@@ -55,7 +53,6 @@ catalog:
   # - 2.x 是 ESM（`dist/index.mjs`）并提供 exports 映射（含 `./css/styles.css`），
   #   与 Vite 8 的 ESM 解析一致。
   # - 2.x 起推荐通过 nodeRef 驱动拖拽，不再依赖 React 19 已移除的 ReactDOM.findDOMNode。
-  react-grid-layout: 2.3.0
   react: 19.3.1
   react-dom: 19.3.1
   '@types/react': 19.3.0

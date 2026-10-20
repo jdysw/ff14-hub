@@ -5,7 +5,7 @@ import {FishingBoard,type FishDetailSelection} from '../src/app/fish/FishingBoar
 import {forecastCatalog} from '../src/app/fish/forecast';
 import type {CatalogFish,FishingCatalog} from '../src/app/fish/catalog';
 import type {FishRegion} from '@ff14-hub/shared';
-import type {ModuleDataPort} from '../src/app/widgets/types';
+import type {DataPort} from '../src/lib/data-port';
 import {readFileSync} from 'node:fs';
 import {fishingCatalogSchema} from '../src/app/fish/catalog';
 const source=fishingCatalogSchema.parse(JSON.parse(readFileSync('public/fishing/catalog-cn.json','utf8')) as unknown);
@@ -22,7 +22,7 @@ class ForecastWorker {
 }
 beforeEach(()=>vi.stubGlobal('Worker',ForecastWorker));
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});
-const publicPort=(catalog=fixture):ModuleDataPort=>({moduleId:'ff14.fishing',operations:['fish.catalog'],call:<T,>()=>Promise.resolve(catalog as T)});
+const publicPort=(catalog=fixture):DataPort=>({moduleId:'ff14.fishing',operations:['fish.catalog'],call:<T,>()=>Promise.resolve(catalog as T)});
 
 it('renders actionable fish directly, and searches beyond the first 30 records',async()=>{
   render(<FishingBoard data={publicPort()} compact/>);
@@ -51,7 +51,7 @@ it('keeps failed mutation intent and retries the identical operation',async()=>{
     if(operation==='fish.progress.read')return Promise.resolve({fields:[],watermark:0});
     intents.push(input);if(attempts++===0)return Promise.reject(new Error('temporary network failure'));return Promise.resolve({});
   });
-  const data:ModuleDataPort={moduleId:'ff14.fishing',operations:['fish.catalog','fish.progress','fish.progress.read'],call:<T,>(op:string,input?:unknown)=>call(op,input) as Promise<T>};
+  const data:DataPort={moduleId:'ff14.fishing',operations:['fish.catalog','fish.progress','fish.progress.read'],call:<T,>(op:string,input?:unknown)=>call(op,input) as Promise<T>};
   render(<FishingBoard data={data}/>);
   const pin=await screen.findByRole('button',{name:'收藏 测试鱼0'});
   await waitFor(()=>expect(pin.hasAttribute('disabled')).toBe(false));

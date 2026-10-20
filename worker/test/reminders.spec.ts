@@ -2,7 +2,7 @@ import { SELF,env } from 'cloudflare:test';
 import { beforeEach,afterEach,describe,it,expect,vi } from 'vitest';
 import { REMINDER_MODULE_ID,reminderSnapshotSchema,pushSubscriptionInputSchema } from '@ff14-hub/shared';
 import { seedAuth,seedDevice,resetIdentityState,enableDemoModule,jsonPut,opId,patchModule } from './helpers';
-import { importFishBundle,demoFish } from '../modules/fish/adapter';
+import { importFishBundle,demoFish } from './fixtures/fish';
 import { planNotifications } from '../modules/reminders/planner';
 import { claimJob,finishJob,runNotifications,JOB_LEASE_MS } from '../modules/reminders/runner';
 import { createPushTransport } from '../modules/reminders/push';

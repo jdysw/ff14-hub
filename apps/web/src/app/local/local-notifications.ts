@@ -1,9 +1,8 @@
 import {eventCalendarResponseSchema,fishDigestSchema,type LocalNotificationJob,type LocalNotificationChannel} from '@ff14-hub/shared';
-import {publicFishPort} from '../fish/fish-data-port';
 import {forecastCatalog} from '../fish/forecast';
-import type {FishingCatalog} from '../fish/catalog';
+import {loadFishingCatalog} from '../fish/catalog';
 import type {LocalData,LocalStore} from './store';
-import {readDeviceRecord,writeDeviceRecord} from './secure-storage';
+import {readDeviceRecord,writeDeviceRecord,updateDeviceRecord} from './secure-storage';
 export interface NotificationSettings{token:string|null;channel:'serverchan'|'resend';events:boolean;eventEndDays:(1|3)[];fish:boolean;digestTime:string;leadMinutes:number;dailyLimit:number;browser:boolean;jobs:LocalNotificationJob[];lastPlan:number;error:string}
 export const defaultNotificationSettings:NotificationSettings={token:null,channel:'serverchan',events:true,eventEndDays:[3,1],fish:true,digestTime:'08:00',leadMinutes:10,dailyLimit:5,browser:false,jobs:[],lastPlan:0,error:''};
 export function digestSettings(data:LocalData,settings:NotificationSettings){
@@ -24,7 +23,7 @@ export async function buildNotificationJobs(data:LocalData,settings:Notification
     const fields=data.fish[region],caught=new Set(fields.filter(f=>f.field==='caught'&&f.value).map(f=>f.fishId));
     const wanted=new Set(fields.filter(f=>f.field==='alarm'&&f.value&&!caught.has(f.fishId)).map(f=>f.fishId));
     if(wanted.size===0)continue;
-    const catalog=await publicFishPort.call<FishingCatalog>('fish.catalog',{region});
+    const catalog=await loadFishingCatalog(region);
     const fish=catalog.fish.filter(f=>wanted.has(f.id)&&f.rule?.validationStatus==='verified'&&f.rule.conditions.length===0);
     const names=new Map(fish.map(f=>[f.id,f]));
     for(const item of forecastCatalog(fish,region,now,72))for(const window of item.windows){if(!window.candidateOnly){const record=names.get(item.id)!;add(`fish:${region}:${item.id}:${window.startsAtUtcMs}`,record.name,`${region==='cn'?'国服':'国际服'} · ${record.location} · 鱼窗即将开放`,window.startsAtUtcMs);}}
@@ -55,9 +54,10 @@ export function startLocalNotifications(store:LocalStore){
       const latest=await readDeviceRecord<NotificationSettings>('notifications');
       if(stopped||!latest||latest.token!==settings.token||latest.browser!==settings.browser||latest.digestTime!==settings.digestTime||(await store.read()).revision!==data.revision)return;
       if(settings.token&&!localOnly)await notificationRequest('/plan',settings.token,'PUT',{jobs:[],digest,targetsOnly:true});
-      const current=await readDeviceRecord<NotificationSettings>('notifications');
-      if(!current||current.token!==settings.token||current.browser!==settings.browser)return;
-      await writeDeviceRecord('notifications',{...current,jobs,lastPlan:localOnly?current.lastPlan:Date.now(),error:''});
+      await updateDeviceRecord<NotificationSettings>('notifications',current=>{
+        if(stopped||!current||current.token!==settings.token||current.browser!==settings.browser)return undefined;
+        return {...current,jobs,lastPlan:localOnly?current.lastPlan:Date.now(),error:''};
+      });
     }catch{/* A failed refresh preserves the durable server plan; status is available in settings. */}finally{running=false;}
   };
   const changed=()=>{window.clearTimeout(timer);timer=window.setTimeout(()=>void renew(),2000);};

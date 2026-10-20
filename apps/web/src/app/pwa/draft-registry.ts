@@ -44,3 +44,10 @@ export function hasAnyPrivateDraft(): boolean {
 export function resetPrivateDraftSources(): void {
   sources.clear();
 }
+import {useEffect,useRef} from 'react';
+/** One lifecycle for private forms: track current dirtiness and unregister on unmount. */
+export function usePrivateDraft(dirty:boolean):void{
+  const current=useRef(dirty);
+  useEffect(()=>{current.current=dirty;},[dirty]);
+  useEffect(()=>registerPrivateDraftSource(()=>current.current),[]);
+}

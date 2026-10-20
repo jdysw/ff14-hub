@@ -5,7 +5,7 @@ import {seedAuth,resetIdentityState,enableDemoModule,seedDevice} from './helpers
 import {observeScheduled,STALE_SCHEDULER_MS} from '../modules/operations/scheduler';
 import {operationsSnapshot,SOURCE_STALE_MS} from '../modules/operations/snapshot';
 import {handleScheduled} from '../scheduled';
-import {demoFish,importFishBundle} from '../modules/fish/adapter';
+import {demoFish,importFishBundle} from './fixtures/fish';
 const NOW=Date.UTC(2026,9,19);
 beforeEach(resetIdentityState);
 afterEach(()=>vi.restoreAllMocks());

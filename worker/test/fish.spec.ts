@@ -1,7 +1,7 @@
 import { SELF,env } from 'cloudflare:test';
 import { describe,it,expect,beforeEach } from 'vitest';
 import { FISH_MODULE_ID,fishListResponseSchema,fishProgressResponseSchema,fishWindowsResponseSchema } from '@ff14-hub/shared';
-import { importFishBundle,demoFish } from '../modules/fish/adapter';
+import { importFishBundle,demoFish } from './fixtures/fish';
 import { seedAuth,resetIdentityState,enableDemoModule,jsonPut,opId,patchModule } from './helpers';
 
 const BASE='https://hub.test/api/v1';
