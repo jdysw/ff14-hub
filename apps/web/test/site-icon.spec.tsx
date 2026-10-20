@@ -21,5 +21,6 @@ it('prefers the extracted same-site custom favicon and never sends the referring
     title="钓鱼" faviconUrl="https://example.org/static/logo.svg"/>);
   const image=container.querySelector<HTMLImageElement>('img');
   expect(image?.src).toBe('https://example.org/static/logo.svg');
-  expect(image?.referrerPolicy).toBe('no-referrer');
+  // JSDOM 不实现 referrerPolicy DOM 属性，检查真实渲染的 HTML 属性。
+  expect(image?.getAttribute('referrerpolicy')).toBe('no-referrer');
 });
