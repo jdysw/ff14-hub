@@ -14,6 +14,11 @@ import './local.css';
 
 const SiteAdminPage=lazy(()=>import('../admin/SiteAdminPage').then(module=>({default:module.SiteAdminPage})));
 
+function siteDomain(url:string):string{
+  try{return new URL(url).hostname.replace(/^www\./,'');}
+  catch{return url;}
+}
+
 export function LocalApp(){
   const [store]=useState(()=>createLocalStore());
   const dataPort=useMemo(()=>localFishPort(store),[store]);
@@ -22,7 +27,7 @@ export function LocalApp(){
   const [catalogError,setCatalogError]=useState(false);
   const [catalogReload,setCatalogReload]=useState(0);
   const [error,setError]=useState<string|null>(null);
-  const [view,setView]=useState<'home'|'settings'|'calendar'|'admin'>('home');
+  const [view,setView]=useState<'home'|'settings'|'calendar'|'fishing'|'notes'|'admin'>('home');
   const [settingsTab,setSettingsTab]=useState<'home'|'links'|'notes'|'fish'|'backup'>('home');
   const [category,setCategory]=useState('all');
   const siteSettings=useSiteSettings();
@@ -36,6 +41,7 @@ export function LocalApp(){
   useEffect(()=>{document.title=siteSettings.siteName;},[siteSettings.siteName]);
   const [search,setSearch]=useState('');
   const [favorites,setFavorites]=useState(false);
+  const [visibleLimit,setVisibleLimit]=useState(36);
   const searchRef=useRef<HTMLInputElement>(null);
   useEffect(()=>{
     let alive=true;let revision=-1;
@@ -60,8 +66,9 @@ export function LocalApp(){
     return [...personal,...catalog.filter(link=>!existing.has(link.url)).map(link=>({id:link.id,title:link.title,url:link.url,category:link.category,favorite:false,personal:false}))]
       .filter(link=>(!favorites||link.favorite)&&(!query||[link.title,link.url,link.category].join(' ').toLocaleLowerCase().includes(query)));
   },[data,catalog,query,favorites]);
-  const groups=useMemo(()=>[...new Set(links.map(link=>link.category||'常用网站'))],[links]);
+  const groups=useMemo(()=>[...new Set([...(data?.links??[]),...catalog].map(link=>link.category||'常用网站'))].sort((a,b)=>a.localeCompare(b,'zh-CN')),[data,catalog]);
   const filteredLinks=useMemo(()=>category==='all'?links:links.filter(link=>(link.category||'常用网站')===category),[links,category]);
+  useEffect(()=>{setVisibleLimit(36);},[search,category,favorites]);
   const enabledSections=data?.configuration.order.filter(section=>data.configuration.visible[section]&&(section!=='events'||siteSettings.homeCalendarEnabled))??[];
   const saveFavorite=(link:typeof links[number])=>{
     void store.change(document=>{
@@ -94,33 +101,40 @@ export function LocalApp(){
         :!data?error?<p role="alert">本机数据读取失败。<button type="button" onClick={()=>window.location.reload()}>重试</button></p>:<p role="status">正在读取…</p>
         :view==='settings'?<LocalSettings key={settingsTab} initialTab={settingsTab} store={store} data={data} onSaved={()=>{}} onAdmin={openAdmin} adminAuthenticated={adminSession.authenticated}/>
         :view==='calendar'?<PublicCalendarPage onBack={()=>setView('home')}/>
+        :view==='fishing'?<div className="local-detail local-detail--fishing">
+          <FishingBoard data={dataPort} initialRegion={data.configuration.region} onImport={()=>{setSettingsTab('fish');setView('settings');}}/>
+        </div>
+        :view==='notes'?<section className="local-detail local-detail--notes" aria-label="全部备忘">
+          <header className="local-detail__header"><h2>我的备忘</h2><button type="button" onClick={()=>{setSettingsTab('notes');setView('settings');}}>管理备忘 ↗</button></header>
+          {data.notes.length?data.notes.map(note=><article className="local-detail__note" key={note.id}><h3>{note.title}</h3><p>{note.text}</p></article>):
+            <p className="local-detail__empty">暂无备忘。可在设置中添加。</p>}
+        </section>
         :<div className="local-dashboard">
           <section className="local-dashboard__modules" aria-label="功能模块">
             <header className="local-dashboard__section-heading">
-              <h2>功能模块</h2>
+              <h2>常用功能</h2>
               <button type="button" className="local-dashboard__manage" onClick={()=>{setSettingsTab('home');setView('settings');}}>自定义 <span aria-hidden="true">↗</span></button>
             </header>
             <div className="local-dashboard__module-grid">
-              {enabledSections.length===0?<div className="local-dashboard__empty">
-                <button type="button" onClick={()=>{setSettingsTab('home');setView('settings');}}>添加模块 ＋</button>
-              </div>:enabledSections.map(section=><div className="local-dashboard__module" key={section} data-module={section}>
-                {section==='events'?<HomeOfficialEvents onOpenCalendar={()=>setView('calendar')}
+              {enabledSections.length===0?<p className="local-dashboard__empty">
+                <button type="button" onClick={()=>{setSettingsTab('home');setView('settings');}}>启用功能模块 ＋</button>
+              </p>:enabledSections.map(section=><div className="local-dashboard__module" key={section} data-module={section}>
+                {section==='events'?<HomeOfficialEvents maxItems={2} onOpenCalendar={()=>setView('calendar')}
                   onHide={()=>{void store.change(document=>{document.data.configuration.visible.events=false;}).catch(()=>setError('设置未能保存到本机'));}}/>:
-                section==='fishing'?<FishingBoard data={dataPort} initialRegion={data.configuration.region} compact
-                  onImport={()=>{setSettingsTab('fish');setView('settings');}}/>:
+                section==='fishing'?<FishingBoard data={dataPort} initialRegion={data.configuration.region} preview onOpenDetail={()=>setView('fishing')}/>:
                 <section className="local-notes" aria-label="我的备忘">
                   <header className="local-notes__heading"><h3>备忘</h3>
-                    <button type="button" className="local-dashboard__manage" onClick={()=>{setSettingsTab('notes');setView('settings');}}>编辑 ↗</button>
+                    <button type="button" className="local-dashboard__manage" onClick={()=>setView('notes')}>查看全部 ↗</button>
                   </header>
-                  {data.notes.length?data.notes.map(note=><article key={note.id}><h4>{note.title}</h4><p>{note.text}</p></article>):
-                    <div className="local-notes__empty"><button type="button" onClick={()=>{setSettingsTab('notes');setView('settings');}}>添加备忘 ＋</button></div>}
-                </section>}
+                  {data.notes.length?data.notes.slice(0,2).map(note=><article key={note.id}><h4>{note.title}</h4><p>{note.text}</p></article>):
+                    <p className="local-notes__empty">暂无备忘 <button type="button" onClick={()=>{setSettingsTab('notes');setView('settings');}}>添加 ＋</button></p>}
+                </section>
               </div>)}
             </div>
           </section>
           <section id="local-navigation" className="local-directory" aria-label="导航站">
             <header className="local-dashboard__section-heading local-directory__heading">
-              <div className="local-directory__heading-title"><h2>导航站</h2><span>{links.length} 个站点</span></div>
+              <div className="local-directory__heading-title"><h2>导航站</h2><span>{filteredLinks.length} 个网站</span></div>
               <div className="local-directory__heading-actions">
                 <button type="button" className="local-dashboard__manage" aria-pressed={favorites} onClick={()=>setFavorites(value=>!value)}>{favorites?'★ 已收藏':'☆ 收藏'}</button>
                 <button type="button" className="local-dashboard__manage" onClick={()=>{setSettingsTab('links');setView('settings');}}>管理 ↗</button>
@@ -139,15 +153,18 @@ export function LocalApp(){
               </nav>
             </div>
             {catalogError&&<div role="status" className="local-directory__notice">推荐目录无法加载 <button type="button" onClick={()=>setCatalogReload(value=>value+1)}>重试</button></div>}
-            {filteredLinks.length===0?<div className="local-directory__empty">暂无网站 <button type="button" onClick={()=>{setCategory('all');setFavorites(false);setSearch('');}}>清除筛选</button></div>:
-              <ul className="local-directory__tiles">{filteredLinks.map(link=><li key={link.id} className="local-directory__tile">
+            {filteredLinks.length===0?<div className="local-directory__empty">暂无匹配网站 <button type="button" onClick={()=>{setCategory('all');setFavorites(false);setSearch('');}}>清除筛选</button></div>:
+              <ul className="local-directory__tiles">{filteredLinks.slice(0,visibleLimit).map(link=><li key={link.id} className="local-directory__tile">
                 <a href={link.url} target="_blank" rel="noopener noreferrer" title={link.url}>
                   <span className="local-directory__monogram" aria-hidden="true">{link.title.trim().slice(0,1)||'·'}</span>
-                  <span className="local-directory__link-name">{link.title}</span>
-                  <span className="local-directory__link-arrow" aria-hidden="true">↗</span>
+                  <span className="local-directory__link-content">
+                    <span className="local-directory__link-name">{link.title}</span>
+                    <span className="local-directory__link-domain">{siteDomain(link.url)}</span>
+                  </span>
                 </a>
                 <button type="button" className="local-directory__star" aria-label={(link.favorite?'取消收藏 ':'收藏 ')+link.title} aria-pressed={link.favorite} onClick={()=>saveFavorite(link)}>{link.favorite?'★':'☆'}</button>
               </li>)}</ul>}
+            {filteredLinks.length>visibleLimit&&<button type="button" className="local-directory__more" onClick={()=>setVisibleLimit(v=>v+36)}>显示更多网站（剩余 {filteredLinks.length-visibleLimit}）</button>}
           </section>
         </div>}
     </main>
