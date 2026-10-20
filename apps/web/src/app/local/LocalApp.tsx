@@ -119,9 +119,9 @@ export function LocalApp(){
               {enabledSections.length===0?<p className="local-dashboard__empty">
                 <button type="button" onClick={()=>{setSettingsTab('home');setView('settings');}}>启用功能模块 ＋</button>
               </p>:enabledSections.map(section=><div className="local-dashboard__module" key={section} data-module={section}>
-                {section==='events'?<HomeOfficialEvents maxItems={2} onOpenCalendar={()=>setView('calendar')}
+                {section==='events'?<HomeOfficialEvents onOpenCalendar={()=>setView('calendar')}
                   onHide={()=>{void store.change(document=>{document.data.configuration.visible.events=false;}).catch(()=>setError('设置未能保存到本机'));}}/>:
-                section==='fishing'?<FishingBoard data={dataPort} initialRegion={data.configuration.region} preview onOpenDetail={()=>setView('fishing')}/>:
+                section==='fishing'?<FishingBoard data={dataPort} initialRegion={data.configuration.region} embedded/>:
                 <section className="local-notes" aria-label="我的备忘">
                   <header className="local-notes__heading"><h3>备忘</h3>
                     <button type="button" className="local-dashboard__manage" onClick={()=>setView('notes')}>查看全部 ↗</button>
