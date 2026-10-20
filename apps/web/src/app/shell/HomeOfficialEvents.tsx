@@ -33,10 +33,9 @@ function OfficialEventSummary({ item, now }: { readonly item: EventCalendarItem;
   </li>;
 }
 
-export function HomeOfficialEvents({ onOpenCalendar, onHide, maxItems = 4 }: {
+export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
   readonly onOpenCalendar: () => void;
   readonly onHide: () => void;
-  readonly maxItems?: number;
 }) {
   const [state, setState] = useState<ViewState>({ kind: 'loading' });
   const [refresh, setRefresh] = useState(0);
@@ -71,17 +70,22 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide, maxItems = 4 }: {
   const now = state.kind === 'ready' ? clock + state.offset : clock;
   const overview = useMemo(() =>
     calendarOverview(state.kind === 'ready' ? state.value.events : [], now), [state, now]);
-  // 去重后按「即将结束 → 进行中 → 即将开始」排序；只有没有可靠日程时才显示待核实公告。
+  // 首页保留全部未结束活动，包括距离较远的未来日程；不截断条目。
+  // 尚未确认起止时间的公告置于末尾，避免误判为过期活动。
   const important = useMemo(() => {
-    const seen = new Set<string>();
-    const ordered = [...overview.ending, ...overview.active, ...overview.upcoming];
-    const filtered = ordered.filter(item => {
-      if (seen.has(item.id)) return false;
-      seen.add(item.id);
-      return true;
-    }).slice(0, maxItems);
-    return filtered.length ? filtered : overview.unscheduled.slice(0, maxItems);
-  }, [overview, maxItems]);
+    if (state.kind !== 'ready') return [] as EventCalendarItem[];
+    const order = { ending: 0, active: 1, upcoming: 2, unscheduled: 3, ended: 4 };
+    return state.value.events
+      .filter(item => !isScheduled(item) || item.endsAt! >= now)
+      .sort((a, b) => {
+        const phaseA = eventStatus(a, now), phaseB = eventStatus(b, now);
+        const diff = order[phaseA] - order[phaseB];
+        if (diff !== 0) return diff;
+        const timeA = phaseA === 'ending' || phaseA === 'active' ? a.endsAt : a.startsAt;
+        const timeB = phaseB === 'ending' || phaseB === 'active' ? b.endsAt : b.startsAt;
+        return (timeA ?? Number.MAX_SAFE_INTEGER) - (timeB ?? Number.MAX_SAFE_INTEGER);
+      });
+  }, [state, now]);
   const reload = () => { setState({ kind: 'loading' }); setRefresh(value => value + 1); };
 
   return <section className="home-official" aria-label="国服官方活动">
@@ -106,7 +110,7 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide, maxItems = 4 }: {
         <button type="button" onClick={onOpenCalendar}><strong>{overview.upcoming.length}</strong><span>未来 7 天开始</span></button>
         <button type="button" onClick={onOpenCalendar}><strong>{overview.ending.length}</strong><span>24 小时内结束</span></button>
       </div>
-      {important.length === 0 && <p className="home-state">暂无近期活动</p>}
+      {important.length === 0 && <p className="home-state">暂无未结束活动</p>}
       {important.length > 0 && <ul className="home-official__list">
         {important.map(item => <OfficialEventSummary key={item.id} item={item} now={now}/>)}
       </ul>}
