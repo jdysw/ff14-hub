@@ -46,9 +46,40 @@ describe('首页公开活动', () => {
     const unknown = { ...response, events: [{ ...response.events[0], startsAt: null, endsAt: null }] };
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify(unknown), { status: 200 }))));
     render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
-    expect(await screen.findByText('官方测试活动')).toBeTruthy();
-    expect(screen.getByText('时间待确认')).toBeTruthy();
-    expect(screen.getByText('—')).toBeTruthy();
+    expect(await screen.findByText(/目前没有已确认时间的未结束活动/)).toBeTruthy();
+    expect(screen.queryByText('官方测试活动')).toBeNull();
+    expect(screen.getByRole('button',{name:/1 条待核实公告/})).toBeTruthy();
+  });
+
+  it('首页最多显示 3 条可靠的近期日程，其他未结束活动和待核实公告只在完整日历中查看', async () => {
+    const now = Date.now();
+    const make = (id: string, startsAt: number|null, endsAt: number|null) =>
+      ({...response.events[0],id,title:id,startsAt,endsAt});
+    const events = [
+      make('已结束活动',now-10*86400000,now-86400000),
+      make('长期进行A',now-10*86400000,now+30*86400000),
+      make('长期进行B',now-10*86400000,now+40*86400000),
+      make('长期进行C',now-10*86400000,now+50*86400000),
+      make('即将结束',now-2*86400000,now+3600000),
+      make('即将开始',now+3600000,now+2*86400000),
+      make('远期活动',now+50*86400000,now+60*86400000),
+      make('公告待核实A',null,null),
+      make('公告待核实B',null,null),
+    ];
+    vi.stubGlobal('fetch',vi.fn(()=>Promise.resolve(new Response(JSON.stringify({
+      ...response,serverTimeMs:now,events,
+    }),{status:200}))));
+    const onOpenCalendar=vi.fn();
+    const {container}=render(<HomeOfficialEvents onOpenCalendar={onOpenCalendar} onHide={vi.fn()}/>);
+    await screen.findByText('即将结束');
+    await waitFor(()=>expect(container.querySelectorAll('.home-official-event')).toHaveLength(3));
+    expect(screen.getByText('即将开始')).toBeTruthy();
+    expect(screen.queryByText('长期进行B')).toBeNull();
+    expect(screen.queryByText('公告待核实A')).toBeNull();
+    expect(screen.queryByText('已结束活动')).toBeNull();
+    expect(screen.getByRole('button',{name:/其余 4 项日程 · 2 条待核实公告/})).toBeTruthy();
+    fireEvent.click(screen.getByRole('button',{name:/其余 4 项日程/}));
+    expect(onOpenCalendar).toHaveBeenCalledTimes(1);
   });
 
   it('服务不可用时展示重试，且不伪装为无活动', async () => {
