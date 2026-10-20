@@ -24,7 +24,7 @@ export function LocalModuleOverlay({title,origin,onClose,children}:LocalModuleOv
   const closingRef=useRef(false);
   const headingId=useId();
   const callbackRef=useRef(onClose);
-  callbackRef.current=onClose;
+  useEffect(()=>{callbackRef.current=onClose;},[onClose]);
   const originRef=useRef(origin);
   const openAnimation=useRef<Animation|null>(null);
 
@@ -64,7 +64,7 @@ export function LocalModuleOverlay({title,origin,onClose,children}:LocalModuleOv
   const finishClose=useCallback(()=>{
     const dialog=dialogRef.current;
     if(dialog?.open)dialog.close();
-    originRef.current.returnFocus?.isConnected&&originRef.current.returnFocus.focus({preventScroll:true});
+    if(originRef.current.returnFocus?.isConnected){originRef.current.returnFocus.focus({preventScroll:true});}
     callbackRef.current();
   },[]);
   const requestClose=useCallback(()=>{

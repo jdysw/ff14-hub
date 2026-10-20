@@ -65,7 +65,7 @@ beforeEach(async () => {
 describe('目录种子与公开目录端点', () => {
   it('种子每条都有可核对的来源、https 地址、核对时间、合法区服与唯一 ID', () => {
     expect(NAV_CATALOG_SEED.length).toBeGreaterThanOrEqual(3);
-    expect(NAV_CATALOG_SEED.length).toBeLessThanOrEqual(8);
+    expect(NAV_CATALOG_SEED.length).toBeGreaterThan(100);
     const ids = new Set<string>();
     for (const entry of NAV_CATALOG_SEED) {
       // 整体形状：共享 Schema 是唯一口径（严格，多字段/少字段都失败）。

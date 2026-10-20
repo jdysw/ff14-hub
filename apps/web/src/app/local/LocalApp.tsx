@@ -1,5 +1,6 @@
 import {lazy,Suspense,useEffect,useMemo,useRef,useState} from 'react';
-import {API_ROUTES,type NavCatalogEntry} from '@ff14-hub/shared';
+import {API_ROUTES,matchesDirectorySearch,canonicalNavUrl,type NavCatalogEntry} from '@ff14-hub/shared';
+import {directoryLinks} from './DirectoryBrowser';
 import {HomeOfficialEvents} from '../shell/HomeOfficialEvents';
 import {PublicCalendarPage} from '../events/PublicCalendarPage';
 import {FishingBoard,type FishDetailSelection} from '../fish/FishingBoard';
@@ -47,6 +48,7 @@ export function LocalApp(){
   };
   const [settingsTab,setSettingsTab]=useState<'home'|'links'|'notes'|'fish'|'backup'>('home');
   const [category,setCategory]=useState('all');
+  const [region,setRegion]=useState<''|'cn'|'global'>('');
   const siteSettings=useSiteSettings();
   const adminSession=useCalendarAdminSession();
   const adminClicks=useRef<number[]>([]);
@@ -72,24 +74,23 @@ export function LocalApp(){
       .then(result=>{if(alive){setCatalog([...result.entries]);setCatalogError(false);}}).catch(()=>{if(alive)setCatalogError(true);});
     return()=>{alive=false;};
   },[catalogReload]);
+  useEffect(()=>{const refresh=()=>setCatalogReload(value=>value+1);window.addEventListener('ff14hub:directory-changed',refresh);return()=>window.removeEventListener('ff14hub:directory-changed',refresh);},[]);
   useEffect(()=>{
     const shortcut=(event:KeyboardEvent)=>{if(event.key==='/'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!(event.target instanceof HTMLElement&&(event.target.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)))){event.preventDefault();setView('home');requestAnimationFrame(()=>{document.getElementById('local-navigation')?.scrollIntoView({block:'nearest'});searchRef.current?.focus();});}};
     window.addEventListener('keydown',shortcut);return()=>window.removeEventListener('keydown',shortcut);
   },[]);
-  const query=search.trim().toLocaleLowerCase();
-  const links=useMemo(()=>{
-    const personal=(data?.links??[]).map(link=>({...link,personal:true}));
-    const existing=new Set(personal.map(link=>link.url));
-    return [...personal,...catalog.filter(link=>!existing.has(link.url)).map(link=>({id:link.id,title:link.title,url:link.url,category:link.category,description:link.description,faviconUrl:undefined,favorite:false,personal:false}))]
-      .filter(link=>(!favorites||link.favorite)&&(!query||[link.title,link.url,link.category,link.description??''].join(' ').toLocaleLowerCase().includes(query)));
-  },[data,catalog,query,favorites]);
-  const groups=useMemo(()=>[...new Set([...(data?.links??[]),...catalog].map(link=>link.category||'常用网站'))].sort((a,b)=>a.localeCompare(b,'zh-CN')),[data,catalog]);
+  const query=search.trim();
+  // 合并系统与本地目录：本地收藏和人工简介优先，保留系统别名、标签和区服。
+  const allLinks=useMemo(()=>directoryLinks(catalog,data?.links??[]),[catalog,data]);
+  const links=useMemo(()=>allLinks.filter(link=>
+    (!favorites||link.favorite)&&(!region||link.region===region||link.region==='both')&&matchesDirectorySearch(link,query)
+  ),[allLinks,query,favorites,region]);
+  const groups=useMemo(()=>[...new Set(allLinks.map(link=>link.category||'常用网站'))].sort((a,b)=>a.localeCompare(b,'zh-CN')),[allLinks]);
   const filteredLinks=useMemo(()=>category==='all'?links:links.filter(link=>(link.category||'常用网站')===category),[links,category]);
-  useEffect(()=>{setVisibleLimit(36);},[search,category,favorites]);
   const enabledSections=data?.configuration.order.filter(section=>data.configuration.visible[section]&&(section!=='events'||siteSettings.homeCalendarEnabled))??[];
   const saveFavorite=(link:typeof links[number])=>{
     void store.change(document=>{
-      const old=document.data.links.find(item=>item.url===link.url);
+      const old=document.data.links.find(item=>canonicalNavUrl(item.url)===canonicalNavUrl(link.url));
       if(old)old.favorite=!old.favorite;
       else document.data.links.push({id:crypto.randomUUID(),title:link.title,url:link.url,category:link.category,description:link.description??'',...(link.faviconUrl?{faviconUrl:link.faviconUrl}:{}),favorite:true});
     }).catch((cause:unknown)=>setError(cause instanceof Error?cause.message:'本机保存失败'));
@@ -145,7 +146,7 @@ export function LocalApp(){
             <header className="local-dashboard__section-heading local-directory__heading">
               <div className="local-directory__heading-title"><h2>导航站</h2><span>{filteredLinks.length} 个网站</span></div>
               <div className="local-directory__heading-actions">
-                <button type="button" className="local-dashboard__manage" aria-pressed={favorites} onClick={()=>setFavorites(value=>!value)}>{favorites?'★ 已收藏':'☆ 收藏'}</button>
+                <button type="button" className="local-dashboard__manage" aria-pressed={favorites} onClick={()=>{setFavorites(value=>!value);setVisibleLimit(36);}}>{favorites?'★ 已收藏':'☆ 收藏'}</button>
                 <button type="button" className="local-dashboard__manage" onClick={()=>{setSettingsTab('links');setView('settings');}}>管理 ↗</button>
               </div>
             </header>
@@ -153,12 +154,17 @@ export function LocalApp(){
               <form className="home-search" role="search" onSubmit={event=>{event.preventDefault();searchRef.current?.focus();}}>
                 <label className="visually-hidden" htmlFor="local-search">搜索网站</label>
                 <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
-                <input id="local-search" ref={searchRef} type="search" value={search} placeholder="搜索网站、攻略、工具…" onChange={event=>setSearch(event.target.value)}/>
+                <input id="local-search" ref={searchRef} type="search" value={search} placeholder="搜索网站、攻略、工具…" onChange={event=>{setSearch(event.target.value);setVisibleLimit(36);}}/>
                 <kbd aria-hidden="true">/</kbd>
               </form>
+              <label className="local-directory__region">适用区服
+                <select value={region} onChange={event=>{setRegion(event.target.value as ''|'cn'|'global');setVisibleLimit(36);}}>
+                  <option value="">全部</option><option value="cn">国服</option><option value="global">国际服</option>
+                </select>
+              </label>
               <nav className="local-directory__filters" aria-label="网站分类">
-                <button type="button" aria-pressed={category==='all'} onClick={()=>setCategory('all')}>全部</button>
-                {groups.map(group=><button type="button" key={group} aria-pressed={category===group} onClick={()=>setCategory(group)}>{group}</button>)}
+                <button type="button" aria-pressed={category==='all'} onClick={()=>{setCategory('all');setVisibleLimit(36);}}>全部</button>
+                {groups.map(group=><button type="button" key={group} aria-pressed={category===group} onClick={()=>{setCategory(group);setVisibleLimit(36);}}>{group}</button>)}
               </nav>
             </div>
             {catalogError&&<div role="status" className="local-directory__notice">推荐目录无法加载 <button type="button" onClick={()=>setCatalogReload(value=>value+1)}>重试</button></div>}
