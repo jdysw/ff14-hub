@@ -87,7 +87,6 @@ export function LocalApp(){
   ),[allLinks,query,favorites,region]);
   const groups=useMemo(()=>[...new Set(allLinks.map(link=>link.category||'常用网站'))].sort((a,b)=>a.localeCompare(b,'zh-CN')),[allLinks]);
   const filteredLinks=useMemo(()=>category==='all'?links:links.filter(link=>(link.category||'常用网站')===category),[links,category]);
-  useEffect(()=>{setVisibleLimit(36);},[search,category,favorites,region]);
   const enabledSections=data?.configuration.order.filter(section=>data.configuration.visible[section]&&(section!=='events'||siteSettings.homeCalendarEnabled))??[];
   const saveFavorite=(link:typeof links[number])=>{
     void store.change(document=>{
@@ -147,7 +146,7 @@ export function LocalApp(){
             <header className="local-dashboard__section-heading local-directory__heading">
               <div className="local-directory__heading-title"><h2>导航站</h2><span>{filteredLinks.length} 个网站</span></div>
               <div className="local-directory__heading-actions">
-                <button type="button" className="local-dashboard__manage" aria-pressed={favorites} onClick={()=>setFavorites(value=>!value)}>{favorites?'★ 已收藏':'☆ 收藏'}</button>
+                <button type="button" className="local-dashboard__manage" aria-pressed={favorites} onClick={()=>{setFavorites(value=>!value);setVisibleLimit(36);}}>{favorites?'★ 已收藏':'☆ 收藏'}</button>
                 <button type="button" className="local-dashboard__manage" onClick={()=>{setSettingsTab('links');setView('settings');}}>管理 ↗</button>
               </div>
             </header>
@@ -155,17 +154,17 @@ export function LocalApp(){
               <form className="home-search" role="search" onSubmit={event=>{event.preventDefault();searchRef.current?.focus();}}>
                 <label className="visually-hidden" htmlFor="local-search">搜索网站</label>
                 <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
-                <input id="local-search" ref={searchRef} type="search" value={search} placeholder="搜索网站、攻略、工具…" onChange={event=>setSearch(event.target.value)}/>
+                <input id="local-search" ref={searchRef} type="search" value={search} placeholder="搜索网站、攻略、工具…" onChange={event=>{setSearch(event.target.value);setVisibleLimit(36);}}/>
                 <kbd aria-hidden="true">/</kbd>
               </form>
               <label className="local-directory__region">适用区服
-                <select value={region} onChange={event=>setRegion(event.target.value as ''|'cn'|'global')}>
+                <select value={region} onChange={event=>{setRegion(event.target.value as ''|'cn'|'global');setVisibleLimit(36);}}>
                   <option value="">全部</option><option value="cn">国服</option><option value="global">国际服</option>
                 </select>
               </label>
               <nav className="local-directory__filters" aria-label="网站分类">
-                <button type="button" aria-pressed={category==='all'} onClick={()=>setCategory('all')}>全部</button>
-                {groups.map(group=><button type="button" key={group} aria-pressed={category===group} onClick={()=>setCategory(group)}>{group}</button>)}
+                <button type="button" aria-pressed={category==='all'} onClick={()=>{setCategory('all');setVisibleLimit(36);}}>全部</button>
+                {groups.map(group=><button type="button" key={group} aria-pressed={category===group} onClick={()=>{setCategory(group);setVisibleLimit(36);}}>{group}</button>)}
               </nav>
             </div>
             {catalogError&&<div role="status" className="local-directory__notice">推荐目录无法加载 <button type="button" onClick={()=>setCatalogReload(value=>value+1)}>重试</button></div>}
