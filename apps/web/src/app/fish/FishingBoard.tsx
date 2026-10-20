@@ -17,7 +17,7 @@ const hookLabel:Record<string,string>={Precision:'精准提钩',Powerful:'强力
 type View='windows'|'all'|'pinned';
 
 interface FishingBoardProps {
-  data:ModuleDataPort;initialRegion?:FishRegion;hours?:number;compact?:boolean;embedded?:boolean;onReady?:()=>void;onError?:((error:unknown)=>void)|undefined;onConnect?:()=>void;onImport?:()=>void;
+  data:ModuleDataPort;initialRegion?:FishRegion;hours?:number;compact?:boolean;embedded?:boolean;onOpenDetail?:()=>void;onReady?:()=>void;onError?:((error:unknown)=>void)|undefined;onConnect?:()=>void;onImport?:()=>void;
 }
 export function FishingBoard(props:FishingBoardProps){
   const [region,setRegion]=useState(props.initialRegion??'cn');
@@ -25,7 +25,7 @@ export function FishingBoard(props:FishingBoardProps){
   return <FishingBoardSession key={`${region}:${reload}:${props.data.operations.join(',')}`} {...props} region={region}
     onRegion={setRegion} onReload={()=>setReload(n=>n+1)}/>;
 }
-function FishingBoardSession({data,region,hours=168,compact=false,embedded=false,onReady,onError,onConnect,onImport,onRegion,onReload}:FishingBoardProps&{
+function FishingBoardSession({data,region,hours=168,compact=false,embedded=false,onOpenDetail,onReady,onError,onConnect,onImport,onRegion,onReload}:FishingBoardProps&{
   region:FishRegion;onRegion:(region:FishRegion)=>void;onReload:()=>void;
 }){
   const [catalog,setCatalog]=useState<FishingCatalog|null>(null);
@@ -115,7 +115,11 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
   const et=eorzeaTime(now);
   return <section className={`fish-board${compact?' fish-board--home':''}${embedded?' fish-board--embedded':''}`} aria-label="钓鱼时钟" data-testid="fishing-board">
     <header className="fish-board__heading"><div><h2>钓鱼</h2></div>
-      <span className="fish-board__clock">艾欧泽亚时间 <strong>{String(et.hour).padStart(2,'0')}:{String(et.minute).padStart(2,'0')}</strong></span></header>
+      <div className="fish-board__header-actions">
+        <span className="fish-board__clock">艾欧泽亚时间 <strong>{String(et.hour).padStart(2,'0')}:{String(et.minute).padStart(2,'0')}</strong></span>
+        {embedded&&onOpenDetail?<button type="button" className="fish-board__open-detail" onClick={onOpenDetail}>独立查看 ↗</button>:null}
+      </div>
+    </header>
     <div className="fish-board__toolbar">
       <div className="fish-board__tabs" role="group" aria-label="钓鱼视图">{([['windows','近期鱼窗'],['all','全部鱼类'],['pinned','我的收藏']] as const).map(([value,label])=>
         <button type="button" key={value} aria-pressed={view===value} onClick={()=>changeFilter(()=>{setView(value);if(value==='all')setKind('all');})}>{label}</button>)}</div>
