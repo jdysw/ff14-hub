@@ -100,7 +100,7 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
   const allEvents = state.kind === 'ready' ? state.value.events : [];
   const confirmedCount = allEvents.filter(item => isScheduled(item) && item.endsAt! >= now).length;
   const unknownCount = allEvents.filter(item => !isScheduled(item)).length;
-  const important = useMemo(() => homeEventHighlights(allEvents, now), [state, now]);
+  const important = homeEventHighlights(allEvents, now);
   const remaining = Math.max(0, confirmedCount - important.length);
   const reload = () => { setState({ kind: 'loading' }); setRefresh(value => value + 1); };
 
