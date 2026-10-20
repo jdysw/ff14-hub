@@ -131,7 +131,9 @@ async function json(path: string, signal?:AbortSignal): Promise<unknown> {
     return JSON.parse(body) as unknown;
   }catch(error){
     // Fixed endpoint role/status only: no URLs, query strings, bodies or credentials.
-    console.warn(JSON.stringify({event:'official_calendar_origin_failure',endpoint:path.includes('newsList')?'list':'detail',status,kind:error instanceof Error?error.name:'unknown'}));
+    const reason=error instanceof Error&&['TypeError','TimeoutError','AbortError'].includes(error.name)
+      ?error.message.replace(/https?:\/\/\S+/g,'[origin]').slice(0,160):undefined;
+    console.warn(JSON.stringify({event:'official_calendar_origin_failure',endpoint:path.includes('newsList')?'list':'detail',status,kind:error instanceof Error?error.name:'unknown',reason}));
     throw error;
   }
 }
