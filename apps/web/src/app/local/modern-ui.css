@@ -794,3 +794,25 @@ body { background:var(--bg);color:var(--text);font-family:Inter,'PingFang SC','M
   .local-directory__monogram img{width:25px;height:25px;}
   .local-directory__link-description{font-size:12px;-webkit-line-clamp:1;}
 }
+
+/* Personal links: editable site intro and optional one-click metadata refresh. */
+.local-settings__link-batch{
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  gap:10px;margin:26px 0 12px;padding-top:16px;border-top:1px solid #e1e8ef;
+}
+.local-settings__link-batch h4{margin:0;color:#31445a;font-size:15px;font-weight:650;}
+.local-settings__link-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:10px 0 0;}
+.local-settings__link-actions button{min-height:38px;padding:7px 12px;font-size:13px;}
+.local-settings__link-list .local-settings__link-item{
+  display:flex;align-items:flex-start;justify-content:flex-start;gap:12px;padding:14px 0;
+}
+.local-settings__link-item>.local-directory__monogram{margin:2px 0 0;}
+.local-settings__link-main{display:block;flex:1;min-width:0;}
+.local-settings__link-main>strong{display:block;color:#283d55;font-size:14px;line-height:1.5;}
+.local-settings__link-main>small{display:block;color:#728397;font-size:12px;line-height:1.6;}
+.local-settings__link-main>p{margin:4px 0 0;font-size:12px;line-height:1.6;color:#566b80;overflow-wrap:anywhere;}
+.local-settings__link-editor{margin:6px 0;}
+.local-settings__link-editor summary{width:max-content;max-width:100%;cursor:pointer;color:#346194;font-size:12px;padding:5px 1px;}
+.local-settings__link-editor .local-settings__field{margin:9px 0;max-width:580px;}
+.local-settings__link-editor .local-settings__link-actions button{font-size:12px;}
+.local-settings__link-editor [role=status]{margin:7px 0;font-size:12px;line-height:1.5;}
