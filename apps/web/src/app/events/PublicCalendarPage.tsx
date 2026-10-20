@@ -48,7 +48,7 @@ function currentMonthKey(day: string, direction: number): string {
   return new Date(Date.UTC(year, month - 1 + direction, 1)).toISOString().slice(0, 10);
 }
 
-export function PublicCalendarPage({ onBack }: { readonly onBack: () => void }) {
+export function PublicCalendarPage({ onBack, overlay = false }: { readonly onBack: () => void; readonly overlay?: boolean }) {
   const [state, setState] = useState<DataState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
   const [clock, setClock] = useState(Date.now);
@@ -119,7 +119,7 @@ export function PublicCalendarPage({ onBack }: { readonly onBack: () => void }) 
   return <div className="calendar-center">
     <header className="calendar-center__header">
       <div>
-        <button type="button" className="text-button" onClick={onBack}>← 返回首页</button>
+        {!overlay&&<button type="button" className="text-button" onClick={onBack}>← 返回首页</button>}
         <h2>国服活动日历</h2>
       </div>
       <div className="calendar-center__actions">
