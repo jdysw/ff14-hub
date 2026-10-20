@@ -583,3 +583,36 @@ body { background:var(--bg);color:var(--text);font-family:Inter,'PingFang SC','M
   .local-dashboard__module .fish-board__header-actions{gap:6px;}
   .local-dashboard__module .fish-board__open-detail{font-size:11px;padding-inline:4px;}
 }
+
+/* 时间筛选控制首页鱼窗数据量：保留用户选定范围内的完整列表。 */
+.local-dashboard__module .fish-board__range{
+  display:flex;align-items:center;flex-wrap:wrap;gap:6px;
+  margin:11px 0 2px;padding:0 0 10px;border-bottom:1px solid #e7edf3;
+}
+.local-dashboard__module .fish-board__range-label{
+  margin-right:5px;font-size:12px;color:#657589;white-space:nowrap;
+}
+.local-dashboard__module .fish-board__range button{
+  flex:0 0 auto;min-height:34px;padding:5px 10px;
+  border:1px solid transparent;border-radius:7px;
+  background:transparent;color:#52667d;font-size:12px;font-weight:500;line-height:1.4;
+}
+.local-dashboard__module .fish-board__range button:hover{
+  background:#edf3fa;color:#305b8e;
+}
+.local-dashboard__module .fish-board__range button[aria-pressed=true]{
+  background:#e5effa;color:#2c598c;border-color:#d5e3f2;font-weight:650;
+}
+.local-dashboard__module .fish-board__summary{
+  font-size:12px;color:#536a80;line-height:1.65;
+}
+.local-dashboard__module .fish-board__tabs button{
+  white-space:nowrap;
+}
+@media(max-width:650px){
+  .local-dashboard__module .fish-board__range{gap:3px;margin-top:8px;}
+  .local-dashboard__module .fish-board__range-label{margin-right:3px;font-size:11px;}
+  .local-dashboard__module .fish-board__range button{
+    min-height:33px;padding:5px 7px;font-size:11px;
+  }
+}
