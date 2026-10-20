@@ -17,7 +17,7 @@ const hookLabel:Record<string,string>={Precision:'精准提钩',Powerful:'强力
 type View='windows'|'all'|'pinned';
 
 interface FishingBoardProps {
-  data:ModuleDataPort;initialRegion?:FishRegion;hours?:number;compact?:boolean;onReady?:()=>void;onError?:((error:unknown)=>void)|undefined;onConnect?:()=>void;onImport?:()=>void;
+  data:ModuleDataPort;initialRegion?:FishRegion;hours?:number;compact?:boolean;preview?:boolean;onOpenDetail?:()=>void;onReady?:()=>void;onError?:((error:unknown)=>void)|undefined;onConnect?:()=>void;onImport?:()=>void;
 }
 export function FishingBoard(props:FishingBoardProps){
   const [region,setRegion]=useState(props.initialRegion??'cn');
@@ -25,7 +25,7 @@ export function FishingBoard(props:FishingBoardProps){
   return <FishingBoardSession key={`${region}:${reload}:${props.data.operations.join(',')}`} {...props} region={region}
     onRegion={setRegion} onReload={()=>setReload(n=>n+1)}/>;
 }
-function FishingBoardSession({data,region,hours=168,compact=false,onReady,onError,onConnect,onImport,onRegion,onReload}:FishingBoardProps&{
+function FishingBoardSession({data,region,hours=168,compact=false,preview=false,onOpenDetail,onReady,onError,onConnect,onImport,onRegion,onReload}:FishingBoardProps&{
   region:FishRegion;onRegion:(region:FishRegion)=>void;onReload:()=>void;
 }){
   const [catalog,setCatalog]=useState<FishingCatalog|null>(null);
@@ -113,6 +113,29 @@ function FishingBoardSession({data,region,hours=168,compact=false,onReady,onErro
     finally{if(current===generation.current)setBusy(false);}
   };
   const et=eorzeaTime(now);
+  if(preview){
+    const upcoming=visible.slice(0,2);
+    return <section className="fish-preview" aria-label="钓鱼摘要" data-testid="fishing-board-preview">
+      <header className="fish-preview__heading">
+        <h2>钓鱼</h2>
+        <button type="button" onClick={onOpenDetail} className="fish-preview__open">查看全部鱼窗 <span aria-hidden="true">↗</span></button>
+      </header>
+      <p className="fish-preview__clock">{region==='cn'?'国服':'国际服'} <span aria-hidden="true">·</span> 艾欧泽亚时间 <strong>{String(et.hour).padStart(2,'0')}:{String(et.minute).padStart(2,'0')}</strong></p>
+      {error?<p role="alert" className="fish-preview__state">{error} <button type="button" onClick={onReload}>重试</button></p>:
+       !catalog||forecasts===null?<p role="status" className="fish-preview__state">正在计算鱼窗…</p>:
+       upcoming.length===0?<p className="fish-preview__state">近期暂无匹配鱼窗</p>:
+       <ul className="fish-preview__list">{upcoming.map(fish=>{
+         const state=windowState(fish,forecastsById.get(fish.id),now);
+         return <li key={fish.id} className="fish-preview__item">
+           <span className="fish-preview__identity"><strong>{fish.name}</strong><small>{fish.location}</small></span>
+           <span className="fish-preview__timing"><strong className={state.open?'is-open':''}>{state.open?'正在开放':state.next?'即将开放':state.always?'全天':'窗口待补'}</strong>
+             <small>{state.open?`${duration(state.open.endsAtUtcMs-now)}后关闭`:state.next?`${duration(state.next.startsAtUtcMs-now)}后开放`:state.always?'无时间限制':'暂无可靠窗口'}</small>
+           </span>
+         </li>;
+       })}</ul>}
+      {progressError&&<p role="status" className="fish-preview__state">{progressError}</p>}
+    </section>;
+  }
   return <section className={`fish-board${compact?' fish-board--home':''}`} aria-label="钓鱼时钟" data-testid="fishing-board">
     <header className="fish-board__heading"><div><h2>钓鱼</h2></div>
       <span className="fish-board__clock">艾欧泽亚时间 <strong>{String(et.hour).padStart(2,'0')}:{String(et.minute).padStart(2,'0')}</strong></span></header>
