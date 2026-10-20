@@ -19,3 +19,13 @@ it('reports unavailable storage instead of using a nonpersistent in-memory fallb
   const store=createLocalStore(()=>{throw new Error('disabled');});
   await expect(store.read()).rejects.toThrow('浏览器不支持本地存储');
 });
+
+it('keeps old personal link backups valid and accepts safe editable descriptions',()=>{
+  const id=crypto.randomUUID();
+  const legacy={id,title:'原有网站',url:'https://example.org/',category:'常用',favorite:false};
+  expect(localDataSchema.parse({...empty(),links:[legacy]}).links[0]?.description).toBeUndefined();
+  const enriched={...legacy,description:'网页公开简介',faviconUrl:'https://example.org/favicon.svg'};
+  expect(localBackupSchema.parse({format:'ff14-hub-local',version:1,exportedAt:'now',
+    data:{...empty(),links:[enriched]}}).data.links[0]?.description).toBe('网页公开简介');
+  expect(()=>localDataSchema.parse({...empty(),links:[{...enriched,faviconUrl:'https://other.org/icon.png'}]})).toThrow();
+});
