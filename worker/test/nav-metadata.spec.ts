@@ -31,16 +31,16 @@ describe('navigation metadata extraction safety',()=>{
     expect(info.description).toBe('查找任务');
   });
   it('never follows a redirect to another domain or private target',async()=>{
-    const spy=vi.fn(async(_address:string)=>new Response(null,{status:302,headers:{Location:'https://127.0.0.1/admin'}}));
+    const spy=vi.fn((_address:string)=>Promise.resolve(new Response(null,{status:302,headers:{Location:'https://127.0.0.1/admin'}})));
     const fetcher=spy as unknown as typeof fetch;
     await expect(fetchSiteMetadata('https://example.org/',fetcher)).rejects.toThrow('重定向到其他域名');
     expect(spy).toHaveBeenCalledOnce();
   });
   it('reads only the head of a large page and never includes query parameters',async()=>{
-    const spy=vi.fn(async(_address:string)=>new Response(
+    const spy=vi.fn((_address:string)=>Promise.resolve(new Response(
       '<head><meta name="description" content="这是一个钓鱼查询工具"></head>'+'x'.repeat(150_000),
       {headers:{'Content-Type':'text/html','Content-Length':'150090'}}
-    ));
+    )));
     const fetcher=spy as unknown as typeof fetch;
     const info=await fetchSiteMetadata('https://example.org/tool?auth=private#fragment',fetcher);
     expect(info.description).toBe('这是一个钓鱼查询工具');
