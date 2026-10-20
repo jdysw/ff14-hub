@@ -86,6 +86,7 @@ export function LocalApp(){
         <h1 className="brand__title">{siteSettings.siteName}</h1>
       </button>
       <div className="local-app__header-actions">
+        {view==='home'&&data?<a className="local-app__nav-jump" href="#local-navigation">导航站 ↓</a>:null}
         {view!=='home'&&view!=='calendar'&&<button type="button" className="local-app__back" onClick={()=>setView('home')}>← <span>返回</span></button>}
         <button className="shell__settings" type="button" aria-label={view==='settings'?'返回首页':'设置'} aria-pressed={view==='settings'} onClick={()=>setView(view==='settings'?'home':'settings')}>
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l-1.8 1.8a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5v.7h-2.6v-.7a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-1.8-1.8a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H4v-2.6h.7a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8L7.7 6.8a1.6 1.6 0 0 0 1.8.3 1.6 1.6 0 0 0 1-1.5V5h2.6v.6a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l1.8 1.8a1.6 1.6 0 0 0-.3 1.8 1.6 1.6 0 0 0 1.5 1h.7V14h-.7a1.6 1.6 0 0 0-1.5 1Z"/></svg>
@@ -121,7 +122,7 @@ export function LocalApp(){
               </p>:enabledSections.map(section=><div className="local-dashboard__module" key={section} data-module={section}>
                 {section==='events'?<HomeOfficialEvents onOpenCalendar={()=>setView('calendar')}
                   onHide={()=>{void store.change(document=>{document.data.configuration.visible.events=false;}).catch(()=>setError('设置未能保存到本机'));}}/>:
-                section==='fishing'?<FishingBoard data={dataPort} initialRegion={data.configuration.region} embedded/>:
+                section==='fishing'?<FishingBoard data={dataPort} initialRegion={data.configuration.region} embedded onOpenDetail={()=>setView('fishing')}/>:
                 <section className="local-notes" aria-label="我的备忘">
                   <header className="local-notes__heading"><h3>备忘</h3>
                     <button type="button" className="local-dashboard__manage" onClick={()=>setView('notes')}>查看全部 ↗</button>
