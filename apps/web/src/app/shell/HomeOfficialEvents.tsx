@@ -2,9 +2,35 @@
 import { eventCalendarResponseSchema, type EventCalendarItem, type EventCalendarResponse } from '@ff14-hub/shared';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  calendarOverview, chinaDateTime, displayCalendarTitle, eventStatus, isScheduled,
+  calendarOverview, chinaDateTime, displayCalendarTitle, eventStatus, isScheduled, SOON_MS,
 } from '../events/public-calendar-utils';
 import { calendarCountdown } from '../events/EventsCalendarWidget';
+
+export const HOME_EVENT_LIMIT = 3;
+
+/**
+ * 首页不是活动档案：仅显示近期有效的 3 条可行动日程。
+ * 无可靠起止时间的公告不能计算倒计时，在完整活动日历中单独查看。
+ */
+export function homeEventHighlights(items: readonly EventCalendarItem[], now: number): EventCalendarItem[] {
+  const rank = (item: EventCalendarItem) => {
+    const status = eventStatus(item, now);
+    if (status === 'ending') return 0;
+    if (status === 'upcoming' && item.startsAt! <= now + SOON_MS) return 1;
+    if (status === 'active') return 2;
+    return 3;
+  };
+  return items
+    .filter(item => isScheduled(item) && item.endsAt! >= now)
+    .sort((a, b) => {
+      const diff = rank(a) - rank(b);
+      if (diff) return diff;
+      const targetA = a.startsAt! > now ? a.startsAt! : a.endsAt!;
+      const targetB = b.startsAt! > now ? b.startsAt! : b.endsAt!;
+      return targetA - targetB || a.id.localeCompare(b.id);
+    })
+    .slice(0, HOME_EVENT_LIMIT);
+}
 
 type ViewState =
   | { readonly kind: 'loading' }
@@ -70,22 +96,12 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
   const now = state.kind === 'ready' ? clock + state.offset : clock;
   const overview = useMemo(() =>
     calendarOverview(state.kind === 'ready' ? state.value.events : [], now), [state, now]);
-  // 首页保留全部未结束活动，包括距离较远的未来日程；不截断条目。
-  // 尚未确认起止时间的公告置于末尾，避免误判为过期活动。
-  const important = useMemo(() => {
-    if (state.kind !== 'ready') return [] as EventCalendarItem[];
-    const order = { ending: 0, active: 1, upcoming: 2, unscheduled: 3, ended: 4 };
-    return state.value.events
-      .filter(item => !isScheduled(item) || item.endsAt! >= now)
-      .sort((a, b) => {
-        const phaseA = eventStatus(a, now), phaseB = eventStatus(b, now);
-        const diff = order[phaseA] - order[phaseB];
-        if (diff !== 0) return diff;
-        const timeA = phaseA === 'ending' || phaseA === 'active' ? a.endsAt : a.startsAt;
-        const timeB = phaseB === 'ending' || phaseB === 'active' ? b.endsAt : b.startsAt;
-        return (timeA ?? Number.MAX_SAFE_INTEGER) - (timeB ?? Number.MAX_SAFE_INTEGER);
-      });
-  }, [state, now]);
+  // 所有未结束活动仍可在完整日历中查看；首页只加载最多 3 条有可靠日期的日程。
+  const allEvents = state.kind === 'ready' ? state.value.events : [];
+  const confirmedCount = allEvents.filter(item => isScheduled(item) && item.endsAt! >= now).length;
+  const unknownCount = allEvents.filter(item => !isScheduled(item)).length;
+  const important = useMemo(() => homeEventHighlights(allEvents, now), [state, now]);
+  const remaining = Math.max(0, confirmedCount - important.length);
   const reload = () => { setState({ kind: 'loading' }); setRefresh(value => value + 1); };
 
   return <section className="home-official" aria-label="国服官方活动">
@@ -107,13 +123,20 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
     {state.kind === 'ready' && <>
       {state.value.source.stale && <p className="home-official__notice" role="status">当前展示缓存数据，官方活动可能已有变更。</p>}
       <div className="home-official__stats" aria-label="国服活动摘要">
+        <button type="button" onClick={onOpenCalendar}><strong>{overview.active.length}</strong><span>进行中</span></button>
         <button type="button" onClick={onOpenCalendar}><strong>{overview.upcoming.length}</strong><span>未来 7 天开始</span></button>
         <button type="button" onClick={onOpenCalendar}><strong>{overview.ending.length}</strong><span>24 小时内结束</span></button>
       </div>
-      {important.length === 0 && <p className="home-state">暂无未结束活动</p>}
+      {important.length === 0 && <p className="home-state">目前没有已确认时间的未结束活动。{unknownCount > 0 ? '待核实公告可在完整日历查看。' : ''}</p>}
       {important.length > 0 && <ul className="home-official__list">
         {important.map(item => <OfficialEventSummary key={item.id} item={item} now={now}/>)}
       </ul>}
+      {(remaining > 0 || unknownCount > 0) && <button className="home-official__more" type="button"
+        onClick={onOpenCalendar}>
+        {remaining > 0 ? `其余 ${remaining} 项日程` : '查看完整日历'}
+        {unknownCount > 0 ? ` · ${unknownCount} 条待核实公告` : ''}
+        <span aria-hidden="true">↗</span>
+      </button>}
     </>}
   </section>;
 }
