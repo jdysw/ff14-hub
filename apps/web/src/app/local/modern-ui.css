@@ -768,3 +768,29 @@ body { background:var(--bg);color:var(--text);font-family:Inter,'PingFang SC','M
   .fish-glance__heading h2{font-size:17px;}
   .fish-glance__stats{min-height:39px;padding:6px 0;}
 }
+
+/* Website-native icons and short descriptions. Link density stays consistent on desktop/mobile. */
+.local-directory__monogram{
+  flex:0 0 40px;width:40px;height:40px;display:grid;place-items:center;
+  overflow:hidden;border-radius:10px;
+}
+.local-directory__monogram img{
+  display:block;width:28px;height:28px;object-fit:contain;flex:none;
+}
+.local-directory__initial{display:grid;place-items:center;width:100%;height:100%;font-size:16px;}
+.local-directory__link-description{
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;
+  overflow:hidden;overflow-wrap:anywhere;
+  font-size:12px;line-height:1.45;color:#586b7f;
+}
+.local-directory__tile{min-height:88px;}
+.local-directory__tile>a{min-height:88px;}
+.local-directory__star{top:50%;transform:translateY(-50%);}
+.local-directory__tile:hover .local-directory__star{transform:translateY(-50%);}
+@media(max-width:650px){
+  .local-directory__tile{min-height:83px;}
+  .local-directory__tile>a{min-height:83px;}
+  .local-directory__monogram{width:36px;height:36px;flex-basis:36px;}
+  .local-directory__monogram img{width:25px;height:25px;}
+  .local-directory__link-description{font-size:12px;-webkit-line-clamp:1;}
+}
