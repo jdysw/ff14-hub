@@ -9,8 +9,9 @@ export function downloadJson(text:string,filename:string){
   const link=document.createElement('a');link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 const labels:Record<HomeSection,string>={events:'国服活动',fishing:'钓鱼',notes:'我的备忘'};
-export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=false}:{store:LocalStore;data:LocalData;onSaved:()=>void;onAdmin?:()=>void;adminAuthenticated?:boolean}){
-  const [activeTab,setActiveTab]=useState<'home'|'links'|'notes'|'fish'|'backup'>('home');
+export type SettingsTab='home'|'links'|'notes'|'fish'|'backup';
+export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=false,initialTab='home'}:{store:LocalStore;data:LocalData;onSaved:()=>void;onAdmin?:()=>void;adminAuthenticated?:boolean;initialTab?:SettingsTab}){
+  const [activeTab,setActiveTab]=useState<SettingsTab>(initialTab);
   const [region,setRegion]=useState<FishRegion>(data.configuration.region);
   const [fishFile,setFishFile]=useState<{text:string;document:FishDocument}|null>(null);
   const [preferences,setPreferences]=useState(false);
@@ -34,15 +35,15 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
     await store.change(document=>{const order=document.data.configuration.order;const index=order.indexOf(section);const other=order[index+delta];if(other){order[index+delta]=section;order[index]=other;}});
   });};
   return <div className="local-settings">
-    <aside className="local-settings__sidebar">
+    <header className="local-settings__sidebar">
       <h2><button type="button" className="local-settings__heading-button" onClick={onAdmin}>设置</button></h2>
       <nav className="local-settings__tabs" aria-label="设置分类">
         {([['home','首页'],['links','个人导航'],['notes','备忘'],['fish','钓鱼数据'],['backup','备份与恢复']] as const).map(([value,label])=>
           <button type="button" key={value} aria-current={activeTab===value?'page':undefined}
-            className={activeTab===value?'is-active':''} onClick={()=>setActiveTab(value)}>{label}<span aria-hidden="true">↗</span></button>)}
+            className={activeTab===value?'is-active':''} onClick={()=>setActiveTab(value)}>{label}</button>)}
       </nav>
       {adminAuthenticated?<button className="local-settings__admin" type="button" onClick={onAdmin}>站点管理后台 ↗</button>:null}
-    </aside>
+    </header>
     <div className="local-settings__content">
     {error?<p role="alert" className="notice notice--error">{error}</p>:null}{notice?<p role="status" className="notice notice--ok">{notice}</p>:null}
     <section hidden={activeTab!=='home'}><h3>首页模块</h3>
