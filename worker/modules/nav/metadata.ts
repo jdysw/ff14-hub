@@ -6,7 +6,7 @@
  */
 const MAX_HTML_BYTES=96*1024;
 const MAX_REDIRECTS=2;
-const BLOCKED_SUFFIXES=['.localhost','.local','.lan','.internal','.invalid','.test','.onion','.home','.home.arpa','.arpa','.example'];
+const BLOCKED_SUFFIXES=['.localhost','.local','.lan','.internal','.invalid','.test','.onion','.home','.home.arpa','.arpa','.example','.nip.io','.sslip.io','.xip.io','.localtest.me','.vcap.me'];
 const IPV4_LIKE=/^(?:\d+(?:\.\d+){0,3}|0x[\da-f.]+|0[0-7.]+)$/i;
 
 export interface SiteMetadata {
@@ -87,10 +87,13 @@ async function readHead(response:Response):Promise<string>{
     while(true){
       const {done,value}=await reader.read();
       if(done)break;
-      bytes+=value.byteLength;
-      if(bytes>MAX_HTML_BYTES)throw new Error('website HTML exceeded metadata size cap');
-      text+=decoder.decode(value,{stream:true});
+      const left=Math.max(0,MAX_HTML_BYTES-bytes);
+      const slice=value.subarray(0,left);
+      bytes+=slice.byteLength;
+      text+=decoder.decode(slice,{stream:true});
       if(/<\/head\s*>/i.test(text))break;
+      if(slice.byteLength<value.byteLength||bytes>=MAX_HTML_BYTES)
+        throw new Error('website HTML exceeded metadata size cap');
     }
     text+=decoder.decode();
   }finally{await reader.cancel().catch(()=>{});}
@@ -121,8 +124,7 @@ export async function fetchSiteMetadata(raw:string,fetcher:typeof fetch=fetch):P
       const type=response.headers.get('Content-Type')?.toLowerCase()??'';
       if(!type.includes('text/html')&&!type.includes('application/xhtml+xml'))
         throw new Error('网站没有返回 HTML 页面');
-      const declared=Number(response.headers.get('Content-Length')??'0');
-      if(declared>MAX_HTML_BYTES)throw new Error('网页过大，无法提取简介');
+      // 很多站点的全文很大，但元数据在 head 开头；只流式读取前 96 KiB。
       return extractSiteMetadata(await readHead(response),current);
     }
   }finally{clearTimeout(timer);}
