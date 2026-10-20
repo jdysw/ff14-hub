@@ -62,7 +62,7 @@ it('keeps failed mutation intent and retries the identical operation',async()=>{
   expect(intents[1]).toEqual(intents[0]);
 });
 
-it('caps home fish windows at 20 and expands to all matching fish with filter state preserved',async()=>{
+it('home keeps four scannable fish windows and opens the complete filtered list',async()=>{
   class ScheduledWorker {
     onmessage:((event:MessageEvent)=>void)|null=null;
     postMessage(input:{fish:CatalogFish[];region:FishRegion;from:number;hours:number}){
@@ -83,19 +83,42 @@ it('caps home fish windows at 20 and expands to all matching fish with filter st
   const onOpenDetail=vi.fn<(selection:FishDetailSelection)=>void>();
   render(<FishingBoard data={publicPort()} embedded onOpenDetail={onOpenDetail}/>);
   await screen.findByText('测试鱼0');
-  await waitFor(()=>expect(document.querySelectorAll('.fish-board__row')).toHaveLength(17));
-  expect(screen.queryByRole('button',{name:/查看其余/})).toBeNull();
-  fireEvent.click(screen.getByRole('button',{name:'24 小时'}));
-  await waitFor(()=>expect(document.querySelectorAll('.fish-board__row')).toHaveLength(20));
-  expect(screen.queryByText('测试鱼33')).toBeNull();
-  expect(screen.getByText(/24 小时内：34 种鱼/)).toBeDefined();
-  fireEvent.click(screen.getByRole('button',{name:/查看其余 14 种鱼窗/}));
-  expect(onOpenDetail).toHaveBeenCalledWith(expect.objectContaining({region:'cn',view:'windows',kind:'rare',windowHours:24}));
+  await waitFor(()=>expect(document.querySelectorAll('.fish-glance__item')).toHaveLength(4));
+  expect(document.querySelectorAll('.fish-board__row')).toHaveLength(0);
+  expect(screen.queryByRole('searchbox',{name:'搜索鱼类'})).toBeNull();
+  expect(screen.getByRole('button',{name:/显示其余 13 种鱼窗/})).toBeDefined();
+  expect(screen.queryByText('测试鱼16')).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:/显示其余 13 种鱼窗/}));
+  expect(onOpenDetail).toHaveBeenCalledWith(expect.objectContaining({region:'cn',view:'windows',kind:'rare',windowHours:6}));
   const selection=onOpenDetail.mock.calls[0]?.[0];
   expect(selection).toBeDefined();
   cleanup();
   render(<FishingBoard data={publicPort()} expanded initialFilters={selection}/>);
+  await waitFor(()=>expect(document.querySelectorAll('.fish-board__row')).toHaveLength(17));
+  expect(screen.getByText('测试鱼16')).toBeDefined();
+  fireEvent.click(screen.getByRole('button',{name:'24 小时'}));
   await waitFor(()=>expect(document.querySelectorAll('.fish-board__row')).toHaveLength(34));
   expect(screen.getByText('测试鱼33')).toBeDefined();
-  expect(screen.getByRole('button',{name:'24 小时'}).getAttribute('aria-pressed')).toBe('true');
+});
+it('clicking an individual home fish opens detail prefiltered to that fish',async()=>{
+  class OpenWorker {
+    onmessage:((event:MessageEvent)=>void)|null=null;
+    postMessage(input:{fish:CatalogFish[];region:FishRegion;from:number;hours:number}){
+      queueMicrotask(()=>this.onmessage?.(new MessageEvent('message',{data:{forecasts:input.fish.map(f=>({
+        id:f.id,failed:false,windows:[{
+          occurrenceKey:`open:${f.id}`,region:input.region,fishId:f.id,ruleVersion:'test',
+          startsAtUtcMs:input.from-60_000,endsAtUtcMs:input.from+1200_000,
+          weatherChain:{previous:'晴',current:'晴'},validationStatus:'unverified',
+          candidateOnly:true,conditions:[],
+        }],
+      }))}})));
+    }
+    terminate(){this.onmessage=null;}
+  }
+  vi.stubGlobal('Worker',OpenWorker);
+  const onOpenDetail=vi.fn<(selection:FishDetailSelection)=>void>();
+  render(<FishingBoard data={publicPort()} embedded onOpenDetail={onOpenDetail}/>);
+  await screen.findByText('测试鱼0');
+  fireEvent.click(screen.getByRole('button',{name:'查看测试鱼0的完整鱼窗'}));
+  expect(onOpenDetail).toHaveBeenCalledWith(expect.objectContaining({region:'cn',text:'测试鱼0',view:'windows'}));
 });
