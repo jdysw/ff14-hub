@@ -43,7 +43,7 @@ function decodeEntities(text:string):string{
 }
 
 function normalizeText(value:string,max:number):string{
-  return decodeEntities(value).replace(/<[^>]*>/g,' ').replace(/[\u0000-\u001f\u007f]+/g,' ').replace(/\s+/g,' ').trim().slice(0,max);
+  return decodeEntities(value).replace(/<[^>]*>/g,' ').replace(/[\p{Cc}]+/gu,' ').replace(/\s+/g,' ').trim().slice(0,max);
 }
 
 function attributes(tag:string):Record<string,string>{
@@ -80,12 +80,12 @@ export function extractSiteMetadata(html:string,siteUrl:URL):SiteMetadata{
 
 async function readHead(response:Response):Promise<string>{
   if(!response.body)return '';
-  const reader=response.body.getReader();
+  const reader=response.body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
   const decoder=new TextDecoder();
   let bytes=0,text='';
   try{
     while(true){
-      const {done,value}=await reader.read();
+      const {done,value}:ReadableStreamReadResult<Uint8Array>=await reader.read();
       if(done)break;
       const left=Math.max(0,MAX_HTML_BYTES-bytes);
       const slice=value.subarray(0,left);
