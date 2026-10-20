@@ -18,12 +18,12 @@ export async function fetchNavigationMetadata(url:string):Promise<NavigationMeta
   }
   if(typeof body!=='object'||body===null)throw new Error('网站元数据返回异常');
   const row=body as Record<string,unknown>;
-  const title=typeof row.title==='string'?row.title.slice(0,100):'';
-  const description=typeof row.description==='string'?row.description.slice(0,240):'';
+  const title=typeof row['title']==='string'?row['title'].slice(0,100):'';
+  const description=typeof row['description']==='string'?row['description'].slice(0,240):'';
   let iconUrl:string|null=null;
-  if(typeof row.iconUrl==='string'){
+  if(typeof row['iconUrl']==='string'){
     try{
-      const site=new URL(url),icon=new URL(row.iconUrl);
+      const site=new URL(url),icon=new URL(row['iconUrl']);
       if(icon.protocol==='https:'&&site.origin===icon.origin&&!icon.username&&!icon.password)
         iconUrl=icon.href;
     }catch{/* 不使用可疑图标地址 */}
