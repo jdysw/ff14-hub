@@ -5,6 +5,7 @@ import { registerServiceWorker } from './app/pwa/register-service-worker';
 import './styles.css';
 import './app/shell/home.css';
 import './app/local/modern-ui.css';
+import './app/local/field-guide.css';
 
 const container = document.getElementById('root');
 if (container === null) {

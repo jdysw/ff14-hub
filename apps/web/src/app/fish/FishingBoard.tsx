@@ -5,11 +5,7 @@ import {fishingCatalogSchema,type CatalogFish,type FishingCatalog} from './catal
 import {windowState,type FishForecast} from './forecast';
 import './fishing-board.css';
 import {registerPrivateDraftSource} from '../pwa/draft-registry';
-
-function duration(ms:number):string{
-  const minutes=Math.max(1,Math.ceil(ms/60000));
-  return minutes<60?`${minutes} 分钟`:`${Math.floor(minutes/60)} 小时 ${minutes%60} 分钟`;
-}
+import {fishCountdown as duration} from './countdown';
 const localTime=(ms:number)=>new Date(ms).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
 const kindLabel={normal:'普通鱼',big:'鱼王',legendary:'鱼皇'};
 const tugLabel:Record<string,string>={light:'轻竿 !',medium:'中竿 !!',heavy:'重竿 !!!'};
@@ -151,19 +147,19 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
           <span><strong>{active}</strong> 正在开放</span>
           <span><strong>{visible.length-active}</strong> 即将开放</span>
         </div>
-        {visible.length===0?<p className="fish-glance__message">当前没有符合条件的鱼窗。</p>:
+        {visible.length===0?<p className="fish-glance__message">当前没有符合条件的鱼窗。</p>:<>
+          <div className="fish-glance__columns" aria-hidden="true"><span>鱼类</span><span>地点</span><span>剩余时间</span></div>
           <ul className="fish-glance__list">{visible.slice(0,HOME_FISH_LIMIT).map(fish=>{
             const state=windowState(fish,forecastsById.get(fish.id),now);
             return <li key={fish.id} className="fish-glance__item">
               <button type="button" onClick={()=>openDetail({text:fish.name})} aria-label={`查看${fish.name}的完整鱼窗`}>
                 <span className="fish-glance__fish"><strong>{fish.name}</strong><small>{fish.location}</small></span>
-                <span className={`fish-glance__time${state.open?' is-open':''}`}>
-                  <strong>{state.open?'开放中':state.next?'即将开放':'待确认'}</strong>
-                  <small>{state.open?`${duration(state.open.endsAtUtcMs-now)}后结束`:state.next?`${duration(state.next.startsAtUtcMs-now)}后开始`:'查看完整信息'}</small>
+                <span className="fish-glance__time">
+                  <small>{state.open?`${duration(state.open.endsAtUtcMs-now)} 后结束`:state.next?`${duration(state.next.startsAtUtcMs-now)} 后开始`:'查看完整信息'}</small>
                 </span>
               </button>
             </li>;
-          })}</ul>}
+          })}</ul></>}
         {visible.length>HOME_FISH_LIMIT?<button type="button" className="fish-glance__more" onClick={()=>openDetail()}>
           显示其余 {visible.length-HOME_FISH_LIMIT} 种鱼窗 <span aria-hidden="true">↗</span>
         </button>:null}

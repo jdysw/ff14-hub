@@ -1,9 +1,11 @@
 import {useCallback,useEffect,useId,useLayoutEffect,useRef,type ReactNode} from 'react';
 import {createPortal} from 'react-dom';
+import {moduleMotion} from './module-motion';
 
 export interface ModuleOrigin {
   readonly rect: Pick<DOMRect,'top'|'left'|'width'|'height'>;
   readonly returnFocus: HTMLElement|null;
+  readonly element?:HTMLElement;
 }
 
 interface LocalModuleOverlayProps {
@@ -21,47 +23,66 @@ interface LocalModuleOverlayProps {
 export function LocalModuleOverlay({title,origin,onClose,children}:LocalModuleOverlayProps){
   const dialogRef=useRef<HTMLDialogElement>(null);
   const panelRef=useRef<HTMLDivElement>(null);
+  const contentRef=useRef<HTMLDivElement>(null);
   const closingRef=useRef(false);
+  const mountedRef=useRef(false);
+  const finishedRef=useRef(false);
   const headingId=useId();
   const callbackRef=useRef(onClose);
   useEffect(()=>{callbackRef.current=onClose;},[onClose]);
   const originRef=useRef(origin);
-  const openAnimation=useRef<Animation|null>(null);
-
-  const transitionFrames=useCallback((closing:boolean):Keyframe[]=>{
+  const animationsRef=useRef<Animation[]>([]);
+  const cancelAnimations=useCallback(()=>{
+    for(const animation of animationsRef.current)animation.cancel();
+    animationsRef.current=[];
+  },[]);
+  const spatialMotion=useCallback(()=>{
     const panel=panelRef.current;
-    if(!panel)return [];
-    const target=panel.getBoundingClientRect(),src=originRef.current.rect;
-    const scaleX=Math.max(.12,Math.min(1,src.width/Math.max(1,target.width)));
-    const scaleY=Math.max(.12,Math.min(1,src.height/Math.max(1,target.height)));
-    const dx=src.left+src.width/2-(target.left+target.width/2);
-    const dy=src.top+src.height/2-(target.top+target.height/2);
-    const collapsed={transform:`translate(${dx}px,${dy}px) scale(${scaleX},${scaleY})`,opacity:.55,borderRadius:'18px'};
-    const expanded={transform:'translate(0px, 0px) scale(1, 1)',opacity:1,borderRadius:'14px'};
-    return closing?[expanded,collapsed]:[collapsed,expanded];
+    if(!panel)return null;
+    const source=originRef.current.element;
+    return moduleMotion(source?.isConnected?source.getBoundingClientRect():originRef.current.rect,{
+      left:(window.innerWidth-panel.offsetWidth)/2,top:(window.innerHeight-panel.offsetHeight)/2,
+      width:panel.offsetWidth,height:panel.offsetHeight,
+    });
   },[]);
 
   useLayoutEffect(()=>{
     const dialog=dialogRef.current;
     if(!dialog)return;
+    mountedRef.current=true;closingRef.current=false;finishedRef.current=false;
+    dialog.dataset['phase']='opening';
     // 原生模态对话框：浏览器负责背景 inert、Tab 焦点约束和 Esc。
-    dialog.showModal();
+    if(!dialog.open)dialog.showModal();
     const previousOverflow=document.documentElement.style.overflow;
     document.documentElement.style.overflow='hidden';
     const motion=typeof window.matchMedia==='function'&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if(motion&&panelRef.current?.animate){
-      openAnimation.current=panelRef.current.animate(transitionFrames(false),{
-        duration:270,easing:'cubic-bezier(.2,.8,.2,1)',fill:'both',
+    const panel=panelRef.current,content=contentRef.current,spatial=spatialMotion();
+    if(motion&&panel?.animate&&spatial){
+      panel.style.transformOrigin=spatial.origin;
+      const animation=panel.animate([{transform:spatial.enter,opacity:0},{transform:'translate3d(0,0,0) scale(1)',opacity:1}],{
+        duration:360,easing:'cubic-bezier(.16,1,.3,1)',fill:'both',
       });
+      animationsRef.current.push(animation);
+      if(content?.animate)animationsRef.current.push(content.animate([
+        {opacity:0,transform:'translateY(8px)'},{opacity:1,transform:'translateY(0)'},
+      ],{duration:230,delay:55,easing:'cubic-bezier(.2,.8,.2,1)',fill:'both'}));
+      void animation.finished.then(()=>{
+        if(mountedRef.current&&!closingRef.current){dialog.dataset['phase']='open';cancelAnimations();}
+      },()=>{});
+    }else{
+      dialog.dataset['phase']='open';
     }
     return()=>{
-      openAnimation.current?.cancel();
+      mountedRef.current=false;
+      cancelAnimations();
       document.documentElement.style.overflow=previousOverflow;
       if(dialog.open)dialog.close();
     };
-  },[transitionFrames]);
+  },[cancelAnimations,spatialMotion]);
 
   const finishClose=useCallback(()=>{
+    if(!mountedRef.current||finishedRef.current)return;
+    finishedRef.current=true;
     const dialog=dialogRef.current;
     if(dialog?.open)dialog.close();
     if(originRef.current.returnFocus?.isConnected){originRef.current.returnFocus.focus({preventScroll:true});}
@@ -70,15 +91,32 @@ export function LocalModuleOverlay({title,origin,onClose,children}:LocalModuleOv
   const requestClose=useCallback(()=>{
     if(closingRef.current)return;
     closingRef.current=true;
-    openAnimation.current?.cancel();
     const panel=panelRef.current;
     const motion=typeof window.matchMedia==='function'&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if(!motion||!panel?.animate){finishClose();return;}
-    const animation=panel.animate(transitionFrames(true),{
-      duration:190,easing:'cubic-bezier(.4,0,1,1)',fill:'forwards',
+    const current=getComputedStyle(panel),spatial=spatialMotion();
+    const from={transform:current.transform,opacity:current.opacity};
+    const opacity=Number.parseFloat(current.opacity)||0;
+    const content=contentRef.current;
+    const contentOpacity=content?getComputedStyle(content).opacity:'1';
+    const duration=Math.round(140+90*Math.min(1,opacity));
+    const dialog=dialogRef.current;
+    if(dialog){
+      dialog.style.setProperty('--module-backdrop-from',getComputedStyle(dialog,'::backdrop').opacity);
+      dialog.style.setProperty('--module-exit-duration',`${duration}ms`);
+      dialog.dataset['phase']='closing';
+    }
+    cancelAnimations();
+    if(spatial)panel.style.transformOrigin=spatial.origin;
+    const animation=panel.animate([from,{transform:spatial?.exit??'scale(.98)',opacity:0}],{
+      duration,easing:'cubic-bezier(.4,0,.6,1)',fill:'forwards',
     });
+    animationsRef.current.push(animation);
+    if(content?.animate)animationsRef.current.push(content.animate([{opacity:contentOpacity},{opacity:0}],{
+      duration:Math.min(140,duration),easing:'ease-out',fill:'forwards',
+    }));
     void animation.finished.then(finishClose,finishClose);
-  },[finishClose,transitionFrames]);
+  },[finishClose,cancelAnimations,spatialMotion]);
 
   // 内容被动更新时不关闭弹层；只处理显式的退出操作。
   useEffect(()=>{const dialog=dialogRef.current;return()=>{if(dialog?.open)dialog.close();};},[]);
@@ -95,7 +133,7 @@ export function LocalModuleOverlay({title,origin,onClose,children}:LocalModuleOv
           <span aria-hidden="true">×</span><span>收起</span>
         </button>
       </header>
-      <div className="local-module-overlay__content">{children}</div>
+      <div ref={contentRef} className="local-module-overlay__content">{children}</div>
     </div>
   </dialog>,document.body);
 }

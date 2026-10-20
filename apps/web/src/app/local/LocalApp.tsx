@@ -9,6 +9,7 @@ import {createLocalStore,type LocalData} from './store';
 import {localFishPort} from './fish-port';
 import {LocalSettings} from './LocalSettings';
 import {SiteIcon} from './SiteIcon';
+import {UiIcon} from './UiIcon';
 import {navCatalogResponseSchema} from '../nav/nav-api';
 import {PwaStatusBar} from '../pwa/PwaStatusBar';
 import {useSiteSettings} from '../admin/site-settings';
@@ -28,6 +29,7 @@ export function LocalApp(){
   const [data,setData]=useState<LocalData|null>(null);
   const [catalog,setCatalog]=useState<NavCatalogEntry[]>([]);
   const [catalogError,setCatalogError]=useState(false);
+  const [catalogLoading,setCatalogLoading]=useState(true);
   const [catalogReload,setCatalogReload]=useState(0);
   const [error,setError]=useState<string|null>(null);
   const [view,setView]=useState<'home'|'settings'|'admin'>('home');
@@ -42,7 +44,7 @@ export function LocalApp(){
     if(!source)return;
     const {top,left,width,height}=source.getBoundingClientRect();
     setExpanded({
-      kind,origin:{rect:{top,left,width,height},returnFocus:document.activeElement instanceof HTMLElement?document.activeElement:null},
+      kind,origin:{rect:{top,left,width,height},element:source,returnFocus:document.activeElement instanceof HTMLElement?document.activeElement:null},
       ...(fishFilters?{fishFilters}:{}),
     });
   };
@@ -70,12 +72,14 @@ export function LocalApp(){
   useEffect(()=>{
     let alive=true;
     void fetch(API_ROUTES.navCatalog,{credentials:'omit',redirect:'error'}).then(async response=>{if(!response.ok)throw new Error('目录暂时无法读取');return navCatalogResponseSchema.parse(await response.json());})
-      .then(result=>{if(alive){setCatalog([...result.entries]);setCatalogError(false);}}).catch(()=>{if(alive)setCatalogError(true);});
+      .then(result=>{if(alive){setCatalog([...result.entries]);setCatalogError(false);}}).catch(()=>{if(alive)setCatalogError(true);})
+      .finally(()=>{if(alive)setCatalogLoading(false);});
     return()=>{alive=false;};
   },[catalogReload]);
-  useEffect(()=>{const refresh=()=>setCatalogReload(value=>value+1);window.addEventListener('ff14hub:directory-changed',refresh);return()=>window.removeEventListener('ff14hub:directory-changed',refresh);},[]);
+  const reloadCatalog=()=>{setCatalogLoading(true);setCatalogError(false);setCatalogReload(value=>value+1);};
+  useEffect(()=>{const refresh=()=>{setCatalogLoading(true);setCatalogError(false);setCatalogReload(value=>value+1);};window.addEventListener('ff14hub:directory-changed',refresh);return()=>window.removeEventListener('ff14hub:directory-changed',refresh);},[]);
   useEffect(()=>{
-    const shortcut=(event:KeyboardEvent)=>{if(event.key==='/'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!(event.target instanceof HTMLElement&&(event.target.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)))){event.preventDefault();setView('home');requestAnimationFrame(()=>{document.getElementById('local-navigation')?.scrollIntoView({block:'nearest'});searchRef.current?.focus();});}};
+    const shortcut=(event:KeyboardEvent)=>{if(document.querySelector('dialog[open]'))return;if(event.key==='/'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!(event.target instanceof HTMLElement&&(event.target.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)))){event.preventDefault();setView('home');requestAnimationFrame(()=>searchRef.current?.focus());}};
     window.addEventListener('keydown',shortcut);return()=>window.removeEventListener('keydown',shortcut);
   },[]);
   const query=search.trim();
@@ -85,7 +89,11 @@ export function LocalApp(){
     (!favorites||link.favorite)&&matchesDirectorySearch(link,query)
   ),[allLinks,query,favorites]);
   const groups=useMemo(()=>[...new Set(allLinks.map(link=>link.category||'常用网站'))].sort((a,b)=>a.localeCompare(b,'zh-CN')),[allLinks]);
+  const primaryGroups=['副本与战斗','生产采集与钓鱼','市场与经济','幻化与外观','社区与创作'].filter(group=>groups.includes(group));
+  const extraGroups=groups.filter(group=>!primaryGroups.includes(group));
   const filteredLinks=useMemo(()=>category==='all'?links:links.filter(link=>(link.category||'常用网站')===category),[links,category]);
+  const hasFilters=Boolean(query||favorites||category!=='all');
+  const clearFilters=()=>{setCategory('all');setFavorites(false);setSearch('');setVisibleLimit(36);};
   const enabledSections=data?.configuration.order.filter(section=>data.configuration.visible[section]&&(section!=='events'||siteSettings.homeCalendarEnabled))??[];
   const saveFavorite=(link:typeof links[number])=>{
     void store.change(document=>{
@@ -98,7 +106,7 @@ export function LocalApp(){
   return <div className="shell local-app">
     <a className="skip-link" href="#main-content">跳转到主要内容</a>
     <header className="shell__header">
-      <button className="brand__home" type="button" onClick={()=>setView('home')} aria-label={siteSettings.siteName+' 首页'}>
+      <button className="brand__home" type="button" onClick={()=>setView('home')} aria-current={view==='home'?'page':undefined} aria-label={siteSettings.siteName+' 首页'}>
         <span className="brand__mark" aria-hidden="true">XIV</span>
         <h1 className="brand__title">{siteSettings.siteName}</h1>
       </button>
@@ -106,7 +114,7 @@ export function LocalApp(){
         {view==='home'&&data?<a className="local-app__nav-jump" href="#local-navigation">导航站 ↓</a>:null}
         {view!=='home'&&<button type="button" className="local-app__back" onClick={()=>setView('home')}>← <span>返回</span></button>}
         <button className="shell__settings" type="button" aria-label={view==='settings'?'返回首页':'设置'} aria-pressed={view==='settings'} onClick={()=>setView(view==='settings'?'home':'settings')}>
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l-1.8 1.8a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5v.7h-2.6v-.7a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-1.8-1.8a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H4v-2.6h.7a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8L7.7 6.8a1.6 1.6 0 0 0 1.8.3 1.6 1.6 0 0 0 1-1.5V5h2.6v.6a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l1.8 1.8a1.6 1.6 0 0 0-.3 1.8 1.6 1.6 0 0 0 1.5 1h.7V14h-.7a1.6 1.6 0 0 0-1.5 1Z"/></svg>
+          <UiIcon name="gear"/>
           <span>设置</span>
         </button>
       </div>
@@ -141,29 +149,36 @@ export function LocalApp(){
               </div>)}
             </div>
           </section>
+          <div className="field-divider" aria-hidden="true"/>
           <section id="local-navigation" className="local-directory" aria-label="导航站">
             <header className="local-dashboard__section-heading local-directory__heading">
-              <div className="local-directory__heading-title"><h2>导航站</h2><span>{filteredLinks.length} 个网站</span></div>
+              <div className="local-directory__heading-title"><h2>导航站</h2><output aria-live="polite" aria-atomic="true">{hasFilters?`${filteredLinks.length} / ${allLinks.length}`:allLinks.length} 个网站</output></div>
               <div className="local-directory__heading-actions">
-                <button type="button" className="local-dashboard__manage" aria-pressed={favorites} onClick={()=>{setFavorites(value=>!value);setVisibleLimit(36);}}>{favorites?'★ 已收藏':'☆ 收藏'}</button>
+                <button type="button" className="local-dashboard__manage local-directory__favorites" aria-pressed={favorites} onClick={()=>{setFavorites(value=>!value);setVisibleLimit(36);}}><UiIcon name={favorites?'starFill':'star'}/>{favorites?'已收藏':'收藏'}</button>
                 <button type="button" className="local-dashboard__manage" onClick={()=>{setSettingsTab('links');setView('settings');}}>管理 ↗</button>
               </div>
             </header>
             <div className="local-directory__toolbar">
               <form className="home-search" role="search" onSubmit={event=>{event.preventDefault();searchRef.current?.focus();}}>
                 <label className="visually-hidden" htmlFor="local-search">搜索网站</label>
-                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
-                <input id="local-search" ref={searchRef} type="search" value={search} placeholder="搜索网站、攻略、工具…" onChange={event=>{setSearch(event.target.value);setVisibleLimit(36);}}/>
+                <UiIcon name="search"/>
+                <input id="local-search" ref={searchRef} type="search" value={search} placeholder="搜索网站、攻略、工具…" aria-controls="directory-results" onChange={event=>{setSearch(event.target.value);setVisibleLimit(36);}} onKeyDown={event=>{if(event.key==='Escape'){setSearch('');setVisibleLimit(36);}}}/>
                 <kbd aria-hidden="true">/</kbd>
               </form>
+              {hasFilters?<button type="button" className="local-directory__reset" onClick={clearFilters}>清除筛选</button>:null}
+            </div>
+            <div className="local-directory__category-row">
               <nav className="local-directory__filters" aria-label="网站分类">
                 <button type="button" aria-pressed={category==='all'} onClick={()=>{setCategory('all');setVisibleLimit(36);}}>全部</button>
-                {groups.map(group=><button type="button" key={group} aria-pressed={category===group} onClick={()=>{setCategory(group);setVisibleLimit(36);}}>{group}</button>)}
+                {primaryGroups.map(group=><button type="button" key={group} aria-pressed={category===group} onClick={()=>{setCategory(group);setVisibleLimit(36);}}>{group}</button>)}
+                {extraGroups.length?<label className="atlas-more-categories"><span className="visually-hidden">更多分类</span><select value={extraGroups.includes(category)?category:''} onChange={event=>{if(event.target.value){setCategory(event.target.value);setVisibleLimit(36);}}}><option value="">更多分类</option>{extraGroups.map(group=><option key={group} value={group}>{group}</option>)}</select></label>:null}
               </nav>
+              <label className="local-directory__category-select"><span>网站分类</span><select value={category} onChange={event=>{setCategory(event.target.value);setVisibleLimit(36);}}><option value="all">全部分类</option>{groups.map(group=><option key={group} value={group}>{group}</option>)}</select></label>
             </div>
-            {catalogError&&<div role="status" className="local-directory__notice">推荐目录无法加载 <button type="button" onClick={()=>setCatalogReload(value=>value+1)}>重试</button></div>}
-            {filteredLinks.length===0?<div className="local-directory__empty">暂无匹配网站 <button type="button" onClick={()=>{setCategory('all');setFavorites(false);setSearch('');}}>清除筛选</button></div>:
-              <ul className="local-directory__tiles">{filteredLinks.slice(0,visibleLimit).map(link=><li key={link.id} className="local-directory__tile">
+            {catalogError&&<div role="status" className="local-directory__notice">公共目录暂时无法更新，本机网站和已加载内容仍可使用。 <button type="button" onClick={reloadCatalog}>重试</button></div>}
+            {catalogLoading?<p role="status" className="local-directory__loading">正在更新网站目录…</p>:null}
+            {filteredLinks.length===0?(!catalogLoading&&<div id="directory-results" className="local-directory__empty"><h3>{hasFilters?'没有找到匹配的网站':catalogError?'暂时无法读取公共目录':'还没有网站'}</h3><p>{hasFilters?(favorites?'试试取消收藏筛选，或更换关键词与分类。':'试试网站名称、别名或用途，或选择其他分类。'):'可以在设置中添加自己的常用网站。'}</p>{hasFilters?<button type="button" onClick={clearFilters}>查看全部网站</button>:<button type="button" onClick={()=>{setSettingsTab('links');setView('settings');}}>添加个人网站</button>}</div>):
+              <ul id="directory-results" className="local-directory__tiles">{filteredLinks.slice(0,visibleLimit).map(link=><li key={link.id} className="local-directory__tile">
                 <a href={link.url} target="_blank" rel="noopener noreferrer" title={link.url}>
                   <SiteIcon key={link.url} url={link.url} title={link.title} faviconUrl={link.faviconUrl}/>
                   <span className="local-directory__link-content">
@@ -172,7 +187,7 @@ export function LocalApp(){
                     <span className="local-directory__link-domain">{siteDomain(link.url)}</span>
                   </span>
                 </a>
-                <button type="button" className="local-directory__star" aria-label={(link.favorite?'取消收藏 ':'收藏 ')+link.title} aria-pressed={link.favorite} onClick={()=>saveFavorite(link)}>{link.favorite?'★':'☆'}</button>
+                <button type="button" className="local-directory__star" aria-label={(link.favorite?'取消收藏 ':'收藏 ')+link.title} aria-pressed={link.favorite} title={link.favorite?'取消收藏':'收藏网站'} onClick={()=>saveFavorite(link)}><UiIcon name={link.favorite?'starFill':'star'}/></button>
               </li>)}</ul>}
             {filteredLinks.length>visibleLimit&&<button type="button" className="local-directory__more" onClick={()=>setVisibleLimit(v=>v+36)}>显示更多网站（剩余 {filteredLinks.length-visibleLimit}）</button>}
           </section>

@@ -20,6 +20,14 @@ We reuse the library as a dependency and add endpoint restrictions, bounded tran
 and private device ownership in this application rather than reimplementing the encryption protocol.
 # Fishing catalog references and factual metadata
 
+## UI icons
+
+Homepage controls use Bootstrap Icons 1.13.2 (MIT, Copyright 2019-2024 The Bootstrap Authors),
+bundled from the npm package rather than a remote script. License retained at
+`third_party/bootstrap-icons-LICENSE.txt`. Source: https://github.com/twbs/icons.
+
+## Fishing sources
+
 The public fishing snapshots reference the MIT-licensed projects
 [FF14 Fish Tracker](https://github.com/icykoneko/ff14-fish-tracker-app) and
 [FFXIV Teamcraft](https://github.com/ffxiv-teamcraft/ffxiv-teamcraft).
