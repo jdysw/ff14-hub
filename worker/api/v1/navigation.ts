@@ -85,9 +85,8 @@ navigationRoutes.get('/catalog', async (c) => {
  * URL 只放 POST 请求体，不进入请求日志、Referer 或代理缓存键。
  */
 navigationRoutes.post('/metadata', async(c)=>{
-  let parsed:unknown;
-  try{parsed=await c.req.json();}catch{return c.json({message:'请求必须是 JSON'},400);}
-  const validated=z.object({url:z.string().min(10).max(2048)}).strict().safeParse(parsed);
+  // writeGuard 已消费请求体并完成 JSON/Origin/大小校验，不能二次调用 c.req.json()。
+  const validated=z.object({url:z.string().min(10).max(2048)}).strict().safeParse(c.get('jsonBody'));
   if(!validated.success)return c.json({message:'请输入有效的 HTTPS 网站地址'},422);
   const ip=(c.req.header('CF-Connecting-IP')??'unknown').trim();
   const digest=(await hashCredential(ip)).slice(0,32);
