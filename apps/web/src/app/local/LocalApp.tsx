@@ -7,6 +7,7 @@ import {LocalModuleOverlay,type ModuleOrigin} from './LocalModuleOverlay';
 import {createLocalStore,type LocalData} from './store';
 import {localFishPort} from './fish-port';
 import {LocalSettings} from './LocalSettings';
+import {SiteIcon} from './SiteIcon';
 import {navCatalogResponseSchema} from '../nav/nav-api';
 import {PwaStatusBar} from '../pwa/PwaStatusBar';
 import {useSiteSettings} from '../admin/site-settings';
@@ -79,8 +80,8 @@ export function LocalApp(){
   const links=useMemo(()=>{
     const personal=(data?.links??[]).map(link=>({...link,personal:true}));
     const existing=new Set(personal.map(link=>link.url));
-    return [...personal,...catalog.filter(link=>!existing.has(link.url)).map(link=>({id:link.id,title:link.title,url:link.url,category:link.category,favorite:false,personal:false}))]
-      .filter(link=>(!favorites||link.favorite)&&(!query||[link.title,link.url,link.category].join(' ').toLocaleLowerCase().includes(query)));
+    return [...personal,...catalog.filter(link=>!existing.has(link.url)).map(link=>({id:link.id,title:link.title,url:link.url,category:link.category,description:link.description,faviconUrl:undefined,favorite:false,personal:false}))]
+      .filter(link=>(!favorites||link.favorite)&&(!query||[link.title,link.url,link.category,link.description??''].join(' ').toLocaleLowerCase().includes(query)));
   },[data,catalog,query,favorites]);
   const groups=useMemo(()=>[...new Set([...(data?.links??[]),...catalog].map(link=>link.category||'常用网站'))].sort((a,b)=>a.localeCompare(b,'zh-CN')),[data,catalog]);
   const filteredLinks=useMemo(()=>category==='all'?links:links.filter(link=>(link.category||'常用网站')===category),[links,category]);
@@ -90,7 +91,7 @@ export function LocalApp(){
     void store.change(document=>{
       const old=document.data.links.find(item=>item.url===link.url);
       if(old)old.favorite=!old.favorite;
-      else document.data.links.push({id:crypto.randomUUID(),title:link.title,url:link.url,category:link.category,favorite:true});
+      else document.data.links.push({id:crypto.randomUUID(),title:link.title,url:link.url,category:link.category,description:link.description??'',...(link.faviconUrl?{faviconUrl:link.faviconUrl}:{}),favorite:true});
     }).catch((cause:unknown)=>setError(cause instanceof Error?cause.message:'本机保存失败'));
   };
 
@@ -164,9 +165,10 @@ export function LocalApp(){
             {filteredLinks.length===0?<div className="local-directory__empty">暂无匹配网站 <button type="button" onClick={()=>{setCategory('all');setFavorites(false);setSearch('');}}>清除筛选</button></div>:
               <ul className="local-directory__tiles">{filteredLinks.slice(0,visibleLimit).map(link=><li key={link.id} className="local-directory__tile">
                 <a href={link.url} target="_blank" rel="noopener noreferrer" title={link.url}>
-                  <span className="local-directory__monogram" aria-hidden="true">{link.title.trim().slice(0,1)||'·'}</span>
+                  <SiteIcon key={link.url} url={link.url} title={link.title} faviconUrl={link.faviconUrl}/>
                   <span className="local-directory__link-content">
                     <span className="local-directory__link-name">{link.title}</span>
+                    {link.description?<span className="local-directory__link-description" title={link.description}>{link.description}</span>:null}
                     <span className="local-directory__link-domain">{siteDomain(link.url)}</span>
                   </span>
                 </a>
