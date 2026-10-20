@@ -430,7 +430,7 @@ describe('sw.js：与 cache-policy.ts 一一对应', () => {
     expect(sandbox.notifications[1]?.title).toHaveLength(80);
     expect(sandbox.notifications[1]?.options['body']).toHaveLength(200);
     handlerOf(sandbox,'notificationclick')({notification:{close:()=>undefined,data:{url:'https://evil.test'}},waitUntil:(promise:Promise<void>)=>{pending=promise;}});await pending;
-    expect(sandbox.openedUrls).toEqual(['/?view=reminders']);
+    expect(sandbox.openedUrls).toEqual(['/?view=notifications']);
   });
 
   it('对同一批请求/响应输入，sw.js 的判断与 TypeScript 侧逐条一致', async () => {

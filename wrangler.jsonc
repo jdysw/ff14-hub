@@ -66,6 +66,7 @@
     },
     "production": {
       "name": "ff14-hub",
+      "triggers": {"crons": ["*/5 * * * *"]},
       "routes": [{ "pattern": "ff14.zhixia.uk", "custom_domain": true }],
       "vars": {
         "ENVIRONMENT": "production",
@@ -83,7 +84,7 @@
     }
   },
 
-  // 阶段 05 才会启用定时提醒；此处只声明调度入口存在，不创建任何远程定时任务。
+  // 默认不调度；只有 production 显式启用每 5 分钟的轻量每日汇总队列。
   "triggers": {
     "crons": []
   }

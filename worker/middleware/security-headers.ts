@@ -27,10 +27,10 @@ export function buildContentSecurityPolicy(environment: EnvironmentName): string
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
-    // 仅图片可访问 HTTPS 站点；脚本、网络请求依然保持同源。图片请求无 Referer。
+    // User-configured WebDAV/S3 use client-side HTTPS; scripts remain same-origin.
     "img-src 'self' data: https:",
     "font-src 'self'",
-    "connect-src 'self'",
+    "connect-src 'self' https:",
     // HUB-012（ADR-0004 D10）：PWA 需要同域 manifest 与 Service Worker。
     // 这两条是**最小放行**——只允许同源的 `/manifest.webmanifest` 与 `/sw.js`，
     // 不涉及 `script-src`；任何人都不得为了「让 PWA 生效」而放宽 script-src 或加入 unsafe-eval。

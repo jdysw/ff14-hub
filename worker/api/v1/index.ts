@@ -12,6 +12,7 @@
  * - __test__    仅测试可达的自检路由（默认不可达）
  */
 import { Hono } from 'hono';
+import {localNotificationRoutes} from './local-notifications';
 import type { AppBindings } from '../../types';
 import { publicEventRoutes } from './events';
 import { adminRoutes, publicSiteRoutes } from './admin';
@@ -31,6 +32,7 @@ export function createApiV1(): Hono<AppBindings> {
   v1.route('/navigation', navigationRoutes);
   v1.route('/events', publicEventRoutes);
   v1.route('/site', publicSiteRoutes);
+  v1.route('/local-notifications',localNotificationRoutes);
   v1.route('/admin', adminRoutes);
   v1.route('/fish', fishRoutes);
   v1.route('/identity', identityRoutes);
