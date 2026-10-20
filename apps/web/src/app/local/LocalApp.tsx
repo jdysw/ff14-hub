@@ -128,7 +128,7 @@ export function LocalApp(){
                   </header>
                   {data.notes.length?data.notes.slice(0,2).map(note=><article key={note.id}><h4>{note.title}</h4><p>{note.text}</p></article>):
                     <p className="local-notes__empty">暂无备忘 <button type="button" onClick={()=>{setSettingsTab('notes');setView('settings');}}>添加 ＋</button></p>}
-                </section>
+                </section>}
               </div>)}
             </div>
           </section>
