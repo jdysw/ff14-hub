@@ -41,3 +41,12 @@ final result: passed
 - Reduced-motion browser emulation: phase immediately `open`, zero panel animations, backdrop animation `none`, no content overflow. Mobile 320/390px and desktop 1440/2560/3440px tested.
 - Added lifecycle regressions for interrupted transitions, stale callbacks after unmount, reduced motion, and geometry limits. Total frontend suite: 422 passing tests; build/typecheck and scoped ESLint pass.
 - No unresolved P0/P1/P2 findings in this follow-up. Static screenshots demonstrate layout; actual animation interpolation and interrupt behavior were additionally observed through live browser state.
+
+## Four-row list and category follow-up
+
+- Updated scope: activity and fish rows scroll independently in four-row viewports. Headers/metrics stay outside; no activity remainder footer. Fish defaults to 24 hours; all directory categories are directly visible, including wrapped mobile buttons.
+- Evidence: `.wrangler/ui-review/scroll-lists-desktop.png`, ego lite at 3440×1440. Activity list measured 384px with 96px rows (four active events); fish list measured 256px with 64px rows, retaining 284 matched entries.
+- Live wheel test: fish list scrollTop changed to 400 while document scrollY remained 0, title top remained 203.796875px and metric top remained 245.796875px. No accidental scroll chaining.
+- All 13 categories visible at 2560/1440/768/390/320px, no page or category horizontal overflow, and the final category is directly selectable without a dropdown.
+- Extra activity rows are covered by a six-event fixture in unit tests; current real official data has exactly four ongoing scheduled items. No invented activities were added to production or preview data.
+- No unresolved P0/P1/P2 issues for this scope.

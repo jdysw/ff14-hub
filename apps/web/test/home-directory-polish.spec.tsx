@@ -34,7 +34,8 @@ it('does not show an empty result while the first public catalog is still loadin
 it('exposes category and search filters, announces result counts, and resets all filters',async()=>{
   render(<LocalApp/>);
   await screen.findByText('市场工具');
-  fireEvent.change(screen.getByRole('combobox',{name:'网站分类'}),{target:{value:'市场与经济'}});
+  fireEvent.click(within(directory().getByRole('navigation',{name:'网站分类'})).getByRole('button',{name:'市场与经济'}));
+  expect(screen.queryByRole('combobox',{name:'更多分类'})).toBeNull();
   expect(directory().queryByText('钓鱼工具')).toBeNull();
   expect(directory().getByText('1 / 2 个网站')).toBeDefined();
   fireEvent.change(screen.getByRole('searchbox',{name:'搜索网站'}),{target:{value:'不存在'}});

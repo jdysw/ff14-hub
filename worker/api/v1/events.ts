@@ -13,7 +13,6 @@
  */
 import {
   EVENT_SORT_ORDERS,
-  eventCalendarResponseSchema,
   eventPhaseSchema,
   eventRegionSchema,
   type EventPhase,
@@ -27,10 +26,11 @@ import { nowUtcMs } from '../../lib/util';
 import { methodNotAllowed } from '../../middleware/error-handler';
 import { validateQuery } from '../../middleware/validation';
 import { createEventService } from '../../modules/events/service';
-import { readCnCalendar } from '../../modules/events/calendar-feed';
+import { CN_CALENDAR_CACHE_MS } from '../../modules/events/calendar-feed';
 import { createOfficialCalendarIcs } from '../../modules/events/calendar-ics';
 import { readOfficialCalendarSnapshot } from '../../modules/events/calendar-snapshot';
 import { applyCalendarEdits } from '../../modules/events/calendar-editor';
+import { refreshOfficialCalendarSnapshot } from '../../modules/events/calendar-refresh';
 import type { AppBindings } from '../../types';
 
 export const publicEventRoutes = new Hono<AppBindings>();
@@ -85,19 +85,25 @@ publicEventRoutes.get('/', validateQuery(publicEventQuerySchema), async (c) => {
   );
 });
 
-async function calendarForPublic(db: D1Database) {
+async function calendarForPublic(db: D1Database,background:(task:Promise<unknown>)=>void) {
   const snapshot = await readOfficialCalendarSnapshot(db);
-  return await applyCalendarEdits(db, eventCalendarResponseSchema.parse(snapshot ?? await readCnCalendar()));
+  if(snapshot){
+    const expired=Date.now()-snapshot.source.checkedAtMs>=CN_CALENDAR_CACHE_MS;
+    if(expired)background(refreshOfficialCalendarSnapshot(db));
+    return await applyCalendarEdits(db,expired?{...snapshot,source:{...snapshot.source,stale:true}}:snapshot);
+  }
+  await refreshOfficialCalendarSnapshot(db);
+  const live=await readOfficialCalendarSnapshot(db);
+  if(!live)throw new Error('official_calendar_unavailable');
+  return await applyCalendarEdits(db,live);
 }
 
-/** 国服活动公共 JSON，由 D1 已验证快照提供，不需要工作空间授权。 */
+/** Public official calendar, with durable fallback and bounded background revalidation. */
 publicEventRoutes.get('/calendar', async (c) => {
   // 优先读取有持久保证的公共官方快照，避免 Cloudflare 不同边缘实例各自冷缓存，
   // 或从边缘节点无法直接连接盛趣官网时整个首页活动列表 503。
-  const snapshot = await readOfficialCalendarSnapshot(c.env.DB);
-  if (snapshot !== null) return noStoreJson(c, await applyCalendarEdits(c.env.DB, snapshot));
   try {
-    const calendar = await calendarForPublic(c.env.DB);
+    const calendar = await calendarForPublic(c.env.DB,task=>c.executionCtx.waitUntil(task));
     return noStoreJson(c, calendar);
   } catch {
     return c.json({ code: 'service_unavailable', message: '官方活动数据暂时无法同步；尚无可用的历史快照' }, 503);
@@ -107,7 +113,7 @@ publicEventRoutes.get('/calendar', async (c) => {
 /** 标准 ICS 订阅：只包含官方明确起止时间的公共活动，不包含用户私有活动。 */
 publicEventRoutes.get('/calendar.ics', async (c) => {
   try {
-    const data = await calendarForPublic(c.env.DB);
+    const data = await calendarForPublic(c.env.DB,task=>c.executionCtx.waitUntil(task));
     const ics = createOfficialCalendarIcs(data);
     return new Response(ics, {
       status: 200,
