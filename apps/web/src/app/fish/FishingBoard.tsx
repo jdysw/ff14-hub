@@ -114,7 +114,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,onReady,onErro
   };
   const et=eorzeaTime(now);
   return <section className={`fish-board${compact?' fish-board--home':''}`} aria-label="钓鱼时钟" data-testid="fishing-board">
-    <header className="fish-board__heading"><div><h2>钓鱼</h2><p>下一竿，去哪里？</p></div>
+    <header className="fish-board__heading"><div><h2>钓鱼</h2></div>
       <span className="fish-board__clock">艾欧泽亚时间 <strong>{String(et.hour).padStart(2,'0')}:{String(et.minute).padStart(2,'0')}</strong></span></header>
     <div className="fish-board__toolbar">
       <div className="fish-board__tabs" role="group" aria-label="钓鱼视图">{([['windows','近期鱼窗'],['all','全部鱼类'],['pinned','我的收藏']] as const).map(([value,label])=>
@@ -128,7 +128,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,onReady,onErro
       const fish=catalog?.fish.find(f=>f.id===pending.fishId);if(fish){setProgressError(null);void write(fish,pending.field);}
     }}>重试保存</button>:null}<button type="button" onClick={onReload}>重新读取</button></p>:null}
     {!catalog?<p className="fish-board__empty" role="status">正在读取鱼类目录…</p>:<>
-      <p className="fish-board__summary">{forecasts===null?'正在计算完整目录的鱼窗…':`找到 ${visible.length} 种鱼`}<span>时间按本机时区显示 · 天气与时间符合不代表满足全部钓获条件</span></p>
+      <p className="fish-board__summary">{forecasts===null?'正在计算完整目录的鱼窗…':`找到 ${visible.length} 种鱼`}</p>
       {canEdit?<label className="fish-board__account"><input type="checkbox" checked={hideCaught} disabled={!progressReady} onChange={event=>changeFilter(()=>setHideCaught(event.target.checked))}/>隐藏已钓获 · 已记录 {fields.filter(field=>field.field==='caught'&&field.value).length} 种</label>:null}
       {!canEdit?<p className="fish-board__account">无需登录即可查鱼窗。{onConnect?<button type="button" onClick={onConnect}>连接工作空间保存钓获与收藏</button>:'连接工作空间并启用钓鱼模块后可保存标记。'}</p>:null}
       <div className="fish-board__columns" aria-hidden="true"><span>鱼类 / 钓场</span><span>推荐鱼饵</span><span>鱼窗</span><span>标记</span></div>
