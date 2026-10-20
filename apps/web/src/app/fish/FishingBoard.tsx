@@ -175,7 +175,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
     <header className="fish-board__heading"><div><h2>钓鱼</h2></div>
       <div className="fish-board__header-actions">
         <span className="fish-board__clock">艾欧泽亚时间 <strong>{String(et.hour).padStart(2,'0')}:{String(et.minute).padStart(2,'0')}</strong></span>
-        {embedded&&onOpenDetail?<button type="button" className="fish-board__open-detail" onClick={openDetail}>查看完整鱼窗 ↗</button>:null}
+        {embedded&&onOpenDetail?<button type="button" className="fish-board__open-detail" onClick={()=>openDetail()}>查看完整鱼窗 ↗</button>:null}
       </div>
     </header>
     <div className="fish-board__toolbar">
@@ -223,7 +223,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
         </article>;
       })}</div>
       {visible.length===0&&forecasts!==null?<p className="fish-board__empty">{view==='pinned'?'还没有收藏的鱼。可以在鱼类旁标记收藏。':(embedded||expanded)&&view==='windows'?'这个时间范围内暂无鱼窗，可选择更长时间范围。':'没有匹配的鱼。试试其他分类或搜索词；“全部鱼类”也会显示资料待补的记录。'}</p>:null}
-      {embedded&&visible.length>HOME_FISH_LIMIT?<button className="fish-board__expand" type="button" onClick={openDetail}>查看其余 {visible.length-HOME_FISH_LIMIT} 种鱼窗，展开完整页面 ↗</button>:null}
+      {embedded&&visible.length>HOME_FISH_LIMIT?<button className="fish-board__expand" type="button" onClick={()=>openDetail()}>查看其余 {visible.length-HOME_FISH_LIMIT} 种鱼窗，展开完整页面 ↗</button>:null}
       {!embedded&&!expanded&&visible.length>limit?<button className="fish-board__more" type="button" onClick={()=>setLimit(n=>n+(compact?10:30))}>显示更多（还有 {visible.length-limit} 种）</button>:null}
       {onImport?<button className="fish-board__more" type="button" onClick={onImport}>导入鱼糕钓获记录</button>:null}
       <details className="fish-board__sources"><summary>数据覆盖与来源</summary><p>{region==='cn'?'国服':'国际服'}目录 {catalog.coverage.total} 条 · 有窗口规则 {catalog.coverage.forecast} 条 · 无时间天气限制 {catalog.coverage.always} 条 · 规则待补 {catalog.coverage.unknown} 条。完整目录参与筛选，页面显示数量不会限制鱼窗计算。</p>
