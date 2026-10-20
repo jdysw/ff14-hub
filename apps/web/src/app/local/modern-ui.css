@@ -816,18 +816,3 @@ body { background:var(--bg);color:var(--text);font-family:Inter,'PingFang SC','M
 .local-settings__link-editor .local-settings__field{margin:9px 0;max-width:580px;}
 .local-settings__link-editor .local-settings__link-actions button{font-size:12px;}
 .local-settings__link-editor [role=status]{margin:7px 0;font-size:12px;line-height:1.5;}
-
-/* 导航目录的国服/国际服筛选，与新版紧凑搜索栏一致。 */
-.local-directory__region{
-  display:inline-flex;align-items:center;justify-content:flex-start;gap:7px;
-  flex:0 0 auto;color:#65758a;font-size:12px;white-space:nowrap;
-}
-.local-directory__region select{
-  min-height:36px;max-width:125px;padding:6px 8px;
-  border:1px solid #dce3eb;border-radius:8px;background:#fff;
-  color:#364d68;font-size:12px;font-family:inherit;
-}
-@media(max-width:650px){
-  .local-directory__region{width:100%;justify-content:space-between;}
-  .local-directory__region select{min-height:38px;max-width:none;width:140px;}
-}
