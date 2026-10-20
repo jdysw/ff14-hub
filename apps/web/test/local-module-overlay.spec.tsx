@@ -6,12 +6,12 @@ import {LocalModuleOverlay} from '../src/app/local/LocalModuleOverlay';
 beforeEach(()=>{
   // JSDOM 没有实现原生 showModal/close，用 open 属性模拟可见性，不改产品代码。
   vi.stubGlobal('matchMedia',undefined);
-  vi.spyOn(HTMLDialogElement.prototype,'showModal').mockImplementation(function(this:HTMLDialogElement){
+  Object.defineProperty(HTMLDialogElement.prototype,'showModal',{configurable:true,writable:true,value:function(this:HTMLDialogElement){
     this.setAttribute('open','');
-  });
-  vi.spyOn(HTMLDialogElement.prototype,'close').mockImplementation(function(this:HTMLDialogElement){
+  }});
+  Object.defineProperty(HTMLDialogElement.prototype,'close',{configurable:true,writable:true,value:function(this:HTMLDialogElement){
     this.removeAttribute('open');
-  });
+  }});
 });
 afterEach(()=>{cleanup();vi.restoreAllMocks();vi.unstubAllGlobals();});
 
@@ -45,16 +45,18 @@ it('opens details on top of the current page, and click on outside blank space c
 it('dismisses on Escape or the explicit close control',()=>{
   const {trigger,origin}=createOrigin();
   const onClose=vi.fn();
-  const {rerender}=render(<LocalModuleOverlay title="国服活动" origin={origin} onClose={onClose}>
+  const {unmount}=render(<LocalModuleOverlay title="国服活动" origin={origin} onClose={onClose}>
     <div>完整日历</div>
   </LocalModuleOverlay>);
   const dialog=document.querySelector('dialog.local-module-overlay')!;
   fireEvent.cancel(dialog);
   expect(onClose).toHaveBeenCalledTimes(1);
-  rerender(<LocalModuleOverlay title="国服活动" origin={origin} onClose={onClose}>
+  unmount();
+  render(<LocalModuleOverlay title="国服活动" origin={origin} onClose={onClose}>
     <div>完整日历</div>
   </LocalModuleOverlay>);
   fireEvent.click(screen.getByRole('button',{name:'收起国服活动完整页面'}));
-  expect(onClose).toHaveBeenCalledTimes(1);
+
+  expect(onClose).toHaveBeenCalledTimes(2);
   trigger.remove();
 });
