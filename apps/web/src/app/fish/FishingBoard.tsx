@@ -1,6 +1,6 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {eorzeaTime,fishProgressResponseSchema,type FishProgress,type FishProgressField,type FishRegion} from '@ff14-hub/shared';
-import type {ModuleDataPort} from '../widgets/types';
+import type {DataPort} from '../../lib/data-port';
 import {fishingCatalogSchema,type CatalogFish,type FishingCatalog} from './catalog';
 import {windowState,type FishForecast} from './forecast';
 import './fishing-board.css';
@@ -21,7 +21,7 @@ export interface FishDetailSelection {
 }
 
 interface FishingBoardProps {
-  data:ModuleDataPort;initialRegion?:FishRegion;hours?:number;compact?:boolean;embedded?:boolean;expanded?:boolean;initialFilters?:FishDetailSelection|undefined;onOpenDetail?:(selection:FishDetailSelection)=>void;onReady?:()=>void;onError?:((error:unknown)=>void)|undefined;onConnect?:()=>void;onImport?:()=>void;
+  data:DataPort;initialRegion?:FishRegion;hours?:number;compact?:boolean;embedded?:boolean;expanded?:boolean;initialFilters?:FishDetailSelection|undefined;onOpenDetail?:(selection:FishDetailSelection)=>void;onReady?:()=>void;onError?:((error:unknown)=>void)|undefined;onConnect?:()=>void;onImport?:()=>void;
 }
 export function FishingBoard(props:FishingBoardProps){
   const [region,setRegion]=useState(props.initialFilters?.region??props.initialRegion??'cn');

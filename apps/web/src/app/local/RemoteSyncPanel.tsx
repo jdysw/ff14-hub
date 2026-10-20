@@ -1,4 +1,5 @@
 import {useEffect,useState} from 'react';
+import {usePrivateDraft} from '../pwa/draft-registry';
 import {type LocalStore,type LocalData,localDataSchema} from './store';
 import {readDeviceRecord,writeDeviceRecord} from './secure-storage';
 import {applyPersonalSync,createRemoteClient,emptyRemoteConfig,mergePersonalData,remoteConfigSchema,remoteUrl,type RemoteConfig} from './remote-sync';
@@ -13,6 +14,7 @@ export function RemoteSyncPanel({store}:{store:LocalStore}){
   const run=async(action:()=>Promise<void>)=>{if(busy)return;setBusy(true);setError('');setMessage('');try{await action();}catch{setError('操作失败：请检查地址、凭证、CORS 和远端条件写支持；数据未确认同步时请重新预览。');}finally{setBusy(false);}};
   const field=(key:keyof RemoteConfig,value:string)=>{setConfig(old=>({...old,[key]:value}));setPreview(null);setChoices({});};
   const same=saved&&JSON.stringify(config)===JSON.stringify(saved.config);
+  usePrivateDraft(busy||Boolean(!same&&(config.url||config.username||config.password||config.accessKey||config.secretKey||config.sessionToken)));
   const merged=preview?mergePersonalData(saved?.baseline??null,preview.local,preview.remote,choices):null;
   return <section className="personal-feature" aria-label="云端同步">
     <div className="personal-feature__heading"><h3>云端同步</h3><span className="personal-feature__badge">WebDAV / S3</span></div>

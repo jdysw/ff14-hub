@@ -1,10 +1,10 @@
 import {fishProgressWriteSchema,fishRegionSchema} from '@ff14-hub/shared';
-import type {ModuleDataPort} from '../widgets/types';
-import {publicFishPort} from '../fish/fish-data-port';
+import type {DataPort} from '../../lib/data-port';
+import {loadFishingCatalog} from '../fish/catalog';
 import type {LocalStore} from './store';
-export function localFishPort(store:LocalStore):ModuleDataPort{
+export function localFishPort(store:LocalStore):DataPort{
   return {moduleId:'ff14.fishing',operations:['fish.catalog','fish.progress','fish.progress.read'],async call<T>(operation:string,input?:unknown):Promise<T>{
-    if(operation==='fish.catalog')return publicFishPort.call<T>(operation,input);
+    if(operation==='fish.catalog')return await loadFishingCatalog(fishRegionSchema.parse((input as {region?:unknown}|undefined)?.region)) as T;
     if(operation==='fish.progress.read'){
       const region=fishRegionSchema.parse((input as {region?:unknown}|undefined)?.region);
       const data=await store.read();return {fields:data.fish[region],watermark:data.revision} as T;

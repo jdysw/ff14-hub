@@ -358,6 +358,9 @@ export const navCatalogEntrySchema = z
 
 export type NavCatalogEntry = z.infer<typeof navCatalogEntrySchema>;
 
+/** Public directory response, independent of private navigation transport. */
+export const navCatalogResponseSchema=z.object({entries:z.array(navCatalogEntrySchema),sourceVersion:z.number().int().nonnegative(),updatedAt:z.number().int().nonnegative()});
+
 /** 单条目录条目的状态投影（服务端计算；含墓碑行，因此 `tombstoned` 在界面上可达）。 */
 export const navCatalogPlanEntrySchema = z
   .object({
@@ -1657,6 +1660,3 @@ export const NAV_MODULE_MANIFEST: ModuleManifest = {
     onUninstall: 'ff14.navigation.uninstall',
   },
 };
-
-
-

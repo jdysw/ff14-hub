@@ -2,9 +2,8 @@
 import { eventCalendarResponseSchema, type EventCalendarItem, type EventCalendarResponse } from '@ff14-hub/shared';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  calendarOverview, chinaDateTime, displayCalendarTitle, eventStatus, isScheduled, SOON_MS,
+  calendarOverview, chinaDateTime, displayCalendarTitle, eventStatus, isScheduled, SOON_MS,calendarCountdown,
 } from '../events/public-calendar-utils';
-import { calendarCountdown } from '../events/EventsCalendarWidget';
 
 export const HOME_EVENT_LIMIT = 4;
 export const HOME_CALENDAR_POLL_MS = 6 * 60 * 60_000;

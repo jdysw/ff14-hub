@@ -2,7 +2,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HomeOfficialEvents, HOME_CALENDAR_POLL_MS } from '../src/app/shell/HomeOfficialEvents';
-import { SystemBar } from '../src/app/shell/SystemBar';
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
@@ -126,21 +125,5 @@ describe('首页公开活动', () => {
       expect(screen.getByText('官方更新活动')).toBeTruthy();expect(screen.getByText(/当前展示缓存数据/)).toBeTruthy();
       expect(fetchSpy).toHaveBeenCalledTimes(3);
     }finally{vi.useRealTimers();}
-  });
-});
-
-describe('普通玩家设置', () => {
-  it('常用入口明确，技术与调试功能默认折叠，仍可手动打开', () => {
-    const onSelectView = vi.fn();
-    const { container } = render(<SystemBar currentView="settings" onSelectView={onSelectView} />);
-    expect(screen.getByRole('button', { name: /自定义工作台/ })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /钓鱼手账/ })).toBeTruthy();
-    expect(screen.getByText(/浏览公共内容无需连接/)).toBeTruthy();
-    const advanced = container.querySelector('details.settings-advanced');
-    expect(advanced?.hasAttribute('open')).toBe(false);
-    fireEvent.click(screen.getByText(/高级设置/));
-    expect(advanced?.hasAttribute('open')).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: /模块管理/ }));
-    expect(onSelectView).toHaveBeenCalledWith('modules');
   });
 });

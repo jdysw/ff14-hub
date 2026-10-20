@@ -1,4 +1,5 @@
 import {useEffect,useState} from 'react';
+import {usePrivateDraft} from '../pwa/draft-registry';
 import type {LocalStore} from './store';
 import {readDeviceRecord,writeDeviceRecord} from './secure-storage';
 import {defaultNotificationSettings,digestSettings,notificationRequest,registerNotifications,NOTIFICATION_SETTINGS_CHANGED,type NotificationSettings} from './local-notifications';
@@ -8,6 +9,7 @@ export function LocalNotificationPanel({store}:{store:LocalStore}){
   const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState('');
   const [status,setStatus]=useState<{jobs:{key:string;dueAt:number;status:string;attempts:number}[];device:{sentCount:number;sentDay:string;dailyLimit:number;expiresAt:number}}|null>(null);
   const [ready,setReady]=useState(false);
+  usePrivateDraft(busy||Boolean(!settings.token&&(sendKey||apiKey||from||to)));
   useEffect(()=>{let alive=true;void readDeviceRecord<NotificationSettings>('notifications').then(value=>{if(alive){if(value)setSettings(value);setReady(true);}}).catch(()=>{if(alive){setError('本机通知配置无法读取，请重新配置');setReady(true);}});return()=>{alive=false;};},[]);
   const run=async(action:()=>Promise<void>)=>{if(busy)return;setBusy(true);setError('');setMessage('');try{await action();}catch(cause){setError(cause instanceof Error?cause.message:'通知操作失败');}finally{setBusy(false);}};
   const patch=(value:Partial<NotificationSettings>)=>setSettings(old=>({...old,...value}));

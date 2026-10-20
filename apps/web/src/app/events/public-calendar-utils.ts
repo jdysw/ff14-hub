@@ -3,6 +3,12 @@
  * 不根据公告发布时间伪造活动区间，所有日期统一按北京时间解读。
  */
 import type { EventCalendarItem } from '@ff14-hub/shared';
+import {fishCountdown} from '../fish/countdown';
+
+/** Pure formatting; importing an obsolete widget must not be necessary for homepage timers. */
+export function calendarCountdown(targetMs:number,nowMs:number):string{
+  return targetMs<=nowMs?'已到时':fishCountdown(targetMs-nowMs);
+}
 
 export const CN_OFFSET = 8 * 60 * 60_000;
 export const DAY_MS = 86_400_000;

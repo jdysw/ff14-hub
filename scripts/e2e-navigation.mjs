@@ -35,13 +35,11 @@ try{
   await page.goto(base,{waitUntil:'domcontentloaded'});
   const directory=page.getByRole('region',{name:'导航站',exact:true});
   await expect(directory.getByRole('link',{name:'鱼糕',exact:true})).toBeVisible({timeout:30000});
-  await page.getByRole('searchbox',{name:'搜索导航中的网站、攻略或工具'}).fill('警察网');
+  await page.getByRole('searchbox',{name:'搜索网站'}).fill('警察网');
   await expect(directory.getByRole('link',{name:'警察网',exact:true})).toBeVisible();
-  await directory.getByRole('button',{name:'清空筛选',exact:true}).click();
-  await directory.getByLabel('适用区服').selectOption('cn');
-  await expect(directory.getByRole('link',{name:'Reddit/FFXIV',exact:true})).toHaveCount(0);
-  await directory.getByRole('button',{name:'清空筛选',exact:true}).click();
-  const observed=[];page.on('request',request=>observed.push({url:request.url(),method:request.method()}));
+  await directory.getByRole('button',{name:'清除筛选',exact:true}).click();
+  assert.equal(await directory.getByLabel('适用区服').count(),0);
+  const observed=[];page.on('request',request=>observed.push({method:request.method()}));
   await directory.getByRole('button',{name:'收藏 鱼糕',exact:true}).click();
   await expect(directory.getByRole('button',{name:'取消收藏 鱼糕',exact:true})).toHaveAttribute('aria-pressed','true');
   await page.reload({waitUntil:'domcontentloaded'});
@@ -49,7 +47,7 @@ try{
   assert.equal(observed.some(request=>request.method!=='GET'),false,'Personal favorites must stay local');
   const peer=await context.newPage();await peer.goto(base,{waitUntil:'domcontentloaded'});
   await page.getByRole('button',{name:'设置',exact:true}).click();
-  for(let n=0;n<5;n++)await page.getByRole('button',{name:'我的设置',exact:true}).click();
+  for(let n=0;n<5;n++)await page.locator('.local-settings__heading-button').click();
   await page.getByLabel('管理员账号').fill('e2e_owner');await page.getByLabel('管理员密码').fill(password);
   const counter=Buffer.alloc(8);counter.writeBigUInt64BE(BigInt(Math.floor(Date.now()/30000)));
   const digest=createHmac('sha1',seed).update(counter).digest(),offset=digest.at(-1)&15;
@@ -70,7 +68,7 @@ try{
   await admin.getByRole('button',{name:'重新读取列表',exact:true}).click();
   await expect(admin.getByRole('button',{name:'编辑 浏览器验收网站',exact:true})).toBeVisible();
   await peer.reload({waitUntil:'domcontentloaded'});
-  await peer.getByRole('searchbox',{name:'搜索导航中的网站、攻略或工具'}).fill('独特别名');
+  await peer.getByRole('searchbox',{name:'搜索网站'}).fill('独特别名');
   await expect(peer.getByRole('link',{name:'浏览器验收网站',exact:true})).toBeVisible();
   // A failed backend must keep the form and never publish a success message.
   await admin.getByRole('button',{name:'编辑 浏览器验收网站',exact:true}).click();
@@ -106,7 +104,7 @@ try{
   await expect(page.getByRole('heading',{name:'站点管理员登录',exact:true})).toBeVisible();
   assert.equal((await fetch(base+'/api/v1/admin/navigation/items',{headers:{Authorization:'Bearer '+adminToken}})).status,401);
   assert.deepEqual(pageErrors,[]);
-  console.log(JSON.stringify({passed:true,publicEntries:publicRecords.entries.length,checks:['real password+TOTP owner login','category and region controls','aliases search','local favorites survive reload without uploads','create/edit/hide/restore persist in D1','second page sees backend changes','503 retains draft','320/390px layout','revoked owner session rejected'],state}));
+  console.log(JSON.stringify({passed:true,publicEntries:publicRecords.entries.length,checks:['real password+TOTP owner login','all-region directory and category controls','aliases search','local favorites survive reload without uploads','create/edit/hide/restore persist in D1','second page sees backend changes','503 retains draft','320/390px layout','revoked owner session rejected'],state}));
 }finally{
   await browser?.close();
   if(process.platform==='win32'&&server.pid)spawnSync('taskkill',['/PID',String(server.pid),'/T','/F'],{stdio:'ignore'});else server.kill('SIGTERM');

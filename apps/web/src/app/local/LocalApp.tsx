@@ -1,6 +1,6 @@
 import {lazy,Suspense,useEffect,useMemo,useRef,useState} from 'react';
-import {API_ROUTES,matchesDirectorySearch,canonicalNavUrl,type NavCatalogEntry} from '@ff14-hub/shared';
-import {directoryLinks} from './DirectoryBrowser';
+import {API_ROUTES,matchesDirectorySearch,canonicalNavUrl,navCatalogResponseSchema,type NavCatalogEntry} from '@ff14-hub/shared';
+import {directoryLinks} from './directory-links';
 import {HomeOfficialEvents} from '../shell/HomeOfficialEvents';
 import {PublicCalendarPage} from '../events/PublicCalendarPage';
 import {FishingBoard,type FishDetailSelection} from '../fish/FishingBoard';
@@ -8,10 +8,10 @@ import {LocalModuleOverlay,type ModuleOrigin} from './LocalModuleOverlay';
 import {createLocalStore,type LocalData} from './store';
 import {localFishPort} from './fish-port';
 import {LocalSettings,type SettingsTab} from './LocalSettings';
+import type {DataSection} from './DataManagementPanel';
 import {startLocalNotifications} from './local-notifications';
 import {SiteIcon} from './SiteIcon';
 import {UiIcon} from './UiIcon';
-import {navCatalogResponseSchema} from '../nav/nav-api';
 import {PwaStatusBar} from '../pwa/PwaStatusBar';
 import {useSiteSettings} from '../admin/site-settings';
 import {useCalendarAdminSession} from '../events/calendar-admin-session';
@@ -51,6 +51,7 @@ export function LocalApp(){
     });
   };
   const [settingsTab,setSettingsTab]=useState<SettingsTab>(notificationEntry?'notifications':'home');
+  const [dataSection,setDataSection]=useState<DataSection>('sync');
   useEffect(()=>startLocalNotifications(store),[store]);
   const [category,setCategory]=useState('all');
   const siteSettings=useSiteSettings();
@@ -126,7 +127,7 @@ export function LocalApp(){
       {error?<p role="alert" className="notice notice--error">{error}</p>:null}
       {view==='admin'?<Suspense fallback={<p role="status">正在打开站点后台…</p>}><SiteAdminPage onClose={()=>setView('settings')}/></Suspense>
         :!data?error?<p role="alert">本机数据读取失败。<button type="button" onClick={()=>window.location.reload()}>重试</button></p>:<p role="status">正在读取…</p>
-        :view==='settings'?<LocalSettings key={settingsTab} initialTab={settingsTab} store={store} data={data} onSaved={()=>{}} onAdmin={openAdmin} adminAuthenticated={adminSession.authenticated}/>
+        :view==='settings'?<LocalSettings key={settingsTab+dataSection} initialTab={settingsTab} initialDataSection={dataSection} store={store} data={data} onSaved={()=>{}} onAdmin={openAdmin} adminAuthenticated={adminSession.authenticated}/>
         :<div className="local-dashboard">
           <section className="local-dashboard__modules" aria-label="功能模块">
             <header className="local-dashboard__section-heading">
@@ -200,7 +201,7 @@ export function LocalApp(){
       {expanded.kind==='events'?<PublicCalendarPage overlay onBack={()=>setExpanded(null)}/>:
         expanded.kind==='fishing'?<FishingBoard data={dataPort} initialRegion={data.configuration.region}
           initialFilters={expanded.fishFilters} expanded onImport={()=>{
-            setExpanded(null);setSettingsTab('fish');setView('settings');
+            setExpanded(null);setDataSection('fish');setSettingsTab('data');setView('settings');
           }}/>:
         <section className="local-detail local-detail--notes" aria-label="全部备忘">
           <header className="local-detail__header"><h2>我的备忘</h2>

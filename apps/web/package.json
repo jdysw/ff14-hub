@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "FF14 Hub 前端（React + Vite：App Shell、Widget Host、模块管理、阶段 03 工作台布局编辑器与备份恢复）",
+  "description": "FF14 Hub 本机个人数据、公开导航与日程、钓鱼预测和站点管理",
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build",
@@ -12,12 +12,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ff14-hub/fish-sync": "workspace:*",
     "@ff14-hub/shared": "workspace:*",
     "bootstrap-icons": "1.13.2",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "react-grid-layout": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
