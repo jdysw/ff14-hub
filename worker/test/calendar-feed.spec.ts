@@ -44,6 +44,26 @@ describe('盛趣官方公告活动时间提取', () => {
 });
 
 describe('盛趣官方活动 API 适配器', () => {
+  it('does not include upstream URLs or query values in failure diagnostics',async()=>{
+    const warn=vi.spyOn(console,'warn').mockImplementation(()=>{});
+    vi.stubGlobal('fetch',vi.fn(()=>Promise.reject(new TypeError('Failed to fetch https://cqnews.web.sdo.com/api/news/newsList?credential=test-only-private-value'))));
+    try{
+      await expect(readCnCalendar()).rejects.toThrow();
+      const output=warn.mock.calls.map(call=>String(call[0])).join(' ');
+      expect(output).toContain('[origin]');expect(output).not.toContain('test-only-private-value');expect(output).not.toContain('https://');
+    }finally{warn.mockRestore();}
+  });
+  it('uses the redirect mode supported by Workers and still rejects redirected origins',async()=>{
+    const calls:{url:string;redirect:RequestInit['redirect']}[]=[];
+    vi.stubGlobal('fetch',vi.fn((url:string,init?:RequestInit)=>{
+      calls.push({url:String(url),redirect:init?.redirect});
+      if(init?.redirect==='error')return Promise.reject(new TypeError('redirect:error is unsupported at the edge'));
+      return Promise.resolve(new Response('',{status:302,headers:{Location:'https://untrusted.example/calendar'}}));
+    }));
+    await expect(readCnCalendar()).rejects.toThrow('国服官方活动 API 暂不可用');
+    expect(calls).toHaveLength(2);
+    expect(calls.every(call=>call.redirect==='manual'&&call.url.startsWith('https://cqnews.web.sdo.com/api/news/'))).toBe(true);
+  });
   it('rejects oversized upstream bodies even without a content-length header',async()=>{
     vi.stubGlobal('fetch',vi.fn(()=>Promise.resolve(new Response('x'.repeat(1_000_001),{status:200}))));
     await expect(readCnCalendar()).rejects.toThrow('国服官方活动 API 暂不可用');

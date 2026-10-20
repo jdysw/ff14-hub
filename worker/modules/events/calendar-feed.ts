@@ -110,7 +110,7 @@ async function officialHtml(url: string, signal?:AbortSignal): Promise<string | 
   if (officialProjectUrl(url) === null) return null;
   try {
     const response = await fetch(url, {
-      method: 'GET', redirect: 'error', headers: { Accept: 'text/html' },
+      method: 'GET', redirect: 'manual', headers: { Accept: 'text/html' },
       signal: requestSignal(signal),
     });
     if (!response.ok || Number(response.headers.get('content-length') ?? 0) > 1_000_000) return null;
@@ -119,13 +119,23 @@ async function officialHtml(url: string, signal?:AbortSignal): Promise<string | 
 }
 
 async function json(path: string, signal?:AbortSignal): Promise<unknown> {
-  const response = await fetch(HOST + path, {
-    method: 'GET', redirect: 'error', headers: { Accept: 'application/json' },
-    signal: requestSignal(signal),
-  });
-  if (!response.ok || Number(response.headers.get('content-length') ?? 0) > 1_000_000) throw new Error('official_http_error');
-  const body = await boundedBody(response);
-  return JSON.parse(body) as unknown;
+  let status:number|undefined;
+  try{
+    const response = await fetch(HOST + path, {
+      method: 'GET', redirect: 'manual', headers: { Accept: 'application/json' },
+      signal: requestSignal(signal),
+    });
+    status=response.status;
+    if (!response.ok || Number(response.headers.get('content-length') ?? 0) > 1_000_000) throw new Error('official_http_error');
+    const body = await boundedBody(response);
+    return JSON.parse(body) as unknown;
+  }catch(error){
+    // Fixed endpoint role/status only: no URLs, query strings, bodies or credentials.
+    const reason=error instanceof Error&&['TypeError','TimeoutError','AbortError'].includes(error.name)
+      ?error.message.replace(/https?:\/\/\S+/g,'[origin]').slice(0,160):undefined;
+    console.warn(JSON.stringify({event:'official_calendar_origin_failure',endpoint:path.includes('newsList')?'list':'detail',status,kind:error instanceof Error?error.name:'unknown',reason}));
+    throw error;
+  }
 }
 async function articleDetail(id: number, signal?:AbortSignal): Promise<string | null> {
   try {
