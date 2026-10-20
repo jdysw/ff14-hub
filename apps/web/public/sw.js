@@ -374,11 +374,11 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(text(message.title, 'FF14 Hub 提醒', 80), {
     body: text(message.body, '请打开提醒管理查看。', 200),
     tag: text(message.tag, 'ff14-hub-reminder', 100),
-    data: { url: '/?view=reminders' },
+    data: { url: '/?view=notifications' },
   }));
 });
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   // Never navigate to a URL supplied by the push payload.
-  event.waitUntil(self.clients.openWindow('/?view=reminders'));
+  event.waitUntil(self.clients.openWindow('/?view=notifications'));
 });

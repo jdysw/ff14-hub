@@ -7,7 +7,8 @@ import {FishingBoard,type FishDetailSelection} from '../fish/FishingBoard';
 import {LocalModuleOverlay,type ModuleOrigin} from './LocalModuleOverlay';
 import {createLocalStore,type LocalData} from './store';
 import {localFishPort} from './fish-port';
-import {LocalSettings} from './LocalSettings';
+import {LocalSettings,type SettingsTab} from './LocalSettings';
+import {startLocalNotifications} from './local-notifications';
 import {SiteIcon} from './SiteIcon';
 import {UiIcon} from './UiIcon';
 import {navCatalogResponseSchema} from '../nav/nav-api';
@@ -32,7 +33,8 @@ export function LocalApp(){
   const [catalogLoading,setCatalogLoading]=useState(true);
   const [catalogReload,setCatalogReload]=useState(0);
   const [error,setError]=useState<string|null>(null);
-  const [view,setView]=useState<'home'|'settings'|'admin'>('home');
+  const notificationEntry=['notifications','reminders'].includes(new URLSearchParams(location.search).get('view')??'');
+  const [view,setView]=useState<'home'|'settings'|'admin'>(notificationEntry?'settings':'home');
   const [expanded,setExpanded]=useState<null|{
     kind:'events'|'fishing'|'notes';
     origin:ModuleOrigin;
@@ -48,7 +50,8 @@ export function LocalApp(){
       ...(fishFilters?{fishFilters}:{}),
     });
   };
-  const [settingsTab,setSettingsTab]=useState<'home'|'links'|'notes'|'fish'|'backup'>('home');
+  const [settingsTab,setSettingsTab]=useState<SettingsTab>(notificationEntry?'notifications':'home');
+  useEffect(()=>startLocalNotifications(store),[store]);
   const [category,setCategory]=useState('all');
   const siteSettings=useSiteSettings();
   const adminSession=useCalendarAdminSession();

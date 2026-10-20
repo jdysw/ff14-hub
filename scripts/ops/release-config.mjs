@@ -34,7 +34,8 @@ export function inspectReleaseConfig(config){
     const assets=selected.assets??config.assets;
     if(assets?.binding!=='ASSETS'||assets.run_worker_first!==true||typeof assets.directory!=='string')fail('asset-security-boundary');
     const crons=(selected.triggers??config.triggers)?.crons;
-    if(!Array.isArray(crons)||crons.length!==0)fail('cron-not-explicitly-disabled');
+    const localNotificationsOnly=environment==='production'&&Array.isArray(crons)&&crons.length===1&&crons[0]==='*/5 * * * *';
+    if(!Array.isArray(crons)||(crons.length!==0&&!localNotificationsOnly))fail('cron-not-explicitly-disabled');
     return {environment,configurationReady:blockers.length===0,blockers};
   });
   const [a,b]=['preview','production'].map((name)=>config.env?.[name]);
