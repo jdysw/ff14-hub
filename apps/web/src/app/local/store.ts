@@ -2,7 +2,21 @@ import {z} from 'zod';
 import {fishProgressSchema,parseFishDocument,fieldsToDocument,validateNavUrl,type FishDocument,type FishProgress,type FishRegion,type FishProgressWrite} from '@ff14-hub/shared';
 export const sectionSchema=z.enum(['events','fishing','notes']);
 export type HomeSection=z.infer<typeof sectionSchema>;
-export const localLinkSchema=z.object({id:z.uuid(),title:z.string().min(1).max(100),url:z.string().refine(url=>validateNavUrl(url).ok,'请使用有效的 HTTPS 地址'),category:z.string().max(60),favorite:z.boolean()}).strict();
+export const localLinkSchema=z.object({
+  id:z.uuid(),title:z.string().min(1).max(100),
+  url:z.string().refine(url=>validateNavUrl(url).ok,'请使用有效的 HTTPS 地址'),
+  category:z.string().max(60),favorite:z.boolean(),
+  // optional 保留旧版浏览器数据和备份的兼容性；介绍由用户自行编辑或主动获取。
+  description:z.string().max(240).optional(),
+  faviconUrl:z.string().url().startsWith('https://').max(700).optional(),
+}).strict().superRefine((link,ctx)=>{
+  if(link.faviconUrl){
+    try{
+      if(new URL(link.faviconUrl).origin!==new URL(link.url).origin)
+        ctx.addIssue({code:'custom',message:'图标必须来自网站自身域名',path:['faviconUrl']});
+    }catch{ctx.addIssue({code:'custom',message:'图标地址无效',path:['faviconUrl']});}
+  }
+});
 const configurationSchema=z.object({order:z.array(sectionSchema).length(3).refine(v=>new Set(v).size===3),visible:z.object({events:z.boolean(),fishing:z.boolean(),notes:z.boolean()}).strict(),region:z.enum(['cn','global'])}).strict();
 export const localDataSchema=z.object({version:z.literal(1),revision:z.number().int().nonnegative(),fish:z.object({cn:z.array(fishProgressSchema).max(15000),global:z.array(fishProgressSchema).max(15000)}).strict(),configuration:configurationSchema,links:z.array(localLinkSchema).max(2000),notes:z.array(z.object({id:z.uuid(),title:z.string().min(1).max(100),text:z.string().max(10000)}).strict()).max(100)}).strict()
   .refine(data=>['cn','global'].every(region=>{const fields=data.fish[region as FishRegion];return fields.every(f=>f.region===region)&&new Set(fields.map(f=>`${f.fishId}:${f.field}`)).size===fields.length;})&&new Set(data.links.map(link=>link.id)).size===data.links.length,'备份含重复或区服不一致的数据');
