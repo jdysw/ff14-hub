@@ -3,6 +3,8 @@ import {ZodError} from 'zod';
 import {parseFishDocument,serializeFishDocument,type FishRegion,type FishDocument} from '@ff14-hub/shared';
 import {localBackupSchema,type LocalData,type LocalStore,type HomeSection,localLinkSchema} from './store';
 import {registerPrivateDraftSource} from '../pwa/draft-registry';
+import {fetchNavigationMetadata} from './nav-metadata';
+import {LocalLinkEditor} from './LocalLinkEditor';
 
 export function downloadJson(text:string,filename:string){
   const url=URL.createObjectURL(new Blob([text],{type:'application/json'}));
@@ -22,9 +24,12 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
   const [notice,setNotice]=useState<string|null>(null);
   const [error,setError]=useState<string|null>(null);
   const [title,setTitle]=useState(''),[url,setUrl]=useState(''),[category,setCategory]=useState('常用网站');
+  const [description,setDescription]=useState('');
+  const [faviconUrl,setFaviconUrl]=useState<string|undefined>(undefined);
+  const [recognizing,setRecognizing]=useState(false);
   const [noteTitle,setNoteTitle]=useState(''),[noteText,setNoteText]=useState('');
   const draft=useRef(false);
-  useEffect(()=>{draft.current=Boolean(title||url||noteTitle||noteText||fishFile||backup);});
+  useEffect(()=>{draft.current=Boolean(title||url||description||noteTitle||noteText||fishFile||backup);});
   useEffect(()=>registerPrivateDraftSource(()=>draft.current),[]);
   const run=async(action:()=>Promise<void>)=>{
     if(busy)return;setBusy(true);setError(null);setNotice(null);
@@ -78,13 +83,77 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
         <button type="button" disabled={busy||!restoreConfirmed} onClick={()=>{void run(async()=>{await store.restoreBackup(backup);setBackup(null);setNotice('个人备份已恢复到本机。');});}}>恢复个人备份</button>
       </div>:null}
     </section>
-    <section hidden={activeTab!=='links'}><h3>个人导航</h3><form onSubmit={event=>{event.preventDefault();void run(async()=>{
-      const link=localLinkSchema.parse({id:crypto.randomUUID(),title:title.trim(),url:url.trim(),category:category.trim()||'常用网站',favorite:false});
-      await store.change(document=>{document.data.links.push(link);});setTitle('');setUrl('');
-    });}}><label className="local-settings__field">网站名称<input required value={title} onChange={event=>setTitle(event.target.value)} maxLength={100}/></label>
-      <label className="local-settings__field">HTTPS 地址<input required type="url" value={url} onChange={event=>setUrl(event.target.value)}/></label>
-      <label className="local-settings__field">分类<input value={category} onChange={event=>setCategory(event.target.value)} maxLength={60}/></label><button type="submit" disabled={busy}>添加网站</button></form>
-      <ul className="local-settings__items">{data.links.map(link=><li key={link.id}><span>{link.title} <small>{link.category}</small></span><button type="button" aria-label={`移除${link.title}`} disabled={busy} onClick={()=>{void run(async()=>{await store.change(document=>{document.data.links=document.data.links.filter(item=>item.id!==link.id);});});}}>移除</button></li>)}</ul>
+    <section hidden={activeTab!=='links'}><h3>个人导航</h3>
+      <p className="local-settings__caution">新增网站后可自动提取公开网页简介；获取失败不影响添加。简介支持手动编辑，所有个人资料仅保存于此浏览器。</p>
+      <form onSubmit={event=>{event.preventDefault();void run(async()=>{
+        // 添加时自动尝试一次：外站拒绝读取或不存在 description 时仍可以正常保存。
+        const site=url.trim();
+        const detected=description.trim()?null:await fetchNavigationMetadata(site).catch(()=>null);
+        const icon=faviconUrl??detected?.iconUrl??undefined;
+        const link=localLinkSchema.parse({
+          id:crypto.randomUUID(),title:title.trim()||detected?.title||'未命名网站',
+          url:site,category:category.trim()||'常用网站',favorite:false,
+          description:description.trim()||detected?.description||'',
+          ...(icon?{faviconUrl:icon}:{}),
+        });
+        await store.change(document=>{document.data.links.push(link);});
+        setTitle('');setUrl('');setDescription('');setFaviconUrl(undefined);
+        if(!link.description)setNotice('已添加网站。自动识别暂未取得简介，可在下方手动补充。');
+      });}}>
+        <label className="local-settings__field">网站名称
+          <input required value={title} onChange={event=>setTitle(event.target.value)} maxLength={100}/>
+        </label>
+        <label className="local-settings__field">HTTPS 地址
+          <input required type="url" value={url} onChange={event=>{
+            setUrl(event.target.value);setFaviconUrl(undefined);
+          }}/>
+        </label>
+        <label className="local-settings__field">分类
+          <input value={category} onChange={event=>setCategory(event.target.value)} maxLength={60}/>
+        </label>
+        <label className="local-settings__field">网页简介
+          <textarea value={description} onChange={event=>setDescription(event.target.value)}
+            rows={3} maxLength={240} placeholder="可手动填写，留空将在添加时自动识别。"/>
+        </label>
+        <div className="local-settings__link-actions">
+          <button type="button" disabled={busy||recognizing||!url.trim()} onClick={()=>{
+            setRecognizing(true);setError(null);
+            void fetchNavigationMetadata(url.trim()).then(metadata=>{
+              if(metadata.title&&!title.trim())setTitle(metadata.title);
+              if(metadata.description)setDescription(metadata.description);
+              if(metadata.iconUrl)setFaviconUrl(metadata.iconUrl);
+              setNotice(metadata.description?'已提取网站简介，可进一步修改后保存。':'网页没有提供可识别的简介，可自行填写。');
+            }).catch(cause=>setError(cause instanceof Error?cause.message:'自动识别失败'))
+              .finally(()=>setRecognizing(false));
+          }}>{recognizing?'正在识别…':'自动获取简介'}</button>
+          <button type="submit" disabled={busy||recognizing}>添加网站</button>
+        </div>
+      </form>
+      <div className="local-settings__link-batch">
+        <h4>已添加的网站</h4>
+        <button type="button" disabled={busy||recognizing||data.links.every(link=>Boolean(link.description?.trim()))}
+          onClick={()=>{void run(async()=>{
+            // 单次最多补齐 10 条，避免大规模抓取或突破服务端频率限制。
+            const pending=data.links.filter(link=>!link.description?.trim()).slice(0,10);
+            let updated=0;
+            for(const link of pending){
+              const metadata=await fetchNavigationMetadata(link.url).catch(()=>null);
+              if(!metadata?.description)continue;
+              await store.change(document=>{
+                const current=document.data.links.find(item=>item.id===link.id);
+                if(current&&!current.description?.trim()&&current.url===link.url){
+                  current.description=metadata.description;
+                  if(metadata.iconUrl)current.faviconUrl=metadata.iconUrl;
+                  updated++;
+                }
+              });
+            }
+            setNotice(`补全 ${updated} 条简介；未识别的网站仍可手动编辑。`);
+          });}}>批量补全缺失简介（每次最多 10 条）</button>
+      </div>
+      <ul className="local-settings__items local-settings__link-list">
+        {data.links.map(link=><LocalLinkEditor key={link.id} link={link} store={store}/>)}
+      </ul>
     </section>
     <section hidden={activeTab!=='notes'}><h3>备忘</h3><form onSubmit={event=>{event.preventDefault();void run(async()=>{
       await store.change(document=>{document.data.notes.push({id:crypto.randomUUID(),title:noteTitle.trim(),text:noteText});document.data.configuration.visible.notes=true;});setNoteTitle('');setNoteText('');
