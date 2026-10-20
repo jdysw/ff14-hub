@@ -60,8 +60,8 @@ describe('首页公开活动', () => {
       make('长期进行A',now-10*86400000,now+30*86400000),
       make('长期进行B',now-10*86400000,now+40*86400000),
       make('长期进行C',now-10*86400000,now+50*86400000),
-      make('即将结束',now-2*86400000,now+3600000),
-      make('即将开始',now+3600000,now+2*86400000),
+      make('临期活动',now-2*86400000,now+3600000),
+      make('近期开始活动',now+3600000,now+2*86400000),
       make('远期活动',now+50*86400000,now+60*86400000),
       make('公告待核实A',null,null),
       make('公告待核实B',null,null),
@@ -71,9 +71,9 @@ describe('首页公开活动', () => {
     }),{status:200}))));
     const onOpenCalendar=vi.fn();
     const {container}=render(<HomeOfficialEvents onOpenCalendar={onOpenCalendar} onHide={vi.fn()}/>);
-    await screen.findByText('即将结束');
+    await screen.findByText('临期活动');
     await waitFor(()=>expect(container.querySelectorAll('.home-official-event')).toHaveLength(3));
-    expect(screen.getByText('即将开始')).toBeTruthy();
+    expect(screen.getByText('近期开始活动')).toBeTruthy();
     expect(screen.queryByText('长期进行B')).toBeNull();
     expect(screen.queryByText('公告待核实A')).toBeNull();
     expect(screen.queryByText('已结束活动')).toBeNull();
