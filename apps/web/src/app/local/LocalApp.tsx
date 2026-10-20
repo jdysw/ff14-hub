@@ -2,7 +2,8 @@ import {lazy,Suspense,useEffect,useMemo,useRef,useState} from 'react';
 import {API_ROUTES,type NavCatalogEntry} from '@ff14-hub/shared';
 import {HomeOfficialEvents} from '../shell/HomeOfficialEvents';
 import {PublicCalendarPage} from '../events/PublicCalendarPage';
-import {FishingBoard} from '../fish/FishingBoard';
+import {FishingBoard,type FishDetailSelection} from '../fish/FishingBoard';
+import {LocalModuleOverlay,type ModuleOrigin} from './LocalModuleOverlay';
 import {createLocalStore,type LocalData} from './store';
 import {localFishPort} from './fish-port';
 import {LocalSettings} from './LocalSettings';
@@ -27,7 +28,22 @@ export function LocalApp(){
   const [catalogError,setCatalogError]=useState(false);
   const [catalogReload,setCatalogReload]=useState(0);
   const [error,setError]=useState<string|null>(null);
-  const [view,setView]=useState<'home'|'settings'|'calendar'|'fishing'|'notes'|'admin'>('home');
+  const [view,setView]=useState<'home'|'settings'|'admin'>('home');
+  const [expanded,setExpanded]=useState<null|{
+    kind:'events'|'fishing'|'notes';
+    origin:ModuleOrigin;
+    fishFilters?:FishDetailSelection;
+  }>(null);
+  // 共用一个从模块位置展开的详情层；关闭后保留首页的筛选和滚动位置。
+  const openModule=(kind:'events'|'fishing'|'notes',fishFilters?:FishDetailSelection)=>{
+    const source=document.querySelector<HTMLElement>(`[data-module="${kind}"]`);
+    if(!source)return;
+    const {top,left,width,height}=source.getBoundingClientRect();
+    setExpanded({
+      kind,origin:{rect:{top,left,width,height},returnFocus:document.activeElement instanceof HTMLElement?document.activeElement:null},
+      ...(fishFilters?{fishFilters}:{}),
+    });
+  };
   const [settingsTab,setSettingsTab]=useState<'home'|'links'|'notes'|'fish'|'backup'>('home');
   const [category,setCategory]=useState('all');
   const siteSettings=useSiteSettings();
@@ -87,7 +103,7 @@ export function LocalApp(){
       </button>
       <div className="local-app__header-actions">
         {view==='home'&&data?<a className="local-app__nav-jump" href="#local-navigation">导航站 ↓</a>:null}
-        {view!=='home'&&view!=='calendar'&&<button type="button" className="local-app__back" onClick={()=>setView('home')}>← <span>返回</span></button>}
+        {view!=='home'&&<button type="button" className="local-app__back" onClick={()=>setView('home')}>← <span>返回</span></button>}
         <button className="shell__settings" type="button" aria-label={view==='settings'?'返回首页':'设置'} aria-pressed={view==='settings'} onClick={()=>setView(view==='settings'?'home':'settings')}>
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l-1.8 1.8a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5v.7h-2.6v-.7a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-1.8-1.8a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H4v-2.6h.7a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8L7.7 6.8a1.6 1.6 0 0 0 1.8.3 1.6 1.6 0 0 0 1-1.5V5h2.6v.6a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l1.8 1.8a1.6 1.6 0 0 0-.3 1.8 1.6 1.6 0 0 0 1.5 1h.7V14h-.7a1.6 1.6 0 0 0-1.5 1Z"/></svg>
           <span>设置</span>
@@ -101,15 +117,6 @@ export function LocalApp(){
       {view==='admin'?<Suspense fallback={<p role="status">正在打开站点后台…</p>}><SiteAdminPage onClose={()=>setView('settings')}/></Suspense>
         :!data?error?<p role="alert">本机数据读取失败。<button type="button" onClick={()=>window.location.reload()}>重试</button></p>:<p role="status">正在读取…</p>
         :view==='settings'?<LocalSettings key={settingsTab} initialTab={settingsTab} store={store} data={data} onSaved={()=>{}} onAdmin={openAdmin} adminAuthenticated={adminSession.authenticated}/>
-        :view==='calendar'?<PublicCalendarPage onBack={()=>setView('home')}/>
-        :view==='fishing'?<div className="local-detail local-detail--fishing">
-          <FishingBoard data={dataPort} initialRegion={data.configuration.region} onImport={()=>{setSettingsTab('fish');setView('settings');}}/>
-        </div>
-        :view==='notes'?<section className="local-detail local-detail--notes" aria-label="全部备忘">
-          <header className="local-detail__header"><h2>我的备忘</h2><button type="button" onClick={()=>{setSettingsTab('notes');setView('settings');}}>管理备忘 ↗</button></header>
-          {data.notes.length?data.notes.map(note=><article className="local-detail__note" key={note.id}><h3>{note.title}</h3><p>{note.text}</p></article>):
-            <p className="local-detail__empty">暂无备忘。可在设置中添加。</p>}
-        </section>
         :<div className="local-dashboard">
           <section className="local-dashboard__modules" aria-label="功能模块">
             <header className="local-dashboard__section-heading">
@@ -120,12 +127,12 @@ export function LocalApp(){
               {enabledSections.length===0?<p className="local-dashboard__empty">
                 <button type="button" onClick={()=>{setSettingsTab('home');setView('settings');}}>启用功能模块 ＋</button>
               </p>:enabledSections.map(section=><div className="local-dashboard__module" key={section} data-module={section}>
-                {section==='events'?<HomeOfficialEvents onOpenCalendar={()=>setView('calendar')}
+                {section==='events'?<HomeOfficialEvents onOpenCalendar={()=>openModule('events')}
                   onHide={()=>{void store.change(document=>{document.data.configuration.visible.events=false;}).catch(()=>setError('设置未能保存到本机'));}}/>:
-                section==='fishing'?<FishingBoard data={dataPort} initialRegion={data.configuration.region} embedded onOpenDetail={()=>setView('fishing')}/>:
+                section==='fishing'?<FishingBoard data={dataPort} initialRegion={data.configuration.region} embedded onOpenDetail={selection=>openModule('fishing',selection)}/>:
                 <section className="local-notes" aria-label="我的备忘">
                   <header className="local-notes__heading"><h3>备忘</h3>
-                    <button type="button" className="local-dashboard__manage" onClick={()=>setView('notes')}>查看全部 ↗</button>
+                    <button type="button" className="local-dashboard__manage" onClick={()=>openModule('notes')}>查看全部 ↗</button>
                   </header>
                   {data.notes.length?data.notes.slice(0,2).map(note=><article key={note.id}><h4>{note.title}</h4><p>{note.text}</p></article>):
                     <p className="local-notes__empty">暂无备忘 <button type="button" onClick={()=>{setSettingsTab('notes');setView('settings');}}>添加 ＋</button></p>}
@@ -169,5 +176,24 @@ export function LocalApp(){
           </section>
         </div>}
     </main>
+    {expanded&&data&&view==='home'?<LocalModuleOverlay
+      key={expanded.kind}
+      title={{events:'国服活动',fishing:'钓鱼',notes:'我的备忘'}[expanded.kind]}
+      origin={expanded.origin}
+      onClose={()=>setExpanded(null)}>
+      {expanded.kind==='events'?<PublicCalendarPage overlay onBack={()=>setExpanded(null)}/>:
+        expanded.kind==='fishing'?<FishingBoard data={dataPort} initialRegion={data.configuration.region}
+          initialFilters={expanded.fishFilters} expanded onImport={()=>{
+            setExpanded(null);setSettingsTab('fish');setView('settings');
+          }}/>:
+        <section className="local-detail local-detail--notes" aria-label="全部备忘">
+          <header className="local-detail__header"><h2>我的备忘</h2>
+            <button type="button" onClick={()=>{setExpanded(null);setSettingsTab('notes');setView('settings');}}>管理备忘 ↗</button>
+          </header>
+          {data.notes.length?data.notes.map(note=><article className="local-detail__note" key={note.id}>
+            <h3>{note.title}</h3><p>{note.text}</p>
+          </article>):<p className="local-detail__empty">暂无备忘。可在设置中添加。</p>}
+        </section>}
+    </LocalModuleOverlay>:null}
   </div>;
 }
