@@ -7,7 +7,7 @@ import {
 import { calendarCountdown } from '../events/EventsCalendarWidget';
 
 export const HOME_EVENT_LIMIT = 4;
-export const HOME_CALENDAR_POLL_MS = 60_000;
+export const HOME_CALENDAR_POLL_MS = 6 * 60 * 60_000;
 
 /**
  * 列表包含全部有效日程；界面最多同时显示 4 项，其余在列表内滚动。
@@ -74,7 +74,9 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
   useEffect(() => {
     const controller = new AbortController();
     let sequence=0;
+    let lastRequestedAt=0;
     const load=async () => {
+      lastRequestedAt=Date.now();
       const current=++sequence;
       try {
         const response = await fetch('/api/v1/events/calendar', {
@@ -95,7 +97,9 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
       }
     };
     void load();
-    const visibleRefresh=()=>{if(document.visibilityState!=='hidden')void load();};
+    const visibleRefresh=()=>{
+      if(document.visibilityState!=='hidden'&&Date.now()-lastRequestedAt>=HOME_CALENDAR_POLL_MS)void load();
+    };
     const timer=window.setInterval(visibleRefresh,HOME_CALENDAR_POLL_MS);
     document.addEventListener('visibilitychange',visibleRefresh);
     return () => {controller.abort();window.clearInterval(timer);document.removeEventListener('visibilitychange',visibleRefresh);};

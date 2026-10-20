@@ -88,6 +88,11 @@ describe('盛趣官方活动 API 适配器', () => {
     expect(response.source.name).toContain('盛趣游戏');
     expect(urls.length).toBeGreaterThan(1);
     expect(urls.every((url) => url.startsWith('https://cqnews.web.sdo.com/api/news/'))).toBe(true);
+    const count=urls.length;
+    await readCnCalendar();
+    expect(urls).toHaveLength(count);
+    await readCnCalendar(Date.now(),undefined,true);
+    expect(urls.length).toBeGreaterThan(count);
   });
 });
 

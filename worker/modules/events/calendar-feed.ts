@@ -6,7 +6,7 @@ import type { EventCalendarItem, EventCalendarResponse } from '@ff14-hub/shared'
 
 const HOST = 'https://cqnews.web.sdo.com';
 const NEWS_INDEX = 'https://ff.web.sdo.com/web8/index.html#/newstab/newslist';
-export const CN_CALENDAR_CACHE_MS = 5 * 60_000;
+export const CN_CALENDAR_CACHE_MS = 6 * 60 * 60_000;
 const STALE_MS = 12 * 60 * 60_000;
 let cache: { checkedAtMs: number; events: EventCalendarItem[]; partial: boolean } | null = null;
 const requestSignal=(signal?:AbortSignal)=>signal?AbortSignal.any([signal,AbortSignal.timeout(10_000)]):AbortSignal.timeout(10_000);
@@ -262,9 +262,9 @@ async function refresh(signal?:AbortSignal): Promise<void> {
   signal?.throwIfAborted();
   cache = { checkedAtMs: Date.now(), events, partial: sources.some((value) => value.status === 'rejected') };
 }
-export async function readCnCalendar(nowMs = Date.now(),signal?:AbortSignal): Promise<EventCalendarResponse> {
+export async function readCnCalendar(nowMs = Date.now(),signal?:AbortSignal,force=false): Promise<EventCalendarResponse> {
   let stale = false;
-  if (!cache || nowMs - cache.checkedAtMs >= CN_CALENDAR_CACHE_MS) {
+  if (force || !cache || nowMs - cache.checkedAtMs >= CN_CALENDAR_CACHE_MS) {
     try {
       await refresh(signal);
     } catch {

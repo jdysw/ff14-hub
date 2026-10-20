@@ -4,9 +4,21 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CalendarAdminAccess } from '../src/app/events/CalendarAdminAccess';
 import { SiteSettingsPanel } from '../src/app/admin/SiteSettingsPanel';
 import { calendarAdminSession } from '../src/app/events/calendar-admin-session';
+import { CalendarAdminPanel } from '../src/app/events/CalendarAdminPanel';
 afterEach(()=>{cleanup();calendarAdminSession.clear();vi.unstubAllGlobals();});
 
 describe('站点管理员独立登录与全站在线设置',()=>{
+  it('allows the authenticated owner to synchronize official announcements and reload the editor',async()=>{
+    const fn=vi.fn((url:string)=>Promise.resolve(Response.json(url.endsWith('/refresh')?{ok:true}:{official:[],edits:[]})));
+    vi.stubGlobal('fetch',fn);
+    const saved=vi.fn();
+    render(<CalendarAdminPanel getToken={()=>'owner-test-token'} onClose={vi.fn()} onSaved={saved}/>);
+    await screen.findByText(/共 0 项/);
+    fireEvent.click(screen.getByRole('button',{name:'同步官方公告'}));
+    await screen.findByText('官方公告已同步，人工编辑内容已保留');
+    expect(fn.mock.calls.map(x=>x[0])).toEqual(['/api/v1/admin/calendar/items','/api/v1/admin/calendar/refresh','/api/v1/admin/calendar/items']);
+    expect(saved).toHaveBeenCalledOnce();
+  });
   it('只渲染登录表单，不出现初始化、注册或 TOTP 绑定入口',async()=>{
     const fn=vi.fn(()=>Promise.resolve(Response.json({token:'ffh_admin_'+ 'a'.repeat(64)})));
     vi.stubGlobal('fetch',fn);

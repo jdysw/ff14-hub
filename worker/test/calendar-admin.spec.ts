@@ -80,6 +80,14 @@ describe('独立管理员账号密码 + TOTP 双因子',()=>{
     expect(ADMIN_PBKDF2_ITERATIONS).toBeGreaterThanOrEqual(100_000);
     expect(ADMIN_PBKDF2_ITERATIONS).toBeLessThanOrEqual(100_000);
   });
+  it('restricts manual official refresh to the owner and throttles repeated attempts',async()=>{
+    expect((await request('/calendar/refresh','POST')).status).toBe(401);
+    expect((await request('/calendar/refresh','POST','ffh_dev_invalid')).status).toBe(401);
+    const {token}=await setupAdmin();
+    await env.DB.prepare("INSERT INTO calendar_admin_rate_limits(scope,window_started,attempts) VALUES('admin:calendar-refresh',?,1)")
+      .bind(Date.now()).run();
+    expect((await request('/calendar/refresh','POST',token)).status).toBe(429);
+  });
   it('开户与二次绑定 HTTP 端点完全不可用，唯一已激活 owner 仍可登录',async()=>{
     const forbidden=await SELF.fetch(API+'/admin/setup',{
       method:'POST',headers:{'Content-Type':'application/json','X-Calendar-Setup-Key':INIT_KEY},
