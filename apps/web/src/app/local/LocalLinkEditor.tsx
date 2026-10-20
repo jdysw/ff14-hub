@@ -34,7 +34,9 @@ export function LocalLinkEditor({link,store}: {link:SavedLink;store:LocalStore})
     });
     await store.change(document=>{
       const current=document.data.links.find(item=>item.id===link.id);
-      if(current){current.title=next.title;current.category=next.category;current.description=next.description;
+      if(current){current.title=next.title;current.category=next.category;
+        if(next.description!==undefined)current.description=next.description;
+        else delete current.description;
         if(next.faviconUrl)current.faviconUrl=next.faviconUrl;else delete current.faviconUrl;}
     });
     setMessage('已保存到本机。');
