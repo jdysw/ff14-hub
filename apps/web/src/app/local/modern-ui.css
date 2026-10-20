@@ -563,3 +563,23 @@ body { background:var(--bg);color:var(--text);font-family:Inter,'PingFang SC','M
 @media(prefers-reduced-motion:reduce){
   .local-directory__tile{transition:none;}
 }
+
+/* Quick in-page jump, not another module-switching navigation. */
+.local-app__nav-jump{
+  display:inline-flex;align-items:center;min-height:38px;padding:8px 10px;
+  background:transparent;border-radius:7px;color:#456b92;text-decoration:none;font-size:13px;font-weight:550;
+}
+.local-app__nav-jump:hover{background:#eef4fa;color:#315d95;}
+.local-app .local-directory{scroll-margin-top:86px;}
+.local-dashboard__module .fish-board__header-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;}
+.local-dashboard__module .fish-board__open-detail{
+  min-height:34px;background:transparent;border:0;border-radius:7px;
+  padding:5px 7px;color:#466d9c;font-size:12px;white-space:nowrap;
+}
+.local-dashboard__module .fish-board__open-detail:hover{background:#edf3fa;color:#315d95;}
+@media(max-width:650px){
+  .local-app__nav-jump{font-size:12px;padding-inline:7px;}
+  .local-app .local-directory{scroll-margin-top:72px;}
+  .local-dashboard__module .fish-board__header-actions{gap:6px;}
+  .local-dashboard__module .fish-board__open-detail{font-size:11px;padding-inline:4px;}
+}
