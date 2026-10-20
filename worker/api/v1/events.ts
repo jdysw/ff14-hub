@@ -85,12 +85,15 @@ publicEventRoutes.get('/', validateQuery(publicEventQuerySchema), async (c) => {
   );
 });
 
-async function calendarForPublic(db: D1Database,background:(task:Promise<unknown>)=>void) {
-  const snapshot = await readOfficialCalendarSnapshot(db);
+async function calendarForPublic(db: D1Database) {
+  let snapshot = await readOfficialCalendarSnapshot(db);
   if(snapshot){
     const expired=Date.now()-snapshot.source.checkedAtMs>=CN_CALENDAR_CACHE_MS;
-    if(expired)background(refreshOfficialCalendarSnapshot(db));
-    return await applyCalendarEdits(db,expired?{...snapshot,source:{...snapshot.source,stale:true}}:snapshot);
+    // With six-hour browser polling, return the completed refresh to its initiating reader.
+    // Otherwise that reader would keep the old snapshot for another six hours.
+    if(expired&&await refreshOfficialCalendarSnapshot(db))snapshot=await readOfficialCalendarSnapshot(db)??snapshot;
+    const stale=Date.now()-snapshot.source.checkedAtMs>=CN_CALENDAR_CACHE_MS;
+    return await applyCalendarEdits(db,stale?{...snapshot,source:{...snapshot.source,stale:true}}:snapshot);
   }
   await refreshOfficialCalendarSnapshot(db);
   const live=await readOfficialCalendarSnapshot(db);
@@ -98,12 +101,12 @@ async function calendarForPublic(db: D1Database,background:(task:Promise<unknown
   return await applyCalendarEdits(db,live);
 }
 
-/** Public official calendar, with durable fallback and bounded background revalidation. */
+/** Public official calendar, with durable fallback and bounded revalidation. */
 publicEventRoutes.get('/calendar', async (c) => {
   // 优先读取有持久保证的公共官方快照，避免 Cloudflare 不同边缘实例各自冷缓存，
   // 或从边缘节点无法直接连接盛趣官网时整个首页活动列表 503。
   try {
-    const calendar = await calendarForPublic(c.env.DB,task=>c.executionCtx.waitUntil(task));
+    const calendar = await calendarForPublic(c.env.DB);
     return noStoreJson(c, calendar);
   } catch {
     return c.json({ code: 'service_unavailable', message: '官方活动数据暂时无法同步；尚无可用的历史快照' }, 503);
@@ -113,7 +116,7 @@ publicEventRoutes.get('/calendar', async (c) => {
 /** 标准 ICS 订阅：只包含官方明确起止时间的公共活动，不包含用户私有活动。 */
 publicEventRoutes.get('/calendar.ics', async (c) => {
   try {
-    const data = await calendarForPublic(c.env.DB,task=>c.executionCtx.waitUntil(task));
+    const data = await calendarForPublic(c.env.DB);
     const ics = createOfficialCalendarIcs(data);
     return new Response(ics, {
       status: 200,

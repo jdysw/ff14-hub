@@ -13,6 +13,8 @@ import type { AppBindings, AppMiddleware } from '../../types';
 import { issueAdminSession, revokeAdminSession, throttleAdmin, validateAdminCredentials, validateAdminSession } from '../../modules/events/calendar-admin-auth';
 import { siteSettingsMutationSchema, readSiteSettings, updateSiteSettings } from '../../modules/admin/site-settings';
 import { readOfficialCalendarSnapshot } from '../../modules/events/calendar-snapshot';
+import { readCnCalendar } from '../../modules/events/calendar-feed';
+import { refreshOfficialCalendarSnapshot } from '../../modules/events/calendar-refresh';
 import { calendarMutationSchema, calendarToggleSchema, listEditorEntries, saveCalendarEdit } from '../../modules/events/calendar-editor';
 import { registerAdminNavigation } from './admin-navigation';
 
@@ -68,6 +70,14 @@ async function assertEditableId(db:D1Database,id:string):Promise<void> {
 }
 
 /** 管理台显示官方原始数据和人工修改的版本号，避免普通访问取得编辑审计信息。 */
+adminRoutes.post('/calendar/refresh', adminAuth(), async c => {
+  await throttleAdmin(c.env.DB,'admin:calendar-refresh',1);
+  const stored=await refreshOfficialCalendarSnapshot(c.env.DB,Date.now(),readCnCalendar,true);
+  if(!stored)return c.json({code:'service_unavailable',message:'官方同步失败，已保留原有活动数据，请稍后重试'},503);
+  const snapshot=await readOfficialCalendarSnapshot(c.env.DB);
+  return noStoreJson(c,{ok:true,checkedAtMs:snapshot?.source.checkedAtMs});
+});
+
 adminRoutes.get('/calendar/items', adminAuth(), async (c) => {
   const official = await readOfficialCalendarSnapshot(c.env.DB);
   return noStoreJson(c, {

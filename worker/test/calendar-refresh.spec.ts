@@ -27,6 +27,20 @@ it('preserves the last verified timestamp and data after an upstream failure',as
   const saved=await readOfficialCalendarSnapshot(env.DB);
   expect(saved?.source.checkedAtMs).toBe(original.source.checkedAtMs);expect(saved?.events).toEqual(original.events);
 });
+it('keeps the shared automatic quota closed for six hours but permits an owner force refresh',async()=>{
+  const load=vi.fn(()=>Promise.resolve(feed()));
+  expect(await refreshOfficialCalendarSnapshot(env.DB,Date.now(),load)).toBe(true);
+  await env.DB.prepare("UPDATE auth_rate_limits SET window_start=? WHERE scope_key='public-calendar:official-refresh:cn'")
+    .bind(Date.now()-5*60_000).run();
+  expect(await refreshOfficialCalendarSnapshot(env.DB,Date.now(),load)).toBe(false);
+  expect(load).toHaveBeenCalledTimes(1);
+  expect(await refreshOfficialCalendarSnapshot(env.DB,Date.now(),load,true)).toBe(true);
+  expect(load.mock.calls.at(-1)).toEqual([expect.any(Number),expect.any(AbortSignal),true]);
+  await env.DB.prepare("UPDATE auth_rate_limits SET window_start=? WHERE scope_key='public-calendar:official-refresh:cn'")
+    .bind(Date.now()-6*60*60_000-1).run();
+  expect(await refreshOfficialCalendarSnapshot(env.DB,Date.now(),load)).toBe(true);
+  expect(load).toHaveBeenCalledTimes(3);
+});
 it('does not overwrite a snapshot with empty, partial, private or out-of-order content',async()=>{
   const now=Date.now(),original=feed(now);await storeOfficialCalendarSnapshot(env.DB,original,now);
   expect(await storeOfficialCalendarSnapshot(env.DB,{...original,events:[]},now)).toBe(false);

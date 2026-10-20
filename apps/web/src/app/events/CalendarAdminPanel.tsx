@@ -166,12 +166,32 @@ export function CalendarAdminPanel({ getToken, onClose, onSaved }: {
   const patch = (field: keyof Draft, value: string | boolean) =>
     setDraft(old => ({ ...old, [field]: value }));
 
+  async function refreshOfficial() {
+    const token=getToken();
+    if(!token){setMessage('管理员会话已失效，请重新登录');return;}
+    setSaving(true);setMessage('正在同步官方公告…');
+    try{
+      const response=await fetch('/api/v1/admin/calendar/refresh',{
+        method:'POST',credentials:'omit',cache:'no-store',redirect:'error',
+        headers:{Authorization:'Bearer '+token},
+      });
+      if(response.status===429)throw new Error('手动同步每 5 分钟最多一次，请稍后再试');
+      if(response.status===401||response.status===403)throw new Error('管理员会话已失效，请重新登录');
+      if(!response.ok)throw new Error('官方同步失败，已保留原有活动数据，请稍后重试');
+      await fetchList();onSaved();setMessage('官方公告已同步，人工编辑内容已保留');
+    }catch(error){setMessage(error instanceof Error?error.message:'同步失败');}
+    finally{setSaving(false);}
+  }
+
   return <section className="calendar-admin" aria-label="国服活动内容管理">
     <header className="calendar-admin__header">
       <div><button type="button" className="text-button" onClick={onClose}>← 返回管理概览</button>
         <h2>活动内容管理</h2>
-        <p>编辑活动会直接写入 D1，定时同步官方公告不会覆盖你的修改。</p></div>
-      <button className="button" type="button" onClick={createNew}>＋ 新建活动</button>
+        <p>官方公告每 6 小时自动同步；手动同步不会覆盖你的修改。</p></div>
+      <div className="calendar-admin__actions">
+        <button className="button" type="button" disabled={saving} onClick={()=>void refreshOfficial()}>同步官方公告</button>
+        <button className="button" type="button" onClick={createNew}>＋ 新建活动</button>
+      </div>
     </header>
     <div className="calendar-admin__layout">
       <section className="calendar-admin__list" aria-label="可编辑活动">

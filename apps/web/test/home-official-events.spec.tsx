@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { HomeOfficialEvents } from '../src/app/shell/HomeOfficialEvents';
+import { HomeOfficialEvents, HOME_CALENDAR_POLL_MS } from '../src/app/shell/HomeOfficialEvents';
 import { SystemBar } from '../src/app/shell/SystemBar';
 
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 const response = {
   serverTimeMs: new Date('2026-10-19T05:00:00Z').getTime(),
@@ -97,20 +97,32 @@ describe('首页公开活动', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
-  it('polls visible activity data each minute and retains the last list if an update fails',async()=>{
+  it('requests activity data at most once per six hours automatically, including visibility changes',async()=>{
     vi.useFakeTimers();
     try{
+      const intervals=vi.spyOn(window,'setInterval');
+      const started=Date.now();
       const updated={...response,events:[{...response.events[0],title:'官方更新活动'}]};
       const fetchSpy=vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(response),{status:200}))
         .mockResolvedValueOnce(new Response(JSON.stringify(updated),{status:200}))
         .mockRejectedValue(new Error('temporarily unavailable'));
       vi.stubGlobal('fetch',fetchSpy);
       render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
-      await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
+      await act(async()=>{await Promise.resolve();});
       expect(screen.getByText('官方测试活动')).toBeTruthy();
-      await act(async()=>{await vi.advanceTimersByTimeAsync(60_000);});
+      expect(HOME_CALENDAR_POLL_MS).toBe(21_600_000);
+      await act(async()=>{document.dispatchEvent(new Event('visibilitychange'));await Promise.resolve();});
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      vi.setSystemTime(started+HOME_CALENDAR_POLL_MS-1);
+      await act(async()=>{document.dispatchEvent(new Event('visibilitychange'));await Promise.resolve();});
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      vi.setSystemTime(started+HOME_CALENDAR_POLL_MS);
+      await act(async()=>{intervals.mock.calls.find(call=>call[1]===HOME_CALENDAR_POLL_MS)![0]();await Promise.resolve();});
       expect(screen.getByText('官方更新活动')).toBeTruthy();
-      await act(async()=>{await vi.advanceTimersByTimeAsync(60_000);});
+      await act(async()=>{document.dispatchEvent(new Event('visibilitychange'));await Promise.resolve();});
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      vi.setSystemTime(started+2*HOME_CALENDAR_POLL_MS);
+      await act(async()=>{document.dispatchEvent(new Event('visibilitychange'));await Promise.resolve();});
       expect(screen.getByText('官方更新活动')).toBeTruthy();expect(screen.getByText(/当前展示缓存数据/)).toBeTruthy();
       expect(fetchSpy).toHaveBeenCalledTimes(3);
     }finally{vi.useRealTimers();}
