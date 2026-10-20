@@ -33,9 +33,10 @@ function OfficialEventSummary({ item, now }: { readonly item: EventCalendarItem;
   </li>;
 }
 
-export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
+export function HomeOfficialEvents({ onOpenCalendar, onHide, maxItems = 4 }: {
   readonly onOpenCalendar: () => void;
   readonly onHide: () => void;
+  readonly maxItems?: number;
 }) {
   const [state, setState] = useState<ViewState>({ kind: 'loading' });
   const [refresh, setRefresh] = useState(0);
@@ -78,9 +79,9 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
       if (seen.has(item.id)) return false;
       seen.add(item.id);
       return true;
-    }).slice(0, 4);
-    return filtered.length ? filtered : overview.unscheduled.slice(0, 2);
-  }, [overview]);
+    }).slice(0, maxItems);
+    return filtered.length ? filtered : overview.unscheduled.slice(0, maxItems);
+  }, [overview, maxItems]);
   const reload = () => { setState({ kind: 'loading' }); setRefresh(value => value + 1); };
 
   return <section className="home-official" aria-label="国服官方活动">
