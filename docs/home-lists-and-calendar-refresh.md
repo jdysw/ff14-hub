@@ -20,3 +20,9 @@
 官方 API 本机实测成功：30 条公告，其中 4 项仍有有效日程；未将本机采集结果直接写入生产库。
 ego lite 实测 3440px 活动列表 384px、行高 96px；鱼窗列表 256px、行高 64px，包含 284 条匹配结果。滚轮操作后列表 scrollTop 为 400，页面 scrollY、标题和统计位置均不变。2560、1440、768、390、320px 全分类可见，无页面或分类横向溢出。
 单元测试覆盖轮询失败保留内容、24 小时时间范围、并发刷新配额、上游失败保留快照、空/部分/私有内容拒绝及旧响应不覆盖。
+
+## Worker 请求兼容性
+
+Cloudflare 的生产运行时不支持 Fetch 的 `redirect: 'error'`，会在发送请求之前抛出 TypeError；本机 Node 和被模拟的测试 fetch 没有暴露这一差异。官方 JSON 和专题 HTML 请求现在统一使用 `manual`，并通过 `response.ok` 拒绝 3xx，因此仍不跟随官方跳转或跨域跳转。失败诊断仅包含固定端点类型、HTTP 状态和脱敏的原生错误类型，不记录公告正文、URL 查询、凭证或个人数据。
+
+参考：https://developers.cloudflare.com/workers/runtime-apis/request/#constructor 。
