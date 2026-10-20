@@ -27,7 +27,8 @@ export function buildContentSecurityPolicy(environment: EnvironmentName): string
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data:",
+    // 仅图片可访问 HTTPS 站点；脚本、网络请求依然保持同源。图片请求无 Referer。
+    "img-src 'self' data: https:",
     "font-src 'self'",
     "connect-src 'self'",
     // HUB-012（ADR-0004 D10）：PWA 需要同域 manifest 与 Service Worker。
