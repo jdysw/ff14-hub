@@ -119,6 +119,11 @@ it('clicking an individual home fish opens detail prefiltered to that fish',asyn
   const onOpenDetail=vi.fn<(selection:FishDetailSelection)=>void>();
   render(<FishingBoard data={publicPort()} embedded onOpenDetail={onOpenDetail}/>);
   await screen.findByText('测试鱼0');
+  const preview=screen.getByRole('region',{name:'钓鱼鱼窗概览'});
+  expect(preview.querySelectorAll('.fish-glance__time')).toHaveLength(4);
+  expect(preview.querySelector('.fish-glance__time')?.textContent).toMatch(/\d{2}:\d{2}:\d{2} 后结束/);
+  expect(preview.querySelector('.fish-glance__time strong')).toBeNull();
+  expect(preview.querySelector('progress')).toBeNull();
   fireEvent.click(screen.getByRole('button',{name:'查看测试鱼0的完整鱼窗'}));
   expect(onOpenDetail).toHaveBeenCalledWith(expect.objectContaining({region:'cn',text:'测试鱼0',view:'windows'}));
 });
