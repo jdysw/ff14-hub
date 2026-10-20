@@ -77,8 +77,8 @@ describe('首页公开活动', () => {
     expect(screen.queryByText('长期进行B')).toBeNull();
     expect(screen.queryByText('公告待核实A')).toBeNull();
     expect(screen.queryByText('已结束活动')).toBeNull();
-    expect(screen.getByRole('button',{name:/其余 4 项日程 · 2 条待核实公告/})).toBeTruthy();
-    fireEvent.click(screen.getByRole('button',{name:/其余 4 项日程/}));
+    expect(screen.getByRole('button',{name:/其余 3 项日程 · 2 条待核实公告/})).toBeTruthy();
+    fireEvent.click(screen.getByRole('button',{name:/其余 3 项日程/}));
     expect(onOpenCalendar).toHaveBeenCalledTimes(1);
   });
 
