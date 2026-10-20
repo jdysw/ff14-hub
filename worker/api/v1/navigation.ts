@@ -23,6 +23,10 @@ import { z } from 'zod';
 import { noStoreJson } from '../../lib/response';
 import { describeIssues } from '../../lib/zod-issues';
 import { methodNotAllowed } from '../../middleware/error-handler';
+import { hashCredential } from '../../modules/identity/credentials';
+import { enforceRateLimits } from '../../lib/rate-limit';
+import { rateLimited } from '../../lib/response';
+import { fetchSiteMetadata } from '../../modules/nav/metadata';
 import {
   NAV_CATALOG_VERIFIED_AT,
   applyCatalogSeed,
@@ -75,4 +79,32 @@ navigationRoutes.get('/catalog', async (c) => {
 });
 
 // 只支持 GET：其他方法给结构化 405。
-navigationRoutes.all('*', methodNotAllowed(['GET']));
+/**
+ * 用户主动触发的站点简介识别，不存用户链接。
+ * 双层固定窗口限流：客户端 10 次/分钟 + 全站 120 次/分钟。
+ * URL 只放 POST 请求体，不进入请求日志、Referer 或代理缓存键。
+ */
+navigationRoutes.post('/metadata', async(c)=>{
+  let parsed:unknown;
+  try{parsed=await c.req.json();}catch{return c.json({message:'请求必须是 JSON'},400);}
+  const validated=z.object({url:z.string().min(10).max(2048)}).strict().safeParse(parsed);
+  if(!validated.success)return c.json({message:'请输入有效的 HTTPS 网站地址'},422);
+  const ip=(c.req.header('CF-Connecting-IP')??'unknown').trim();
+  const digest=(await hashCredential(ip)).slice(0,32);
+  const limits=await enforceRateLimits(c.env.DB,[
+    [`navmeta:c:${digest}`,{limit:10,windowMs:60_000}],
+    ['navmeta:global',{limit:120,windowMs:60_000}],
+  ]);
+  if(!limits.allowed)return rateLimited(c,limits);
+  try{
+    const metadata=await fetchSiteMetadata(validated.data.url);
+    return noStoreJson(c,metadata);
+  }catch(error){
+    // 仅向客户端返回可解释的失败消息；绝不记录查询 URL。
+    const reason=error instanceof Error?error.message:'无法识别该网站';
+    return c.json({message:reason.slice(0,150)},422);
+  }
+});
+
+// 显式限制 navigation 可访问的 HTTP 方法。
+navigationRoutes.all('*', methodNotAllowed(['GET','POST']));
