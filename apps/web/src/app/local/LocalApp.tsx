@@ -44,7 +44,7 @@ export function LocalApp(){
     if(!source)return;
     const {top,left,width,height}=source.getBoundingClientRect();
     setExpanded({
-      kind,origin:{rect:{top,left,width,height},returnFocus:document.activeElement instanceof HTMLElement?document.activeElement:null},
+      kind,origin:{rect:{top,left,width,height},element:source,returnFocus:document.activeElement instanceof HTMLElement?document.activeElement:null},
       ...(fishFilters?{fishFilters}:{}),
     });
   };

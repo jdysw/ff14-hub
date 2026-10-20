@@ -31,3 +31,13 @@ final result: passed
 - Fish countdown changes observed in ego lite across an actual second; negative and day/hour/minute boundary cases are unit tested.
 - Generated reference data and favicons are illustrative; implementation intentionally uses real public data. This is visual/functional review, not a claim of comprehensive WCAG compliance.
 - P3: font rendering can vary across operating systems; native favicon availability depends on each destination.
+
+## Ultrawide and motion follow-up
+
+- 3440×1440 screenshot: `.wrangler/ui-review/ultrawide-3440.png`; content width 2560px with five columns, no overflow. 2560×1080 uses four columns; the 1440px three-column baseline remains intact.
+- Expanded detail: `.wrangler/ui-review/ultrawide-overlay-3440.png`; panel 1920×1120 at (752.5,160), internal content has no horizontal overflow.
+- Motion observed in ego lite: opacity advances 0 → .543 → .773 → 1; scaleX equals scaleY at each sampled frame. Entry is bounded directional translation and uniform .96 → 1 scale, not a stretched thumbnail.
+- Rapid dismissal during entry starts from its current computed matrix and opacity; native modal closes once, focus returns to `.fish-glance__link`, root overflow is restored. The dashboard's left edge remains 432.5px before and after dismissal, showing scrollbar locking caused no lateral jump.
+- Reduced-motion browser emulation: phase immediately `open`, zero panel animations, backdrop animation `none`, no content overflow. Mobile 320/390px and desktop 1440/2560/3440px tested.
+- Added lifecycle regressions for interrupted transitions, stale callbacks after unmount, reduced motion, and geometry limits. Total frontend suite: 422 passing tests; build/typecheck and scoped ESLint pass.
+- No unresolved P0/P1/P2 findings in this follow-up. Static screenshots demonstrate layout; actual animation interpolation and interrupt behavior were additionally observed through live browser state.

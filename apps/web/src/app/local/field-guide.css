@@ -1,4 +1,5 @@
 /* Selected direction 2: Field Guide. Shared product surface, editorial hierarchy. */
+html {scrollbar-gutter:stable;}
 .local-app {
   --field-ink:#1c2e34;--field-body:#465c60;--field-muted:#5f7478;
   --field-accent:#24675f;--field-tint:#eaf1ef;--field-line:#dfe7e4;
@@ -176,4 +177,54 @@
   .local-app .local-directory__heading-actions .local-dashboard__manage {padding-inline:5px;font-size:11px;}
   .local-app .local-directory__heading-title output {font-size:10px;}
   .local-app .local-directory__heading-title {gap:7px;}
+}
+
+/* Wide displays gain useful density rather than enlarging individual lines indefinitely. */
+@media(min-width:1800px) {
+  .local-app .shell__header {padding-inline:max(64px,calc((100% - 2560px)/2));}
+  .local-app__main {padding:44px 64px 64px;}
+  .local-app .local-dashboard {max-width:2560px;}
+  .local-app .local-dashboard__module-grid {gap:34px 56px;}
+  .local-app .local-dashboard__module:nth-child(2n) {padding-left:48px;}
+  .local-app .local-dashboard__module .home-official-event__main {grid-template-columns:100px minmax(0,1fr);column-gap:22px;}
+  .local-app .local-dashboard__module .home-official-event__main h3 {max-width:64ch;font-size:16px;}
+  .local-app .local-dashboard__module .home-official-event__timer {min-width:130px;max-width:150px;}
+  .local-app .local-dashboard__module .home-official-event__timer strong {font-size:14px;}
+  .fish-glance__columns,.local-app .fish-glance__item button {grid-template-columns:minmax(130px,1fr) minmax(160px,1.15fr) minmax(160px,auto);gap:24px;}
+  .local-app .fish-glance__item button {min-height:47px;}
+  .local-app .fish-glance__fish strong {font-size:16px;}
+  .local-app .fish-glance__fish small,.local-app .fish-glance__time small {font-size:13px;}
+  .local-app .local-directory__tiles {grid-template-columns:repeat(4,minmax(0,1fr));column-gap:36px;}
+  .local-app .local-directory__tile>a {min-height:96px;}
+  .local-app .local-directory__link-name {font-size:16px;}
+  .local-app .local-directory__link-description {font-size:13px;}
+  .local-app .home-search {min-height:56px;}
+  .local-app .home-search input {font-size:16px;}
+  .local-module-overlay {padding:64px 96px;}
+  .local-module-overlay__panel {width:min(1920px,100%);height:min(1120px,100%);}
+  .local-module-overlay__header {padding:16px 40px;}
+  .local-module-overlay__content {padding:24px 40px 40px;}
+}
+@media(min-width:3000px) {
+  .local-app .local-directory__tiles {grid-template-columns:repeat(5,minmax(0,1fr));column-gap:38px;}
+}
+
+/* Portal surface: the dialog is outside .local-app and needs its own theme roles. */
+.local-module-overlay {color:#29463e;font-family:'Segoe UI','Microsoft YaHei UI','PingFang SC',sans-serif;}
+.local-module-overlay::backdrop {background:rgb(20 42 34 / 35%);backdrop-filter:blur(4px);}
+.local-module-overlay[data-phase=opening]::backdrop {animation:module-scrim-in 360ms cubic-bezier(.16,1,.3,1) both;}
+.local-module-overlay[data-phase=closing]::backdrop {animation:module-scrim-out var(--module-exit-duration,230ms) ease-in both;}
+.local-module-overlay__panel {border-color:#dce6df;border-radius:16px;box-shadow:0 24px 100px rgb(18 45 32 / 18%);}
+.local-module-overlay[data-phase=opening] .local-module-overlay__panel,
+.local-module-overlay[data-phase=closing] .local-module-overlay__panel {will-change:transform,opacity;}
+.local-module-overlay__header {border-color:#e0e8e2;}
+.local-module-overlay__header h2 {font-family:Georgia,'Noto Serif SC','Songti SC',SimSun,serif;font-size:22px;color:#243d34;}
+.local-module-overlay__close {min-height:44px;border-color:#d9e4dc;background:#f6f9f6;color:#24675f;}
+.local-module-overlay__close:hover {background:#e9f1eb;border-color:#b8d0c2;color:#1e574d;}
+.local-module-overlay :is(button,a,input,select,summary,textarea):focus-visible {outline-color:#307b70;}
+@keyframes module-scrim-in {from{opacity:0}to{opacity:1}}
+@keyframes module-scrim-out {from{opacity:var(--module-backdrop-from,1)}to{opacity:0}}
+@media(prefers-reduced-motion:reduce) {
+  .local-module-overlay::backdrop {animation:none!important;backdrop-filter:none;}
+  .local-module-overlay__panel {will-change:auto;}
 }
