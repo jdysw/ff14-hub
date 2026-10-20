@@ -70,30 +70,35 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
   const now = state.kind === 'ready' ? clock + state.offset : clock;
   const overview = useMemo(() =>
     calendarOverview(state.kind === 'ready' ? state.value.events : [], now), [state, now]);
-  // 去重后按「即将结束 → 进行中 → 即将开始」排序；只有没有可靠日程时才显示待核实公告。
+  // 首页保留全部未结束活动，包括距离较远的未来日程；不截断条目。
+  // 尚未确认起止时间的公告置于末尾，避免误判为过期活动。
   const important = useMemo(() => {
-    const seen = new Set<string>();
-    const ordered = [...overview.ending, ...overview.active, ...overview.upcoming];
-    const filtered = ordered.filter(item => {
-      if (seen.has(item.id)) return false;
-      seen.add(item.id);
-      return true;
-    }).slice(0, 4);
-    return filtered.length ? filtered : overview.unscheduled.slice(0, 2);
-  }, [overview]);
+    if (state.kind !== 'ready') return [] as EventCalendarItem[];
+    const order = { ending: 0, active: 1, upcoming: 2, unscheduled: 3, ended: 4 };
+    return state.value.events
+      .filter(item => !isScheduled(item) || item.endsAt! >= now)
+      .sort((a, b) => {
+        const phaseA = eventStatus(a, now), phaseB = eventStatus(b, now);
+        const diff = order[phaseA] - order[phaseB];
+        if (diff !== 0) return diff;
+        const timeA = phaseA === 'ending' || phaseA === 'active' ? a.endsAt : a.startsAt;
+        const timeB = phaseB === 'ending' || phaseB === 'active' ? b.endsAt : b.startsAt;
+        return (timeA ?? Number.MAX_SAFE_INTEGER) - (timeB ?? Number.MAX_SAFE_INTEGER);
+      });
+  }, [state, now]);
   const reload = () => { setState({ kind: 'loading' }); setRefresh(value => value + 1); };
 
   return <section className="home-official" aria-label="国服官方活动">
     <header className="home-section-heading">
-      <div className="home-heading-group"><h2>国服活动</h2><span className="home-section-kicker">NOW & UPCOMING</span></div>
+      <div className="home-heading-group"><h2>国服活动</h2></div>
       <div className="home-official__actions">
         <button className="text-button" type="button" onClick={onOpenCalendar}>完整日历 ↗</button>
-        <button className="text-button" type="button" onClick={reload}>刷新活动</button>
+        <button className="text-button" type="button" onClick={reload} aria-label="刷新活动" title="刷新">↻</button>
         <button className="text-button home-official__hide" type="button" onClick={onHide}
           aria-label="从首页隐藏国服活动模块">隐藏</button>
       </div>
     </header>
-    <p className="home-official__hint">官方时间 · 北京时间 · 无需登录</p>
+    
     {state.kind === 'loading' && <p className="home-state" role="status">正在获取最新活动…</p>}
     {state.kind === 'error' && <div className="home-official__notice" role="alert">
       活动暂时无法加载。 <button className="text-button" type="button" onClick={reload}>重试</button>
@@ -105,15 +110,10 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
         <button type="button" onClick={onOpenCalendar}><strong>{overview.upcoming.length}</strong><span>未来 7 天开始</span></button>
         <button type="button" onClick={onOpenCalendar}><strong>{overview.ending.length}</strong><span>24 小时内结束</span></button>
       </div>
-      {important.length === 0 && <p className="home-state">暂无已确认的近期日程，可在活动中心查看官方公告。</p>}
+      {important.length === 0 && <p className="home-state">暂无未结束活动</p>}
       {important.length > 0 && <ul className="home-official__list">
         {important.map(item => <OfficialEventSummary key={item.id} item={item} now={now}/>)}
       </ul>}
-      {overview.unscheduled.length > 0 && <p className="home-official__disclaimer">
-        另有 {overview.unscheduled.length} 条尚未确认起止时间的官方公告，未纳入日历倒计时。
-      </p>}
-      <button className="text-button" type="button" onClick={onOpenCalendar}>查看全部日程和公告 ↗</button>
-      <p className="home-official__disclaimer">更新时间：{chinaDateTime(state.value.source.checkedAtMs)} · 仅对官方明确起止时间的活动计算倒计时。</p>
     </>}
   </section>;
 }
