@@ -17,7 +17,7 @@ const hookLabel:Record<string,string>={Precision:'精准提钩',Powerful:'强力
 type View='windows'|'all'|'pinned';
 
 interface FishingBoardProps {
-  data:ModuleDataPort;initialRegion?:FishRegion;hours?:number;compact?:boolean;preview?:boolean;onOpenDetail?:()=>void;onReady?:()=>void;onError?:((error:unknown)=>void)|undefined;onConnect?:()=>void;onImport?:()=>void;
+  data:ModuleDataPort;initialRegion?:FishRegion;hours?:number;compact?:boolean;embedded?:boolean;onReady?:()=>void;onError?:((error:unknown)=>void)|undefined;onConnect?:()=>void;onImport?:()=>void;
 }
 export function FishingBoard(props:FishingBoardProps){
   const [region,setRegion]=useState(props.initialRegion??'cn');
@@ -25,7 +25,7 @@ export function FishingBoard(props:FishingBoardProps){
   return <FishingBoardSession key={`${region}:${reload}:${props.data.operations.join(',')}`} {...props} region={region}
     onRegion={setRegion} onReload={()=>setReload(n=>n+1)}/>;
 }
-function FishingBoardSession({data,region,hours=168,compact=false,preview=false,onOpenDetail,onReady,onError,onConnect,onImport,onRegion,onReload}:FishingBoardProps&{
+function FishingBoardSession({data,region,hours=168,compact=false,embedded=false,onReady,onError,onConnect,onImport,onRegion,onReload}:FishingBoardProps&{
   region:FishRegion;onRegion:(region:FishRegion)=>void;onReload:()=>void;
 }){
   const [catalog,setCatalog]=useState<FishingCatalog|null>(null);
@@ -113,30 +113,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,preview=false,
     finally{if(current===generation.current)setBusy(false);}
   };
   const et=eorzeaTime(now);
-  if(preview){
-    const upcoming=visible.slice(0,2);
-    return <section className="fish-preview" aria-label="钓鱼摘要" data-testid="fishing-board-preview">
-      <header className="fish-preview__heading">
-        <h2>钓鱼</h2>
-        <button type="button" onClick={onOpenDetail} className="fish-preview__open">查看全部鱼窗 <span aria-hidden="true">↗</span></button>
-      </header>
-      <p className="fish-preview__clock">{region==='cn'?'国服':'国际服'} <span aria-hidden="true">·</span> 艾欧泽亚时间 <strong>{String(et.hour).padStart(2,'0')}:{String(et.minute).padStart(2,'0')}</strong></p>
-      {error?<p role="alert" className="fish-preview__state">{error} <button type="button" onClick={onReload}>重试</button></p>:
-       !catalog||forecasts===null?<p role="status" className="fish-preview__state">正在计算鱼窗…</p>:
-       upcoming.length===0?<p className="fish-preview__state">近期暂无匹配鱼窗</p>:
-       <ul className="fish-preview__list">{upcoming.map(fish=>{
-         const state=windowState(fish,forecastsById.get(fish.id),now);
-         return <li key={fish.id} className="fish-preview__item">
-           <span className="fish-preview__identity"><strong>{fish.name}</strong><small>{fish.location}</small></span>
-           <span className="fish-preview__timing"><strong className={state.open?'is-open':''}>{state.open?'正在开放':state.next?'即将开放':state.always?'全天':'窗口待补'}</strong>
-             <small>{state.open?`${duration(state.open.endsAtUtcMs-now)}后关闭`:state.next?`${duration(state.next.startsAtUtcMs-now)}后开放`:state.always?'无时间限制':'暂无可靠窗口'}</small>
-           </span>
-         </li>;
-       })}</ul>}
-      {progressError&&<p role="status" className="fish-preview__state">{progressError}</p>}
-    </section>;
-  }
-  return <section className={`fish-board${compact?' fish-board--home':''}`} aria-label="钓鱼时钟" data-testid="fishing-board">
+  return <section className={`fish-board${compact?' fish-board--home':''}${embedded?' fish-board--embedded':''}`} aria-label="钓鱼时钟" data-testid="fishing-board">
     <header className="fish-board__heading"><div><h2>钓鱼</h2></div>
       <span className="fish-board__clock">艾欧泽亚时间 <strong>{String(et.hour).padStart(2,'0')}:{String(et.minute).padStart(2,'0')}</strong></span></header>
     <div className="fish-board__toolbar">
@@ -155,7 +132,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,preview=false,
       {canEdit?<label className="fish-board__account"><input type="checkbox" checked={hideCaught} disabled={!progressReady} onChange={event=>changeFilter(()=>setHideCaught(event.target.checked))}/>隐藏已钓获 · 已记录 {fields.filter(field=>field.field==='caught'&&field.value).length} 种</label>:null}
       {!canEdit?<p className="fish-board__account">无需登录即可查鱼窗。{onConnect?<button type="button" onClick={onConnect}>连接工作空间保存钓获与收藏</button>:'连接工作空间并启用钓鱼模块后可保存标记。'}</p>:null}
       <div className="fish-board__columns" aria-hidden="true"><span>鱼类 / 钓场</span><span>推荐鱼饵</span><span>鱼窗</span><span>标记</span></div>
-      <div className="fish-board__list">{visible.slice(0,limit).map(fish=>{
+      <div className="fish-board__list">{(embedded?visible:visible.slice(0,limit)).map(fish=>{
         const forecast=forecastsById.get(fish.id),state=windowState(fish,forecast,now);
         return <article className="fish-board__row" key={fish.id}>
           <details><summary className="fish-board__row-main"><span className="fish-board__identity"><strong>{fish.name}</strong><small>{fish.method==='spear'?'刺鱼':fish.method==='ocean'?'海钓':kindLabel[fish.kind]} · {fish.location}</small></span>
@@ -178,7 +155,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,preview=false,
         </article>;
       })}</div>
       {visible.length===0&&forecasts!==null?<p className="fish-board__empty">{view==='pinned'?'还没有收藏的鱼。可以在鱼类旁标记收藏。':'没有匹配的鱼。试试其他分类或搜索词；“全部鱼类”也会显示资料待补的记录。'}</p>:null}
-      {visible.length>limit?<button className="fish-board__more" type="button" onClick={()=>setLimit(n=>n+(compact?10:30))}>显示更多（还有 {visible.length-limit} 种）</button>:null}
+      {!embedded&&visible.length>limit?<button className="fish-board__more" type="button" onClick={()=>setLimit(n=>n+(compact?10:30))}>显示更多（还有 {visible.length-limit} 种）</button>:null}
       {onImport?<button className="fish-board__more" type="button" onClick={onImport}>导入鱼糕钓获记录</button>:null}
       <details className="fish-board__sources"><summary>数据覆盖与来源</summary><p>{region==='cn'?'国服':'国际服'}目录 {catalog.coverage.total} 条 · 有窗口规则 {catalog.coverage.forecast} 条 · 无时间天气限制 {catalog.coverage.always} 条 · 规则待补 {catalog.coverage.unknown} 条。完整目录参与筛选，页面显示数量不会限制鱼窗计算。</p>
         <p>目录更新于 {new Date(catalog.generatedAt).toLocaleDateString('zh-CN')}。国服名称与身份来自游戏表，时间天气规则来自社区；海钓和未知规则不套用普通鱼窗。</p>
