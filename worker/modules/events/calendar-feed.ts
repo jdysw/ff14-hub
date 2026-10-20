@@ -6,10 +6,24 @@ import type { EventCalendarItem, EventCalendarResponse } from '@ff14-hub/shared'
 
 const HOST = 'https://cqnews.web.sdo.com';
 const NEWS_INDEX = 'https://ff.web.sdo.com/web8/index.html#/newstab/newslist';
-const CACHE_MS = 20 * 60_000;
+export const CN_CALENDAR_CACHE_MS = 5 * 60_000;
 const STALE_MS = 12 * 60 * 60_000;
 let cache: { checkedAtMs: number; events: EventCalendarItem[]; partial: boolean } | null = null;
-let request: Promise<void> | null = null;
+const requestSignal=(signal?:AbortSignal)=>signal?AbortSignal.any([signal,AbortSignal.timeout(10_000)]):AbortSignal.timeout(10_000);
+
+async function boundedBody(response:Response):Promise<string>{
+  if(!response.body)return '';
+  if(Number(response.headers.get('content-length')??0)>1_000_000)throw new Error('official_payload_too_large');
+  const reader=response.body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
+  const decoder=new TextDecoder();let bytes=0,text='';
+  try{
+    while(true){const part=await reader.read();if(part.done)break;
+      bytes+=part.value.byteLength;if(bytes>1_000_000)throw new Error('official_payload_too_large');
+      text+=decoder.decode(part.value,{stream:true});
+    }
+    return text+decoder.decode();
+  }finally{await reader.cancel().catch(()=>{});}
+}
 
 function record(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
@@ -92,32 +106,30 @@ export function extractOfficialLandingRange(html: string): { startsAt: number; e
 }
 
 /** 只允许官方固定 URL 或经严格校验的官方活动专题，响应超过 1MB 拒绝。 */
-async function officialHtml(url: string): Promise<string | null> {
+async function officialHtml(url: string, signal?:AbortSignal): Promise<string | null> {
   if (officialProjectUrl(url) === null) return null;
   try {
     const response = await fetch(url, {
       method: 'GET', redirect: 'error', headers: { Accept: 'text/html' },
-      signal: AbortSignal.timeout(10_000),
+      signal: requestSignal(signal),
     });
     if (!response.ok || Number(response.headers.get('content-length') ?? 0) > 1_000_000) return null;
-    const body = await response.text();
-    return body.length <= 1_000_000 ? body : null;
+    return await boundedBody(response);
   } catch { return null; }
 }
 
-async function json(path: string): Promise<unknown> {
+async function json(path: string, signal?:AbortSignal): Promise<unknown> {
   const response = await fetch(HOST + path, {
     method: 'GET', redirect: 'error', headers: { Accept: 'application/json' },
-    signal: AbortSignal.timeout(10_000),
+    signal: requestSignal(signal),
   });
   if (!response.ok || Number(response.headers.get('content-length') ?? 0) > 1_000_000) throw new Error('official_http_error');
-  const body = await response.text();
-  if (body.length > 1_000_000) throw new Error('official_payload_too_large');
+  const body = await boundedBody(response);
   return JSON.parse(body) as unknown;
 }
-async function articleDetail(id: number): Promise<string | null> {
+async function articleDetail(id: number, signal?:AbortSignal): Promise<string | null> {
   try {
-    const payload = await json('/api/news/newsDetail?gameCode=ff&id=' + id);
+    const payload = await json('/api/news/newsDetail?gameCode=ff&id=' + id, signal);
     if (!record(payload) || !record(payload['Data'])) return null;
     const content = payload['Data']['Content'];
     return typeof content === 'string' ? content : null;
@@ -134,8 +146,8 @@ interface OfficialEntry {
   projectUrl: string | null;
 }
 
-async function newsCategory(code: '5311' | '5203'): Promise<Record<string, unknown>[]> {
-  const payload = await json('/api/news/newsList?gameCode=ff&CategoryCode=' + code + '&pageIndex=0&pageSize=30');
+async function newsCategory(code: '5311' | '5203', signal?:AbortSignal): Promise<Record<string, unknown>[]> {
+  const payload = await json('/api/news/newsList?gameCode=ff&CategoryCode=' + code + '&pageIndex=0&pageSize=30', signal);
   if (!record(payload) || String(payload['Code']) !== '0' || !Array.isArray(payload['Data'])) {
     throw new Error('official_list_shape_changed');
   }
@@ -204,8 +216,8 @@ function deduplicate(rows: {
     right.published.localeCompare(left.published) || right.id - left.id);
 }
 
-async function refresh(): Promise<void> {
-  const sources = await Promise.allSettled([newsCategory('5311'), newsCategory('5203')]);
+async function refresh(signal?:AbortSignal): Promise<void> {
+  const sources = await Promise.allSettled([newsCategory('5311',signal), newsCategory('5203',signal)]);
   const successful: { code: '5311' | '5203'; values: Record<string, unknown>[] }[] = [];
   const first = sources[0];
   const second = sources[1];
@@ -225,10 +237,10 @@ async function refresh(): Promise<void> {
     await Promise.all(events.slice(i, i + 3).map(async (event, offset) => {
       const entry = entries[i + offset];
       if (!entry) return;
-      const content = await articleDetail(entry.detailId);
+      const content = await articleDetail(entry.detailId,signal);
       let range = content === null ? null : extractOfficialActivityRange(content);
       if (range === null && entry.projectUrl !== null) {
-        const landing = await officialHtml(entry.projectUrl);
+        const landing = await officialHtml(entry.projectUrl,signal);
         range = landing === null ? null : extractOfficialLandingRange(landing);
       }
       if (range !== null) {
@@ -237,14 +249,14 @@ async function refresh(): Promise<void> {
       }
     }));
   }
+  signal?.throwIfAborted();
   cache = { checkedAtMs: Date.now(), events, partial: sources.some((value) => value.status === 'rejected') };
 }
-export async function readCnCalendar(nowMs = Date.now()): Promise<EventCalendarResponse> {
+export async function readCnCalendar(nowMs = Date.now(),signal?:AbortSignal): Promise<EventCalendarResponse> {
   let stale = false;
-  if (!cache || nowMs - cache.checkedAtMs >= CACHE_MS) {
+  if (!cache || nowMs - cache.checkedAtMs >= CN_CALENDAR_CACHE_MS) {
     try {
-      request ??= refresh().finally(() => { request = null; });
-      await request;
+      await refresh(signal);
     } catch {
       if (!cache || nowMs - cache.checkedAtMs >= STALE_MS) throw new Error('国服官方活动 API 暂不可用');
       stale = true;
@@ -257,4 +269,4 @@ export async function readCnCalendar(nowMs = Date.now()): Promise<EventCalendarR
     source: { name: '盛趣游戏 · FF14 国服官方公告', homeUrl: NEWS_INDEX, checkedAtMs: cache.checkedAtMs, stale: stale || cache.partial },
   };
 }
-export function resetCnCalendarCacheForTests(): void { cache = null; request = null; }
+export function resetCnCalendarCacheForTests(): void { cache = null; }

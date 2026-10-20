@@ -62,7 +62,7 @@ it('keeps failed mutation intent and retries the identical operation',async()=>{
   expect(intents[1]).toEqual(intents[0]);
 });
 
-it('home keeps four scannable fish windows and opens the complete filtered list',async()=>{
+it('home uses 24 hours and retains every matched fish in its scrollable list',async()=>{
   class ScheduledWorker {
     onmessage:((event:MessageEvent)=>void)|null=null;
     postMessage(input:{fish:CatalogFish[];region:FishRegion;from:number;hours:number}){
@@ -83,19 +83,22 @@ it('home keeps four scannable fish windows and opens the complete filtered list'
   const onOpenDetail=vi.fn<(selection:FishDetailSelection)=>void>();
   render(<FishingBoard data={publicPort()} embedded onOpenDetail={onOpenDetail}/>);
   await screen.findByText('测试鱼0');
-  await waitFor(()=>expect(document.querySelectorAll('.fish-glance__item')).toHaveLength(4));
+  await waitFor(()=>expect(document.querySelectorAll('.fish-glance__item')).toHaveLength(34));
   expect(document.querySelectorAll('.fish-board__row')).toHaveLength(0);
   expect(screen.queryByRole('searchbox',{name:'搜索鱼类'})).toBeNull();
-  expect(screen.getByRole('button',{name:/显示其余 13 种鱼窗/})).toBeDefined();
-  expect(screen.queryByText('测试鱼16')).toBeNull();
-  fireEvent.click(screen.getByRole('button',{name:/显示其余 13 种鱼窗/}));
-  expect(onOpenDetail).toHaveBeenCalledWith(expect.objectContaining({region:'cn',view:'windows',kind:'rare',windowHours:6}));
+  expect(screen.getByRole('list',{name:'鱼窗列表'}).tabIndex).toBe(0);
+  expect(screen.getByText('测试鱼16')).toBeDefined();
+  expect(document.querySelector('.fish-glance__more')).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:'全部鱼窗 ↗'}));
+  expect(onOpenDetail).toHaveBeenCalledWith(expect.objectContaining({region:'cn',view:'windows',kind:'rare',windowHours:24}));
   const selection=onOpenDetail.mock.calls[0]?.[0];
   expect(selection).toBeDefined();
   cleanup();
   render(<FishingBoard data={publicPort()} expanded initialFilters={selection}/>);
-  await waitFor(()=>expect(document.querySelectorAll('.fish-board__row')).toHaveLength(17));
+  await waitFor(()=>expect(document.querySelectorAll('.fish-board__row')).toHaveLength(34));
   expect(screen.getByText('测试鱼16')).toBeDefined();
+  fireEvent.click(screen.getByRole('button',{name:'未来 6 小时'}));
+  await waitFor(()=>expect(document.querySelectorAll('.fish-board__row')).toHaveLength(17));
   fireEvent.click(screen.getByRole('button',{name:'24 小时'}));
   await waitFor(()=>expect(document.querySelectorAll('.fish-board__row')).toHaveLength(34));
   expect(screen.getByText('测试鱼33')).toBeDefined();
@@ -120,7 +123,7 @@ it('clicking an individual home fish opens detail prefiltered to that fish',asyn
   render(<FishingBoard data={publicPort()} embedded onOpenDetail={onOpenDetail}/>);
   await screen.findByText('测试鱼0');
   const preview=screen.getByRole('region',{name:'钓鱼鱼窗概览'});
-  expect(preview.querySelectorAll('.fish-glance__time')).toHaveLength(4);
+  expect(preview.querySelectorAll('.fish-glance__time')).toHaveLength(34);
   expect(preview.querySelector('.fish-glance__time')?.textContent).toMatch(/\d{2}:\d{2}:\d{2} 后结束/);
   expect(preview.querySelector('.fish-glance__time strong')).toBeNull();
   expect(preview.querySelector('progress')).toBeNull();

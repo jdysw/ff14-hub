@@ -6,10 +6,11 @@ import {
 } from '../events/public-calendar-utils';
 import { calendarCountdown } from '../events/EventsCalendarWidget';
 
-export const HOME_EVENT_LIMIT = 3;
+export const HOME_EVENT_LIMIT = 4;
+export const HOME_CALENDAR_POLL_MS = 60_000;
 
 /**
- * 首页不是活动档案：仅显示近期有效的 3 条可行动日程。
+ * 列表包含全部有效日程；界面最多同时显示 4 项，其余在列表内滚动。
  * 无可靠起止时间的公告不能计算倒计时，在完整活动日历中单独查看。
  */
 export function homeEventHighlights(items: readonly EventCalendarItem[], now: number): EventCalendarItem[] {
@@ -28,8 +29,7 @@ export function homeEventHighlights(items: readonly EventCalendarItem[], now: nu
       const targetA = a.startsAt! > now ? a.startsAt! : a.endsAt!;
       const targetB = b.startsAt! > now ? b.startsAt! : b.endsAt!;
       return targetA - targetB || a.id.localeCompare(b.id);
-    })
-    .slice(0, HOME_EVENT_LIMIT);
+    });
 }
 
 type ViewState =
@@ -73,7 +73,9 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
   }, []);
   useEffect(() => {
     const controller = new AbortController();
-    void (async () => {
+    let sequence=0;
+    const load=async () => {
+      const current=++sequence;
       try {
         const response = await fetch('/api/v1/events/calendar', {
           method: 'GET', credentials: 'omit', redirect: 'error', cache: 'no-store',
@@ -83,26 +85,30 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
         const data: unknown = await response.json();
         const parsed = eventCalendarResponseSchema.safeParse(data);
         if (!parsed.success) throw new Error('calendar_contract_error');
-        if (!controller.signal.aborted) {
+        if (!controller.signal.aborted&&current===sequence) {
           setState({ kind: 'ready', value: parsed.data, offset: parsed.data.serverTimeMs - Date.now() });
         }
       } catch {
-        if (!controller.signal.aborted) setState({ kind: 'error' });
+        if (!controller.signal.aborted&&current===sequence) setState(previous=>previous.kind==='ready'
+          ?{...previous,value:{...previous.value,source:{...previous.value.source,stale:true}}}
+          :{kind:'error'});
       }
-    })();
-    return () => controller.abort();
+    };
+    void load();
+    const visibleRefresh=()=>{if(document.visibilityState!=='hidden')void load();};
+    const timer=window.setInterval(visibleRefresh,HOME_CALENDAR_POLL_MS);
+    document.addEventListener('visibilitychange',visibleRefresh);
+    return () => {controller.abort();window.clearInterval(timer);document.removeEventListener('visibilitychange',visibleRefresh);};
   }, [refresh]);
 
   const now = state.kind === 'ready' ? clock + state.offset : clock;
   const overview = useMemo(() =>
     calendarOverview(state.kind === 'ready' ? state.value.events : [], now), [state, now]);
-  // 所有未结束活动仍可在完整日历中查看；首页只加载最多 3 条有可靠日期的日程。
+  // 不截断数据；4 项的可视窗口由列表样式控制。
   const allEvents = state.kind === 'ready' ? state.value.events : [];
-  const confirmedCount = allEvents.filter(item => isScheduled(item) && item.endsAt! >= now).length;
   const unknownCount = allEvents.filter(item => !isScheduled(item)).length;
   const important = homeEventHighlights(allEvents, now);
-  const remaining = Math.max(0, confirmedCount - important.length);
-  const reload = () => { setState({ kind: 'loading' }); setRefresh(value => value + 1); };
+  const reload = () => { setRefresh(value => value + 1); };
 
   return <section className="home-official" aria-label="国服官方活动">
     <header className="home-section-heading">
@@ -128,15 +134,9 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
         <button type="button" onClick={onOpenCalendar}><strong>{overview.ending.length}</strong><span>24 小时内结束</span></button>
       </div>
       {important.length === 0 && <p className="home-state">目前没有已确认时间的未结束活动。{unknownCount > 0 ? '待核实公告可在完整日历查看。' : ''}</p>}
-      {important.length > 0 && <ul className="home-official__list">
+      {important.length > 0 && <ul className="home-official__list" tabIndex={0} aria-label="国服活动列表">
         {important.map(item => <OfficialEventSummary key={item.id} item={item} now={now}/>)}
       </ul>}
-      {(remaining > 0 || unknownCount > 0) && <button className="home-official__more" type="button"
-        onClick={onOpenCalendar}>
-        {remaining > 0 ? `其余 ${remaining} 项日程` : '查看完整日历'}
-        {unknownCount > 0 ? ` · ${unknownCount} 条待核实公告` : ''}
-        <span aria-hidden="true">↗</span>
-      </button>}
     </>}
   </section>;
 }

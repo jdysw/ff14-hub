@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HomeOfficialEvents } from '../src/app/shell/HomeOfficialEvents';
 import { SystemBar } from '../src/app/shell/SystemBar';
@@ -48,10 +48,11 @@ describe('首页公开活动', () => {
     render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
     expect(await screen.findByText(/目前没有已确认时间的未结束活动/)).toBeTruthy();
     expect(screen.queryByText('官方测试活动')).toBeNull();
-    expect(screen.getByRole('button',{name:/1 条待核实公告/})).toBeTruthy();
+    expect(screen.getByRole('button',{name:'完整日历 ↗'})).toBeTruthy();
+    expect(screen.queryByRole('button',{name:/条待核实公告/})).toBeNull();
   });
 
-  it('首页最多显示 3 条可靠的近期日程，其他未结束活动和待核实公告只在完整日历中查看', async () => {
+  it('keeps all confirmed upcoming events in the scrollable list and removes the extra footer', async () => {
     const now = Date.now();
     const make = (id: string, startsAt: number|null, endsAt: number|null) =>
       ({...response.events[0],id,title:id,startsAt,endsAt});
@@ -72,13 +73,14 @@ describe('首页公开活动', () => {
     const onOpenCalendar=vi.fn();
     const {container}=render(<HomeOfficialEvents onOpenCalendar={onOpenCalendar} onHide={vi.fn()}/>);
     await screen.findByText('临期活动');
-    await waitFor(()=>expect(container.querySelectorAll('.home-official-event')).toHaveLength(3));
+    await waitFor(()=>expect(container.querySelectorAll('.home-official-event')).toHaveLength(6));
     expect(screen.getByText('近期开始活动')).toBeTruthy();
-    expect(screen.queryByText('长期进行B')).toBeNull();
+    expect(screen.getByText('长期进行B')).toBeTruthy();
     expect(screen.queryByText('公告待核实A')).toBeNull();
     expect(screen.queryByText('已结束活动')).toBeNull();
-    expect(screen.getByRole('button',{name:/其余 3 项日程 · 2 条待核实公告/})).toBeTruthy();
-    fireEvent.click(screen.getByRole('button',{name:/其余 3 项日程/}));
+    expect(container.querySelector('.home-official__more')).toBeNull();
+    expect(screen.getByRole('list',{name:'国服活动列表'}).tabIndex).toBe(0);
+    fireEvent.click(screen.getByRole('button',{name:'完整日历 ↗'}));
     expect(onOpenCalendar).toHaveBeenCalledTimes(1);
   });
 
@@ -93,6 +95,25 @@ describe('首页公开活动', () => {
     fireEvent.click(screen.getByRole('button', { name: '重试' }));
     await waitFor(() => expect(screen.getByText('官方测试活动')).toBeTruthy());
     expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('polls visible activity data each minute and retains the last list if an update fails',async()=>{
+    vi.useFakeTimers();
+    try{
+      const updated={...response,events:[{...response.events[0],title:'官方更新活动'}]};
+      const fetchSpy=vi.fn().mockResolvedValueOnce(new Response(JSON.stringify(response),{status:200}))
+        .mockResolvedValueOnce(new Response(JSON.stringify(updated),{status:200}))
+        .mockRejectedValue(new Error('temporarily unavailable'));
+      vi.stubGlobal('fetch',fetchSpy);
+      render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
+      await act(async()=>{await vi.advanceTimersByTimeAsync(0);});
+      expect(screen.getByText('官方测试活动')).toBeTruthy();
+      await act(async()=>{await vi.advanceTimersByTimeAsync(60_000);});
+      expect(screen.getByText('官方更新活动')).toBeTruthy();
+      await act(async()=>{await vi.advanceTimersByTimeAsync(60_000);});
+      expect(screen.getByText('官方更新活动')).toBeTruthy();expect(screen.getByText(/当前展示缓存数据/)).toBeTruthy();
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+    }finally{vi.useRealTimers();}
   });
 });
 

@@ -44,6 +44,10 @@ describe('盛趣官方公告活动时间提取', () => {
 });
 
 describe('盛趣官方活动 API 适配器', () => {
+  it('rejects oversized upstream bodies even without a content-length header',async()=>{
+    vi.stubGlobal('fetch',vi.fn(()=>Promise.resolve(new Response('x'.repeat(1_000_001),{status:200}))));
+    await expect(readCnCalendar()).rejects.toThrow('国服官方活动 API 暂不可用');
+  });
   it('仅访问盛趣官方固定路径并保留无法确认起止时间的活动', async () => {
     const urls: string[] = [];
     vi.stubGlobal('fetch', vi.fn((url: string) => {
