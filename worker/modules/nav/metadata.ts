@@ -64,12 +64,12 @@ export function extractSiteMetadata(html:string,siteUrl:URL):SiteMetadata{
   for(const match of head.matchAll(/<(?:meta|link)\b[^>]*>/gi)){
     const tag=match[0], attr=attributes(tag);
     if(/^<meta\b/i.test(tag)){
-      const key=(attr.name??attr.property??'').toLowerCase();
-      if(key==='og:title'&&!title)title=normalizeText(attr.content??'',100);
-      if(['description','og:description','twitter:description'].includes(key)&&attr.content)desc.push(normalizeText(attr.content,240));
-    }else if(!iconUrl&&/(^|\s)(icon|shortcut icon|apple-touch-icon)(\s|$)/i.test(attr.rel??'')&&attr.href){
+      const key=(attr['name']??attr['property']??'').toLowerCase();
+      if(key==='og:title'&&!title)title=normalizeText(attr['content']??'',100);
+      if(['description','og:description','twitter:description'].includes(key)&&attr['content'])desc.push(normalizeText(attr['content'],240));
+    }else if(!iconUrl&&/(^|\s)(icon|shortcut icon|apple-touch-icon)(\s|$)/i.test(attr['rel']??'')&&attr['href']){
       try{
-        const img=new URL(attr.href,siteUrl);
+        const img=new URL(attr['href'],siteUrl);
         if(img.protocol==='https:'&&img.origin===siteUrl.origin&&!img.username&&!img.password&&!img.search&&!img.hash)
           iconUrl=img.href.slice(0,700);
       }catch{/* 无效图标地址，回退 favicon.ico */}
@@ -109,7 +109,7 @@ export async function fetchSiteMetadata(raw:string,fetcher:typeof fetch=fetch):P
   try{
     for(let i=0;i<=MAX_REDIRECTS;i++){
       const response=await fetcher(current.href,{
-        method:'GET',redirect:'manual',signal:abort.signal,credentials:'omit',
+        method:'GET',redirect:'manual',signal:abort.signal,
         headers:{'Accept':'text/html','Range':`bytes=0-${MAX_HTML_BYTES-1}`},
       });
       if(response.status>=300&&response.status<400){
