@@ -23,7 +23,7 @@ export interface FishDetailSelection {
   readonly hideCaught:boolean;
   readonly windowHours:6|24|72|168;
 }
-const HOME_FISH_LIMIT=20;
+const HOME_FISH_LIMIT=4;
 
 interface FishingBoardProps {
   data:ModuleDataPort;initialRegion?:FishRegion;hours?:number;compact?:boolean;embedded?:boolean;expanded?:boolean;initialFilters?:FishDetailSelection|undefined;onOpenDetail?:(selection:FishDetailSelection)=>void;onReady?:()=>void;onError?:((error:unknown)=>void)|undefined;onConnect?:()=>void;onImport?:()=>void;
@@ -128,11 +128,49 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
     }catch{if(current===generation.current)setProgressError('标记未保存。你的选择已保留，可重试或重新读取最新进度。');}
     finally{if(current===generation.current)setBusy(false);}
   };
-  const openDetail=()=>{
-    onOpenDetail?.({region,view,kind,text,hideCaught,windowHours});
+  const openDetail=(overrides:Partial<FishDetailSelection>={})=>{
+    onOpenDetail?.({region,view,kind,text,hideCaught,windowHours,...overrides});
   };
-  const displayed=embedded?visible.slice(0,HOME_FISH_LIMIT):expanded?visible:visible.slice(0,limit);
+  const displayed=expanded?visible:visible.slice(0,limit);
   const et=eorzeaTime(now);
+  if(embedded){
+    const active=visible.filter(fish=>windowState(fish,forecastsById.get(fish.id),now).open!==null).length;
+    const ready=catalog!==null&&forecasts!==null;
+    return <section className="fish-glance" aria-label="钓鱼鱼窗概览" data-testid="fishing-board">
+      <header className="fish-glance__heading">
+        <h2>钓鱼</h2>
+        <button type="button" className="fish-glance__link" onClick={()=>openDetail()}>全部鱼窗 ↗</button>
+      </header>
+      <div className="fish-glance__meta">
+        <span>{region==='cn'?'国服':'国际服'} · 艾欧泽亚时间 <strong>{String(et.hour).padStart(2,'0')}:{String(et.minute).padStart(2,'0')}</strong></span>
+        <span>未来 {windowHours} 小时</span>
+      </div>
+      {error?<p className="fish-glance__message" role="alert">{error} <button type="button" onClick={onReload}>重试</button></p>:
+      !ready?<p className="fish-glance__message" role="status">正在计算鱼窗…</p>:<>
+        <div className="fish-glance__stats" aria-label="鱼窗状态统计">
+          <span><strong>{active}</strong> 正在开放</span>
+          <span><strong>{visible.length-active}</strong> 即将开放</span>
+        </div>
+        {visible.length===0?<p className="fish-glance__message">当前没有符合条件的鱼窗。</p>:
+          <ul className="fish-glance__list">{visible.slice(0,HOME_FISH_LIMIT).map(fish=>{
+            const state=windowState(fish,forecastsById.get(fish.id),now);
+            return <li key={fish.id} className="fish-glance__item">
+              <button type="button" onClick={()=>openDetail({text:fish.name})} aria-label={`查看${fish.name}的完整鱼窗`}>
+                <span className="fish-glance__fish"><strong>{fish.name}</strong><small>{fish.location}</small></span>
+                <span className={`fish-glance__time${state.open?' is-open':''}`}>
+                  <strong>{state.open?'开放中':state.next?'即将开放':'待确认'}</strong>
+                  <small>{state.open?`${duration(state.open.endsAtUtcMs-now)}后结束`:state.next?`${duration(state.next.startsAtUtcMs-now)}后开始`:'查看完整信息'}</small>
+                </span>
+              </button>
+            </li>;
+          })}</ul>}
+        {visible.length>HOME_FISH_LIMIT?<button type="button" className="fish-glance__more" onClick={()=>openDetail()}>
+          显示其余 {visible.length-HOME_FISH_LIMIT} 种鱼窗 <span aria-hidden="true">↗</span>
+        </button>:null}
+      </>}
+      {progressError?<p className="fish-glance__message" role="alert">{progressError}</p>:null}
+    </section>;
+  }
   return <section className={`fish-board${compact?' fish-board--home':''}${embedded?' fish-board--embedded':''}`} aria-label="钓鱼时钟" data-testid="fishing-board">
     <header className="fish-board__heading"><div><h2>钓鱼</h2></div>
       <div className="fish-board__header-actions">
