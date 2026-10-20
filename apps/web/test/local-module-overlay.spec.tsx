@@ -49,7 +49,7 @@ it('dismisses on Escape or the explicit close control',()=>{
     <div>完整日历</div>
   </LocalModuleOverlay>);
   const dialog=document.querySelector('dialog.local-module-overlay')!;
-  fireEvent.cancel(dialog);
+  fireEvent(dialog,new Event('cancel',{bubbles:true,cancelable:true}));
   expect(onClose).toHaveBeenCalledTimes(1);
   unmount();
   render(<LocalModuleOverlay title="国服活动" origin={origin} onClose={onClose}>
