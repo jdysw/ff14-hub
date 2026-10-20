@@ -85,15 +85,15 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
 
   return <section className="home-official" aria-label="国服官方活动">
     <header className="home-section-heading">
-      <div className="home-heading-group"><h2>国服活动</h2><span className="home-section-kicker">NOW & UPCOMING</span></div>
+      <div className="home-heading-group"><h2>国服活动</h2></div>
       <div className="home-official__actions">
         <button className="text-button" type="button" onClick={onOpenCalendar}>完整日历 ↗</button>
-        <button className="text-button" type="button" onClick={reload}>刷新活动</button>
+        <button className="text-button" type="button" onClick={reload} aria-label="刷新活动" title="刷新">↻</button>
         <button className="text-button home-official__hide" type="button" onClick={onHide}
           aria-label="从首页隐藏国服活动模块">隐藏</button>
       </div>
     </header>
-    <p className="home-official__hint">官方时间 · 北京时间 · 无需登录</p>
+    
     {state.kind === 'loading' && <p className="home-state" role="status">正在获取最新活动…</p>}
     {state.kind === 'error' && <div className="home-official__notice" role="alert">
       活动暂时无法加载。 <button className="text-button" type="button" onClick={reload}>重试</button>
@@ -105,15 +105,10 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
         <button type="button" onClick={onOpenCalendar}><strong>{overview.upcoming.length}</strong><span>未来 7 天开始</span></button>
         <button type="button" onClick={onOpenCalendar}><strong>{overview.ending.length}</strong><span>24 小时内结束</span></button>
       </div>
-      {important.length === 0 && <p className="home-state">暂无已确认的近期日程，可在活动中心查看官方公告。</p>}
+      {important.length === 0 && <p className="home-state">暂无近期活动</p>}
       {important.length > 0 && <ul className="home-official__list">
         {important.map(item => <OfficialEventSummary key={item.id} item={item} now={now}/>)}
       </ul>}
-      {overview.unscheduled.length > 0 && <p className="home-official__disclaimer">
-        另有 {overview.unscheduled.length} 条尚未确认起止时间的官方公告，未纳入日历倒计时。
-      </p>}
-      <button className="text-button" type="button" onClick={onOpenCalendar}>查看全部日程和公告 ↗</button>
-      <p className="home-official__disclaimer">更新时间：{chinaDateTime(state.value.source.checkedAtMs)} · 仅对官方明确起止时间的活动计算倒计时。</p>
     </>}
   </section>;
 }

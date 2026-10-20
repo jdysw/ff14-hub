@@ -4,6 +4,7 @@ import { App } from './app/App';
 import { registerServiceWorker } from './app/pwa/register-service-worker';
 import './styles.css';
 import './app/shell/home.css';
+import './app/local/aether-ui.css';
 
 const container = document.getElementById('root');
 if (container === null) {

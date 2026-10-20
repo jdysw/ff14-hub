@@ -121,7 +121,6 @@ export function PublicCalendarPage({ onBack }: { readonly onBack: () => void }) 
       <div>
         <button type="button" className="text-button" onClick={onBack}>← 返回首页</button>
         <h2>国服活动日历</h2>
-        <p>北京时间 · 官方已核实的时间进入日历，其余公告单独显示</p>
       </div>
       <div className="calendar-center__actions">
         <a className="button" href={ICAL_URL} title="在日历应用中订阅，不包含未确认日期的活动">订阅日历（ICS） ↗</a>
