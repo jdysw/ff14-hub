@@ -18,13 +18,19 @@ export async function storeOfficialCalendarSnapshot(db:D1Database,value:EventCal
 
 /** Request-driven refresh. A shared D1 quota prevents every edge/client from fetching the origin. */
 export async function refreshOfficialCalendarSnapshot(db:D1Database,nowMs=Date.now(),load=readCnCalendar):Promise<boolean>{
+  let stage:'quota'|'origin'|'snapshot'='quota';
   try{
     const quota=await consumeRateLimit(db,'public-calendar:official-refresh:cn',{limit:1,windowMs:CN_CALENDAR_CACHE_MS});
     if(!quota.allowed)return false;
+    stage='origin';
     const value=await load(nowMs,AbortSignal.timeout(20_000));
-    return await storeOfficialCalendarSnapshot(db,value,Date.now());
-  }catch{
+    stage='snapshot';
+    const stored=await storeOfficialCalendarSnapshot(db,value,Date.now());
+    console.info(JSON.stringify({event:'official_calendar_refresh',stored,partial:value.source.stale,count:value.events.length}));
+    return stored;
+  }catch(error){
     // A failed upstream refresh never removes or retimestamps the last verified snapshot.
+    console.warn(JSON.stringify({event:'official_calendar_refresh_failure',stage,kind:error instanceof Error?error.name:'unknown'}));
     return false;
   }
 }

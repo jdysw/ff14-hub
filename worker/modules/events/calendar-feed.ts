@@ -119,13 +119,21 @@ async function officialHtml(url: string, signal?:AbortSignal): Promise<string | 
 }
 
 async function json(path: string, signal?:AbortSignal): Promise<unknown> {
-  const response = await fetch(HOST + path, {
-    method: 'GET', redirect: 'error', headers: { Accept: 'application/json' },
-    signal: requestSignal(signal),
-  });
-  if (!response.ok || Number(response.headers.get('content-length') ?? 0) > 1_000_000) throw new Error('official_http_error');
-  const body = await boundedBody(response);
-  return JSON.parse(body) as unknown;
+  let status:number|undefined;
+  try{
+    const response = await fetch(HOST + path, {
+      method: 'GET', redirect: 'error', headers: { Accept: 'application/json' },
+      signal: requestSignal(signal),
+    });
+    status=response.status;
+    if (!response.ok || Number(response.headers.get('content-length') ?? 0) > 1_000_000) throw new Error('official_http_error');
+    const body = await boundedBody(response);
+    return JSON.parse(body) as unknown;
+  }catch(error){
+    // Fixed endpoint role/status only: no URLs, query strings, bodies or credentials.
+    console.warn(JSON.stringify({event:'official_calendar_origin_failure',endpoint:path.includes('newsList')?'list':'detail',status,kind:error instanceof Error?error.name:'unknown'}));
+    throw error;
+  }
 }
 async function articleDetail(id: number, signal?:AbortSignal): Promise<string | null> {
   try {
