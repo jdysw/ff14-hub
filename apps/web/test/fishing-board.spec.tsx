@@ -61,3 +61,34 @@ it('keeps failed mutation intent and retries the identical operation',async()=>{
   await waitFor(()=>expect(intents).toHaveLength(2));
   expect(intents[1]).toEqual(intents[0]);
 });
+
+it('limits the default homepage by time, never by fish count, and expands the full selected horizon',async()=>{
+  class ScheduledWorker {
+    onmessage:((event:MessageEvent)=>void)|null=null;
+    postMessage(input:{fish:CatalogFish[];region:FishRegion;from:number;hours:number}){
+      const forecasts=input.fish.map((entry,index)=>{
+        const startsAtUtcMs=input.from+(index<17?3:12)*3_600_000;
+        return {id:entry.id,failed:false,windows:[{
+          occurrenceKey:`test:${entry.id}`,region:input.region,fishId:entry.id,ruleVersion:'test',
+          startsAtUtcMs,endsAtUtcMs:startsAtUtcMs+20*60_000,
+          weatherChain:{previous:'晴',current:'晴'},validationStatus:'unverified',
+          candidateOnly:true,conditions:[],
+        }]};
+      });
+      queueMicrotask(()=>this.onmessage?.(new MessageEvent('message',{data:{forecasts}})));
+    }
+    terminate(){this.onmessage=null;}
+  }
+  vi.stubGlobal('Worker',ScheduledWorker);
+  render(<FishingBoard data={publicPort()} embedded/>);
+  await screen.findByText('测试鱼0');
+  await waitFor(()=>expect(document.querySelectorAll('.fish-board__row')).toHaveLength(17));
+  expect(screen.queryByText('测试鱼33')).toBeNull();
+  expect(screen.getByRole('button',{name:'未来 6 小时'}).getAttribute('aria-pressed')).toBe('true');
+  fireEvent.click(screen.getByRole('button',{name:'24 小时'}));
+  await waitFor(()=>expect(document.querySelectorAll('.fish-board__row')).toHaveLength(34));
+  expect(screen.getByText('测试鱼33')).toBeDefined();
+  expect(screen.getByText(/24 小时内：34 种鱼/)).toBeDefined();
+  fireEvent.click(screen.getByRole('button',{name:'未来 6 小时'}));
+  await waitFor(()=>expect(document.querySelectorAll('.fish-board__row')).toHaveLength(17));
+});
