@@ -22,15 +22,7 @@ object WidgetData {
 
     fun fishIds(context: Context): String = prefs(context).getString("fishIds", "") ?: ""
 
-    fun normalizeFishIds(raw: String): String {
-        if (raw.isBlank()) return ""
-        val ids = raw.split(',').map { it.trim() }
-        require(ids.size <= 10 && ids.all { it.matches(Regex("[1-9][0-9]{0,9}")) }) {
-            "鱼 ID 必须为最多 10 个逗号分隔的正整数"
-        }
-        require(ids.distinct().size == ids.size) { "请勿重复填写鱼 ID" }
-        return ids.joinToString(",")
-    }
+    fun normalizeFishIds(raw: String): String = FishIds.normalize(raw)
 
     fun saveSettings(context: Context, selectedRegion: String, rawIds: String) {
         require(selectedRegion == "cn" || selectedRegion == "global")
