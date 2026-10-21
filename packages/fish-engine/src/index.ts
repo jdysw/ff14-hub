@@ -71,6 +71,9 @@ export interface FishWindow {
   weatherChain: { previous: string; current: string };
   validationStatus: z.infer<typeof verificationSchema>; candidateOnly: boolean;
   conditions: FishRule['conditions'];
+  /** No finite opening/closing boundary exists for the time/weather predicate. */
+  unrestricted?: boolean;
+  weatherSegments?: {startsAtUtcMs:number;endsAtUtcMs:number;previous:string;current:string}[];
 }
 
 /** Returns full intervals intersecting [from,to), never clipped identities. */
@@ -82,30 +85,72 @@ export function fishWindows(input: { region: FishRegion; rules: readonly FishRul
   for (const raw of input.rules) {
     const rule = fishRuleSchema.parse(raw);
     if (rule.region !== region) throw new RangeError('规则区服不匹配');
-    // Time intervals never exceed one ET day; a one-day halo preserves stable starts.
-    const firstDay = Math.max(0, Math.floor(from / ET_DAY_MS) - 1);
-    const lastDay = Math.floor(to / ET_DAY_MS);
-    for (let day = firstDay; day <= lastDay; day += 1) {
-      const start = Math.round(day * ET_DAY_MS + rule.startHour * ET_HOUR_MS);
-      const endHour = rule.endHour <= rule.startHour ? rule.endHour + 24 : rule.endHour;
-      const end = Math.round(day * ET_DAY_MS + endHour * ET_HOUR_MS);
-      for (let period = Math.floor(start / WEATHER_PERIOD_MS) * WEATHER_PERIOD_MS; period < end; period += WEATHER_PERIOD_MS) {
-        const current = weatherAt(period, rule.weatherRates);
-        // At the Unix origin there is no supported preceding period. Reject constrained chains.
-        if (period === 0 && rule.previousWeather.length > 0) continue;
-        const previous = period === 0 ? 'unknown' : weatherAt(period - WEATHER_PERIOD_MS, rule.weatherRates);
-        if (rule.currentWeather.length > 0 && !rule.currentWeather.includes(current)) continue;
-        if (rule.previousWeather.length > 0 && !rule.previousWeather.includes(previous)) continue;
-        const begins = Math.max(start, period);
-        const ends = Math.min(end, period + WEATHER_PERIOD_MS);
-        if (begins >= to || ends <= from) continue;
-        const incomplete = rule.conditions.length > 0 || rule.validationStatus === 'incomplete';
-        result.push({ occurrenceKey: `${region}:${String(rule.fishId)}:${rule.version}:${String(begins)}`,
-          region, fishId: rule.fishId, ruleVersion: rule.version, startsAtUtcMs: begins, endsAtUtcMs: ends,
-          weatherChain: { previous, current }, validationStatus: incomplete ? 'incomplete' : rule.validationStatus,
-          candidateOnly: incomplete || rule.validationStatus !== 'verified', conditions: rule.conditions });
-        if (result.length > 5000) throw new RangeError('窗口结果超出上限，请缩小范围');
+    const cache = new Map<number,string>();
+    const weather = (period:number):string => {
+      let value=cache.get(period);
+      if(value!==undefined)return value;
+      const target=forecastTarget(period);let threshold=0;
+      for(const entry of rule.weatherRates){threshold+=entry.chance;if(target<threshold){value=entry.weather;break;}}
+      if(value===undefined)throw new RangeError('天气概率无效');
+      cache.set(period,value);return value;
+    };
+    const chain=(period:number)=>({previous:period===0?'unknown':weather(period-WEATHER_PERIOD_MS),current:weather(period)});
+    const matches=(period:number):boolean=>{
+      if(period===0&&rule.previousWeather.length>0)return false;
+      const state=chain(period);
+      return (!rule.currentWeather.length||rule.currentWeather.includes(state.current))&&
+        (!rule.previousWeather.length||rule.previousWeather.includes(state.previous));
+    };
+    const append=(segments:NonNullable<FishWindow['weatherSegments']>,unrestricted=false)=>{
+      const start=segments[0]?.startsAtUtcMs??(unrestricted&&rule.previousWeather.length>0?WEATHER_PERIOD_MS:0),end=segments.at(-1)?.endsAtUtcMs??MAX_UTC;
+      if(start>=to||end<=from)return;
+      if(end>MAX_UTC||segments.length>1000)throw new RangeError('完整窗口超过可确认范围');
+      const incomplete=rule.validationStatus==='incomplete'||rule.conditions.some(c=>['intuition','predators','unknown'].includes(c.kind));
+      result.push({occurrenceKey:`${region}:${String(rule.fishId)}:${rule.version}:${String(start)}`,
+        region,fishId:rule.fishId,ruleVersion:rule.version,startsAtUtcMs:start,endsAtUtcMs:end,
+        weatherChain:segments[0]?{previous:segments[0].previous,current:segments[0].current}:{previous:'不限',current:'不限'},
+        validationStatus:incomplete?'incomplete':rule.validationStatus,
+        candidateOnly:rule.conditions.length>0||rule.validationStatus!=='verified',conditions:rule.conditions,
+        ...(unrestricted?{unrestricted:true}:{weatherSegments:segments})});
+      if(result.length>5000)throw new RangeError('窗口结果超出上限，请缩小范围');
+    };
+    const allDay=rule.startHour===0&&rule.endHour===24;
+    const allWeather=(!rule.currentWeather.length||rule.weatherRates.every(r=>rule.currentWeather.includes(r.weather)))&&
+      (!rule.previousWeather.length||rule.weatherRates.every(r=>rule.previousWeather.includes(r.weather)));
+    if(allDay&&allWeather){append([],true);continue;}
+    if(allDay){
+      // Weather-only windows can span ET midnight and several weather periods.
+      let period=Math.floor(from/WEATHER_PERIOD_MS)*WEATHER_PERIOD_MS;
+      const limit=168*3_600_000;
+      while(period<to){
+        if(!matches(period)){period+=WEATHER_PERIOD_MS;continue;}
+        let start=period;
+        while(start>=WEATHER_PERIOD_MS&&matches(start-WEATHER_PERIOD_MS)){
+          start-=WEATHER_PERIOD_MS;
+          if(period-start>limit)throw new RangeError('天气连续窗口起点尚不能确认');
+        }
+        const segments:NonNullable<FishWindow['weatherSegments']>=[];
+        let end=start;
+        while(matches(end)){
+          if(end+WEATHER_PERIOD_MS>MAX_UTC||end-period>limit+to-from)throw new RangeError('天气连续窗口终点尚不能确认');
+          segments.push({startsAtUtcMs:end,endsAtUtcMs:end+WEATHER_PERIOD_MS,...chain(end)});
+          end+=WEATHER_PERIOD_MS;
+        }
+        append(segments);period=end;
       }
+      continue;
+    }
+    // A full daily interval (including overnight) is evaluated before query filtering.
+    const firstDay=Math.max(0,Math.floor(from/ET_DAY_MS)-1),lastDay=Math.floor(to/ET_DAY_MS);
+    for(let day=firstDay;day<=lastDay;day++){
+      const start=Math.round(day*ET_DAY_MS+rule.startHour*ET_HOUR_MS);
+      const end=Math.round(day*ET_DAY_MS+(rule.endHour<=rule.startHour?rule.endHour+24:rule.endHour)*ET_HOUR_MS);
+      let segments:NonNullable<FishWindow['weatherSegments']>=[];
+      for(let period=Math.floor(start/WEATHER_PERIOD_MS)*WEATHER_PERIOD_MS;period<end;period+=WEATHER_PERIOD_MS){
+        if(!matches(period)){if(segments.length)append(segments);segments=[];continue;}
+        segments.push({startsAtUtcMs:Math.max(start,period),endsAtUtcMs:Math.min(end,period+WEATHER_PERIOD_MS),...chain(period)});
+      }
+      if(segments.length)append(segments);
     }
   }
   return result.sort((a,b) => a.startsAtUtcMs - b.startsAtUtcMs || a.fishId - b.fishId);

@@ -11,6 +11,8 @@
     "pnpm": ">=10.0.0"
   },
   "scripts": {
+    "generate:fishcake-script": "node scripts/build-fishcake-userscript.mjs",
+    "check:fishcake-script": "node scripts/build-fishcake-userscript.mjs --check",
     "generate:android-pvp": "node --experimental-strip-types scripts/generate-android-pvp-rules.mjs",
     "check:android-pvp": "node --experimental-strip-types scripts/generate-android-pvp-rules.mjs --check",
     "e2e:navigation": "node scripts/e2e-navigation.mjs",
@@ -34,9 +36,9 @@
     "e2e:local-personal": "node scripts/e2e-local-personal.mjs",
     "ops:preflight": "node scripts/ops/preflight.mjs",
     "ops:rehearse": "node scripts/ops/rehearse.mjs",
-    "test:ops": "node --test scripts/ops/ops.test.mjs scripts/ops/verify-live.test.mjs scripts/ops/snapshot-official-calendar.test.mjs scripts/ops/fish-import.test.mjs scripts/ops/fish-cn-import.test.mjs",
+    "test:ops": "node --test scripts/ops/ops.test.mjs scripts/ops/verify-live.test.mjs scripts/ops/snapshot-official-calendar.test.mjs scripts/ops/fish-import.test.mjs scripts/ops/fish-cn-import.test.mjs scripts/ops/fish-accuracy.test.mjs scripts/ops/fishcake-adapter.test.mjs",
     "audit:prod": "pnpm audit --prod --registry=https://registry.npmjs.org",
-    "verify": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run test:ops && pnpm run build"
+    "verify": "pnpm run check:fishcake-script && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run test:ops && pnpm run build"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "catalog:",

@@ -21,6 +21,7 @@ for(let id=1;id<=120;id++){
   });
 }
 for(let i=1;i<=5;i++)tracker.WEATHER_TYPES[String(i)]={name_en:i===1?'Clear Skies':'Weather '+i};
+data.records[1].rule.validationStatus='incomplete';
 const csv=(heading,rows)=>'key,0\n#,'+heading+'\nint32,str\n'+rows.map(([id,value])=>String(id)+','+JSON.stringify(value)).join('\n')+'\n';
 test('CN import intersects CN game IDs, translates names and weather, and passes shared Schema',async()=>{
   const dir=await mkdtemp(join(tmpdir(),'ff14-cn-import-'));
@@ -43,6 +44,7 @@ test('CN import intersects CN game IDs, translates names and weather, and passes
     assert.equal(result.records[0].rule.zoneId,'国服钓场');
     assert.equal(result.records[0].rule.weatherRates[0].weather,'国服天气1');
     assert.equal(result.records[0].rule.validationStatus,'unverified');
+    assert.equal(result.records[1].rule.validationStatus,'incomplete');
     assert.equal(result.records[0].source.authorizationStatus,'unverified');
     const sql=join(dir,'cn.sql');
     execFileSync(process.execPath,['--experimental-strip-types',validator,output,sql],{stdio:'pipe'});

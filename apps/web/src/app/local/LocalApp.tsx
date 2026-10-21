@@ -11,6 +11,7 @@ import {localFishPort} from './fish-port';
 import {LocalSettings,type SettingsTab} from './LocalSettings';
 import type {DataSection} from './DataManagementPanel';
 import {startLocalNotifications} from './local-notifications';
+import {startFishcakeSync} from './fishcake-sync';
 import {SiteIcon} from './SiteIcon';
 import {UiIcon} from './UiIcon';
 import {PwaStatusBar} from '../pwa/PwaStatusBar';
@@ -54,6 +55,7 @@ export function LocalApp(){
   const [settingsTab,setSettingsTab]=useState<SettingsTab>(notificationEntry?'notifications':'home');
   const [dataSection,setDataSection]=useState<DataSection>('sync');
   useEffect(()=>startLocalNotifications(store),[store]);
+  useEffect(()=>startFishcakeSync(store),[store]);
   const [category,setCategory]=useState('all');
   const siteSettings=useSiteSettings();
   const adminSession=useCalendarAdminSession();

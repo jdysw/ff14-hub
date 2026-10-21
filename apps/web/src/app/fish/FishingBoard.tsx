@@ -7,6 +7,7 @@ import './fishing-board.css';
 import {registerPrivateDraftSource} from '../pwa/draft-registry';
 import {fishCountdown as duration} from './countdown';
 const localTime=(ms:number)=>new Date(ms).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
+const etTime=(hour:number)=>{const minutes=Math.round(hour*60);return `${String(Math.floor(minutes/60)).padStart(2,'0')}:${String(minutes%60).padStart(2,'0')}`;};
 const kindLabel={normal:'普通鱼',big:'鱼王',legendary:'鱼皇'};
 const tugLabel:Record<string,string>={light:'轻竿 !',medium:'中竿 !!',heavy:'重竿 !!!'};
 const hookLabel:Record<string,string>={Precision:'精准提钩',Powerful:'强力提钩'};
@@ -106,7 +107,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
         (view!=='windows'||fish.method==='rod'&&(
           state.open!==null||
           (state.next!==null&&(!(embedded||expanded)||state.next.startsAtUtcMs<=now+windowHours*3600000))||
-          (!(embedded||expanded)&&state.always)
+          state.always
         ));
     }).sort((a,b)=>windowState(a,forecastsById.get(a.id),now).sort-windowState(b,forecastsById.get(b.id),now).sort||a.id-b.id);
   },[catalog,forecastsById,now,kind,query,view,flags,hideCaught,embedded,expanded,windowHours]);
@@ -129,7 +130,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
   const displayed=expanded?visible:visible.slice(0,limit);
   const et=eorzeaTime(now);
   if(embedded){
-    const active=visible.filter(fish=>windowState(fish,forecastsById.get(fish.id),now).open!==null).length;
+    const active=visible.filter(fish=>{const state=windowState(fish,forecastsById.get(fish.id),now);return state.open!==null||state.always;}).length;
     const ready=catalog!==null&&forecasts!==null;
     return <section className="fish-glance" aria-label="钓鱼鱼窗概览" data-testid="fishing-board">
       <header className="fish-glance__heading">
@@ -143,8 +144,8 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
       {error?<p className="fish-glance__message" role="alert">{error} <button type="button" onClick={onReload}>重试</button></p>:
       !ready?<p className="fish-glance__message" role="status">正在计算鱼窗…</p>:<>
         <div className="fish-glance__stats" aria-label="鱼窗状态统计">
-          <span><strong>{active}</strong> 正在开放</span>
-          <span><strong>{visible.length-active}</strong> 即将开放</span>
+          <span><strong>{active}</strong> 当前候选</span>
+          <span><strong>{visible.length-active}</strong> 后续候选</span>
         </div>
         {visible.length===0?<p className="fish-glance__message">当前没有符合条件的鱼窗。</p>:<>
           <div className="fish-glance__columns" aria-hidden="true"><span>鱼类</span><span>地点</span><span>剩余时间</span></div>
@@ -154,7 +155,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
               <button type="button" onClick={()=>openDetail({text:fish.name})} aria-label={`查看${fish.name}的完整鱼窗`}>
                 <span className="fish-glance__fish"><strong>{fish.name}</strong><small>{fish.location}</small></span>
                 <span className="fish-glance__time">
-                  <small>{state.open?`${duration(state.open.endsAtUtcMs-now)} 后结束`:state.next?`${duration(state.next.startsAtUtcMs-now)} 后开始`:'查看完整信息'}</small>
+                  <small>{state.open?`${duration(state.open.endsAtUtcMs-now)} 后结束`:state.next?`${duration(state.next.startsAtUtcMs-now)} 后开始`:state.always?'时间天气不限':'查看完整信息'}</small>
                 </span>
               </button>
             </li>;
@@ -198,15 +199,15 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
           <details><summary className="fish-board__row-main"><span className="fish-board__identity"><strong>{fish.name}</strong><small>{fish.method==='spear'?'刺鱼':fish.method==='ocean'?'海钓':kindLabel[fish.kind]} · {fish.location}</small></span>
             <span className="fish-board__bait">{fish.bait.join(' → ')||'鱼饵资料待补'}</span>
             <span className={`fish-board__window${state.open?' is-open':''}`}>
-              <strong>{fish.rule&&forecasts===null?'正在计算':state.open?'正在开放':state.always?'全天':state.next?'即将开放':state.unknown?'窗口资料待补':`${hours} 小时内暂无窗口`}</strong>
+              <strong>{fish.rule&&forecasts===null?'正在计算':state.open?(state.open.candidateOnly?'候选窗口中':'时间天气匹配'):state.always?'时间天气不限':state.next?(state.next.candidateOnly?'后续候选':'即将匹配'):state.unknown?'窗口资料待补':`${hours} 小时内暂无窗口`}</strong>
               <small>{state.open?`${duration(state.open.endsAtUtcMs-now)}后关闭`:state.next?`${duration(state.next.startsAtUtcMs-now)}后开放`:state.always?'无已知时间 / 天气限制':'可展开查看已有资料'}</small>
             </span></summary>
             <div className="fish-board__detail">
               <p>{fish.zone} · {fish.location}{fish.patch?` · ${fish.patch} 版本`:''}</p>
               <p>鱼饵路径：{fish.bait.join(' → ')||'尚未收录'}{fish.tug?` · ${tugLabel[fish.tug]??fish.tug}`:''}{fish.hookset?` · ${hookLabel[fish.hookset]??fish.hookset}`:''}</p>
               {fish.conditions.length?<ul>{fish.conditions.map(condition=><li key={condition}>{condition}</li>)}</ul>:null}
-              {fish.rule?<p>ET {fish.rule.startHour}:00 – {fish.rule.endHour}:00 · 天气：{fish.rule.previousWeather.join(' / ')||'不限'} → {fish.rule.currentWeather.join(' / ')||'不限'}。社区规则，未逐条完成国服验证。</p>:<p>{state.always?'资料未标注时间和天气限制，仍需满足鱼饵、任务等要求。':'尚无可靠预测规则；不会把资料缺失显示为全天可钓。'}</p>}
-              {forecast?.windows.length?<ol>{forecast.windows.slice(0,5).map(window=><li key={window.occurrenceKey}>{localTime(window.startsAtUtcMs)} — {localTime(window.endsAtUtcMs)} <span>{window.weatherChain.previous} → {window.weatherChain.current}</span></li>)}</ol>:null}
+              {fish.rule?<p>ET {etTime(fish.rule.startHour)} – {etTime(fish.rule.endHour)} · 天气：{fish.rule.previousWeather.join(' / ')||'不限'} → {fish.rule.currentWeather.join(' / ')||'不限'}。时间规则来自社区数据；鱼饵、鱼识及技能条件仍需另行满足。</p>:<p>{state.always?'资料未标注时间和天气限制，仍需满足鱼饵、任务等要求。':'尚无可靠预测规则；不会把资料缺失显示为全天可钓。'}</p>}
+              {forecast?.windows.some(window=>!window.unrestricted)?<ol>{forecast.windows.filter(window=>!window.unrestricted).slice(0,5).map(window=><li key={window.occurrenceKey}>{localTime(window.startsAtUtcMs)} — {localTime(window.endsAtUtcMs)} <span>{window.weatherSegments&&window.weatherSegments.length>1?'连续窗口，包含多段天气':`${window.weatherChain.previous} → ${window.weatherChain.current}`}</span></li>)}</ol>:null}
               {fish.spotId>0?<a href={`https://fish.ffmomola.com/ng/#/wiki/fishing/spot/${fish.spotId}/fish/${fish.id}`} target="_blank" rel="noreferrer noopener">在鱼糕查看钓法参考</a>:null}
             </div>
           </details>
@@ -218,6 +219,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
       {!embedded&&!expanded&&visible.length>limit?<button className="fish-board__more" type="button" onClick={()=>setLimit(n=>n+(compact?10:30))}>显示更多（还有 {visible.length-limit} 种）</button>:null}
       {onImport?<button className="fish-board__more" type="button" onClick={onImport}>导入鱼糕钓获记录</button>:null}
       <details className="fish-board__sources"><summary>数据覆盖与来源</summary><p>{region==='cn'?'国服':'国际服'}目录 {catalog.coverage.total} 条 · 有窗口规则 {catalog.coverage.forecast} 条 · 无时间天气限制 {catalog.coverage.always} 条 · 规则待补 {catalog.coverage.unknown} 条。完整目录参与筛选，页面显示数量不会限制鱼窗计算。</p>
+        {catalog.accuracy?<p>已对照国服游戏表核对 {catalog.accuracy.weatherMatched} 条规则的天气概率；{catalog.accuracy.fishWithPredators} 条含前置鱼条件。鱼识条件以鱼糕及其他来源交叉核对为准；资料有冲突或缺失时会保留提示。</p>:null}
         <p>目录更新于 {new Date(catalog.generatedAt).toLocaleDateString('zh-CN')}。国服名称与身份来自游戏表，时间天气规则来自社区；海钓和未知规则不套用普通鱼窗。</p>
         <a href={`https://github.com/icykoneko/ff14-fish-tracker-app/tree/${catalog.versions.tracker}`} target="_blank" rel="noreferrer noopener">Fish Tracker 规则来源</a>{' / '}
         <a href={`https://github.com/thewakingsands/ffxiv-datamining-cn/tree/${catalog.versions.cn}`} target="_blank" rel="noreferrer noopener">国服游戏表</a></details>

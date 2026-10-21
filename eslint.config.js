@@ -22,8 +22,10 @@ export default tseslint.config(
       '**/.wrangler/**',
       '**/playwright-report/**',
       '**/test-results/**',
+      'apps/web/public/fishcake-sync.user.js',
     ],
   },
+
 
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -107,5 +109,11 @@ export default tseslint.config(
       ...tseslint.configs.disableTypeChecked.languageOptions,
       globals: { ...globals.worker, ...globals.serviceworker },
     },
+  },
+  {
+    files:['scripts/userscripts/*.js','scripts/lib/fishcake-adapter.mjs'],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions:{...tseslint.configs.disableTypeChecked.languageOptions,globals:{...globals.browser,GM_getValue:'readonly',GM_setValue:'readonly',GM_addValueChangeListener:'readonly',GM_removeValueChangeListener:'readonly',PAGE_ADAPTER_SOURCE:'readonly',loadFishcakeAdapter:'readonly',fishcakeDocument:'readonly'}},
+    rules:{...tseslint.configs.disableTypeChecked.rules,'@typescript-eslint/no-unused-vars':'off'},
   },
 );

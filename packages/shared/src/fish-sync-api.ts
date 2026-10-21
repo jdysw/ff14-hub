@@ -3,7 +3,7 @@ import { fishRegionSchema,fishProgressFieldSchema } from './fish-api';
 import { operationIdSchema } from './workbench-api';
 import type { ModuleManifest } from './module-manifest';
 import type { WidgetConfigContract } from './builtin-modules';
-export {parseFishDocument,serializeFishDocument,mergeFishDocuments,fieldsToDocument,documentChanges} from '@ff14-hub/fish-sync';
+export {parseFishDocument,serializeFishDocument,mergeFishDocuments,fieldsToDocument,documentChanges,canonicalJson,fishDocumentSchema} from '@ff14-hub/fish-sync';
 export type {FishDocument,MergeConflict} from '@ff14-hub/fish-sync';
 export const SYNC_MODULE_ID='ff14.sync';
 export const SYNC_WIDGET_ID='fish-sync-manager';

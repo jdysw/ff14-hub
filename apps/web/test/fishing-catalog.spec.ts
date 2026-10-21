@@ -33,4 +33,20 @@ describe('real fishing catalog',()=>{
     expect(results.filter(r=>r.failed)).toHaveLength(0);
     expect(results.some(r=>r.id>40000&&r.windows.length>0)).toBe(true);
   });
+  it('keeps actual predator identities/counts and alternative baits in CN guides',()=>{
+    expect(catalog.fish.find(f=>f.id===8754)?.conditions).toContain('鱼识前置：小撒拉奥斯 × 3');
+    expect(catalog.fish.find(f=>f.id===8752)?.conditions).toContain('鱼识前置：丛林鲶鱼 × 3');
+    expect(catalog.fish.find(f=>f.id===36458)?.bait).toEqual(['蜉蝣 / 医蛭']);
+  });
+  it('does not show a made-up closing countdown for unrestricted time/weather',()=>{
+    const fish=catalog.fish.find(f=>f.id===4904)!;
+    const forecast=forecastCatalog([fish],'cn',Date.now(),24)[0]!;
+    expect(forecast.windows).toHaveLength(1);
+    expect(forecast.windows[0]?.unrestricted).toBe(true);
+    expect(windowState(fish,forecast,Date.now())).toMatchObject({always:true,open:null,next:null,unknown:false});
+  });
+  it('publishes game weather matches without promoting community gameplay to verified',()=>{
+    expect(catalog.accuracy).toMatchObject({weatherMatched:874,weatherMismatch:0,weatherMissing:0,gameplayVerified:0});
+    expect(catalog.fish.filter(f=>f.rule).every(f=>f.rule?.validationStatus!=='verified')).toBe(true);
+  });
 });
