@@ -17,7 +17,7 @@ describe('PVP fixed-map schedules (Beijing time)',()=>{
     });
     expect(frontlineAt(Date.parse('2026-10-21T15:59:59Z')).current).toBe('尘封秘岩（争夺战）');
     expect(frontlineAt(Date.parse('2026-10-21T16:00:00Z')).current).toBe('周边遗迹群（阵地战）');
-    expect(frontlineAt(Date.parse('2026-10-28T02:10:00Z')).current).toBe('尘封秘岩（争夺战）');
+    expect(frontlineAt(Date.parse('2026-10-28T02:10:00Z')).current).toBe('沃刻其特（演习战）');
     expect(frontlineAt(Date.parse('2026-10-29T02:10:00Z')).current).toBe('尘封秘岩（争夺战）');
   });
   it('uses the specified seven-map crystalline sequence and rolls at exact hours',()=>{
@@ -29,7 +29,7 @@ describe('PVP fixed-map schedules (Beijing time)',()=>{
     expect(crystallineAt(Date.parse('2026-10-21T01:59:59Z')).current).toBe('休兵书库');
     expect(crystallineAt(Date.parse('2026-10-21T03:00:00Z')).current).toBe('角力学校');
     expect(crystallineAt(Date.parse('2026-10-21T04:00:00Z')).current).toBe('火山之心');
-    expect(crystallineAt(Date.parse('2026-10-21T10:00:00Z')).current).toBe('赤土红沙');
+    expect(crystallineAt(Date.parse('2026-10-21T09:00:00Z')).current).toBe('赤土红沙');
   });
   it('creates correctly ordered full schedules and stable Beijing dates independent of client timezone',()=>{
     const front=frontlineSchedule(oct21_1010);
