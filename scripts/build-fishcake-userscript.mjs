@@ -5,7 +5,7 @@ const runtime=await readFile(new URL('./userscripts/fishcake-runtime.js',import.
 const header=`// ==UserScript==
 // @name         FF14 Hub · 鱼糕实时互通
 // @namespace    https://ff14.zhixia.uk/
-// @version      1.0.0
+// @version      1.0.1
 // @description  在当前浏览器中双向同步钓获、收藏和提醒；首次预览后启用。
 // @match        https://fish.ffmomola.com/*
 // @match        https://ff14.zhixia.uk/*
