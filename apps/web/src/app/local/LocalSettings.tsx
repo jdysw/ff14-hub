@@ -8,7 +8,7 @@ import {LocalLinkEditor} from './LocalLinkEditor';
 import {DataManagementPanel,type DataSection} from './DataManagementPanel';
 import {LocalNotificationPanel} from './LocalNotificationPanel';
 
-const labels:Record<HomeSection,string>={events:'国服活动',fishing:'钓鱼',notes:'我的备忘'};
+const labels:Record<HomeSection,string>={events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的备忘'};
 export type SettingsTab='home'|'links'|'notes'|'data'|'notifications';
 export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=false,initialTab='home',initialDataSection='sync'}:{store:LocalStore;data:LocalData;onSaved:()=>void;onAdmin?:()=>void;adminAuthenticated?:boolean;initialTab?:SettingsTab;initialDataSection?:DataSection}){
   const [activeTab,setActiveTab]=useState<SettingsTab>(initialTab);
