@@ -1,6 +1,6 @@
 import {it,expect} from 'vitest';
 import {createLocalStore,localDataSchema,localBackupSchema,type LocalData} from '../src/app/local/store';
-const empty=():LocalData=>({version:1,revision:0,fish:{cn:[],global:[]},configuration:{order:['events','fishing','notes'],visible:{events:true,fishing:true,notes:false},region:'cn'},links:[],notes:[]});
+const empty=():LocalData=>({version:1,revision:0,fish:{cn:[],global:[]},configuration:{order:['events','fishing','pvp','notes'],visible:{events:true,fishing:true,pvp:true,notes:false},region:'cn'},links:[],notes:[]});
 it('rejects identity credentials and unknown configuration keys in personal backups',()=>{
   expect(()=>localBackupSchema.parse({format:'ff14-hub-local',version:1,exportedAt:'now',data:{...empty(),deviceToken:'must-not-be-imported'}})).toThrow();
   expect(()=>localDataSchema.parse({...empty(),configuration:{...empty().configuration,workspaceId:'unused'}})).toThrow();
