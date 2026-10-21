@@ -27,3 +27,4 @@ export * from './workbench-api';
 export * from './local-notifications';
 
 export * from './pvp-rotation';
+export * from './mobile-widgets-v1';
