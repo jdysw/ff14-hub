@@ -2,6 +2,8 @@ package uk.zhixia.ff14hub.widgets
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -14,6 +16,9 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
+import android.widget.Toast
+import uk.zhixia.ff14hub.widgets.widgets.FrontlineWidgetProvider
+import uk.zhixia.ff14hub.widgets.widgets.CrystallineWidgetProvider
 import uk.zhixia.ff14hub.widgets.widgets.WidgetRenderer
 import uk.zhixia.ff14hub.widgets.widgets.WidgetScheduler
 
@@ -36,8 +41,25 @@ class MainActivity: Activity() {
             setPadding(0,(8*dp).toInt(),0,(8*dp).toInt())
             root.addView(this)
         }
+        fun button(text: String, action: ()->Unit) {
+            val button=Button(this).apply {
+                this.text=text
+                setOnClickListener{action()}
+            }
+            root.addView(button,LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        fun pin(provider: Class<*>) {
+            val manager = AppWidgetManager.getInstance(this)
+            if (manager.isRequestPinAppWidgetSupported)
+                manager.requestPinAppWidget(ComponentName(this, provider), null, null)
+            else Toast.makeText(this, "请长按桌面，在系统小部件列表中添加", Toast.LENGTH_LONG).show()
+        }
         label("FF14 Hub · Android 小部件",22f)
         label("长按手机桌面 → 小部件 → FF14 Hub，选择 PVP、鱼窗、活动或综合概览。")
+        button("添加纷争前线到桌面") { pin(FrontlineWidgetProvider::class.java) }
+        button("添加水晶冲突到桌面") { pin(CrystallineWidgetProvider::class.java) }
+        label("PVP 首次离线可用，使用国服轮换规则；联网后自动校验。", 13f)
         label("关注鱼区服（PVP 轮换目前仅按国服规则；活动仅提供国服公共日历）")
         val region=Spinner(this)
         region.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,listOf("国服","国际服"))
@@ -53,14 +75,6 @@ class MainActivity: Activity() {
         root.addView(ids,LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT))
         val status=label("桌面数据会在网络可用时后台更新（通常不早于 15 分钟；系统可能延迟）。",13f)
-        fun button(text: String, action: ()->Unit) {
-            val button=Button(this).apply {
-                this.text=text
-                setOnClickListener{action()}
-            }
-            root.addView(button,LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT))
-        }
         label("也可以按鱼名搜索，直接添加到关注列表")
         val fishSearch=EditText(this).apply {
             hint="输入鱼类名称"
@@ -125,7 +139,7 @@ class MainActivity: Activity() {
         button("打开 FF14 Hub 网站"){
             startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(WidgetData.SITE)))
         }
-        label("PVP 离线轮换按服务端下发的时间锚点计算；鱼窗及活动以缓存有效期为准。对于时间待核实的鱼和公告，不会编造准确提醒。",12f)
+        label("PVP 首次离线也可使用内置国服规则，联网后自动校验更新；鱼窗及活动以缓存有效期为准。对于时间待核实的鱼和公告，不会编造准确提醒。",12f)
         label("本阶段仅提供桌面小部件；鱼窗推送、钓获记录 WebDAV 同步及精准通知尚未接入 Android。",12f)
     }
 }

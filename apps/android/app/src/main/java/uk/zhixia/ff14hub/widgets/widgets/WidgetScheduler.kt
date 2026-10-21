@@ -27,6 +27,7 @@ class WidgetRefreshWorker(context: Context, params: WorkerParameters): Worker(co
 
 object WidgetScheduler {
     private const val PERIODIC = "ff14_hub_widget_refresh_v1"
+    private const val MANUAL = "ff14_hub_widget_manual_refresh"
 
     fun start(context: Context) {
         val constraints = Constraints.Builder()
@@ -42,12 +43,14 @@ object WidgetScheduler {
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(
-            "ff14_hub_widget_manual_refresh", ExistingWorkPolicy.KEEP, job)
+            MANUAL, ExistingWorkPolicy.REPLACE, job)
     }
 
     fun stopIfUnused(context: Context) {
-        if (WidgetRenderer.activeWidgetCount(context) == 0)
+        if (WidgetRenderer.activeWidgetCount(context) == 0) {
             WorkManager.getInstance(context).cancelUniqueWork(PERIODIC)
+            WorkManager.getInstance(context).cancelUniqueWork(MANUAL)
+        }
     }
 }
 
@@ -64,6 +67,18 @@ abstract class HubWidgetProvider(private val kind: WidgetKind): AppWidgetProvide
         super.onDisabled(context)
         WidgetScheduler.stopIfUnused(context)
         PvpRolloverReceiver.schedule(context)
+    }
+
+    override fun onDeleted(context: Context, ids: IntArray) {
+        super.onDeleted(context, ids)
+        WidgetScheduler.stopIfUnused(context)
+        PvpRolloverReceiver.schedule(context)
+    }
+
+    override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager,
+        id: Int, options: android.os.Bundle) {
+        super.onAppWidgetOptionsChanged(context, manager, id, options)
+        WidgetRenderer.updateIds(context, manager, intArrayOf(id), kind)
     }
 }
 

@@ -1,5 +1,22 @@
 # Mobile Widgets 验收清单（PR #59 → PR #60）
 
+## 2026-10-21 PVP 续开发验收结果
+
+此前“缺少 Android SDK”的限制已在本轮本地构建环境解决。此次没有合并原 PR，也没有部署生产。
+
+- 使用 JDK 17.0.20.1、SDK 35、Build Tools 35.0.0 和带发行包 SHA256 的 Gradle 8.10.2 Wrapper，实际执行 `gradlew.bat :app:testDebugUnitTest :app:lintDebug :app:assembleDebug` 成功。Android 测试 17 项通过；lint 无错误，仍有原有的备份配置、缺少应用图标及中文文案资源化警告。
+- `pnpm run lint`、`pnpm run typecheck`、`pnpm run build:web` 通过。修复已有 PVP 旧设置迁移的 unsafe spread；排除 Android build/.gradle 生成目录，避免构建报告误入 JS lint。
+- Web PVP/本地数据迁移 3 个文件、11 项测试通过；真实 workerd/D1 的 `mobile-widgets-v1.spec.ts` 4 项通过。
+- `pnpm check:android-pvp` 通过，安装包内置 JSON 与共享 TypeScript 国服轮换源一致。首次无网/接口 404 时也可显示 PVP，并明确标注内置规则。
+- Android 15/API 35 x86_64 模拟器安装成功、设置页启动成功；通过应用内按钮和系统桌面添加实际前线及水晶冲突组件。看到当前/下一张地图、北京时间换图时间、离线标记和系统倒计时。
+- 模拟器关闭联网、设置绝对时间核验水晶 10 点时段赤土红沙、11 点时段角力学校；重启后两种组件仍存在，系统重新安排下一个 PVP 边界闹钟，AndroidRuntime 日志无异常退出。时间变更与重启事件经过实机 Android 系统路径，不能据此声称非精确闹钟在省电模式下准点触发。
+- 单独前线的系统闹钟指向北京时间次日零点；同时存在水晶时只安排一个最早边界闹钟。JVM/Robolectric 进一步覆盖首次离线、相同设置保留、跨区服隔离、设置变更往返后的旧请求拒绝、坏协议/坏轮换保留成功缓存，以及无 PVP 时不安排换图唤醒。
+- 调试 APK 采用 `.debug` 独立包名，使用 Android Debug 签名，`apksigner verify` 已通过。它不是正式签名的发布包。
+- 本次实测预览接口仍返回 404，因此联网更新的远端端到端验收仍待预览部署；尚未验收实体手机、厂商省电策略、任意字体缩放及全部尺寸、真实游戏临时变更后的轮换事实。鱼窗、活动和 iOS 不作为本次完成范围。
+- PR #61 的外部 `Workers Builds: ff14-hub` 自动检查报告失败（构建 `76c5baec-aaed-4de5-8a1e-e7ad1d393107`）；GitHub 检查摘要没有失败日志，Cloudflare 只读 search 连接器返回内部错误，尚无法确认远端失败原因。上述本地通过结果不能代替这项远端检查。
+
+下方仍保留完整发布门槛；本轮构建与模拟器结果不等于所有发布门槛均已满足。
+
 ## 合并依赖与禁止动作
 
 1. 先验收并压缩合并 **PVP PR #59**，确保其 web/本地数据迁移测试全部通过。

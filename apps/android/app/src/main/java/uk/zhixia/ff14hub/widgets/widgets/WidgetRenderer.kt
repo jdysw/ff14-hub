@@ -12,6 +12,7 @@ import android.widget.RemoteViews
 import org.json.JSONObject
 import uk.zhixia.ff14hub.widgets.R
 import uk.zhixia.ff14hub.widgets.WidgetData
+import uk.zhixia.ff14hub.widgets.SnapshotValidator
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -31,14 +32,8 @@ object WidgetRenderer {
     /** 离线时仍可根据 API 下发的规则精确计算当前 PVP 时段。 */
     private fun pvp(snapshot: JSONObject, name: String, now: Long): WidgetText {
         val rule = snapshot.getJSONObject("pvp").getJSONObject(name)
-        val maps = rule.getJSONArray("cycle")
-        val period = rule.getLong("periodMs")
-        val anchor = rule.getLong("anchorUtcMs")
-        val initialIndex = rule.getInt("anchorIndex")
-        require(period > 0 && maps.length() in 1..12)
-        val rotation = RotationMath.at(now,anchor,initialIndex,period,
-            (0 until maps.length()).map { maps.getString(it) })
-        val title = if (name == "frontline") "纷争前线 · 今日战场" else "水晶冲突 · 当前地图"
+        val rotation = SnapshotValidator.rotation(rule, now)
+        val title = if (name == "frontline") "国服前线 · 今日战场" else "国服水晶冲突 · 当前地图"
         val later = if (name == "frontline") "明日" else "下张"
         return WidgetText(title, rotation.current,
             "$later：${rotation.next}",
@@ -113,11 +108,15 @@ object WidgetRenderer {
             WidgetKind.EVENTS -> events(snapshot, now)
             WidgetKind.OVERVIEW -> overview(snapshot, now)
         }
+        if (snapshot.optBoolean("bundledRules") &&
+            kind in listOf(WidgetKind.FRONTLINE, WidgetKind.CRYSTALLINE, WidgetKind.OVERVIEW))
+            return result.copy(tertiary = listOf(result.tertiary,
+                "内置国服规则 · 联网后校验").filter { it.isNotBlank() }.joinToString("\n"))
         // PVP 仍可离线依规则计算；需要联网确认官方是否调整了轮换。
         if (!stale) return result
         val note = if (kind == WidgetKind.FISH || kind == WidgetKind.EVENTS)
             "数据已过期 · 需要联网刷新" else "规则缓存较旧 · 请联网校验"
-        return result.copy(tertiary = note)
+        return result.copy(tertiary = listOf(result.tertiary, note).filter { it.isNotBlank() }.joinToString("\n"))
     }
 
     fun providerClass(kind: WidgetKind): Class<out HubWidgetProvider> = when (kind) {
@@ -128,10 +127,13 @@ object WidgetRenderer {
         WidgetKind.OVERVIEW -> OverviewWidgetProvider::class.java
     }
 
-    fun activePvpWidgetCount(context: Context): Int {
-        val manager=AppWidgetManager.getInstance(context)
-        return listOf(WidgetKind.FRONTLINE,WidgetKind.CRYSTALLINE,WidgetKind.OVERVIEW).sumOf { kind ->
-            manager.getAppWidgetIds(ComponentName(context,providerClass(kind))).size
+    fun activePvpModes(context: Context): Set<String> {
+        val manager = AppWidgetManager.getInstance(context)
+        fun active(kind: WidgetKind) = manager.getAppWidgetIds(ComponentName(context, providerClass(kind))).isNotEmpty()
+        val overview = active(WidgetKind.OVERVIEW)
+        return buildSet {
+            if (overview || active(WidgetKind.FRONTLINE)) add("frontline")
+            if (overview || active(WidgetKind.CRYSTALLINE)) add("crystalline")
         }
     }
 
