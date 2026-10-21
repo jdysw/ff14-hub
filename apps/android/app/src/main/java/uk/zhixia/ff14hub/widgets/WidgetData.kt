@@ -9,6 +9,8 @@ import javax.net.ssl.HttpsURLConnection
 /** 用户数据仅存本机。服务端只接收明确选择的鱼 ID，不接收钓获记录或凭据。 */
 object WidgetData {
     const val SITE = "https://ff14.zhixia.uk"
+    // 调试 APK 只读取预览服务；release 才访问正式 API。网站跳转保持正式域名。
+    val apiOrigin: String get() = if (BuildConfig.DEBUG) "https://ff14-preview.zhixia.uk" else SITE
     private const val PREFS = "widget_preferences"
     private const val CACHE = "public_snapshot"
     private const val LIMIT_BYTES = 128 * 1024
@@ -58,7 +60,7 @@ object WidgetData {
                 val ids = fishIds(context)
                 if (ids.isNotBlank()) append("&fishIds=").append(ids)
             }
-            val url = URL("$SITE/api/v1/widgets/v1/summary$params")
+            val url = URL("$apiOrigin/api/v1/widgets/v1/summary$params")
             connection = url.openConnection() as HttpsURLConnection
             connection.instanceFollowRedirects = false
             connection.connectTimeout = 8_000
