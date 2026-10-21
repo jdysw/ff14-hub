@@ -5,7 +5,7 @@ import {LocalSettings} from '../src/app/local/LocalSettings';
 import {DataManagementPanel} from '../src/app/local/DataManagementPanel';
 import {localBackupSchema,type LocalData,type LocalStore} from '../src/app/local/store';
 vi.mock('../src/app/local/secure-storage',()=>({readDeviceRecord:()=>Promise.resolve(null),writeDeviceRecord:()=>Promise.resolve()}));
-const data:LocalData={version:1,revision:0,fish:{cn:[],global:[]},configuration:{order:['events','fishing','notes'],visible:{events:true,fishing:true,notes:false},region:'cn'},links:[],notes:[]};
+const data:LocalData={version:1,revision:0,fish:{cn:[],global:[]},configuration:{order:['events','fishing','pvp','notes'],visible:{events:true,fishing:true,pvp:true,notes:false},region:'cn'},links:[],notes:[]};
 function makeStore(){return {mergeFish:vi.fn(()=>Promise.resolve(2)),restoreBackup:vi.fn(()=>Promise.resolve()),read:vi.fn(()=>Promise.resolve(data)),exportBackup:vi.fn(()=>Promise.resolve(localBackupSchema.parse({format:'ff14-hub-local',version:1,exportedAt:new Date().toISOString(),data}))),change:vi.fn()} as unknown as LocalStore;}
 afterEach(cleanup);
 it('uses one data category and preserves all three data management workflows',async()=>{

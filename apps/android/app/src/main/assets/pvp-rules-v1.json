@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "generatedAtMs": 1792548000000,
+  "refreshAfterMs": 1792548900000,
+  "staleAfterMs": 1792555200000,
+  "timezone": "Asia/Shanghai",
+  "region": "cn",
+  "pvp": {
+    "frontline": {
+      "current": "尘封秘岩（争夺战）",
+      "next": "周边遗迹群（阵地战）",
+      "startsAtMs": 1792512000000,
+      "changesAtMs": 1792598400000,
+      "anchorUtcMs": 1792512000000,
+      "anchorIndex": 4,
+      "periodMs": 86400000,
+      "cycle": [
+        "尘封秘岩（争夺战）",
+        "荣誉野（碎冰战）",
+        "昂萨哈凯尔（竞争战）",
+        "沃刻其特（演习战）",
+        "尘封秘岩（争夺战）",
+        "周边遗迹群（阵地战）",
+        "昂萨哈凯尔（竞争战）",
+        "沃刻其特（演习战）"
+      ],
+      "ruleVersion": "2026-10-21-cn-v1"
+    },
+    "crystalline": {
+      "current": "赤土红沙",
+      "next": "角力学校",
+      "startsAtMs": 1792548000000,
+      "changesAtMs": 1792551600000,
+      "anchorUtcMs": 1792548000000,
+      "anchorIndex": 6,
+      "periodMs": 3600000,
+      "cycle": [
+        "角力学校",
+        "火山之心",
+        "海岸斗场",
+        "九霄云上",
+        "机关大殿",
+        "休兵书库",
+        "赤土红沙"
+      ],
+      "ruleVersion": "2026-10-21-cn-v1"
+    }
+  },
+  "fish": {
+    "status": "selection_required",
+    "items": []
+  },
+  "events": {
+    "status": "unavailable",
+    "sourceCheckedAtMs": null,
+    "items": []
+  }
+}

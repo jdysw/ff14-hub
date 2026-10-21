@@ -4,6 +4,7 @@ import {directoryLinks} from './directory-links';
 import {HomeOfficialEvents} from '../shell/HomeOfficialEvents';
 import {PublicCalendarPage} from '../events/PublicCalendarPage';
 import {FishingBoard,type FishDetailSelection} from '../fish/FishingBoard';
+import {PvpBoard} from '../pvp/PvpBoard';
 import {LocalModuleOverlay,type ModuleOrigin} from './LocalModuleOverlay';
 import {createLocalStore,type LocalData} from './store';
 import {localFishPort} from './fish-port';
@@ -36,12 +37,12 @@ export function LocalApp(){
   const notificationEntry=['notifications','reminders'].includes(new URLSearchParams(location.search).get('view')??'');
   const [view,setView]=useState<'home'|'settings'|'admin'>(notificationEntry?'settings':'home');
   const [expanded,setExpanded]=useState<null|{
-    kind:'events'|'fishing'|'notes';
+    kind:'events'|'fishing'|'pvp'|'notes';
     origin:ModuleOrigin;
     fishFilters?:FishDetailSelection;
   }>(null);
   // 共用一个从模块位置展开的详情层；关闭后保留首页的筛选和滚动位置。
-  const openModule=(kind:'events'|'fishing'|'notes',fishFilters?:FishDetailSelection)=>{
+  const openModule=(kind:'events'|'fishing'|'pvp'|'notes',fishFilters?:FishDetailSelection)=>{
     const source=document.querySelector<HTMLElement>(`[data-module="${kind}"]`);
     if(!source)return;
     const {top,left,width,height}=source.getBoundingClientRect();
@@ -141,6 +142,7 @@ export function LocalApp(){
                 {section==='events'?<HomeOfficialEvents onOpenCalendar={()=>openModule('events')}
                   onHide={()=>{void store.change(document=>{document.data.configuration.visible.events=false;}).catch(()=>setError('设置未能保存到本机'));}}/>:
                 section==='fishing'?<FishingBoard data={dataPort} initialRegion={data.configuration.region} embedded onOpenDetail={selection=>openModule('fishing',selection)}/>:
+                section==='pvp'?<PvpBoard onOpenDetail={()=>openModule('pvp')}/>:
                 <section className="local-notes" aria-label="我的备忘">
                   <header className="local-notes__heading"><h3>备忘</h3>
                     <button type="button" className="local-dashboard__manage" onClick={()=>openModule('notes')}>查看全部 ↗</button>
@@ -195,7 +197,7 @@ export function LocalApp(){
     </main>
     {expanded&&data&&view==='home'?<LocalModuleOverlay
       key={expanded.kind}
-      title={{events:'国服活动',fishing:'钓鱼',notes:'我的备忘'}[expanded.kind]}
+      title={{events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的备忘'}[expanded.kind]}
       origin={expanded.origin}
       onClose={()=>setExpanded(null)}>
       {expanded.kind==='events'?<PublicCalendarPage overlay onBack={()=>setExpanded(null)}/>:
@@ -203,6 +205,7 @@ export function LocalApp(){
           initialFilters={expanded.fishFilters} expanded onImport={()=>{
             setExpanded(null);setDataSection('fish');setSettingsTab('data');setView('settings');
           }}/>:
+        expanded.kind==='pvp'?<PvpBoard expanded/>:
         <section className="local-detail local-detail--notes" aria-label="全部备忘">
           <header className="local-detail__header"><h2>我的备忘</h2>
             <button type="button" onClick={()=>{setExpanded(null);setSettingsTab('notes');setView('settings');}}>管理备忘 ↗</button>
