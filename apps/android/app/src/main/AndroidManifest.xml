@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+ <uses-permission android:name="android.permission.INTERNET"/>
+ <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+ <application android:label="@string/app_name" android:theme="@style/Theme.FF14Widgets"
+    android:usesCleartextTraffic="false" android:allowBackup="false">
+  <activity android:name=".MainActivity" android:exported="true">
+   <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+  </activity>
+  <receiver android:name=".widgets.FrontlineWidgetProvider" android:exported="true">
+   <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+   <meta-data android:name="android.appwidget.provider" android:resource="@xml/frontline_widget_info"/>
+  </receiver>
+  <receiver android:name=".widgets.CrystallineWidgetProvider" android:exported="true">
+   <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+   <meta-data android:name="android.appwidget.provider" android:resource="@xml/crystalline_widget_info"/>
+  </receiver>
+  <receiver android:name=".widgets.FishWidgetProvider" android:exported="true">
+   <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+   <meta-data android:name="android.appwidget.provider" android:resource="@xml/fish_widget_info"/>
+  </receiver>
+  <receiver android:name=".widgets.EventsWidgetProvider" android:exported="true">
+   <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+   <meta-data android:name="android.appwidget.provider" android:resource="@xml/events_widget_info"/>
+  </receiver>
+  <receiver android:name=".widgets.OverviewWidgetProvider" android:exported="true">
+   <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+   <meta-data android:name="android.appwidget.provider" android:resource="@xml/overview_widget_info"/>
+  </receiver>
+ </application>
+</manifest>
