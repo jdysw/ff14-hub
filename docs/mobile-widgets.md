@@ -54,7 +54,7 @@
 
 ## 当前架构与后续
 
-- Android 调试 APK 使用预览 API，Release APK 使用正式 API，避免绕过预览验收；两者使用同一数据结构。Android 使用原生 App Widgets + WorkManager + HTTPS 缓存。WorkManager 周期刷新是 **尽力而为**，不可提供分钟/秒级准点推送保证；通知将另设本地计划和系统权限管理。
+- Android 调试 APK 使用预览 API，Release APK 使用正式 API，避免绕过预览验收；两者使用同一数据结构。Android 使用原生 App Widgets + WorkManager + HTTPS 缓存；额外用本机非精确轮换提醒触发 PVP 视图重绘，仍受省电模式限制。WorkManager 周期刷新是 **尽力而为**，不可提供分钟/秒级准点推送保证；通知将另设本地计划和系统权限管理。
 - 未来的 iOS 仅需实现 WidgetKit timeline 与同一 JSON 契约，不必增加 iOS 专属后端或用户系统。
 - 服务端只计算最多 10 条关注鱼的未来窗口，避免对全部鱼图鉴做高成本的每次请求计算。
 - 当前 PVP PR #59 尚未合并；本功能 PR 基于其分支构建。需先验证并合并 PVP，再验证该 API + Android 工程，最后再部署后端。GitHub Actions 维持关闭。
