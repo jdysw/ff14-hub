@@ -15,11 +15,11 @@ class RotationMathTest {
         "机关大殿","休兵书库","赤土红沙"
     )
     @Test fun frontlineOct21AndOct22() {
-        val today = RotationMath.at(1792548600000L, 1792531200000L, 4,
+        val today = RotationMath.at(1792548600000L, 1792512000000L, 4,
             86400000L, frontline)
         assertEquals("尘封秘岩（争夺战）",today.current)
         assertEquals("周边遗迹群（阵地战）",today.next)
-        val tomorrow = RotationMath.at(1792617600000L,1792531200000L,4,
+        val tomorrow = RotationMath.at(1792598400000L,1792531200000L,4,
             86400000L,frontline)
         assertEquals("周边遗迹群（阵地战）",tomorrow.current)
     }
