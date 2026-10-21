@@ -29,3 +29,17 @@ it('keeps old personal link backups valid and accepts safe editable descriptions
     data:{...empty(),links:[enriched]}}).data.links[0]?.description).toBe('网页公开简介');
   expect(()=>localDataSchema.parse({...empty(),links:[{...enriched,faviconUrl:'https://other.org/icon.png'}]})).toThrow();
 });
+
+it('upgrades existing three-module browser documents and backups without losing order, visibility or fish progress',()=>{
+  const legacy=empty();
+  const incoming={...legacy,configuration:{...legacy.configuration,order:['notes','fishing','events'],visible:{events:true,fishing:false,notes:true}}};
+  const result=localDataSchema.parse(incoming);
+  expect(result.configuration.order).toEqual(['notes','fishing','events','pvp']);
+  expect(result.configuration.visible).toEqual({events:true,fishing:false,notes:true,pvp:true});
+  const restored=localBackupSchema.parse({format:'ff14-hub-local',version:1,exportedAt:'2026-10-21',data:incoming});
+  expect(restored.data.configuration.order).toEqual(result.configuration.order);
+  expect(restored.data.links).toEqual([]);
+  const changed={...result,configuration:{...result.configuration,visible:{...result.configuration.visible,pvp:false}}};
+  expect(localDataSchema.parse(changed).configuration.visible.pvp).toBe(false);
+  expect(()=>localDataSchema.parse({...legacy,configuration:{...legacy.configuration,unknown:'unsafe'}})).toThrow();
+});
