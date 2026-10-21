@@ -38,4 +38,29 @@ class RotationMathTest {
         assertEquals("C",older.current)
         assertEquals("A",older.next)
     }
+
+    @Test fun boundaryMillisecondsAndFullCycle() {
+        val anchor = 1792548000000L
+        val hour = 3600000L
+        assertEquals("休兵书库", RotationMath.at(anchor - 1, anchor, 6, hour, crystal).current)
+        assertEquals(anchor, RotationMath.at(anchor - 1, anchor, 6, hour, crystal).changesAtMs)
+        assertEquals("赤土红沙", RotationMath.at(anchor, anchor, 6, hour, crystal).current)
+        assertEquals("赤土红沙", RotationMath.at(anchor + hour - 1, anchor, 6, hour, crystal).current)
+        assertEquals("角力学校", RotationMath.at(anchor + hour, anchor, 6, hour, crystal).current)
+        assertEquals("赤土红沙", RotationMath.at(anchor + 7 * hour, anchor, 6, hour, crystal).current)
+    }
+
+    @Test fun frontlineChangesAtBeijingMidnightRegardlessOfTimezone() {
+        val midnight = 1792598400000L
+        val original = java.util.TimeZone.getDefault()
+        try {
+            for (zone in listOf("UTC", "America/Los_Angeles", "Asia/Tokyo")) {
+                java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone(zone))
+                assertEquals("尘封秘岩（争夺战）", RotationMath.at(midnight - 1,
+                    1792512000000L, 4, 86400000L, frontline).current)
+                assertEquals("周边遗迹群（阵地战）", RotationMath.at(midnight,
+                    1792512000000L, 4, 86400000L, frontline).current)
+            }
+        } finally { java.util.TimeZone.setDefault(original) }
+    }
 }

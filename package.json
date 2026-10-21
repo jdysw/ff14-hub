@@ -11,6 +11,8 @@
     "pnpm": ">=10.0.0"
   },
   "scripts": {
+    "generate:android-pvp": "node --experimental-strip-types scripts/generate-android-pvp-rules.mjs",
+    "check:android-pvp": "node --experimental-strip-types scripts/generate-android-pvp-rules.mjs --check",
     "e2e:navigation": "node scripts/e2e-navigation.mjs",
     "import:navigation": "node scripts/import-navigation.mjs",
     "lint": "eslint .",

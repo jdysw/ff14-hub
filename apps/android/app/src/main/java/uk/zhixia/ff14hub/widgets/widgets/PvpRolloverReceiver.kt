@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import uk.zhixia.ff14hub.widgets.WidgetData
+import uk.zhixia.ff14hub.widgets.SnapshotValidator
 
 /**
  * 本机地图轮换事件：避免桌面仅靠 15 分钟联网刷新导致整点后地图文字过期。
@@ -13,9 +14,12 @@ import uk.zhixia.ff14hub.widgets.WidgetData
  */
 class PvpRolloverReceiver: BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        if (intent?.action != ACTION_ROTATION) return
+        if (intent?.action !in setOf(ACTION_ROTATION, Intent.ACTION_BOOT_COMPLETED,
+                Intent.ACTION_MY_PACKAGE_REPLACED, Intent.ACTION_TIME_CHANGED,
+                Intent.ACTION_TIMEZONE_CHANGED)) return
         WidgetRenderer.updateAll(context)
         schedule(context)
+        if (WidgetRenderer.activeWidgetCount(context) > 0) WidgetScheduler.start(context)
     }
     companion object {
         private const val ACTION_ROTATION="uk.zhixia.ff14hub.widgets.PVP_ROLLOVER"
@@ -28,21 +32,17 @@ class PvpRolloverReceiver: BroadcastReceiver() {
         fun schedule(context: Context) {
             val manager=context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             val alarm=pending(context)
-            if (WidgetRenderer.activePvpWidgetCount(context)==0) {
-                manager.cancel(alarm)
-                return
-            }
+            // Cancel first: missing/invalid cache must not leave an obsolete alarm armed.
+            manager.cancel(alarm)
+            val modes = WidgetRenderer.activePvpModes(context)
+            if (modes.isEmpty()) return
             val snapshot=WidgetData.cached(context) ?: return
             val now=System.currentTimeMillis()
             val times=mutableListOf<Long>()
-            for (mode in listOf("frontline","crystalline")) {
+            for (mode in modes) {
                 try {
                     val rule=snapshot.getJSONObject("pvp").getJSONObject(mode)
-                    val start=rule.getLong("anchorUtcMs")
-                    val period=rule.getLong("periodMs")
-                    if (period<=0) continue
-                    val step=Math.floorDiv(now-start,period)
-                    times.add(start+(step+1)*period)
+                    times.add(SnapshotValidator.rotation(rule, now).changesAtMs)
                 }catch (_: Exception) { /* 旧缓存格式不支持轮换，不安排闹钟 */ }
             }
             val next=times.filter { it>now }.minOrNull() ?: return

@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
  android:initialLayout="@layout/widget_tile"
- android:minWidth="180dp" android:minHeight="150dp"
+ android:minWidth="180dp" android:minHeight="140dp"
+ android:minResizeWidth="180dp" android:minResizeHeight="140dp"
+ android:targetCellWidth="3" android:targetCellHeight="2"
  android:resizeMode="horizontal|vertical" android:widgetCategory="home_screen"
  android:description="@string/crystalline_widget"
  android:updatePeriodMillis="1800000"/>
