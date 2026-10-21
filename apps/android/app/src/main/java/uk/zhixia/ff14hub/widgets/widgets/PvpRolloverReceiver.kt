@@ -28,7 +28,7 @@ class PvpRolloverReceiver: BroadcastReceiver() {
         fun schedule(context: Context) {
             val manager=context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             val alarm=pending(context)
-            if (WidgetRenderer.activeWidgetCount(context)==0) {
+            if (WidgetRenderer.activePvpWidgetCount(context)==0) {
                 manager.cancel(alarm)
                 return
             }
