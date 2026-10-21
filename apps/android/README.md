@@ -1,5 +1,7 @@
 # FF14 Hub Android 小部件（第一阶段）
 
+0.3：针对小米 17 Pro Max / 澎湃 OS 4 的背景反馈，改用静态不透明双层背景、XML 夜间配色和传统尺寸回调；移除卡片状态行，提供更紧凑的 2×1 起始尺寸。负一屏的系统入口与小米平台准入边界见 `docs/pvp-xiaomi-compatibility.md`，当前不宣称已完成小米负一屏上架。
+
 本目录是**独立 Android 原生应用**，不替换 FF14 Hub 网页。当前只开发 Android；iOS 暂不建工程，未来可直接消费同一版本化 JSON 协议（见 `docs/mobile-widgets.md`）。
 
 ## 当前实现

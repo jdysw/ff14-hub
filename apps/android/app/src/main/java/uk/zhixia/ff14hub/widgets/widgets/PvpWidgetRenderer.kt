@@ -10,7 +10,6 @@ import android.os.Build
 import android.os.SystemClock
 import android.text.SpannableString
 import android.text.Spanned
-import android.text.style.ForegroundColorSpan
 import android.text.style.RelativeSizeSpan
 import android.util.SizeF
 import android.util.TypedValue
@@ -34,20 +33,22 @@ object PvpWidgetRenderer {
         snapshot: JSONObject, now: Long, preset: PvpDensity): RemoteViews {
         val fontScale = context.resources.configuration.fontScale
         val options = manager.getAppWidgetOptions(id)
+        val xiaomiHost = Build.MANUFACTURER.lowercase() in setOf("xiaomi", "redmi", "poco")
         @Suppress("DEPRECATION")
-        val sizedHost = Build.VERSION.SDK_INT >= 31 &&
+        val sizedHost = !xiaomiHost && Build.VERSION.SDK_INT >= 31 &&
             !options.getParcelableArrayList<SizeF>(AppWidgetManager.OPTION_APPWIDGET_SIZES).isNullOrEmpty()
         if (Build.VERSION.SDK_INT >= 31 && sizedHost) {
             // Android 12+ lets the host select a matching layout immediately during resize.
-            val sizes = listOf(SizeF(140f, 140f), SizeF(140f, 320f), SizeF(240f, 180f), SizeF(280f, 320f))
+            val sizes = listOf(SizeF(1f, 1f), SizeF(120f, 88f), SizeF(120f, 220f), SizeF(220f, 120f), SizeF(260f, 240f))
             return RemoteViews(sizes.associateWith { size ->
-                build(context, PvpPresentation.density(size.width, size.height, fontScale), snapshot, now, id, size.width < 240)
+                build(context, PvpPresentation.density(size.width, size.height, fontScale), snapshot, now, id, size.width < 220)
             })
         }
         val defaults = when (preset) {
-            PvpDensity.SMALL -> 155 to 155
-            PvpDensity.MEDIUM -> 320 to 180
-            PvpDensity.LARGE -> 320 to 340
+            PvpDensity.MINI -> 110 to 72
+            PvpDensity.SMALL -> 140 to 100
+            PvpDensity.MEDIUM -> 280 to 140
+            PvpDensity.LARGE -> 280 to 260
         }
         // Older MIUI/HyperOS launchers may still report only the classic size bundle.
         val landscape = context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -57,34 +58,30 @@ object PvpWidgetRenderer {
         val height = options.getInt(if (landscape) AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT
             else AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT,
             options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, defaults.second))
-        return build(context, PvpPresentation.density(width.toFloat(), height.toFloat(), fontScale), snapshot, now, id, width < 240)
+        return build(context, PvpPresentation.density(width.toFloat(), height.toFloat(), fontScale), snapshot, now, id, width < 220)
     }
 
     fun build(context: Context, density: PvpDensity, snapshot: JSONObject, now: Long, id: Int = 0, stacked: Boolean = false): RemoteViews {
         val layout = when (density) {
-            PvpDensity.SMALL -> R.layout.pvp_widget_small
-            PvpDensity.MEDIUM -> if (stacked) R.layout.pvp_widget_tall else R.layout.pvp_widget_medium
-            PvpDensity.LARGE -> R.layout.pvp_widget_large
+            PvpDensity.MINI -> R.layout.pvp_widget_mini
+            PvpDensity.SMALL -> R.layout.pvp_widget_compact
+            PvpDensity.MEDIUM -> if (stacked) R.layout.pvp_widget_vertical else R.layout.pvp_widget_wide
+            PvpDensity.LARGE -> R.layout.pvp_widget_schedule
         }
         val views = RemoteViews(context.packageName, layout)
         // Hosts reuse views: reset properties changed by an earlier font/theme/density.
-        val basePadding = ((if (density == PvpDensity.LARGE) 14 else 12) * context.resources.displayMetrics.density).toInt()
-        views.setViewPadding(R.id.widget_root, basePadding, basePadding, basePadding, basePadding)
-        views.setInt(R.id.widget_root, "setBackgroundResource", 0)
-        views.setInt(R.id.widget_root, "setBackgroundResource", R.drawable.pvp_widget_background)
-        views.setViewVisibility(R.id.pvp_heading, if (density == PvpDensity.LARGE) View.VISIBLE else View.GONE)
-        views.setViewVisibility(R.id.pvp_status, View.VISIBLE)
+        // Keep surface and palette in XML. Xiaomi can rebuild cached RemoteViews on theme changes.
+        val compact = density == PvpDensity.SMALL || density == PvpDensity.MINI
+        val basePadding = ((if (density == PvpDensity.MINI) 6 else if (compact) 8 else 10) * context.resources.displayMetrics.density).toInt()
+        views.setViewPadding(R.id.pvp_content, basePadding, basePadding, basePadding, basePadding)
+        views.setViewVisibility(R.id.pvp_heading, View.GONE)
+        views.setViewVisibility(R.id.pvp_status, View.GONE)
+        views.setTextViewText(R.id.pvp_status, "")
         views.setViewVisibility(R.id.pvp_front_label, View.VISIBLE)
         views.setViewVisibility(R.id.pvp_crystal_label, View.VISIBLE)
-        val baseText = if (density == PvpDensity.SMALL) 16f else 19f
+        val baseText = if (density == PvpDensity.MINI) 12f else if (compact) 14f else 16f
         views.setTextViewTextSize(R.id.pvp_front_current, TypedValue.COMPLEX_UNIT_SP, baseText)
         views.setTextViewTextSize(R.id.pvp_crystal_current, TypedValue.COMPLEX_UNIT_SP, baseText)
-        views.setTextColor(R.id.pvp_heading, context.getColor(R.color.pvp_text))
-        views.setTextColor(R.id.pvp_front_current, context.getColor(R.color.pvp_text))
-        views.setTextColor(R.id.pvp_crystal_current, context.getColor(R.color.pvp_text))
-        views.setTextColor(R.id.pvp_status, context.getColor(R.color.pvp_muted))
-        views.setTextColor(R.id.pvp_front_label, context.getColor(R.color.pvp_frontline))
-        views.setTextColor(R.id.pvp_crystal_label, context.getColor(R.color.pvp_crystal))
         val rules = snapshot.getJSONObject("pvp")
         val front = SnapshotValidator.rotation(rules.getJSONObject("frontline"), now)
         val crystal = SnapshotValidator.rotation(rules.getJSONObject("crystalline"), now)
@@ -96,38 +93,23 @@ object PvpWidgetRenderer {
         views.setContentDescription(R.id.widget_root,
             "国服 PVP。纷争前线 ${front.current}，下轮 ${front.next}，北京时间 ${at(front.changesAtMs, true)} 换图。" +
             "水晶冲突 ${crystal.current}，下张 ${crystal.next}，北京时间 ${at(crystal.changesAtMs)} 换图。")
-        val source = when {
-            snapshot.optBoolean("bundledRules") -> "内置规则"
-            now >= snapshot.getLong("staleAfterMs") -> "离线推算，规则待校验"
-            else -> "已同步 ${at(snapshot.getLong("generatedAtMs"))}"
-        }
-        views.setTextViewText(R.id.pvp_status,
-            if (density == PvpDensity.SMALL) "国服 · $source" else "北京时间 · $source")
-        if (density == PvpDensity.SMALL && largeText) {
+        if (compact && (largeText || density == PvpDensity.MINI)) {
             views.setViewVisibility(R.id.pvp_heading, View.GONE)
             views.setViewVisibility(R.id.pvp_status, View.GONE)
             views.setViewVisibility(R.id.pvp_front_label, View.GONE)
             views.setViewVisibility(R.id.pvp_crystal_label, View.GONE)
-            fun readable(label: String, name: String, color: Int): SpannableString =
-                SpannableString("$label\n$name").apply {
+            fun readable(label: String, name: String): SpannableString =
+                SpannableString("$label $name").apply {
                     setSpan(RelativeSizeSpan(0.65f), 0, label.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    setSpan(ForegroundColorSpan(context.getColor(color)), 0, label.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
-            views.setTextViewText(R.id.pvp_front_current, readable("纷争前线", currentFront, R.color.pvp_frontline))
-            views.setTextViewText(R.id.pvp_crystal_current, readable("水晶冲突", currentCrystal, R.color.pvp_crystal))
-            // Compact physical space is finite: retain both full names, at up to 20dp text.
-            val readableSize = minOf(14f, 20f / context.resources.configuration.fontScale)
-            val padding = (8 * context.resources.displayMetrics.density).toInt()
-            views.setViewPadding(R.id.widget_root, padding, padding, padding, padding)
+            views.setTextViewText(R.id.pvp_front_current, readable("前线", currentFront))
+            views.setTextViewText(R.id.pvp_crystal_current, readable("水晶", currentCrystal))
+            val readableSize = if (density == PvpDensity.MINI) minOf(12f, 12.5f / context.resources.configuration.fontScale)
+                else minOf(13f, 15.5f / context.resources.configuration.fontScale)
             views.setTextViewTextSize(R.id.pvp_front_current, TypedValue.COMPLEX_UNIT_SP, readableSize)
             views.setTextViewTextSize(R.id.pvp_crystal_current, TypedValue.COMPLEX_UNIT_SP, readableSize)
         }
-        if (density != PvpDensity.SMALL) {
-            for (field in intArrayOf(R.id.pvp_front_next, R.id.pvp_crystal_next,
-                R.id.pvp_front_boundary, R.id.pvp_crystal_boundary))
-                views.setTextColor(field, context.getColor(R.color.pvp_muted))
-            views.setTextColor(R.id.pvp_front_countdown, context.getColor(R.color.pvp_frontline))
-            views.setTextColor(R.id.pvp_crystal_countdown, context.getColor(R.color.pvp_crystal))
+        if (!compact) {
             views.setTextViewText(R.id.pvp_front_next, "下轮 ${PvpPresentation.shortMap(front.next)}")
             views.setTextViewText(R.id.pvp_crystal_next, "下张 ${PvpPresentation.shortMap(crystal.next)}")
             views.setTextViewText(R.id.pvp_front_boundary, "${at(front.changesAtMs)} 换图")
@@ -148,10 +130,6 @@ object PvpWidgetRenderer {
                 views.setTextViewText(frontMaps[i], PvpPresentation.shortMap(SnapshotValidator.rotation(rules.getJSONObject("frontline"), frontAt).current))
                 views.setTextViewText(crystalTimes[i], at(crystalAt, true))
                 views.setTextViewText(crystalMaps[i], PvpPresentation.shortMap(SnapshotValidator.rotation(rules.getJSONObject("crystalline"), crystalAt).current))
-                views.setTextColor(frontTimes[i], context.getColor(R.color.pvp_muted))
-                views.setTextColor(crystalTimes[i], context.getColor(R.color.pvp_muted))
-                views.setTextColor(frontMaps[i], context.getColor(R.color.pvp_text))
-                views.setTextColor(crystalMaps[i], context.getColor(R.color.pvp_text))
             }
         }
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(WidgetData.SITE)).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK }

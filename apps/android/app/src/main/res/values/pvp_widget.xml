@@ -20,41 +20,41 @@
   <item name="android:maxLines">1</item>
  </style>
  <style name="PvpLabel" parent="PvpText">
-  <item name="android:textSize">11sp</item>
+  <item name="android:textSize">10sp</item>
   <item name="android:textColor">@color/pvp_muted</item>
  </style>
  <style name="PvpMap" parent="PvpText">
-  <item name="android:textSize">19sp</item>
+  <item name="android:textSize">16sp</item>
   <item name="android:fontFamily">sans-serif-medium</item>
-  <item name="android:layout_marginTop">6dp</item>
+  <item name="android:layout_marginTop">3dp</item>
   <item name="android:maxLines">2</item>
   <item name="android:ellipsize">end</item>
  </style>
  <style name="PvpNext" parent="PvpLabel">
   <item name="android:textSize">11sp</item>
-  <item name="android:layout_marginTop">8dp</item>
+  <item name="android:layout_marginTop">4dp</item>
   <item name="android:maxLines">2</item>
   <item name="android:ellipsize">end</item>
  </style>
  <style name="PvpCountdown" parent="PvpText">
-  <item name="android:textSize">14sp</item>
+  <item name="android:textSize">12sp</item>
   <item name="android:fontFamily">sans-serif-medium</item>
-  <item name="android:layout_marginTop">8dp</item>
+  <item name="android:layout_marginTop">4dp</item>
  </style>
  <style name="PvpScheduleTime" parent="PvpLabel">
   <item name="android:textSize">11sp</item>
-  <item name="android:layout_marginTop">6dp</item>
+  <item name="android:layout_marginTop">4dp</item>
  </style>
  <style name="PvpScheduleMap" parent="PvpText">
-  <item name="android:textSize">13sp</item>
-  <item name="android:layout_marginTop">3dp</item>
+  <item name="android:textSize">12sp</item>
+  <item name="android:layout_marginTop">2dp</item>
   <item name="android:maxLines">1</item>
   <item name="android:ellipsize">end</item>
  </style>
  <string name="pvp_small_widget">PVP 战场 · 小</string>
  <string name="pvp_medium_widget">PVP 战场 · 中</string>
  <string name="pvp_large_widget">PVP 战场 · 大</string>
- <string name="pvp_small_description">两种当前战场，适合 2×2，可拖动缩放</string>
+ <string name="pvp_small_description">紧凑双战场，适合 2×1，可拖动缩放</string>
  <string name="pvp_medium_description">当前、下轮地图与倒计时，适合 4×2</string>
  <string name="pvp_large_description">双战场与接下来三轮地图，适合 4×4</string>
 </resources>

@@ -32,9 +32,9 @@ class PvpPreviewActivity : Activity() {
         label("PVP 战场 · 尺寸预览")
         val snapshot = WidgetData.cached(this) ?: return
         val now = System.currentTimeMillis()
-        val variants = listOf(Triple("小 · 当前战场", 155, 155),
-            Triple("中 · 当前、下轮与倒计时", 320, 180),
-            Triple("大 · 接下来三轮", 320, 340))
+        val variants = listOf(Triple("小 · 当前战场", 140, 100),
+            Triple("中 · 当前、下轮与倒计时", 280, 140),
+            Triple("大 · 接下来三轮", 280, 260))
         for ((name, desiredWidth, height) in variants) {
             label(name)
             val width = minOf(available, desiredWidth)
