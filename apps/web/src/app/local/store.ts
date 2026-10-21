@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {fishProgressSchema,parseFishDocument,fieldsToDocument,validateNavUrl,type FishDocument,type FishProgress,type FishRegion,type FishProgressWrite} from '@ff14-hub/shared';
-export const sectionSchema=z.enum(['events','fishing','notes']);
+export const sectionSchema=z.enum(['events','fishing','pvp','notes']);
 export type HomeSection=z.infer<typeof sectionSchema>;
 export const localLinkSchema=z.object({
   id:z.uuid(),title:z.string().min(1).max(100),
@@ -17,14 +17,32 @@ export const localLinkSchema=z.object({
     }catch{ctx.addIssue({code:'custom',message:'图标地址无效',path:['faviconUrl']});}
   }
 });
-const configurationSchema=z.object({order:z.array(sectionSchema).length(3).refine(v=>new Set(v).size===3),visible:z.object({events:z.boolean(),fishing:z.boolean(),notes:z.boolean()}).strict(),region:z.enum(['cn','global'])}).strict();
+/**
+ * 增加 PVP 首页模块时自动迁移旧版三模块数据和个人备份。
+ * 保留旧的可见性及排序，不创建新账号、不清空 IndexedDB。
+ * 已经拥有 PVP 配置时原样校验，避免覆盖用户的隐藏设置。
+ */
+const configurationSchema=z.preprocess(value=>{
+  if(!value||typeof value!=='object'||Array.isArray(value))return value;
+  const record=value as Record<string,unknown>;
+  if(!Array.isArray(record['order'])||record['order'].length!==3)return value;
+  const old=new Set(record['order']);
+  if(old.size!==3||!['events','fishing','notes'].every(x=>old.has(x)))return value;
+  const visible=record['visible'];
+  if(!visible||typeof visible!=='object'||Array.isArray(visible))return value;
+  return {...record,order:[...record['order'],'pvp'],visible:{...visible,pvp:true}};
+},z.object({
+  order:z.array(sectionSchema).length(4).refine(v=>new Set(v).size===4),
+  visible:z.object({events:z.boolean(),fishing:z.boolean(),pvp:z.boolean(),notes:z.boolean()}).strict(),
+  region:z.enum(['cn','global']),
+}).strict());
 export const localDataSchema=z.object({version:z.literal(1),revision:z.number().int().nonnegative(),fish:z.object({cn:z.array(fishProgressSchema).max(15000),global:z.array(fishProgressSchema).max(15000)}).strict(),configuration:configurationSchema,links:z.array(localLinkSchema).max(2000),notes:z.array(z.object({id:z.uuid(),title:z.string().min(1).max(100),text:z.string().max(10000)}).strict()).max(100)}).strict()
   .refine(data=>['cn','global'].every(region=>{const fields=data.fish[region as FishRegion];return fields.every(f=>f.region===region)&&new Set(fields.map(f=>`${f.fishId}:${f.field}`)).size===fields.length;})&&new Set(data.links.map(link=>link.id)).size===data.links.length,'备份含重复或区服不一致的数据');
 export type LocalData=z.infer<typeof localDataSchema>;
 export const localBackupSchema=z.object({format:z.literal('ff14-hub-local'),version:z.literal(1),exportedAt:z.string(),data:localDataSchema}).strict();
 const databaseSchema=z.object({data:localDataSchema,operations:z.array(z.object({id:z.string(),fingerprint:z.string(),result:fishProgressSchema})).max(200)});
 type DatabaseDocument=z.infer<typeof databaseSchema>;
-const initial=():DatabaseDocument=>({data:{version:1,revision:0,fish:{cn:[],global:[]},configuration:{order:['events','fishing','notes'],visible:{events:true,fishing:true,notes:false},region:'cn'},links:[],notes:[]},operations:[]});
+const initial=():DatabaseDocument=>({data:{version:1,revision:0,fish:{cn:[],global:[]},configuration:{order:['events','fishing','pvp','notes'],visible:{events:true,fishing:true,pvp:true,notes:false},region:'cn'},links:[],notes:[]},operations:[]});
 
 /** Each mutation is one IDB read/write transaction, serialized across tabs. */
 export function createLocalStore(factory:()=>IDBFactory=()=>indexedDB,name='ff14-hub-personal-v1'){
