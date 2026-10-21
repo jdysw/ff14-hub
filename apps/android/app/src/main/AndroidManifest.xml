@@ -23,6 +23,7 @@
    <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
    <meta-data android:name="android.appwidget.provider" android:resource="@xml/events_widget_info"/>
   </receiver>
+  <receiver android:name=".widgets.PvpRolloverReceiver" android:exported="false"/>
   <receiver android:name=".widgets.OverviewWidgetProvider" android:exported="true">
    <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
    <meta-data android:name="android.appwidget.provider" android:resource="@xml/overview_widget_info"/>
