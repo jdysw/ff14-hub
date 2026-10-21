@@ -1,7 +1,7 @@
 import {afterEach,expect,it,vi} from 'vitest';
 import {createRemoteClient,emptyRemoteConfig,mergePersonalData,remoteUrl,s3Headers} from '../src/app/local/remote-sync';
 import type {LocalData} from '../src/app/local/store';
-const empty=():LocalData=>({version:1,revision:0,fish:{cn:[],global:[]},configuration:{order:['events','fishing','notes'],visible:{events:true,fishing:true,notes:false},region:'cn'},links:[],notes:[]});
+const empty=():LocalData=>({version:1,revision:0,fish:{cn:[],global:[]},configuration:{order:['events','fishing','pvp','notes'],visible:{events:true,fishing:true,pvp:true,notes:false},region:'cn'},links:[],notes:[]});
 afterEach(()=>vi.unstubAllGlobals());
 it('preserves deletions and exposes competing edits instead of choosing a device silently',()=>{
   const note={id:crypto.randomUUID(),title:'备忘',text:'原始'},base={...empty(),notes:[note]};
