@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "uk.zhixia.ff14hub.widgets"
     compileSdk = 35
+    buildFeatures { buildConfig = true }
     defaultConfig {
         applicationId = "uk.zhixia.ff14hub.widgets"
         minSdk = 26
