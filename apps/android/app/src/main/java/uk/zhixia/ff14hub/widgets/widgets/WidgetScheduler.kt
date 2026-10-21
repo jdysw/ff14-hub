@@ -20,6 +20,7 @@ class WidgetRefreshWorker(context: Context, params: WorkerParameters): Worker(co
     override fun doWork(): Result {
         val success = WidgetData.refresh(applicationContext)
         WidgetRenderer.updateAll(applicationContext)
+        PvpRolloverReceiver.schedule(applicationContext)
         return if (success) Result.success() else Result.retry()
     }
 }
@@ -54,6 +55,7 @@ abstract class HubWidgetProvider(private val kind: WidgetKind): AppWidgetProvide
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         super.onUpdate(context, manager, ids)
         WidgetRenderer.updateIds(context, manager, ids, kind)
+        PvpRolloverReceiver.schedule(context)
         WidgetScheduler.start(context)
         WidgetScheduler.refreshNow(context)
     }
@@ -61,6 +63,7 @@ abstract class HubWidgetProvider(private val kind: WidgetKind): AppWidgetProvide
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
         WidgetScheduler.stopIfUnused(context)
+        PvpRolloverReceiver.schedule(context)
     }
 }
 
