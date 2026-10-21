@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/pvp_widget_solid" android:foreground="@drawable/pvp_widget_feedback">
+ <ImageView android:id="@+id/pvp_background" android:layout_width="match_parent" android:layout_height="match_parent" android:src="@drawable/pvp_widget_solid" android:scaleType="fitXY" android:importantForAccessibility="no" android:contentDescription="@null" />
+ <LinearLayout android:id="@+id/pvp_content" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="10dp">
+  <TextView android:id="@+id/pvp_heading" style="@style/PvpHeading" android:visibility="gone" android:text="" />
+  <include layout="@layout/pvp_front_column" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_weight="0" />
+  <LinearLayout android:layout_width="match_parent" android:layout_height="4dp" android:orientation="vertical" />
+  <include layout="@layout/pvp_crystal_column" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_weight="0" />
+  <TextView android:id="@+id/pvp_status" style="@style/PvpLabel" android:layout_marginTop="8dp" android:textSize="10sp" android:maxLines="1" android:visibility="gone" android:text="" />
+ </LinearLayout>
+</FrameLayout>

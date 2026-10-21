@@ -58,10 +58,17 @@ class MainActivity: Activity() {
         }
         label("FF14 Hub · Android 小部件",22f)
         label("长按手机桌面 → 小部件 → FF14 Hub，选择 PVP、鱼窗、活动或综合概览。")
-        button("添加 PVP 战场 · 小（2×2）") { pin(FrontlineWidgetProvider::class.java) }
+        button("添加 PVP 战场 · 小（2×1）") { pin(FrontlineWidgetProvider::class.java) }
         button("添加 PVP 战场 · 中（4×2）") { pin(CrystallineWidgetProvider::class.java) }
         button("添加 PVP 战场 · 大（4×4）") { pin(PvpLargeWidgetProvider::class.java) }
         button("预览三种尺寸") { startActivity(Intent(this, PvpPreviewActivity::class.java)) }
+        button("小米负一屏添加说明") {
+            AlertDialog.Builder(this).setTitle("负一屏与桌面组件")
+                .setMessage("当前安装包提供原生 Android 小组件。可从负一屏右上角“+”或桌面编辑中的小部件中心，查找“安卓小部件 / FF14 Hub”；若系统支持，可尝试将桌面组件拖向负一屏。\n\n小米专属小部件中心及负一屏卡片还涉及小米开发者接入、应用发布和组件审核。当前调试包尚未完成小米平台上架，无法保证出现在负一屏列表，也不能由应用强制放置。不同澎湃版本的入口可能不同。")
+                .setPositiveButton("官方接入说明") { _, _ ->
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://dev.mi.com/xiaomihyperos/appvault")))
+                }.setNegativeButton("知道了", null).show()
+        }
         label("同一组件可自由缩放，按实际空间自动切换信息密度。国服前线每日 23:00 换图，水晶冲突每小时整点换图。", 13f)
         label("关注鱼区服（PVP 轮换目前仅按国服规则；活动仅提供国服公共日历）")
         val region=Spinner(this)
