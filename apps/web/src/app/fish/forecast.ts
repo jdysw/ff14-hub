@@ -12,9 +12,9 @@ export function forecastCatalog(fish:readonly CatalogFish[],region:FishRegion,fr
   });
 }
 export function windowState(fish:CatalogFish,forecast:FishForecast|undefined,now:number){
-  const open=forecast?.windows.find(w=>w.startsAtUtcMs<=now&&w.endsAtUtcMs>now)??null;
+  const open=forecast?.windows.find(w=>!w.unrestricted&&w.startsAtUtcMs<=now&&w.endsAtUtcMs>now)??null;
   const next=forecast?.windows.find(w=>w.startsAtUtcMs>now)??null;
-  const always=fish.always&&fish.method==='rod'&&fish.rule===null;
+  const always=fish.method==='rod'&&(fish.always||forecast?.windows.some(w=>w.unrestricted)===true);
   return {open,next,always,unknown:(!fish.rule&&!always)||forecast?.failed===true,
     sort:open?open.endsAtUtcMs-1e15:always?Number.MAX_SAFE_INTEGER-1:next?.startsAtUtcMs??Number.MAX_SAFE_INTEGER};
 }

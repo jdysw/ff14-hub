@@ -4,6 +4,7 @@ import {parseFishDocument,serializeFishDocument,type FishRegion,type FishDocumen
 import {localBackupSchema,type LocalData,type LocalStore} from './store';
 import {usePrivateDraft} from '../pwa/draft-registry';
 import {RemoteSyncPanel} from './RemoteSyncPanel';
+import {FishcakeSyncPanel} from './FishcakeSyncPanel';
 
 export type DataSection='sync'|'fish'|'backup';
 function downloadJson(text:string,filename:string){
@@ -30,7 +31,7 @@ export function DataManagementPanel({store,data,initialSection='sync'}:{store:Lo
       {([['sync','云端同步'],['fish','钓鱼导入导出'],['backup','备份与恢复']] as const).map(([value,label])=><button key={value} type="button" aria-pressed={section===value} onClick={()=>setSection(value)}>{label}</button>)}
     </nav>
     {error?<p role="alert" className="notice notice--error">{error}</p>:null}{notice?<p role="status" className="notice notice--ok">{notice}</p>:null}
-    <div hidden={section!=='sync'}><RemoteSyncPanel store={store}/></div>
+    <div hidden={section!=='sync'}><FishcakeSyncPanel store={store}/><RemoteSyncPanel store={store}/></div>
     <section hidden={section!=='fish'} aria-label="鱼糕数据导入导出"><h3>鱼糕数据</h3>
       <label className="local-settings__field">区服<select aria-label="本地钓鱼导入区服" value={region} disabled={busy} onChange={event=>{setRegion(event.target.value as FishRegion);setConfirmed(false);}}><option value="cn">国服</option><option value="global">国际服</option></select></label>
       <p className="local-settings__caution">鱼糕文件不包含区服信息，请确认所选区服。</p>

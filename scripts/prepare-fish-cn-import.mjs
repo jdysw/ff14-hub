@@ -4,6 +4,7 @@
  * 输入为上游转换的国际服 JSON 和来自国服 datamining 的 CSV。
  */
 import { readFile,writeFile } from 'node:fs/promises';
+import {trackerRequirements} from './lib/fish-requirements.mjs';
 
 const [globalBundlePath,trackerPath,itemsPath,parametersPath,weatherPath,spotsPath,placesPath,cnSha,outputPath]=process.argv.slice(2);
 if(![globalBundlePath,trackerPath,itemsPath,parametersPath,weatherPath,spotsPath,placesPath,cnSha,outputPath].every(Boolean)
@@ -75,7 +76,7 @@ for(const [key,weather] of Object.entries(tracker.WEATHER_TYPES??{})){
 if(fishIds.size<100||names.size<100||enToCnWeather.size<5)throw new Error('国服数据不完整，拒绝生成候选目录');
 const records=[];const skipped={missingCnFish:0,missingCnName:0,missingWeather:0};
 const sourceUrl='https://github.com/thewakingsands/ffxiv-datamining-cn/blob/'+cnSha+'/FishParameter.csv';
-const version='cn-'+cnSha.slice(0,12)+'-rule-'+String(bundle.records[0]?.rule?.version??'unknown').slice(0,40);
+const version='cn-'+cnSha.slice(0,12)+'-rule-'+String(bundle.records[0]?.rule?.version??'unknown').slice(0,40)+'-conditions2';
 for(const original of bundle.records){
   if(!fishIds.has(original.id)){skipped.missingCnFish++;continue;}
   const localizedName=names.get(original.id);
@@ -92,9 +93,10 @@ for(const original of bundle.records){
   const rule={
     ...original.rule,region:'cn',version,fishId:original.id,zoneId:String(cnSpot).slice(0,80),
     weatherRates:rates,currentWeather:current,previousWeather:previous,
-    validationStatus:'unverified',
-    conditions:[...original.rule.conditions.filter(c=>c.kind!=='unknown').slice(0,18),
-      {kind:'unknown',description:'出鱼规则来自国际服社区，已与国服鱼类 ID 核对，但时间和天气条件仍需国服验证。'}]
+    validationStatus:original.rule.validationStatus==='incomplete'?'incomplete':'unverified',
+    // Localize actual requirements. Regional uncertainty is the source status,
+    // not a replacement for dataMissing/snagging or other unknown mechanisms.
+    conditions:originalFish?trackerRequirements(originalFish,id=>names.get(id)??'物品 '+id):original.rule.conditions
   };
   records.push({
     ...original,region:'cn',name:String(localizedName).slice(0,100),demo:false,

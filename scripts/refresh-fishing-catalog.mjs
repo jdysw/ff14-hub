@@ -10,7 +10,7 @@ const files=[['tracker.js',`icykoneko/ff14-fish-tracker-app/${revisions.tracker}
   ['guide.js',`icykoneko/ff14-fish-tracker-app/${revisions.tracker}/js/app/fish_info_data.js`],
   ['teamcraft.json',`ffxiv-teamcraft/ffxiv-teamcraft/${revisions.teamcraft}/libs/data/src/lib/json/fishing-log-tracker-page-data.json`],
   ['legendary.json',`ffxiv-teamcraft/ffxiv-teamcraft/${revisions.teamcraft}/libs/data/src/lib/json/legendary-fish.json`]];
-for(const sheet of ['Item','EventItem','FishParameter','SpearfishingItem','Weather','FishingSpot','PlaceName','TerritoryType'])files.push([sheet+'.csv',`thewakingsands/ffxiv-datamining-cn/${revisions.cn}/${sheet}.csv`]);
+for(const sheet of ['Item','EventItem','FishParameter','SpearfishingItem','Weather','WeatherRate','FishingSpot','PlaceName','TerritoryType'])files.push([sheet+'.csv',`thewakingsands/ffxiv-datamining-cn/${revisions.cn}/${sheet}.csv`]);
 await Promise.all(files.map(async([name,source])=>{
   const response=await fetch('https://raw.githubusercontent.com/'+source,{credentials:'omit',signal:AbortSignal.timeout(90000)});
   if(!response.ok)throw new Error('Source download failed: '+name);

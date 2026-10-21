@@ -117,8 +117,17 @@ describe('scheduler leases and suppression',()=>{
       rule:{...f.rule,startHour:0,endHour:24,validationStatus:'verified',weatherRates:[{weather:'clear',chance:100}]}}));
     await importFishBundle(env.DB,{schemaVersion:1,region:'cn',records:verified});
     await SELF.fetch('https://hub.test/api/v1/me/fish-progress',jsonPut({region:'cn',fishId:9000001,field:'alarm',value:true,expectedRevision:0,operationId:opId('alarm-yes')},{Authorization:a.authorization}));
+    // All-day/100%-clear has no opening event. Previously artificial weather splits triggered it.
+    await planNotifications(env.DB,fishNow,a.workspaceId);expect((await state(a)).jobs).toHaveLength(1);
+    const openingHour=(fishNow%4_200_000)/175_000;
+    await importFishBundle(env.DB,{schemaVersion:1,region:'cn',records:verified.map(f=>({...f,
+      rule:{...f.rule,startHour:openingHour,endHour:openingHour+1}}))});
     await planNotifications(env.DB,fishNow,a.workspaceId);expect((await state(a)).jobs.length).toBeGreaterThan(1);
     expect((await SELF.fetch(`${BASE}/rules`,jsonPut({...input,leadMinutes:4320,expectedRevision:1,operationId:opId('long-lead')},{Authorization:a.authorization}))).status).toBe(200);
+    // The 72h query is half-open; put the future opening five minutes before its end.
+    const longOpening=((fishNow+(4320-5)*60_000)%4_200_000)/175_000;
+    await importFishBundle(env.DB,{schemaVersion:1,region:'cn',records:verified.map(f=>({...f,
+      rule:{...f.rule,startHour:longOpening,endHour:longOpening+1}}))});
     await planNotifications(env.DB,fishNow,a.workspaceId);
     const longLead=await env.DB.prepare("SELECT due_at,starts_at FROM notification_jobs WHERE workspace_id=? AND rule_id=? AND status='queued'")
       .bind(a.workspaceId,input.id).all<{due_at:number;starts_at:number}>();

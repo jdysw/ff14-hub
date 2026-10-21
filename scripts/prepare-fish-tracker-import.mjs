@@ -4,6 +4,7 @@
  * 游戏数据的授权不能由代码 MIT 许可证自动推定，因此始终标记为 unverified。
  */
 import { readFile,stat,writeFile } from 'node:fs/promises';
+import {trackerRequirements} from './lib/fish-requirements.mjs';
 
 const [sourcePath,region,revision,outputPath]=process.argv.slice(2);
 if(!sourcePath||region!=='global'||!revision||!outputPath||!/^[0-9a-f]{7,40}$/i.test(revision)){
@@ -63,29 +64,13 @@ for(const [key,fish] of Object.entries(data.FISH)){
     startHour<0||startHour>24||endHour<0||endHour>24||startHour===endHour){
     skipped.push(key+':invalid-window');continue;
   }
-  const conditions=[];
-  const add=(kind,description)=>{
-    if(description&&conditions.length<20)conditions.push({kind,description:short(description)});
-  };
-  if(Array.isArray(fish.bestCatchPath)&&fish.bestCatchPath.length>0){
-    const baitNames=fish.bestCatchPath.map(i=>label(data.ITEMS[String(i)])||('物品 '+String(i)));
-    add('bait','推荐鱼饵/泳饵路径：'+baitNames.join(' → '));
-  }
-  if(Array.isArray(fish.predators)&&fish.predators.length>0)
-    add('predators','需要的前置鱼：'+fish.predators.map(i=>JSON.stringify(i)).join('、'));
-  if(fish.predators&&!Array.isArray(fish.predators)&&Object.keys(fish.predators).length>0)
-    add('predators','前置鱼数量条件：'+JSON.stringify(fish.predators));
-  if(fish.intuitionLength)add('intuition','鱼识持续时间：'+String(fish.intuitionLength));
-  if(fish.folklore)add('folklore','需要传承录：'+String(fish.folklore));
-  if(fish.fishEyes)add('fishEyes','可受鱼眼技能影响；当前计算未模拟鱼眼');
-  if(fish.dataMissing)add('unknown','上游标记有缺失的钓鱼条件');
-  if(fish.gig)add('unknown','刺鱼方式：'+String(fish.gig));
+  const conditions=trackerRequirements(fish,id=>label(data.ITEMS[String(id)]));
   const incomplete=Boolean(fish.dataMissing);
   fishRecords.push({
     id,region:'global',name:short(label(item),100),fishType:fish.bigFish?'big':'normal',demo:false,
     source:{url:sourceUrl,version:revision,fetchedAt,authorizationStatus:'unverified',
       verificationStatus:incomplete?'incomplete':'unverified'},
-    rule:{schemaVersion:1,region:'global',fishId:id,version:revision,zoneId:short(label(spot)||String(territory),80),
+    rule:{schemaVersion:1,region:'global',fishId:id,version:revision+'-conditions2',zoneId:short(label(spot)||String(territory),80),
       startHour,endHour,weatherRates,currentWeather,previousWeather,conditions,
       validationStatus:incomplete?'incomplete':'unverified'}
   });

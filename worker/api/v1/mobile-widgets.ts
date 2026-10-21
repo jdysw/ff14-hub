@@ -39,7 +39,7 @@ mobileWidgetRoutes.get('/v1/summary',validateQuery(mobileWidgetQueryV1Schema),as
       const records=(await readFish(c.env.DB,params.region)).filter(record=>chosen.has(record.id));
       const windows=records.flatMap(record=>
         fishWindows({region:params.region,rules:[record.rule],from:now,to:now+24*3_600_000})
-          .filter(window=>window.endsAtUtcMs>now)
+          .filter(window=>!window.unrestricted&&window.endsAtUtcMs>now)
           .slice(0,8)
           .map(window=>({
             fishId:record.id,name:record.name,

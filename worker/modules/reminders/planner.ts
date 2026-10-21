@@ -24,7 +24,7 @@ export async function occurrences(db:D1Database,workspace:string,rule:ReminderRu
     progress.some((f)=>f['field']==='caught'&&f['value']===1) || !progress.some((f)=>f['field']==='alarm'&&f['value']===1))return [];
   const sourceHash=await fingerprintOf('fish.source',record.rule);
   return fishWindows({region:rule.region,rules:[record.rule],from:Math.max(0,now-15*60_000),to:now+72*3600_000})
-    .filter((w)=>!w.candidateOnly).map((w)=>({key:w.occurrenceKey,startsAt:w.startsAtUtcMs,
+    .filter((w)=>!w.candidateOnly&&!w.unrestricted).map((w)=>({key:w.occurrenceKey,startsAt:w.startsAtUtcMs,
       expiresAt:Math.min(w.endsAtUtcMs,w.startsAtUtcMs+15*60_000),sourceHash}));
 }
 export async function planNotifications(db:D1Database,now:number,workspace?:string):Promise<number>{
