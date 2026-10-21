@@ -16,6 +16,8 @@ export default tseslint.config(
     ignores: [
       '**/node_modules/**',
       '**/dist/**',
+      '**/build/**',
+      '**/.gradle/**',
       '**/coverage/**',
       '**/.wrangler/**',
       '**/playwright-report/**',

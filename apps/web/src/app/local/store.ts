@@ -26,11 +26,12 @@ const configurationSchema=z.preprocess(value=>{
   if(!value||typeof value!=='object'||Array.isArray(value))return value;
   const record=value as Record<string,unknown>;
   if(!Array.isArray(record['order'])||record['order'].length!==3)return value;
-  const old=new Set(record['order']);
+  const order:readonly unknown[]=record['order'];
+  const old=new Set(order);
   if(old.size!==3||!['events','fishing','notes'].every(x=>old.has(x)))return value;
   const visible=record['visible'];
   if(!visible||typeof visible!=='object'||Array.isArray(visible))return value;
-  return {...record,order:[...record['order'],'pvp'],visible:{...visible,pvp:true}};
+  return {...record,order:[...order,'pvp'],visible:{...visible,pvp:true}};
 },z.object({
   order:z.array(sectionSchema).length(4).refine(v=>new Set(v).size===4),
   visible:z.object({events:z.boolean(),fishing:z.boolean(),pvp:z.boolean(),notes:z.boolean()}).strict(),

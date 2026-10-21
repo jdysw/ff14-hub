@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+ android:initialLayout="@layout/widget_tile"
+ android:minWidth="250dp" android:minHeight="170dp"
+ android:resizeMode="horizontal|vertical" android:widgetCategory="home_screen"
+ android:description="@string/overview_widget"
+ android:updatePeriodMillis="1800000"/>

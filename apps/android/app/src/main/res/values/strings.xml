@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+ <string name="app_name">FF14 Hub 小部件</string>
+ <string name="frontline_widget">纷争前线地图</string>
+ <string name="crystalline_widget">水晶冲突地图</string>
+ <string name="fish_widget">关注鱼窗</string>
+ <string name="events_widget">国服活动</string>
+ <string name="overview_widget">FF14 今日概览</string>
+</resources>
