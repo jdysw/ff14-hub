@@ -28,9 +28,6 @@ object WidgetRenderer {
         .withZone(ZoneId.of("Asia/Shanghai"))
 
     private fun formatAt(ms: Long) = dateFormat.format(Instant.ofEpochMilli(ms))
-    private fun mod(value: Long, size: Int): Int =
-        Math.floorMod(value, size.toLong()).toInt()
-
     /** 离线时仍可根据 API 下发的规则精确计算当前 PVP 时段。 */
     private fun pvp(snapshot: JSONObject, name: String, now: Long): WidgetText {
         val rule = snapshot.getJSONObject("pvp").getJSONObject(name)
@@ -39,15 +36,13 @@ object WidgetRenderer {
         val anchor = rule.getLong("anchorUtcMs")
         val initialIndex = rule.getInt("anchorIndex")
         require(period > 0 && maps.length() in 1..12)
-        val step = Math.floorDiv(now - anchor, period)
-        val index = mod(step + initialIndex, maps.length())
-        val next = (index + 1) % maps.length()
-        val changesAt = anchor + (step + 1) * period
+        val rotation = RotationMath.at(now,anchor,initialIndex,period,
+            (0 until maps.length()).map { maps.getString(it) })
         val title = if (name == "frontline") "纷争前线 · 今日战场" else "水晶冲突 · 当前地图"
         val later = if (name == "frontline") "明日" else "下张"
-        return WidgetText(title, maps.getString(index),
-            "$later：${maps.getString(next)}",
-            "北京时间 ${formatAt(changesAt)} 切换", changesAt)
+        return WidgetText(title, rotation.current,
+            "$later：${rotation.next}",
+            "北京时间 ${formatAt(rotation.changesAtMs)} 切换", rotation.changesAtMs)
     }
 
     private fun fish(snapshot: JSONObject, now: Long): WidgetText {
