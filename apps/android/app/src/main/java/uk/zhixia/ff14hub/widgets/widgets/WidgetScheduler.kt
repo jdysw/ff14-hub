@@ -4,6 +4,7 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
@@ -39,7 +40,8 @@ object WidgetScheduler {
         val job = OneTimeWorkRequestBuilder<WidgetRefreshWorker>()
             .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
             .build()
-        WorkManager.getInstance(context).enqueue(job)
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            "ff14_hub_widget_manual_refresh", ExistingWorkPolicy.KEEP, job)
     }
 
     fun stopIfUnused(context: Context) {
