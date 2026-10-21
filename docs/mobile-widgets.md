@@ -1,5 +1,7 @@
 # Mobile Widget Snapshot API v1（Android 首发，保留 iOS 兼容）
 
+2026-10-21 更正：国服前线北京时间每日 **23:00** 换图，规则版本升级至 `2026-10-21-cn-v2`；协议版本仍为 1。Android 合并 PVP 视图与缩放设计见 `pvp-responsive-widgets.md`。
+
 ## 协议
 
 `GET /api/v1/widgets/v1/summary?region=cn&fishIds=101,202`
@@ -27,13 +29,13 @@
     "frontline": {
       "current": "尘封秘岩（争夺战）",
       "next": "周边遗迹群（阵地战）",
-      "startsAtMs": 1792512000000,
-      "changesAtMs": 1792598400000,
-      "anchorUtcMs": 1792512000000,
+      "startsAtMs": 1792508400000,
+      "changesAtMs": 1792594800000,
+      "anchorUtcMs": 1792508400000,
       "anchorIndex": 4,
       "periodMs": 86400000,
       "cycle": ["尘封秘岩（争夺战）", "荣誉野（碎冰战）", "昂萨哈凯尔（竞争战）", "沃刻其特（演习战）", "尘封秘岩（争夺战）", "周边遗迹群（阵地战）", "昂萨哈凯尔（竞争战）", "沃刻其特（演习战）"],
-      "ruleVersion": "2026-10-21-cn-v1"
+      "ruleVersion": "2026-10-21-cn-v2"
     },
     "crystalline": {
       "current": "赤土红沙",
@@ -44,7 +46,7 @@
       "anchorIndex": 6,
       "periodMs": 3600000,
       "cycle": ["角力学校", "火山之心", "海岸斗场", "九霄云上", "机关大殿", "休兵书库", "赤土红沙"],
-      "ruleVersion": "2026-10-21-cn-v1"
+      "ruleVersion": "2026-10-21-cn-v2"
     }
   },
   "fish": {"status":"selection_required", "items":[]},

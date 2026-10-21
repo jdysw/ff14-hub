@@ -6,9 +6,10 @@
 export const PVP_DAY_MS=86_400_000;
 export const CRYSTAL_PERIOD_MS=3_600_000;
 const CN_OFFSET_MS=8*CRYSTAL_PERIOD_MS;
+export const PVP_RULE_VERSION='2026-10-21-cn-v2';
 
-// 北京时间 2026-10-21 00:00 对应第 5 个“尘封秘岩”；22 日接“周边遗迹群”。
-export const FRONTLINE_ANCHOR_UTC=Date.UTC(2026,9,20,16,0,0);
+// 国服每日 23:00 换图；10-20 23:00 至 10-21 23:00 为第 5 个“尘封秘岩”。
+export const FRONTLINE_ANCHOR_UTC=Date.UTC(2026,9,20,15,0,0);
 // 北京时间 2026-10-21 10:00—11:00 为“赤土红沙”，紧接着回到“角力学校”。
 export const CRYSTAL_ANCHOR_UTC=Date.UTC(2026,9,21,2,0,0);
 

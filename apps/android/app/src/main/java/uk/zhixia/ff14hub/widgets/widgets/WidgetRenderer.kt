@@ -17,7 +17,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-enum class WidgetKind { FRONTLINE, CRYSTALLINE, FISH, EVENTS, OVERVIEW }
+enum class WidgetKind { FRONTLINE, CRYSTALLINE, PVP_LARGE, FISH, EVENTS, OVERVIEW }
 
 private data class WidgetText(
     val title: String, val primary: String, val secondary: String,
@@ -104,6 +104,7 @@ object WidgetRenderer {
         val result = when (kind) {
             WidgetKind.FRONTLINE -> pvp(snapshot, "frontline", now)
             WidgetKind.CRYSTALLINE -> pvp(snapshot, "crystalline", now)
+            WidgetKind.PVP_LARGE -> overview(snapshot, now)
             WidgetKind.FISH -> fish(snapshot, now)
             WidgetKind.EVENTS -> events(snapshot, now)
             WidgetKind.OVERVIEW -> overview(snapshot, now)
@@ -122,6 +123,7 @@ object WidgetRenderer {
     fun providerClass(kind: WidgetKind): Class<out HubWidgetProvider> = when (kind) {
         WidgetKind.FRONTLINE -> FrontlineWidgetProvider::class.java
         WidgetKind.CRYSTALLINE -> CrystallineWidgetProvider::class.java
+        WidgetKind.PVP_LARGE -> PvpLargeWidgetProvider::class.java
         WidgetKind.FISH -> FishWidgetProvider::class.java
         WidgetKind.EVENTS -> EventsWidgetProvider::class.java
         WidgetKind.OVERVIEW -> OverviewWidgetProvider::class.java
@@ -130,10 +132,10 @@ object WidgetRenderer {
     fun activePvpModes(context: Context): Set<String> {
         val manager = AppWidgetManager.getInstance(context)
         fun active(kind: WidgetKind) = manager.getAppWidgetIds(ComponentName(context, providerClass(kind))).isNotEmpty()
-        val overview = active(WidgetKind.OVERVIEW)
+        val combined = active(WidgetKind.OVERVIEW) || active(WidgetKind.FRONTLINE) ||
+            active(WidgetKind.CRYSTALLINE) || active(WidgetKind.PVP_LARGE)
         return buildSet {
-            if (overview || active(WidgetKind.FRONTLINE)) add("frontline")
-            if (overview || active(WidgetKind.CRYSTALLINE)) add("crystalline")
+            if (combined) { add("frontline"); add("crystalline") }
         }
     }
 
@@ -158,6 +160,18 @@ object WidgetRenderer {
         val content = try { offline(kind, WidgetData.cached(context), now) }
             catch (_: Exception) { WidgetText("FF14 Hub", "数据格式需要更新", "请打开应用重新同步") }
         ids.forEach { id ->
+            if (kind in listOf(WidgetKind.FRONTLINE, WidgetKind.CRYSTALLINE, WidgetKind.PVP_LARGE)) {
+                val snapshot = WidgetData.cached(context)
+                if (snapshot != null) {
+                    val preset = when (kind) {
+                        WidgetKind.FRONTLINE -> PvpDensity.SMALL
+                        WidgetKind.CRYSTALLINE -> PvpDensity.MEDIUM
+                        else -> PvpDensity.LARGE
+                    }
+                    manager.updateAppWidget(id, PvpWidgetRenderer.responsive(context, manager, id, snapshot, now, preset))
+                    return@forEach
+                }
+            }
             val views = RemoteViews(context.packageName, R.layout.widget_tile)
             views.setTextViewText(R.id.widget_title, content.title)
             views.setTextViewText(R.id.widget_primary, content.primary)

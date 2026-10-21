@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
- android:initialLayout="@layout/widget_tile"
- android:minWidth="180dp" android:minHeight="140dp"
- android:minResizeWidth="180dp" android:minResizeHeight="140dp"
- android:targetCellWidth="3" android:targetCellHeight="2"
+ android:initialLayout="@layout/pvp_widget_medium"
+ android:minWidth="280dp" android:minHeight="180dp"
+ android:minResizeWidth="140dp" android:minResizeHeight="140dp"
+ android:targetCellWidth="4" android:targetCellHeight="2"
  android:resizeMode="horizontal|vertical" android:widgetCategory="home_screen"
- android:description="@string/crystalline_widget"
+ android:description="@string/pvp_medium_description"
  android:updatePeriodMillis="1800000"/>

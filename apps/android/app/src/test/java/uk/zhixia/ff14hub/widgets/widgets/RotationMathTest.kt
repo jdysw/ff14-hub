@@ -15,11 +15,11 @@ class RotationMathTest {
         "机关大殿","休兵书库","赤土红沙"
     )
     @Test fun frontlineOct21AndOct22() {
-        val today = RotationMath.at(1792548600000L, 1792512000000L, 4,
+        val today = RotationMath.at(1792548600000L, 1792508400000L, 4,
             86400000L, frontline)
         assertEquals("尘封秘岩（争夺战）",today.current)
         assertEquals("周边遗迹群（阵地战）",today.next)
-        val tomorrow = RotationMath.at(1792598400000L,1792512000000L,4,
+        val tomorrow = RotationMath.at(1792594800000L,1792508400000L,4,
             86400000L,frontline)
         assertEquals("周边遗迹群（阵地战）",tomorrow.current)
     }
@@ -50,16 +50,18 @@ class RotationMathTest {
         assertEquals("赤土红沙", RotationMath.at(anchor + 7 * hour, anchor, 6, hour, crystal).current)
     }
 
-    @Test fun frontlineChangesAtBeijingMidnightRegardlessOfTimezone() {
-        val midnight = 1792598400000L
+    @Test fun frontlineChangesAtBeijingTwentyThreeRegardlessOfTimezone() {
+        val rollover = 1792594800000L // 2026-10-21 23:00 Asia/Shanghai
         val original = java.util.TimeZone.getDefault()
         try {
             for (zone in listOf("UTC", "America/Los_Angeles", "Asia/Tokyo")) {
                 java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone(zone))
-                assertEquals("尘封秘岩（争夺战）", RotationMath.at(midnight - 1,
-                    1792512000000L, 4, 86400000L, frontline).current)
-                assertEquals("周边遗迹群（阵地战）", RotationMath.at(midnight,
-                    1792512000000L, 4, 86400000L, frontline).current)
+                assertEquals("尘封秘岩（争夺战）", RotationMath.at(rollover - 1,
+                    1792508400000L, 4, 86400000L, frontline).current)
+                assertEquals("周边遗迹群（阵地战）", RotationMath.at(rollover,
+                    1792508400000L, 4, 86400000L, frontline).current)
+                assertEquals("周边遗迹群（阵地战）", RotationMath.at(rollover + 3600000L,
+                    1792508400000L, 4, 86400000L, frontline).current)
             }
         } finally { java.util.TimeZone.setDefault(original) }
     }

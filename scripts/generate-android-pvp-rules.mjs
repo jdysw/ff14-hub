@@ -2,7 +2,7 @@
 // Android's first-launch/offline rules are generated from the same source as the Worker.
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import {
-  FRONTLINE_ANCHOR_UTC,FRONTLINE_MAPS,PVP_DAY_MS,frontlineAt,
+  FRONTLINE_ANCHOR_UTC,FRONTLINE_MAPS,PVP_DAY_MS,PVP_RULE_VERSION,frontlineAt,
   CRYSTAL_ANCHOR_UTC,CRYSTAL_MAPS,CRYSTAL_PERIOD_MS,crystallineAt,
 } from '../packages/shared/src/pvp-rotation.ts';
 
@@ -10,7 +10,7 @@ const generatedAtMs=Math.max(FRONTLINE_ANCHOR_UTC,CRYSTAL_ANCHOR_UTC);
 function rule(at,anchor,anchorIndex,periodMs,cycle){
   const state=at(generatedAtMs);
   return {current:state.current,next:state.next,startsAtMs:state.startsAt,changesAtMs:state.changesAt,
-    anchorUtcMs:anchor,anchorIndex,periodMs,cycle,ruleVersion:'2026-10-21-cn-v1'};
+    anchorUtcMs:anchor,anchorIndex,periodMs,cycle,ruleVersion:PVP_RULE_VERSION};
 }
 const snapshot={schemaVersion:1,generatedAtMs,refreshAfterMs:generatedAtMs+900_000,
   staleAfterMs:generatedAtMs+7_200_000,timezone:'Asia/Shanghai',region:'cn',pvp:{

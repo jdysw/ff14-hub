@@ -26,7 +26,9 @@ object SnapshotValidator {
         } }
         val index = rule.getInt("anchorIndex")
         require(rule.getDouble("anchorIndex") == index.toDouble())
-        require(rule.getString("ruleVersion").let { it.isNotBlank() && it.length <= 100 })
+        require(rule.getString("ruleVersion").let {
+            it.isNotBlank() && it.length <= 100 && it != "2026-10-21-cn-v1"
+        }) { "旧版零点轮换规则已更正，请刷新" }
         return RotationMath.at(now, anchor, index, period, cycle)
     }
 

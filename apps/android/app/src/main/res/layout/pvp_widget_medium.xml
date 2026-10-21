@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+ android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
+ android:orientation="vertical" android:padding="12dp" android:background="@drawable/pvp_widget_background">
+ <TextView android:id="@+id/pvp_heading" style="@style/PvpHeading" android:text="PVP 战场" android:visibility="gone"/>
+ <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:baselineAligned="false">
+  <include layout="@layout/pvp_front_column"/>
+  <LinearLayout android:layout_width="20dp" android:layout_height="1dp" android:orientation="vertical"/>
+  <include layout="@layout/pvp_crystal_column"/>
+ </LinearLayout>
+ <TextView android:id="@+id/pvp_status" style="@style/PvpLabel" android:layout_marginTop="8dp" android:maxLines="1"/>
+</LinearLayout>

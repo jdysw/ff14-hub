@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+ <color name="pvp_surface">#182431</color>
+ <color name="pvp_text">#F0F4F8</color>
+ <color name="pvp_muted">#B8C6D5</color>
+ <color name="pvp_line">#354657</color>
+ <color name="pvp_frontline">#A7C9EB</color>
+ <color name="pvp_crystal">#EAC68F</color>
+ <color name="pvp_ripple">#40B8C6D5</color>
+</resources>
