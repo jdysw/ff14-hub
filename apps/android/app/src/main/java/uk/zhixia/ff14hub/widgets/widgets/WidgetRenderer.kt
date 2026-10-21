@@ -128,6 +128,13 @@ object WidgetRenderer {
         WidgetKind.OVERVIEW -> OverviewWidgetProvider::class.java
     }
 
+    fun activePvpWidgetCount(context: Context): Int {
+        val manager=AppWidgetManager.getInstance(context)
+        return listOf(WidgetKind.FRONTLINE,WidgetKind.CRYSTALLINE,WidgetKind.OVERVIEW).sumOf { kind ->
+            manager.getAppWidgetIds(ComponentName(context,providerClass(kind))).size
+        }
+    }
+
     fun activeWidgetCount(context: Context): Int {
         val manager = AppWidgetManager.getInstance(context)
         return WidgetKind.entries.sumOf { kind ->
