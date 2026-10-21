@@ -1,6 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createFishcakeAdapter,fishcakeDocument,findFishcakeStore} from '../lib/fishcake-adapter.mjs';
+import {readFile} from 'node:fs/promises';
+import vm from 'node:vm';
 function fixture(legacy=null){
   let fishing={completedFish:[10],pinnedFish:[],alarmFish:['2:20'],otherFilter:['keep']};
   let legacyRaw=legacy;let calls=0;
@@ -37,4 +39,16 @@ test('validates bounded positive item IDs and locates the live Provider without 
   assert.throws(()=>fishcakeDocument({completed:[],pinned:[],alarmFish:['2:1']}));
   const f=fixture();const root={'__reactContainer$test':{child:{memoizedProps:{store:f.store}}}};
   assert.equal(findFishcakeStore(root),f.store);assert.throws(()=>findFishcakeStore({}),/接口/);
+});
+test('ignores native countdown changes while preserving progress updates and online heartbeats',async()=>{
+  const source=await readFile(new URL('../userscripts/fishcake-page.js',import.meta.url),'utf8');
+  let listener,changed,current={completed:[1],pinned:[],alarmFish:[]};const posts=[];
+  const window={postMessage:m=>posts.push(m),addEventListener:(_event,callback)=>{listener=callback;}};
+  const context=vm.createContext({window,document:{},localStorage:{},location:{origin:'https://fish.ffmomola.com'},loadFishcakeAdapter:async()=>({read:()=>current,subscribe:callback=>{changed=callback;}})});
+  vm.runInContext(source+';startPageAdapter("test-nonce");',context);
+  const read=async()=>{listener({source:window,origin:'https://fish.ffmomola.com',data:{channel:'ff14hub-fishcake-page',nonce:'test-nonce',action:'read'}});await new Promise(resolve=>setImmediate(resolve));};
+  await read();assert.equal(posts.length,1);
+  for(let n=0;n<100;n++)changed();assert.equal(posts.length,1);
+  current={...current,pinned:[2]};changed();assert.equal(posts.length,2);
+  await read();assert.equal(posts.length,3);assert.deepEqual(posts[2].document.pinned,[2]);
 });
