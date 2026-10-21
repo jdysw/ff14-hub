@@ -17,6 +17,7 @@ import type { AppBindings } from '../../types';
 import { publicEventRoutes } from './events';
 import { adminRoutes, publicSiteRoutes } from './admin';
 import { fishRoutes } from './fish';
+import {mobileWidgetRoutes} from './mobile-widgets';
 import { healthRoutes } from './health';
 import { identityRoutes } from './identity';
 import { meRoutes } from './me';
@@ -35,6 +36,7 @@ export function createApiV1(): Hono<AppBindings> {
   v1.route('/local-notifications',localNotificationRoutes);
   v1.route('/admin', adminRoutes);
   v1.route('/fish', fishRoutes);
+  v1.route('/widgets',mobileWidgetRoutes);
   v1.route('/identity', identityRoutes);
   v1.route('/me', meRoutes);
   v1.route('/__test__', createTestRoutes());
