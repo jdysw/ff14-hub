@@ -7,6 +7,13 @@ android {
     namespace = "uk.zhixia.ff14hub.widgets"
     compileSdk = 35
     buildFeatures { buildConfig = true }
+    // 预览调试版与正式版可在同一台手机共存，不共享个人配置和缓存。
+    buildTypes {
+        getByName("debug") {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-preview"
+        }
+    }
     defaultConfig {
         applicationId = "uk.zhixia.ff14hub.widgets"
         minSdk = 26
