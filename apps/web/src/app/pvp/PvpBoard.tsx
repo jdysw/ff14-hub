@@ -1,0 +1,84 @@
+import {useEffect,useState} from 'react';
+import {
+  beijingDate,beijingHour,crystallineAt,crystallineSchedule,
+  formatPvpCountdown,frontlineAt,frontlineSchedule,
+} from './rotation';
+
+interface PvpBoardProps {
+  readonly expanded?:boolean;
+  readonly onOpenDetail?:()=>void;
+}
+
+function useRotationClock():number{
+  const [now,setNow]=useState(Date.now);
+  useEffect(()=>{
+    const update=()=>setNow(Date.now());
+    const timer=window.setInterval(update,1_000);
+    document.addEventListener('visibilitychange',update);
+    window.addEventListener('focus',update);
+    return()=>{
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange',update);
+      window.removeEventListener('focus',update);
+    };
+  },[]);
+  return now;
+}
+
+/** 首页只保留两种 PVP 当前地图；详情继承网站统一的原位展开/收起交互。 */
+export function PvpBoard({expanded=false,onOpenDetail}:PvpBoardProps){
+  const now=useRotationClock();
+  const frontline=frontlineAt(now);
+  const crystal=crystallineAt(now);
+  const countdownFrontline=formatPvpCountdown(frontline.changesAt,now);
+  const countdownCrystal=formatPvpCountdown(crystal.changesAt,now);
+  const tomorrow=beijingDate(frontline.changesAt);
+
+  return <section className={expanded?'pvp-board pvp-board--expanded':'pvp-board pvp-board--home'}
+    aria-label="PVP 战场地图轮换" data-testid="pvp-board">
+    {!expanded?<header className="pvp-board__heading">
+      <h2>PVP 战场</h2>
+      <button type="button" onClick={onOpenDetail} className="pvp-board__expand">完整轮换 ↗</button>
+    </header>:<header className="pvp-board__detail-heading">
+      <h3>PVP 地图轮换</h3>
+      <p>自动按北京时间计算，无需刷新页面。</p>
+    </header>}
+    <div className="pvp-board__current">
+      <article className="pvp-board__mode">
+        <div className="pvp-board__mode-head"><h3>纷争前线</h3><span>每日 00:00 轮换</span></div>
+        <strong className="pvp-board__map">{frontline.current}</strong>
+        <div className="pvp-board__meta">
+          <span>明日：{frontline.next}</span>
+          <span className="pvp-board__countdown" title="距下一张地图">{countdownFrontline}</span>
+        </div>
+      </article>
+      <article className="pvp-board__mode">
+        <div className="pvp-board__mode-head"><h3>水晶冲突</h3><span>每 60 分钟轮换</span></div>
+        <strong className="pvp-board__map">{crystal.current}</strong>
+        <div className="pvp-board__meta">
+          <span>下张：{crystal.next} · {beijingHour(crystal.changesAt)} 开始</span>
+          <span className="pvp-board__countdown" title="距下一张地图">{countdownCrystal}</span>
+        </div>
+      </article>
+    </div>
+    {expanded?<div className="pvp-board__schedules">
+      <section className="pvp-board__schedule" aria-label="纷争前线未来八天">
+        <h3>纷争前线 · 未来 8 天</h3>
+        <p>每日北京时间 00:00 更换地图，下一次为 {tomorrow}。</p>
+        <ol>{frontlineSchedule(now).map((entry,index)=><li key={entry.date} aria-current={index===0?'time':undefined}>
+          <span className="pvp-board__schedule-time">{entry.date} {index===0?'（今日）':''}</span>
+          <span className="pvp-board__schedule-map">{entry.current}</span>
+        </li>)}</ol>
+      </section>
+      <section className="pvp-board__schedule" aria-label="水晶冲突未来八小时">
+        <h3>水晶冲突 · 接下来 8 小时</h3>
+        <p>每小时整点切换；时间均为北京时间。</p>
+        <ol>{crystallineSchedule(now).map((entry,index)=><li key={entry.startsAt} aria-current={index===0?'time':undefined}>
+          <span className="pvp-board__schedule-time">{entry.date} {entry.startHour}–{entry.endHour}</span>
+          <span className="pvp-board__schedule-map">{entry.current}</span>
+        </li>)}</ol>
+      </section>
+    </div>:null}
+    {expanded?<p className="pvp-board__footnote">基于当前提供的轮换顺序和 2026-10-21 锚点推算；若官方调整地图轮换或维护规则，需要校准时间表。</p>:null}
+  </section>;
+}
