@@ -4,7 +4,6 @@ import android.content.Context
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.net.URL
-import java.util.Locale
 import javax.net.ssl.HttpsURLConnection
 
 /** 用户数据仅存本机。服务端只接收明确选择的鱼 ID，不接收钓获记录或凭据。 */
@@ -38,14 +37,15 @@ object WidgetData {
             .putString("fishIds", ids).remove(CACHE).apply()
     }
 
-    fun cached(context: Context): JSONObject? =
-        try {
+    fun cached(context: Context): JSONObject? {
+        return try {
             val text = prefs(context).getString(CACHE, null) ?: return null
             val body = JSONObject(text)
             if (body.getInt("schemaVersion") != 1 ||
                 body.getString("timezone") != "Asia/Shanghai" ||
                 body.getString("region") != region(context)) null else body
         } catch (_: Exception) { null }
+    }
 
     fun lastError(context: Context): String? = prefs(context).getString("lastError", null)
 
