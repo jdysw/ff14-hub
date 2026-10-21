@@ -28,7 +28,7 @@ Windows 执行 `gradlew.bat`（首次执行 `gradle wrapper` 会生成它）。A
 ## 设计约束与待办
 
 - 不新增游戏账号，也不让 Worker 保存个人 WebDAV 账号或密码。
-- 公开 API：`GET /api/v1/widgets/v1/summary?region=cn&fishIds=123,456`。直到后端该 PR 合并部署，该接口在正式站可能返回 404；此时小部件会显示“暂无离线数据”而不是错误信息。
+- 公开 API：`GET /api/v1/widgets/v1/summary?region=cn&fishIds=123,456`。调试 APK 自动请求 `https://ff14-preview.zhixia.uk`，Release APK 才请求正式 API。直到后端此 PR 合并并部署，正式站可能返回 404；此时小部件会显示“暂无离线数据”而不是错误信息。
 - 当前设置页用鱼 ID 而不是名称检索；后续增加可搜索鱼类目录、扫码导入个人偏好、钓获状态同步。
 - 本阶段**没有** Android 定时通知 / 关键鱼窗本地提醒 / 锁屏活动 / iOS UI。通知调度与桌面数据刷新需要分开验收。
 - 仅已证实的时间信息才能生成后续提醒。未核实的鱼窗和活动只作参考展示。
