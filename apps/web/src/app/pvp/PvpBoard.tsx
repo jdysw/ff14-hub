@@ -45,7 +45,7 @@ export function PvpBoard({expanded=false,onOpenDetail}:PvpBoardProps){
     </header>}
     <div className="pvp-board__current">
       <article className="pvp-board__mode">
-        <div className="pvp-board__mode-head"><h3>纷争前线</h3><span>每日 00:00 轮换</span></div>
+        <div className="pvp-board__mode-head"><h3>纷争前线</h3><span>北京时间每日 00:00</span></div>
         <strong className="pvp-board__map">{frontline.current}</strong>
         <div className="pvp-board__meta">
           <span>明日：{frontline.next}</span>
@@ -53,10 +53,10 @@ export function PvpBoard({expanded=false,onOpenDetail}:PvpBoardProps){
         </div>
       </article>
       <article className="pvp-board__mode">
-        <div className="pvp-board__mode-head"><h3>水晶冲突</h3><span>每 60 分钟轮换</span></div>
+        <div className="pvp-board__mode-head"><h3>水晶冲突</h3><span>北京时间每 60 分钟</span></div>
         <strong className="pvp-board__map">{crystal.current}</strong>
         <div className="pvp-board__meta">
-          <span>下张：{crystal.next} · {beijingHour(crystal.changesAt)} 开始</span>
+          <span>下张：{crystal.next} · 北京时间 {beijingHour(crystal.changesAt)}</span>
           <span className="pvp-board__countdown" title="距下一张地图">{countdownCrystal}</span>
         </div>
       </article>
