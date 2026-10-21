@@ -39,9 +39,9 @@ export interface PvpRotationStatus {
   readonly changesAt:number;
 }
 
-function statusAt(now:number,anchor:number,period:number,maps:readonly string[]):PvpRotationStatus{
+function statusAt(now:number,anchor:number,period:number,maps:readonly string[],anchorIndex=0):PvpRotationStatus{
   const step=Math.floor((now-anchor)/period);
-  const index=modulo(step,maps.length);
+  const index=modulo(step+anchorIndex,maps.length);
   return {
     current:maps[index]!,
     next:maps[(index+1)%maps.length]!,
@@ -52,11 +52,11 @@ function statusAt(now:number,anchor:number,period:number,maps:readonly string[])
 }
 
 export function frontlineAt(now:number):PvpRotationStatus{
-  return statusAt(now,FRONTLINE_ANCHOR_UTC,PVP_DAY_MS,FRONTLINE_MAPS);
+  return statusAt(now,FRONTLINE_ANCHOR_UTC,PVP_DAY_MS,FRONTLINE_MAPS,4);
 }
 
 export function crystallineAt(now:number):PvpRotationStatus{
-  return statusAt(now,CRYSTAL_ANCHOR_UTC,CRYSTAL_PERIOD_MS,CRYSTAL_MAPS);
+  return statusAt(now,CRYSTAL_ANCHOR_UTC,CRYSTAL_PERIOD_MS,CRYSTAL_MAPS,6);
 }
 
 export function formatPvpCountdown(until:number,now:number):string{
