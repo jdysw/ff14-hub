@@ -38,7 +38,7 @@ class MainActivity: Activity() {
         }
         label("FF14 Hub · Android 小部件",22f)
         label("长按手机桌面 → 小部件 → FF14 Hub，选择 PVP、鱼窗、活动或综合概览。")
-        label("区服（活动仅提供国服公共日历）")
+        label("关注鱼区服（PVP 轮换目前仅按国服规则；活动仅提供国服公共日历）")
         val region=Spinner(this)
         region.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,listOf("国服","国际服"))
         region.setSelection(if(WidgetData.region(this)=="cn")0 else 1)
