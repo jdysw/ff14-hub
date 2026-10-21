@@ -17,6 +17,8 @@ describe('platform-neutral mobile widget API v1',()=>{
     expect(payload.generatedAtMs).toBeLessThan(payload.refreshAfterMs);
     expect(payload.refreshAfterMs).toBeLessThan(payload.staleAfterMs);
     expect(payload.pvp.frontline.cycle).toEqual(FRONTLINE_MAPS);
+    expect(payload.pvp.frontline.ruleVersion).toBe('2026-10-21-cn-v2');
+    expect(new Date(payload.pvp.frontline.changesAtMs + 8 * 3_600_000).getUTCHours()).toBe(23);
     expect(payload.pvp.crystalline.cycle).toEqual(CRYSTAL_MAPS);
     expect(payload.fish).toEqual({status:'selection_required',items:[]});
     expect(['ready','stale','unavailable']).toContain(payload.events.status);

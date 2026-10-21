@@ -19,6 +19,7 @@ import android.widget.TextView
 import android.widget.Toast
 import uk.zhixia.ff14hub.widgets.widgets.FrontlineWidgetProvider
 import uk.zhixia.ff14hub.widgets.widgets.CrystallineWidgetProvider
+import uk.zhixia.ff14hub.widgets.widgets.PvpLargeWidgetProvider
 import uk.zhixia.ff14hub.widgets.widgets.WidgetRenderer
 import uk.zhixia.ff14hub.widgets.widgets.WidgetScheduler
 
@@ -57,9 +58,11 @@ class MainActivity: Activity() {
         }
         label("FF14 Hub · Android 小部件",22f)
         label("长按手机桌面 → 小部件 → FF14 Hub，选择 PVP、鱼窗、活动或综合概览。")
-        button("添加纷争前线到桌面") { pin(FrontlineWidgetProvider::class.java) }
-        button("添加水晶冲突到桌面") { pin(CrystallineWidgetProvider::class.java) }
-        label("PVP 首次离线可用，使用国服轮换规则；联网后自动校验。", 13f)
+        button("添加 PVP 战场 · 小（2×2）") { pin(FrontlineWidgetProvider::class.java) }
+        button("添加 PVP 战场 · 中（4×2）") { pin(CrystallineWidgetProvider::class.java) }
+        button("添加 PVP 战场 · 大（4×4）") { pin(PvpLargeWidgetProvider::class.java) }
+        button("预览三种尺寸") { startActivity(Intent(this, PvpPreviewActivity::class.java)) }
+        label("同一组件可自由缩放，按实际空间自动切换信息密度。国服前线每日 23:00 换图，水晶冲突每小时整点换图。", 13f)
         label("关注鱼区服（PVP 轮换目前仅按国服规则；活动仅提供国服公共日历）")
         val region=Spinner(this)
         region.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,listOf("国服","国际服"))

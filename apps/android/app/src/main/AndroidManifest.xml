@@ -8,13 +8,18 @@
   <activity android:name=".MainActivity" android:exported="true">
    <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
   </activity>
-  <receiver android:name=".widgets.FrontlineWidgetProvider" android:exported="true" android:label="@string/frontline_widget">
+  <activity android:name=".PvpPreviewActivity" android:exported="false"/>
+  <receiver android:name=".widgets.FrontlineWidgetProvider" android:exported="true" android:label="@string/pvp_small_widget">
    <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
    <meta-data android:name="android.appwidget.provider" android:resource="@xml/frontline_widget_info"/>
   </receiver>
-  <receiver android:name=".widgets.CrystallineWidgetProvider" android:exported="true" android:label="@string/crystalline_widget">
+  <receiver android:name=".widgets.CrystallineWidgetProvider" android:exported="true" android:label="@string/pvp_medium_widget">
    <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
    <meta-data android:name="android.appwidget.provider" android:resource="@xml/crystalline_widget_info"/>
+  </receiver>
+  <receiver android:name=".widgets.PvpLargeWidgetProvider" android:exported="true" android:label="@string/pvp_large_widget">
+   <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
+   <meta-data android:name="android.appwidget.provider" android:resource="@xml/pvp_large_widget_info"/>
   </receiver>
   <receiver android:name=".widgets.FishWidgetProvider" android:exported="true">
    <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>

@@ -117,13 +117,13 @@ class WidgetDataTest {
         shadowOf(AppWidgetManager.getInstance(context)).addBoundWidget(id, info)
     }
 
-    @Test fun frontlineOnlySchedulesDailyBoundary() {
+    @Test fun legacyFrontlineProviderNowCombinesBothModes() {
         val body = seed()
         bind(100, FrontlineWidgetProvider::class.java)
         PvpRolloverReceiver.schedule(context)
         val alarms = shadowOf(context.getSystemService(AlarmManager::class.java)).scheduledAlarms
         assertEquals(1, alarms.size)
-        assertEquals(body.getJSONObject("pvp").getJSONObject("frontline").getLong("changesAtMs"),
+        assertEquals(body.getJSONObject("pvp").getJSONObject("crystalline").getLong("changesAtMs"),
             alarms.single().triggerAtMs)
         assertTrue(alarms.single().isAllowWhileIdle)
     }
@@ -162,7 +162,17 @@ class WidgetDataTest {
         assertTrue(cached.getBoolean("bundledRules"))
         assertEquals("unavailable", cached.getJSONObject("events").getString("status"))
         assertEquals("selection_required", cached.getJSONObject("fish").getString("status"))
-        assertEquals("2026-10-21-cn-v1", cached.getJSONObject("pvp")
+        assertEquals("2026-10-21-cn-v2", cached.getJSONObject("pvp")
             .getJSONObject("frontline").getString("ruleVersion"))
+    }
+
+    @Test fun midnightRuleCacheIsReplacedByCorrectedBundledRules() {
+        val old = snapshot()
+        old.getJSONObject("pvp").getJSONObject("frontline").put("ruleVersion", "2026-10-21-cn-v1")
+        context.getSharedPreferences("widget_preferences", Context.MODE_PRIVATE).edit()
+            .putString("public_snapshot", old.toString()).putString("pvp_snapshot", old.toString()).commit()
+        val replacement = WidgetData.cached(context)!!
+        assertTrue(replacement.getBoolean("bundledRules"))
+        assertEquals(1792508400000L, replacement.getJSONObject("pvp").getJSONObject("frontline").getLong("anchorUtcMs"))
     }
 }

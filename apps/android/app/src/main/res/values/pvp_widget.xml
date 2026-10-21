@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+ <color name="pvp_surface">#F7F9FC</color>
+ <color name="pvp_text">#172B42</color>
+ <color name="pvp_muted">#526477</color>
+ <color name="pvp_line">#DCE4ED</color>
+ <color name="pvp_frontline">#365F86</color>
+ <color name="pvp_crystal">#835C2D</color>
+ <color name="pvp_ripple">#24365F86</color>
+ <style name="PvpText" parent="@android:style/Widget.TextView">
+  <item name="android:layout_width">match_parent</item>
+  <item name="android:layout_height">wrap_content</item>
+  <item name="android:textColor">@color/pvp_text</item>
+  <item name="android:fontFamily">sans-serif</item>
+  <item name="android:includeFontPadding">false</item>
+ </style>
+ <style name="PvpHeading" parent="PvpText">
+  <item name="android:textSize">14sp</item>
+  <item name="android:fontFamily">sans-serif-medium</item>
+  <item name="android:maxLines">1</item>
+ </style>
+ <style name="PvpLabel" parent="PvpText">
+  <item name="android:textSize">11sp</item>
+  <item name="android:textColor">@color/pvp_muted</item>
+ </style>
+ <style name="PvpMap" parent="PvpText">
+  <item name="android:textSize">19sp</item>
+  <item name="android:fontFamily">sans-serif-medium</item>
+  <item name="android:layout_marginTop">6dp</item>
+  <item name="android:maxLines">2</item>
+  <item name="android:ellipsize">end</item>
+ </style>
+ <style name="PvpNext" parent="PvpLabel">
+  <item name="android:textSize">11sp</item>
+  <item name="android:layout_marginTop">8dp</item>
+  <item name="android:maxLines">2</item>
+  <item name="android:ellipsize">end</item>
+ </style>
+ <style name="PvpCountdown" parent="PvpText">
+  <item name="android:textSize">14sp</item>
+  <item name="android:fontFamily">sans-serif-medium</item>
+  <item name="android:layout_marginTop">8dp</item>
+ </style>
+ <style name="PvpScheduleTime" parent="PvpLabel">
+  <item name="android:textSize">11sp</item>
+  <item name="android:layout_marginTop">6dp</item>
+ </style>
+ <style name="PvpScheduleMap" parent="PvpText">
+  <item name="android:textSize">13sp</item>
+  <item name="android:layout_marginTop">3dp</item>
+  <item name="android:maxLines">1</item>
+  <item name="android:ellipsize">end</item>
+ </style>
+ <string name="pvp_small_widget">PVP 战场 · 小</string>
+ <string name="pvp_medium_widget">PVP 战场 · 中</string>
+ <string name="pvp_large_widget">PVP 战场 · 大</string>
+ <string name="pvp_small_description">两种当前战场，适合 2×2，可拖动缩放</string>
+ <string name="pvp_medium_description">当前、下轮地图与倒计时，适合 4×2</string>
+ <string name="pvp_large_description">双战场与接下来三轮地图，适合 4×4</string>
+</resources>

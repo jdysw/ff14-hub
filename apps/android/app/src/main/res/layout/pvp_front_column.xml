@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+ android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+ <TextView android:id="@+id/pvp_front_label" style="@style/PvpLabel" android:text="纷争前线" android:textColor="@color/pvp_frontline"/>
+ <TextView android:id="@+id/pvp_front_current" style="@style/PvpMap"/>
+ <TextView android:id="@+id/pvp_front_next" style="@style/PvpNext"/>
+ <Chronometer android:id="@+id/pvp_front_countdown" style="@style/PvpCountdown" android:textColor="@color/pvp_frontline"/>
+ <TextView android:id="@+id/pvp_front_boundary" style="@style/PvpLabel" android:layout_marginTop="4dp"/>
+</LinearLayout>

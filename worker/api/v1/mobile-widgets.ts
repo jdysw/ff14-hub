@@ -1,7 +1,7 @@
 import {Hono} from 'hono';
 import {
   CRYSTAL_ANCHOR_UTC,CRYSTAL_MAPS,CRYSTAL_PERIOD_MS,FRONTLINE_ANCHOR_UTC,FRONTLINE_MAPS,
-  PVP_DAY_MS,crystallineAt,frontlineAt,fishWindows,
+  PVP_DAY_MS,PVP_RULE_VERSION,crystallineAt,frontlineAt,fishWindows,
   mobileWidgetQueryV1Schema,mobileWidgetResponseV1Schema,
   type MobileWidgetResponseV1,
 } from '@ff14-hub/shared';
@@ -13,7 +13,6 @@ import {readFish} from '../../modules/fish/service';
 import {readOfficialCalendarSnapshot} from '../../modules/events/calendar-snapshot';
 import {applyCalendarEdits} from '../../modules/events/calendar-editor';
 
-const RULE_VERSION='2026-10-21-cn-v1';
 export const mobileWidgetRoutes=new Hono<AppBindings>();
 
 /** 无认证、公开只读；不得读取任何工作空间/用户标记或 WebDAV 密钥。 */
@@ -25,12 +24,12 @@ mobileWidgetRoutes.get('/v1/summary',validateQuery(mobileWidgetQueryV1Schema),as
     frontline:{
       current:front.current,next:front.next,startsAtMs:front.startsAt,changesAtMs:front.changesAt,
       anchorUtcMs:FRONTLINE_ANCHOR_UTC,anchorIndex:4,periodMs:PVP_DAY_MS,
-      cycle:[...FRONTLINE_MAPS],ruleVersion:RULE_VERSION,
+      cycle:[...FRONTLINE_MAPS],ruleVersion:PVP_RULE_VERSION,
     },
     crystalline:{
       current:crystal.current,next:crystal.next,startsAtMs:crystal.startsAt,changesAtMs:crystal.changesAt,
       anchorUtcMs:CRYSTAL_ANCHOR_UTC,anchorIndex:6,periodMs:CRYSTAL_PERIOD_MS,
-      cycle:[...CRYSTAL_MAPS],ruleVersion:RULE_VERSION,
+      cycle:[...CRYSTAL_MAPS],ruleVersion:PVP_RULE_VERSION,
     },
   };
   let fish:MobileWidgetResponseV1['fish']={status:'selection_required',items:[]};

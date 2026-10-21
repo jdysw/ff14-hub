@@ -13,7 +13,7 @@ it('displays both current PVP maps and the next rotation on the compact homepage
   const overview=screen.getByTestId('pvp-board');
   expect(within(overview).getByText('尘封秘岩（争夺战）')).toBeDefined();
   expect(within(overview).getByText('赤土红沙')).toBeDefined();
-  expect(within(overview).getByText('明日：周边遗迹群（阵地战）')).toBeDefined();
+  expect(within(overview).getByText('下轮：周边遗迹群（阵地战） · 北京时间 23:00')).toBeDefined();
   expect(within(overview).getByText('下张：角力学校 · 北京时间 11:00')).toBeDefined();
   expect(within(overview).getByText('00:50:00')).toBeDefined();
   expect(overview.querySelector('.pvp-board__schedules')).toBeNull();
@@ -34,7 +34,7 @@ it('shows every map entry in the expanded schedule instead of a second long home
   expect(container.querySelectorAll('.pvp-board__schedule')).toHaveLength(2);
   expect(container.querySelectorAll('.pvp-board__schedule li')).toHaveLength(16);
   expect(screen.getByText('2026-10-21 10:00–11:00')).toBeDefined();
-  expect(screen.getByText('2026-10-22')).toBeDefined();
+  expect(screen.getByText('2026-10-22 23:00')).toBeDefined();
   expect(screen.getByText(/官方调整地图轮换/)).toBeDefined();
   expect(screen.queryByRole('button',{name:'完整轮换 ↗'})).toBeNull();
 });

@@ -13,9 +13,10 @@ describe('PVP fixed-map schedules (Beijing time)',()=>{
     ]);
     expect(frontlineAt(oct21_1010)).toMatchObject({
       current:'尘封秘岩（争夺战）',next:'周边遗迹群（阵地战）',index:4,
-      changesAt:Date.parse('2026-10-21T16:00:00Z'),
+      changesAt:Date.parse('2026-10-21T15:00:00Z'),
     });
-    expect(frontlineAt(Date.parse('2026-10-21T15:59:59Z')).current).toBe('尘封秘岩（争夺战）');
+    expect(frontlineAt(Date.parse('2026-10-21T14:59:59.999Z')).current).toBe('尘封秘岩（争夺战）');
+    expect(frontlineAt(Date.parse('2026-10-21T15:00:00Z')).current).toBe('周边遗迹群（阵地战）');
     expect(frontlineAt(Date.parse('2026-10-21T16:00:00Z')).current).toBe('周边遗迹群（阵地战）');
     expect(frontlineAt(Date.parse('2026-10-28T02:10:00Z')).current).toBe('沃刻其特（演习战）');
     expect(frontlineAt(Date.parse('2026-10-29T02:10:00Z')).current).toBe('尘封秘岩（争夺战）');
@@ -34,8 +35,8 @@ describe('PVP fixed-map schedules (Beijing time)',()=>{
   it('creates correctly ordered full schedules and stable Beijing dates independent of client timezone',()=>{
     const front=frontlineSchedule(oct21_1010);
     expect(front).toHaveLength(8);
-    expect(front[0]?.date).toBe('2026-10-21');
-    expect(front[1]?.date).toBe('2026-10-22');
+    expect(front[0]?.date).toBe('2026-10-20');
+    expect(front[1]?.date).toBe('2026-10-21');
     expect(front[1]?.current).toBe('周边遗迹群（阵地战）');
     const crystal=crystallineSchedule(oct21_1010);
     expect(crystal).toHaveLength(8);

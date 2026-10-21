@@ -45,10 +45,10 @@ export function PvpBoard({expanded=false,onOpenDetail}:PvpBoardProps){
     </header>}
     <div className="pvp-board__current">
       <article className="pvp-board__mode">
-        <div className="pvp-board__mode-head"><h3>纷争前线</h3><span>北京时间每日 00:00</span></div>
+        <div className="pvp-board__mode-head"><h3>纷争前线</h3><span>北京时间每日 23:00</span></div>
         <strong className="pvp-board__map">{frontline.current}</strong>
         <div className="pvp-board__meta">
-          <span>明日：{frontline.next}</span>
+          <span>下轮：{frontline.next} · 北京时间 {beijingHour(frontline.changesAt)}</span>
           <span className="pvp-board__countdown" title="距下一张地图">{countdownFrontline}</span>
         </div>
       </article>
@@ -64,9 +64,9 @@ export function PvpBoard({expanded=false,onOpenDetail}:PvpBoardProps){
     {expanded?<div className="pvp-board__schedules">
       <section className="pvp-board__schedule" aria-label="纷争前线未来八天">
         <h3>纷争前线 · 未来 8 天</h3>
-        <p>每日北京时间 00:00 更换地图，下一次为 {tomorrow}。</p>
+        <p>每日北京时间 23:00 更换地图，下一次为 {tomorrow} 23:00。</p>
         <ol>{frontlineSchedule(now).map((entry,index)=><li key={entry.date} aria-current={index===0?'time':undefined}>
-          <span className="pvp-board__schedule-time">{entry.date} {index===0?'（今日）':''}</span>
+          <span className="pvp-board__schedule-time">{entry.date} 23:00 {index===0?'（本轮）':''}</span>
           <span className="pvp-board__schedule-map">{entry.current}</span>
         </li>)}</ol>
       </section>

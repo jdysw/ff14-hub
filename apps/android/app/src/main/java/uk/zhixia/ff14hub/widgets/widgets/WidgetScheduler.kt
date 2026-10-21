@@ -84,6 +84,7 @@ abstract class HubWidgetProvider(private val kind: WidgetKind): AppWidgetProvide
 
 class FrontlineWidgetProvider: HubWidgetProvider(WidgetKind.FRONTLINE)
 class CrystallineWidgetProvider: HubWidgetProvider(WidgetKind.CRYSTALLINE)
+class PvpLargeWidgetProvider: HubWidgetProvider(WidgetKind.PVP_LARGE)
 class FishWidgetProvider: HubWidgetProvider(WidgetKind.FISH)
 class EventsWidgetProvider: HubWidgetProvider(WidgetKind.EVENTS)
 class OverviewWidgetProvider: HubWidgetProvider(WidgetKind.OVERVIEW)

@@ -9,9 +9,9 @@
     "frontline": {
       "current": "尘封秘岩（争夺战）",
       "next": "周边遗迹群（阵地战）",
-      "startsAtMs": 1792512000000,
-      "changesAtMs": 1792598400000,
-      "anchorUtcMs": 1792512000000,
+      "startsAtMs": 1792508400000,
+      "changesAtMs": 1792594800000,
+      "anchorUtcMs": 1792508400000,
       "anchorIndex": 4,
       "periodMs": 86400000,
       "cycle": [
@@ -24,7 +24,7 @@
         "昂萨哈凯尔（竞争战）",
         "沃刻其特（演习战）"
       ],
-      "ruleVersion": "2026-10-21-cn-v1"
+      "ruleVersion": "2026-10-21-cn-v2"
     },
     "crystalline": {
       "current": "赤土红沙",
@@ -43,7 +43,7 @@
         "休兵书库",
         "赤土红沙"
       ],
-      "ruleVersion": "2026-10-21-cn-v1"
+      "ruleVersion": "2026-10-21-cn-v2"
     }
   },
   "fish": {
