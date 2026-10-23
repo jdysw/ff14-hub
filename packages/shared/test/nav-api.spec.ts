@@ -13,6 +13,8 @@ import {
   MAX_NAV_ALIAS_LENGTH,
   MAX_NAV_ALIASES,
   MAX_NAV_ICON_LENGTH,
+  MAX_NAV_GROUP_NAME_LENGTH,
+  MAX_NAV_URL_LENGTH,
   MAX_NAV_IMPORT_ITEMS,
   MAX_NAV_TAG_LENGTH,
   MAX_NAV_TAGS,
@@ -60,9 +62,20 @@ import {
 } from '../src/nav-api';
 import { validateModuleManifest } from '../src/module-manifest';
 import {normalizeNavText as sourceNormalize} from '../src/nav-normalize';
+import {parseBookmarkHtmlWithDependencies} from '../src/nav-bookmark-parser';
 import {filterNavLinks as sourceFilter,sortNavLinks as sourceSort,projectNavLinks as sourceProject} from '../src/nav-projection';
 import {navCatalogEntryState as sourceState,catalogUpgradePlan as sourcePlan,decideCatalogImport as sourceDecision} from '../src/nav-catalog-decisions';
 
+
+it('keeps the public bookmark parser equivalent to the extracted scanner',()=>{
+  const sample='<DL><DT><H3>攻略</H3><DT><A HREF="https://example.com/?a=1&amp;b=2">FF14 &amp; 指南</A></DL>';
+  const extracted=parseBookmarkHtmlWithDependencies(sample,undefined,{
+    MAX_NAV_GROUP_NAME_LENGTH,MAX_NAV_TITLE_LENGTH,MAX_NAV_URL_LENGTH,MAX_NAV_IMPORT_ITEMS,validateNavUrl,
+  });
+  expect(parseBookmarkHtml(sample)).toEqual(extracted);
+  expect(extracted.items).toHaveLength(1);
+  expect(extracted.items[0]?.url).toBe('https://example.com/?a=1&b=2');
+});
 
 // Facade must preserve public references; no second implementation in the legacy entrypoint.
 it('keeps the nav-api exports identical to the extracted pure modules',()=>{
