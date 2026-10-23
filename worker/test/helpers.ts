@@ -15,7 +15,8 @@ import {
   type WorkspacePage,
 } from '@ff14-hub/shared';
 import { expect } from 'vitest';
-import { BOOTSTRAP_SECRET_HEADER } from '../api/v1/identity';
+// 仅供数据库迁移及独立服务单测的历史夹具；公开身份路由已退役。
+const BOOTSTRAP_SECRET_HEADER='X-Bootstrap-Secret';
 import type { RuntimeEnv } from '../env';
 import { generateCredential, generateDeviceToken, hashCredential } from '../modules/identity/credentials';
 
