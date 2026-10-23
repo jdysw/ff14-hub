@@ -1,4 +1,4 @@
-import {SELF,env} from 'cloudflare:test';
+import {SELF} from 'cloudflare:test';
 import {describe,expect,it} from 'vitest';
 import {publicEventListResponseSchema} from '@ff14-hub/shared';
 
