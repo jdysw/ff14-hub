@@ -21,7 +21,7 @@ function matched<T>(items:readonly T[],query:string,title:(item:T)=>string,conte
 }
 export function searchSite(query:string,links:readonly BrowserLink[],fish:readonly CatalogFish[],events:readonly EventCalendarItem[]){
   return {links:matched(links,query,l=>l.title,l=>[l.title,l.description,l.category,l.url,...l.tags,...l.aliases].join(' ')),
-    fish:matched(fish,query,f=>f.name,f=>[f.name,f.englishName,String(f.id),f.zone,f.location,...f.bait].join(' ')),
+    fish:matched(fish,query,f=>f.name,f=>[f.name,f.englishName,...(f.aliases??[]),f.acquisitionContext?.label??'',...(f.acquisitionContext?.locations.map(s=>s.name)??[]),String(f.id),f.zone,f.location,...f.bait].join(' ')),
     events:matched(events,query,e=>e.title,e=>[e.title,e.category,e.description].join(' ')),
     features:query.trim()?matched(SEARCH_FEATURES,query,f=>f.title,f=>f.title+' '+f.description):[...SEARCH_FEATURES]};
 }

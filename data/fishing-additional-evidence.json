@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "observedOn": "2026-10-23",
+  "records": [
+    {
+      "fishId": 51228,
+      "spotId": 335,
+      "field": "oceanTime",
+      "source": "cnWiki",
+      "sourceUrl": "https://ff14.huijiwiki.com/wiki/出海垂钓",
+      "section": "幻海流鱼皇与船员传言表",
+      "value": ["sunset"],
+      "scope": "无名岛近海幻海流的世界龟；表中时段为黄昏，附有对应船员传言。该表是中文维基整理的资料，并非本项目直接提取的游戏条件。"
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import {fishDataBundleSchema} from '../packages/fish-engine/src/index.ts';
 import {trackerRequirements} from './lib/fish-requirements.mjs';
 import {compareCnWeather,dependencyFacts} from './lib/fish-accuracy.mjs';
 import {createHash} from 'node:crypto';
+import {firstPositiveId} from './lib/fishing-special-content.mjs';
 
 const [directory,trackerSha,cnSha,teamcraftSha]=process.argv.slice(2);
 if(!directory||![trackerSha,cnSha,teamcraftSha].every(s=>/^[a-f0-9]{40}$/.test(s??'')))throw new Error('Usage: source-directory tracker-sha cn-sha teamcraft-sha');
@@ -49,7 +50,7 @@ for(const region of ['cn','global']){
   const records=[];
   for(const id of ids){
     const g=byGuide.get(id),t=tracker.FISH[id],extra=extras.get(id);
-    const param=cnFish.get(id),spotId=Number(t?.location??param?.FishingSpot??extra?.spot.id??0);
+    const param=cnFish.get(id),spotId=firstPositiveId(t?.location,param?.FishingSpot,extra?.spot.id);
     const spot=tracker.FISHING_SPOTS[spotId]??tracker.SPEARFISHING_SPOTS?.[spotId];
     const localizedSpot=cnSpots.get(spotId);
     const name=region==='cn'?names.get(id):g?.name_en??tracker.ITEMS[id]?.name_en;

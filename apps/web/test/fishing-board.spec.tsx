@@ -26,6 +26,25 @@ beforeEach(()=>{reminderSettings.clear();vi.stubGlobal('Worker',ForecastWorker);
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});
 const publicPort=(catalog=fixture):DataPort=>({moduleId:'ff14.fishing',operations:['fish.catalog'],call:<T,>()=>Promise.resolve(catalog as T)});
 
+it('special records expose acquisition locations and stay out of the normal fish filter',async()=>{
+  const selected=source.fish.filter(f=>[4925,29994,52224,6688].includes(f.id));
+  render(<FishingBoard data={publicPort({...source,fish:selected,coverage:{total:4,forecast:0,always:1,unknown:3}})} initialFilters={{region:'cn',view:'all',kind:'all',text:'',hideCaught:false,windowHours:24}}/>);
+  await screen.findByText('第二期重建用的云冠跳鱼');expect(screen.getByText(/来源记录地点：云冠洞穴/)).toBeTruthy();expect(screen.getAllByText(/列出地点不代表当前仍可获取/).length).toBeGreaterThan(0);
+  fireEvent.change(screen.getByRole('combobox',{name:'鱼类类型'}),{target:{value:'normal'}});expect(screen.queryByText('陈旧的鞣革地图')).toBeNull();expect(screen.getByText('蝲蛄')).toBeTruthy();
+  fireEvent.change(screen.getByRole('combobox',{name:'鱼类类型'}),{target:{value:'special'}});expect(screen.getByText('陈旧的鞣革地图')).toBeTruthy();expect(screen.queryByText('蝲蛄')).toBeNull();
+});
+
+it('shows full audit coverage and separates spear conditions from ocean voyage conditions',async()=>{
+  const selected=source.fish.filter(f=>f.id===36535||f.id===51228);
+  render(<FishingBoard data={publicPort({...source,fish:selected,coverage:{total:2,forecast:0,always:0,unknown:2}})} initialFilters={{region:'cn',view:'all',kind:'all',text:'',hideCaught:false,windowHours:24}}/>);
+  await screen.findByText('猎船岛水珍鱼');expect(screen.getByText(/鱼影触发.*乐园石斑鱼 × 7/)).toBeTruthy();
+  expect(screen.getByText('鱼识前置：灰色真鲨 × 3、剑射鱼 × 2')).toBeTruthy();
+  expect(screen.getByText(/海钓环境：幻海流；时段：黄昏/)).toBeTruthy();
+  expect(screen.getByText('海钓 · 查看航次条件')).toBeTruthy();
+  expect(screen.getByText(/全目录交叉核对 2764 条/)).toBeTruthy();
+  expect(screen.getAllByRole('link',{name:'在鱼糕查看钓法参考'}).some(a=>a.getAttribute('href')?.includes('/spearfishing/'))).toBe(true);
+});
+
 it('shows filled intuition duration with its source and the corrected mooch comparison',async()=>{
   const selected=source.fish.filter(f=>f.id===46195||f.id===24994);
   render(<FishingBoard data={publicPort({...source,fish:selected,coverage:{total:2,forecast:2,always:0,unknown:0}})} initialFilters={{region:'cn',view:'all',kind:'all',text:'',hideCaught:false,windowHours:24}}/>);
@@ -34,7 +53,7 @@ it('shows filled intuition duration with its source and the corrected mooch comp
   expect(screen.getByText(/已按鱼糕补全鱼识持续时间：350 秒/)).toBeTruthy();
   expect(screen.getByText(/橙彩鱼：合并泳饵依赖后 ET 4–8，与 Tracker 一致/)).toBeTruthy();
   expect(screen.queryByText(/准备时间条件存在差异/)).toBeNull();
-  expect(screen.getByText(/24 条一致、8 条已按鱼糕补全时长、0 条资料待补、0 条条件差异/)).toBeTruthy();
+  expect(screen.getByText(/全目录交叉核对 2764 条/)).toBeTruthy();
 });
 
 it('renders actionable fish directly, and searches beyond the first 30 records',async()=>{
