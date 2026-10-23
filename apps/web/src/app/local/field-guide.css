@@ -107,6 +107,16 @@ html {scrollbar-gutter:stable;}
 .local-app .local-directory .local-directory__more {background:none;border-color:var(--field-line);color:var(--field-accent);}
 .local-app .local-directory__empty {background:#f0f5f1;}
 .local-app .local-directory .local-directory__empty button {color:var(--field-accent);}
+
+/* Keep a complete timestamp together; narrow cards move the timer below the copy. */
+.local-app .local-dashboard__module .home-official{container-type:inline-size;container-name:official-event-card;}
+.local-app .local-dashboard__module .home-official-event__timer:has(time){width:max-content;min-width:max-content;max-width:none;}
+@container official-event-card (max-width:480px){
+  .local-app .local-dashboard__module .home-official .home-official-event{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;align-items:start;height:auto;min-height:var(--home-event-row-height);}
+  .local-app .local-dashboard__module .home-official-event__main{width:100%;min-width:0;}
+  .local-app .local-dashboard__module .home-official-event__timer{display:grid;grid-template-columns:auto auto;justify-self:end;align-items:baseline;gap:2px 8px;max-width:100%;min-width:0;text-align:right;}
+  .local-app .local-dashboard__module .home-official-event__timer>.home-official-event__end{grid-column:1 / -1;}
+}
 @media(max-width:1100px) {
   .local-app .local-dashboard__module-grid {gap:24px;}
   .local-app .local-dashboard__module:nth-child(2n) {padding-left:24px;}
