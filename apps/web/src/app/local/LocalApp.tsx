@@ -1,6 +1,7 @@
 import {lazy,Suspense,useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import {API_ROUTES,canonicalNavUrl,navCatalogResponseSchema,type NavCatalogEntry} from '@ff14-hub/shared';
+import {canonicalNavUrl} from '@ff14-hub/shared';
 import {directoryLinks} from './directory-links';
+import {useNavigationCatalog} from './use-navigation-catalog';
 import {HomeOfficialEvents} from '../shell/HomeOfficialEvents';
 import {PublicCalendarPage} from '../events/PublicCalendarPage';
 import {FishingBoard,type FishDetailSelection} from '../fish/FishingBoard';
@@ -37,10 +38,7 @@ export function LocalApp(){
   const subscribeProgress=useCallback((listener:()=>void)=>store.subscribe(listener),[store]);
   const dataPort=useMemo(()=>localFishPort(store),[store]);
   const [data,setData]=useState<LocalData|null>(null);
-  const [catalog,setCatalog]=useState<NavCatalogEntry[]>([]);
-  const [catalogError,setCatalogError]=useState(false);
-  const [catalogLoading,setCatalogLoading]=useState(true);
-  const [catalogReload,setCatalogReload]=useState(0);
+  const {catalog,catalogError,catalogLoading,reloadCatalog}=useNavigationCatalog();
   const [error,setError]=useState<string|null>(null);
   const [fishEntry,setFishEntry]=useState(()=>parseFishLink(location.search));
   const handledFishEntry=useRef('');
@@ -108,15 +106,7 @@ export function LocalApp(){
     refresh();const unsubscribe=store.subscribe(refresh);
     return()=>{alive=false;unsubscribe();};
   },[store]);
-  useEffect(()=>{
-    let alive=true;
-    void fetch(API_ROUTES.navCatalog,{credentials:'omit',redirect:'error'}).then(async response=>{if(!response.ok)throw new Error('目录暂时无法读取');return navCatalogResponseSchema.parse(await response.json());})
-      .then(result=>{if(alive){setCatalog([...result.entries]);setCatalogError(false);}}).catch(()=>{if(alive)setCatalogError(true);})
-      .finally(()=>{if(alive)setCatalogLoading(false);});
-    return()=>{alive=false;};
-  },[catalogReload]);
-  const reloadCatalog=()=>{setCatalogLoading(true);setCatalogError(false);setCatalogReload(value=>value+1);};
-  useEffect(()=>{const refresh=()=>{setCatalogLoading(true);setCatalogError(false);setCatalogReload(value=>value+1);};window.addEventListener('ff14hub:directory-changed',refresh);return()=>window.removeEventListener('ff14hub:directory-changed',refresh);},[]);
+
   useEffect(()=>{
     const shortcut=(event:KeyboardEvent)=>{
       if(event.isComposing||event.defaultPrevented||document.querySelector('dialog[open]'))return;
