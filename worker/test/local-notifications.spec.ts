@@ -43,6 +43,46 @@ it('limits retries without leaking provider content',async()=>{
   for(let tick=0;tick<4;tick++)await runLocalNotifications(env.DB,now+tick*300_000,send);
   expect(send).toHaveBeenCalledTimes(3);
 });
+it('refunds rejected provider attempts without exhausting the daily delivery quota',async()=>{
+  await register();
+  const {id}= (await env.DB.prepare('SELECT id FROM local_push_devices').first<{id:string}>())!;
+  const now=Date.now();
+  const job=(key:string):LocalNotificationJob=>({key,title:key,body:'正文',dueAt:now,expiresAt:now+600_000});
+  await replaceLocalJobs(env.DB,id,[job('retry')],now);
+  const failing=vi.fn(()=>Promise.resolve(503));
+  expect(await runLocalNotifications(env.DB,now,failing)).toBe(0);
+  expect((await env.DB.prepare('SELECT sent_count FROM local_push_devices WHERE id=?').bind(id).first<{sent_count:number}>())?.sent_count).toBe(0);
+  // Retrying the same job doesn't consume successful-delivery capacity.
+  expect(await runLocalNotifications(env.DB,now+300_001,failing)).toBe(0);
+  expect((await env.DB.prepare('SELECT sent_count FROM local_push_devices WHERE id=?').bind(id).first<{sent_count:number}>())?.sent_count).toBe(0);
+  await replaceLocalJobs(env.DB,id,[job('delivered')],now+300_002);
+  const success=vi.fn(()=>Promise.resolve(200));
+  expect(await runLocalNotifications(env.DB,now+300_002,success)).toBe(1);
+  expect(success).toHaveBeenCalledOnce();
+  expect((await env.DB.prepare('SELECT sent_count FROM local_push_devices WHERE id=?').bind(id).first<{sent_count:number}>())?.sent_count).toBe(1);
+  // Once a delivery is accepted, a second one cannot exceed the daily cap.
+  await replaceLocalJobs(env.DB,id,[job('extra')],now+300_003);
+  expect(await runLocalNotifications(env.DB,now+300_003,success)).toBe(0);
+  expect(success).toHaveBeenCalledOnce();
+});
+it('holds capacity for an in-flight provider call and releases it on a thrown error',async()=>{
+  await register();
+  const {id}= (await env.DB.prepare('SELECT id FROM local_push_devices').first<{id:string}>())!;
+  const now=Date.now();
+  const job=(key:string):LocalNotificationJob=>({key,title:key,body:'正文',dueAt:now,expiresAt:now+600_000});
+  await replaceLocalJobs(env.DB,id,[job('first'),job('second')],now);
+  let rejectSend:((cause:Error)=>void)|undefined;
+  let started:()=>void=()=>{};
+  const startedPromise=new Promise<void>(resolve=>{started=resolve;});
+  const sender=vi.fn(()=>new Promise<number>((_,reject)=>{rejectSend=reject;started();}));
+  const first=runLocalNotifications(env.DB,now,sender);
+  await startedPromise;
+  expect(await runLocalNotifications(env.DB,now+1,sender)).toBe(0);
+  expect(sender).toHaveBeenCalledOnce();
+  rejectSend?.(new Error('provider timeout'));
+  expect(await first).toBe(0);
+  expect((await env.DB.prepare('SELECT sent_count FROM local_push_devices WHERE id=?').bind(id).first<{sent_count:number}>())?.sent_count).toBe(0);
+});
 it('keeps saved delivery time and deadline options when a delayed client only updates watched fish',async()=>{
   const token=await register();
   const put=(value:unknown)=>SELF.fetch(root+'/plan',{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(value)});
