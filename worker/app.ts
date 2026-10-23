@@ -5,7 +5,7 @@
  *   1. requestId      —— 最先执行，保证任何响应都能被追踪
  *   2. runtimeConfig  —— 绑定/变量校验，失败即脱敏 500
  *   3. writeGuard     —— 仅 /api/v1/* 的写方法：Origin / Content-Type / 体积 / JSON 解析
- *   4. /api/v1 路由   —— health（公开）、me（认证后仍未实现）、__test__（默认不可达）
+ *   4. /api/v1 路由   —— health（公开）、me（设备认证后的兼容 API）、__test__（默认不可达）
  *   5. /api/*         —— 未知 API 路径 → 结构化 404（绝不回退到 SPA HTML）
  *   6. *              —— 静态资源 + SPA 回退
  *
