@@ -242,7 +242,8 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
         <button type="button" key={value} aria-pressed={view===value} onClick={()=>{if(embedded&&value==='all'&&onOpenDetail){onOpenDetail({region,view:'all',kind:'all',text,hideCaught,windowHours});return;}changeFilter(()=>{setTargetId(null);setWindowPhase(null);setView(value);if(value==='all'||value==='followed')setKind('all');if(value==='followed')setHideCaught(false);});}}>{label}{embedded&&value==='all'?' ↗':''}</button>)}</div>
       <label className="fish-board__region"><span className="visually-hidden">钓鱼区服</span><select aria-label="钓鱼区服" value={region} onChange={event=>onRegion(event.target.value as FishRegion)}><option value="cn">国服</option><option value="global">国际服</option></select></label>
     </div>
-    {(embedded||expanded)&&view==='windows'?<div className="fish-board__range" role="group" aria-label="首页鱼窗时间范围">
+    {windowPhase&&view==='windows'?<div className="fish-board__filter-tags"><span>{windowPhase==='open'?'仅开放中鱼窗':'仅未来鱼窗'}</span><button type="button" onClick={()=>setWindowPhase(null)}>显示全部近期鱼窗</button></div>:null}
+    {(embedded||expanded)&&view==='windows'&&windowPhase!=='open'?<div className="fish-board__range" role="group" aria-label="首页鱼窗时间范围">
       <span className="fish-board__range-label">查看范围</span>
       {([[6,'未来 6 小时'],[24,'24 小时'],[72,'3 天'],[168,'7 天']] as const).map(([value,label])=>
         <button type="button" key={value} aria-pressed={windowHours===value}
@@ -255,7 +256,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
       const fish=catalog?.fish.find(f=>f.id===pending.fishId);if(fish){setProgressError(null);void write(fish,pending.field);}
     }}>重试保存</button>:null}<button type="button" onClick={onReload}>重新读取</button></p>:null}
     {!catalog?<p className="fish-board__empty" role="status">正在读取鱼类目录…</p>:<>
-      <p className="fish-board__summary">{forecasts===null?'正在计算完整目录的鱼窗…':(embedded||expanded)&&view==='windows'?`正在开放及未来 ${windowHours} 小时内：${visible.length} 种鱼`:`找到 ${visible.length} 种鱼`}</p>
+      <p className="fish-board__summary">{forecasts===null?'正在计算完整目录的鱼窗…':view==='windows'&&windowPhase==='open'?`当前开放：${visible.length} 种鱼`:(embedded||expanded)&&view==='windows'?`${windowPhase==='upcoming'?'未来':'正在开放及未来'} ${windowHours} 小时内：${visible.length} 种鱼`:`找到 ${visible.length} 种鱼`}</p>
       {canEdit?<label className="fish-board__account"><input type="checkbox" checked={hideCaught} disabled={!progressReady} onChange={event=>changeFilter(()=>setHideCaught(event.target.checked))}/>隐藏已钓获 · 已记录 {fields.filter(field=>field.field==='caught'&&field.value).length} 种</label>:null}
       {!canEdit?<p className="fish-board__account">无需登录即可查鱼窗。{onConnect?<button type="button" onClick={onConnect}>连接工作空间保存钓获与收藏</button>:'连接工作空间并启用钓鱼模块后可保存标记。'}</p>:null}
       <div className="fish-board__columns" aria-hidden="true"><span>鱼类 / 钓场</span><span>推荐鱼饵</span><span>鱼窗</span><span>标记</span></div>
