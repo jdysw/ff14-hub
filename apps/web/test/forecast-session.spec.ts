@@ -62,7 +62,11 @@ it('does not reuse a worker when rules differ despite matching catalogue metadat
   workers[0]?.onmessage?.(new MessageEvent('message',{data:{forecasts:[{id:42,failed:false,windows:[]}]}}));
   expect(stale).toHaveBeenCalledOnce();
   expect(fresh).not.toHaveBeenCalled();
-  stopC();stopB();stopA();
+  stopA();
+  // base key 被释放后，仍应找到正在工作的 :1 任务。
+  const stopD=subscribeFishingForecast({...newer},'cn',168,vi.fn());
+  expect(workers).toHaveLength(2);
+  stopD();stopC();stopB();
 });
 
 it('replays the latest worker error to a subsequent subscriber and cleans up on a failed post',()=>{
