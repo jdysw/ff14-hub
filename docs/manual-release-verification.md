@@ -7,7 +7,7 @@
 - `node >= 22.12`；按 `package.json` 的版本使用 pnpm。Windows 优先 PowerShell。
 - 从 PR 的最新提交安装依赖：`pnpm install --frozen-lockfile`。
 - 变更目录至少检查 `git diff --check`，对比 PR 包含的数据库迁移、密钥引用与公共 API 结构。
-- 如果涉及 D1 变更，先备份生产数据，独立应用预览迁移；禁止为了“清理”直接删除历史工作空间、表或历史迁移。
+- 本轮已将迁移源码重新整理为单文件 `migrations/0001_core.sql`；先运行 `pnpm run test:db-baseline`，再在隔离 workerd/D1 应用并测试完整基线。已有 D1 应先只读核对 `d1_migrations` 和现存表，禁止把旧历史表直接 DROP，也不得重置生产迁移记账；参见 [数据库单文件基线](d1-single-baseline.md)。
 - 实际 Secret、管理员 Token、WebDAV/S3 凭证不得提交仓库或日志；预览与生产使用独立环境。
 
 ## 1. Web 与 Worker 基线
