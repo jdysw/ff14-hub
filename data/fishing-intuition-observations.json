@@ -1,7 +1,8 @@
 {
   "version": "803987e",
-  "observedAt": "2026-10-23T09:27:18.469Z",
+  "observedAt": "2026-10-23T10:31:57.395Z",
   "source": "https://fish.ffmomola.com",
+  "normalization": "SpotFish.covertConstraintsBySmallFishes: raw fish conditions combined with bestFishDependencies, without Fish Eyes",
   "fish": [
     {
       "id": 8752,
@@ -19,6 +20,21 @@
           "endHour": 24,
           "currentWeather": [],
           "previousWeather": [],
+          "effectiveConditions": {
+            "startHour": 0,
+            "endHour": 24,
+            "currentWeather": [],
+            "previousWeather": []
+          },
+          "moochDependencies": [
+            {
+              "id": 4978,
+              "startHour": 0,
+              "endHour": 24,
+              "currentWeather": [],
+              "previousWeather": []
+            }
+          ],
           "preconditions": [
             {
               "id": 5031,
@@ -27,7 +43,29 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": [
+                    {
+                      "id": 4978,
+                      "startHour": 0,
+                      "endHour": 24,
+                      "currentWeather": [],
+                      "previousWeather": []
+                    },
+                    {
+                      "id": 5011,
+                      "startHour": 0,
+                      "endHour": 24,
+                      "currentWeather": [],
+                      "previousWeather": []
+                    }
+                  ]
                 }
               ]
             }
@@ -54,6 +92,16 @@
             8
           ],
           "previousWeather": [],
+          "effectiveConditions": {
+            "startHour": 0,
+            "endHour": 24,
+            "currentWeather": [
+              7,
+              8
+            ],
+            "previousWeather": []
+          },
+          "moochDependencies": [],
           "preconditions": [
             {
               "id": 4913,
@@ -65,7 +113,17 @@
                     7,
                     8
                   ],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [
+                      7,
+                      8
+                    ],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -89,6 +147,13 @@
           "endHour": 24,
           "currentWeather": [],
           "previousWeather": [],
+          "effectiveConditions": {
+            "startHour": 0,
+            "endHour": 24,
+            "currentWeather": [],
+            "previousWeather": []
+          },
+          "moochDependencies": [],
           "preconditions": [
             {
               "id": 5008,
@@ -97,7 +162,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -121,6 +193,28 @@
           "endHour": 24,
           "currentWeather": [],
           "previousWeather": [],
+          "effectiveConditions": {
+            "startHour": 0,
+            "endHour": 24,
+            "currentWeather": [],
+            "previousWeather": []
+          },
+          "moochDependencies": [
+            {
+              "id": 4978,
+              "startHour": 0,
+              "endHour": 24,
+              "currentWeather": [],
+              "previousWeather": []
+            },
+            {
+              "id": 5002,
+              "startHour": 0,
+              "endHour": 24,
+              "currentWeather": [],
+              "previousWeather": []
+            }
+          ],
           "preconditions": [
             {
               "id": 8762,
@@ -131,7 +225,31 @@
                   "currentWeather": [
                     17
                   ],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 8,
+                    "endHour": 18,
+                    "currentWeather": [
+                      17
+                    ],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": [
+                    {
+                      "id": 4978,
+                      "startHour": 0,
+                      "endHour": 24,
+                      "currentWeather": [],
+                      "previousWeather": []
+                    },
+                    {
+                      "id": 5011,
+                      "startHour": 0,
+                      "endHour": 24,
+                      "currentWeather": [],
+                      "previousWeather": []
+                    }
+                  ]
                 }
               ]
             }
@@ -155,6 +273,28 @@
           "endHour": 24,
           "currentWeather": [],
           "previousWeather": [],
+          "effectiveConditions": {
+            "startHour": 0,
+            "endHour": 24,
+            "currentWeather": [],
+            "previousWeather": []
+          },
+          "moochDependencies": [
+            {
+              "id": 4869,
+              "startHour": 0,
+              "endHour": 24,
+              "currentWeather": [],
+              "previousWeather": []
+            },
+            {
+              "id": 4904,
+              "startHour": 0,
+              "endHour": 24,
+              "currentWeather": [],
+              "previousWeather": []
+            }
+          ],
           "preconditions": [
             {
               "id": 4904,
@@ -163,7 +303,22 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": [
+                    {
+                      "id": 4869,
+                      "startHour": 0,
+                      "endHour": 24,
+                      "currentWeather": [],
+                      "previousWeather": []
+                    }
+                  ]
                 }
               ]
             }
@@ -190,6 +345,24 @@
             16
           ],
           "previousWeather": [],
+          "effectiveConditions": {
+            "startHour": 19,
+            "endHour": 4,
+            "currentWeather": [
+              15,
+              16
+            ],
+            "previousWeather": []
+          },
+          "moochDependencies": [
+            {
+              "id": 4937,
+              "startHour": 0,
+              "endHour": 24,
+              "currentWeather": [],
+              "previousWeather": []
+            }
+          ],
           "preconditions": [
             {
               "id": 5544,
@@ -198,7 +371,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -222,6 +402,13 @@
           "endHour": 24,
           "currentWeather": [],
           "previousWeather": [],
+          "effectiveConditions": {
+            "startHour": 0,
+            "endHour": 24,
+            "currentWeather": [],
+            "previousWeather": []
+          },
+          "moochDependencies": [],
           "preconditions": [
             {
               "id": 8774,
@@ -233,7 +420,17 @@
                     9,
                     10
                   ],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [
+                      9,
+                      10
+                    ],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -264,6 +461,24 @@
             2
           ],
           "previousWeather": [],
+          "effectiveConditions": {
+            "startHour": 10,
+            "endHour": 15,
+            "currentWeather": [
+              1,
+              2
+            ],
+            "previousWeather": []
+          },
+          "moochDependencies": [
+            {
+              "id": 12754,
+              "startHour": 0,
+              "endHour": 24,
+              "currentWeather": [],
+              "previousWeather": []
+            }
+          ],
           "preconditions": [
             {
               "id": 12754,
@@ -272,7 +487,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             },
@@ -283,7 +505,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -309,6 +538,23 @@
             9
           ],
           "previousWeather": [],
+          "effectiveConditions": {
+            "startHour": 0,
+            "endHour": 24,
+            "currentWeather": [
+              9
+            ],
+            "previousWeather": []
+          },
+          "moochDependencies": [
+            {
+              "id": 12776,
+              "startHour": 0,
+              "endHour": 24,
+              "currentWeather": [],
+              "previousWeather": []
+            }
+          ],
           "preconditions": [
             {
               "id": 13727,
@@ -319,7 +565,16 @@
                   "currentWeather": [
                     9
                   ],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [
+                      9
+                    ],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -345,6 +600,23 @@
             1
           ],
           "previousWeather": [],
+          "effectiveConditions": {
+            "startHour": 1,
+            "endHour": 4,
+            "currentWeather": [
+              1
+            ],
+            "previousWeather": []
+          },
+          "moochDependencies": [
+            {
+              "id": 12757,
+              "startHour": 0,
+              "endHour": 24,
+              "currentWeather": [],
+              "previousWeather": []
+            }
+          ],
           "preconditions": [
             {
               "id": 12757,
@@ -353,7 +625,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -383,6 +662,15 @@
             1
           ],
           "previousWeather": [],
+          "effectiveConditions": {
+            "startHour": 5,
+            "endHour": 7,
+            "currentWeather": [
+              1
+            ],
+            "previousWeather": []
+          },
+          "moochDependencies": [],
           "preconditions": [
             {
               "id": 12753,
@@ -391,7 +679,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             },
@@ -402,7 +697,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -428,6 +730,23 @@
             16
           ],
           "previousWeather": [],
+          "effectiveConditions": {
+            "startHour": 0,
+            "endHour": 3,
+            "currentWeather": [
+              16
+            ],
+            "previousWeather": []
+          },
+          "moochDependencies": [
+            {
+              "id": 12715,
+              "startHour": 0,
+              "endHour": 24,
+              "currentWeather": [],
+              "previousWeather": []
+            }
+          ],
           "preconditions": [
             {
               "id": 12715,
@@ -436,7 +755,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -462,6 +788,30 @@
             6
           ],
           "previousWeather": [],
+          "effectiveConditions": {
+            "startHour": 5,
+            "endHour": 8,
+            "currentWeather": [
+              6
+            ],
+            "previousWeather": []
+          },
+          "moochDependencies": [
+            {
+              "id": 12753,
+              "startHour": 0,
+              "endHour": 24,
+              "currentWeather": [],
+              "previousWeather": []
+            },
+            {
+              "id": 12805,
+              "startHour": 0,
+              "endHour": 24,
+              "currentWeather": [],
+              "previousWeather": []
+            }
+          ],
           "preconditions": [
             {
               "id": 12805,
@@ -470,7 +820,22 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": [
+                    {
+                      "id": 12753,
+                      "startHour": 0,
+                      "endHour": 24,
+                      "currentWeather": [],
+                      "previousWeather": []
+                    }
+                  ]
                 }
               ]
             }
@@ -502,6 +867,13 @@
           "endHour": 24,
           "currentWeather": [],
           "previousWeather": [],
+          "effectiveConditions": {
+            "startHour": 0,
+            "endHour": 24,
+            "currentWeather": [],
+            "previousWeather": []
+          },
+          "moochDependencies": [],
           "preconditions": [
             {
               "id": 24203,
@@ -510,7 +882,22 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 4,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": [
+                    {
+                      "id": 21177,
+                      "startHour": 0,
+                      "endHour": 4,
+                      "currentWeather": [],
+                      "previousWeather": []
+                    }
+                  ]
                 }
               ]
             },
@@ -521,7 +908,22 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 4,
+                    "endHour": 8,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": [
+                    {
+                      "id": 22397,
+                      "startHour": 4,
+                      "endHour": 8,
+                      "currentWeather": [],
+                      "previousWeather": []
+                    }
+                  ]
                 }
               ]
             },
@@ -537,7 +939,19 @@
                   ],
                   "previousWeather": [
                     2
-                  ]
+                  ],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 16,
+                    "currentWeather": [
+                      1,
+                      2
+                    ],
+                    "previousWeather": [
+                      2
+                    ]
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -563,6 +977,15 @@
             11
           ],
           "previousWeather": [],
+          "effectiveConditions": {
+            "startHour": 0,
+            "endHour": 24,
+            "currentWeather": [
+              11
+            ],
+            "previousWeather": []
+          },
+          "moochDependencies": [],
           "preconditions": [
             {
               "id": 23060,
@@ -573,7 +996,16 @@
                   "currentWeather": [
                     11
                   ],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [
+                      11
+                    ],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -597,6 +1029,21 @@
           "endHour": 18,
           "currentWeather": [],
           "previousWeather": [],
+          "effectiveConditions": {
+            "startHour": 16,
+            "endHour": 18,
+            "currentWeather": [],
+            "previousWeather": []
+          },
+          "moochDependencies": [
+            {
+              "id": 20025,
+              "startHour": 0,
+              "endHour": 24,
+              "currentWeather": [],
+              "previousWeather": []
+            }
+          ],
           "preconditions": [
             {
               "id": 20040,
@@ -607,7 +1054,24 @@
                   "currentWeather": [
                     10
                   ],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 12,
+                    "endHour": 18,
+                    "currentWeather": [
+                      10
+                    ],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": [
+                    {
+                      "id": 20025,
+                      "startHour": 0,
+                      "endHour": 24,
+                      "currentWeather": [],
+                      "previousWeather": []
+                    }
+                  ]
                 }
               ]
             }
@@ -635,6 +1099,13 @@
           "endHour": 16,
           "currentWeather": [],
           "previousWeather": [],
+          "effectiveConditions": {
+            "startHour": 10,
+            "endHour": 16,
+            "currentWeather": [],
+            "previousWeather": []
+          },
+          "moochDependencies": [],
           "preconditions": [
             {
               "id": 27452,
@@ -643,7 +1114,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             },
@@ -659,7 +1137,19 @@
                   "previousWeather": [
                     1,
                     2
-                  ]
+                  ],
+                  "effectiveConditions": {
+                    "startHour": 10,
+                    "endHour": 14,
+                    "currentWeather": [
+                      6
+                    ],
+                    "previousWeather": [
+                      1,
+                      2
+                    ]
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -687,6 +1177,17 @@
           "previousWeather": [
             11
           ],
+          "effectiveConditions": {
+            "startHour": 0,
+            "endHour": 2,
+            "currentWeather": [
+              14
+            ],
+            "previousWeather": [
+              11
+            ]
+          },
+          "moochDependencies": [],
           "preconditions": [
             {
               "id": 27462,
@@ -695,7 +1196,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -723,6 +1231,17 @@
           "previousWeather": [
             2
           ],
+          "effectiveConditions": {
+            "startHour": 0,
+            "endHour": 2,
+            "currentWeather": [
+              3
+            ],
+            "previousWeather": [
+              2
+            ]
+          },
+          "moochDependencies": [],
           "preconditions": [
             {
               "id": 33325,
@@ -733,7 +1252,16 @@
                   "currentWeather": [
                     2
                   ],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 22,
+                    "endHour": 24,
+                    "currentWeather": [
+                      2
+                    ],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -761,6 +1289,17 @@
           "previousWeather": [
             3
           ],
+          "effectiveConditions": {
+            "startHour": 4,
+            "endHour": 8,
+            "currentWeather": [
+              2
+            ],
+            "previousWeather": [
+              3
+            ]
+          },
+          "moochDependencies": [],
           "preconditions": [
             {
               "id": 36449,
@@ -769,7 +1308,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -797,6 +1343,25 @@
           "previousWeather": [
             1
           ],
+          "effectiveConditions": {
+            "startHour": 9,
+            "endHour": 12,
+            "currentWeather": [
+              2
+            ],
+            "previousWeather": [
+              1
+            ]
+          },
+          "moochDependencies": [
+            {
+              "id": 36412,
+              "startHour": 0,
+              "endHour": 24,
+              "currentWeather": [],
+              "previousWeather": []
+            }
+          ],
           "preconditions": [
             {
               "id": 36412,
@@ -805,7 +1370,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -833,6 +1405,17 @@
           "previousWeather": [
             8
           ],
+          "effectiveConditions": {
+            "startHour": 14,
+            "endHour": 16,
+            "currentWeather": [
+              2
+            ],
+            "previousWeather": [
+              8
+            ]
+          },
+          "moochDependencies": [],
           "preconditions": [
             {
               "id": 36454,
@@ -843,7 +1426,24 @@
                   "currentWeather": [
                     2
                   ],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [
+                      2
+                    ],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": [
+                    {
+                      "id": 36451,
+                      "startHour": 0,
+                      "endHour": 24,
+                      "currentWeather": [],
+                      "previousWeather": []
+                    }
+                  ]
                 }
               ]
             }
@@ -871,6 +1471,17 @@
           "previousWeather": [
             2
           ],
+          "effectiveConditions": {
+            "startHour": 16,
+            "endHour": 24,
+            "currentWeather": [
+              15
+            ],
+            "previousWeather": [
+              2
+            ]
+          },
+          "moochDependencies": [],
           "preconditions": [
             {
               "id": 36458,
@@ -879,7 +1490,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -915,6 +1533,25 @@
           "previousWeather": [
             49
           ],
+          "effectiveConditions": {
+            "startHour": 0,
+            "endHour": 8,
+            "currentWeather": [
+              149
+            ],
+            "previousWeather": [
+              49
+            ]
+          },
+          "moochDependencies": [
+            {
+              "id": 36518,
+              "startHour": 0,
+              "endHour": 24,
+              "currentWeather": [],
+              "previousWeather": []
+            }
+          ],
           "preconditions": [
             {
               "id": 36521,
@@ -923,7 +1560,22 @@
                   "startHour": 0,
                   "endHour": 4,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 4,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": [
+                    {
+                      "id": 36518,
+                      "startHour": 0,
+                      "endHour": 24,
+                      "currentWeather": [],
+                      "previousWeather": []
+                    }
+                  ]
                 }
               ]
             },
@@ -934,7 +1586,22 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": [
+                    {
+                      "id": 36518,
+                      "startHour": 0,
+                      "endHour": 24,
+                      "currentWeather": [],
+                      "previousWeather": []
+                    }
+                  ]
                 }
               ]
             },
@@ -945,7 +1612,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -971,6 +1645,15 @@
             7
           ],
           "previousWeather": [],
+          "effectiveConditions": {
+            "startHour": 4,
+            "endHour": 6,
+            "currentWeather": [
+              7
+            ],
+            "previousWeather": []
+          },
+          "moochDependencies": [],
           "preconditions": [
             {
               "id": 43781,
@@ -979,7 +1662,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -1005,6 +1695,15 @@
             4
           ],
           "previousWeather": [],
+          "effectiveConditions": {
+            "startHour": 0,
+            "endHour": 2,
+            "currentWeather": [
+              4
+            ],
+            "previousWeather": []
+          },
+          "moochDependencies": [],
           "preconditions": [
             {
               "id": 43735,
@@ -1013,7 +1712,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -1045,6 +1751,17 @@
           "previousWeather": [
             7
           ],
+          "effectiveConditions": {
+            "startHour": 22,
+            "endHour": 24,
+            "currentWeather": [
+              3
+            ],
+            "previousWeather": [
+              7
+            ]
+          },
+          "moochDependencies": [],
           "preconditions": [
             {
               "id": 43796,
@@ -1053,7 +1770,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             },
@@ -1064,7 +1788,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -1092,6 +1823,17 @@
           "previousWeather": [
             6
           ],
+          "effectiveConditions": {
+            "startHour": 6,
+            "endHour": 8,
+            "currentWeather": [
+              3
+            ],
+            "previousWeather": [
+              6
+            ]
+          },
+          "moochDependencies": [],
           "preconditions": [
             {
               "id": 43760,
@@ -1100,7 +1842,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -1128,6 +1877,25 @@
           "previousWeather": [
             3
           ],
+          "effectiveConditions": {
+            "startHour": 13,
+            "endHour": 15,
+            "currentWeather": [
+              8
+            ],
+            "previousWeather": [
+              3
+            ]
+          },
+          "moochDependencies": [
+            {
+              "id": 43697,
+              "startHour": 0,
+              "endHour": 24,
+              "currentWeather": [],
+              "previousWeather": []
+            }
+          ],
           "preconditions": [
             {
               "id": 43697,
@@ -1136,7 +1904,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -1168,6 +1943,25 @@
           "previousWeather": [
             1
           ],
+          "effectiveConditions": {
+            "startHour": 16,
+            "endHour": 21,
+            "currentWeather": [
+              7
+            ],
+            "previousWeather": [
+              1
+            ]
+          },
+          "moochDependencies": [
+            {
+              "id": 43740,
+              "startHour": 0,
+              "endHour": 24,
+              "currentWeather": [],
+              "previousWeather": []
+            }
+          ],
           "preconditions": [
             {
               "id": 43740,
@@ -1176,7 +1970,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             },
@@ -1191,6 +1992,25 @@
                   ],
                   "previousWeather": [
                     1
+                  ],
+                  "effectiveConditions": {
+                    "startHour": 16,
+                    "endHour": 21,
+                    "currentWeather": [
+                      7
+                    ],
+                    "previousWeather": [
+                      1
+                    ]
+                  },
+                  "moochDependencies": [
+                    {
+                      "id": 43740,
+                      "startHour": 0,
+                      "endHour": 24,
+                      "currentWeather": [],
+                      "previousWeather": []
+                    }
                   ]
                 }
               ]
@@ -1219,6 +2039,17 @@
           "previousWeather": [
             10
           ],
+          "effectiveConditions": {
+            "startHour": 2,
+            "endHour": 4,
+            "currentWeather": [
+              50
+            ],
+            "previousWeather": [
+              10
+            ]
+          },
+          "moochDependencies": [],
           "preconditions": [
             {
               "id": 43775,
@@ -1227,7 +2058,14 @@
                   "startHour": 0,
                   "endHour": 24,
                   "currentWeather": [],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             }
@@ -1259,6 +2097,17 @@
           "previousWeather": [
             3
           ],
+          "effectiveConditions": {
+            "startHour": 8,
+            "endHour": 13,
+            "currentWeather": [
+              4
+            ],
+            "previousWeather": [
+              3
+            ]
+          },
+          "moochDependencies": [],
           "preconditions": [
             {
               "id": 43795,
@@ -1270,7 +2119,17 @@
                     3,
                     4
                   ],
-                  "previousWeather": []
+                  "previousWeather": [],
+                  "effectiveConditions": {
+                    "startHour": 0,
+                    "endHour": 24,
+                    "currentWeather": [
+                      3,
+                      4
+                    ],
+                    "previousWeather": []
+                  },
+                  "moochDependencies": []
                 }
               ]
             },
@@ -1285,7 +2144,18 @@
                   ],
                   "previousWeather": [
                     3
-                  ]
+                  ],
+                  "effectiveConditions": {
+                    "startHour": 8,
+                    "endHour": 13,
+                    "currentWeather": [
+                      4
+                    ],
+                    "previousWeather": [
+                      3
+                    ]
+                  },
+                  "moochDependencies": []
                 }
               ]
             }

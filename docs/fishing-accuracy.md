@@ -4,9 +4,13 @@
 
 国服 2764 条身份来自游戏表，其中 874 条具备社区时间天气预测规则，另 359 条资料无时间天气限制，1531 条仍缺少普通鱼窗规则或属于其他钓鱼内容。逐条对照国服 FishingSpot → TerritoryType → WeatherRate，对天气随机值 0～99 的全部映射进行比较，874 条一致，0 条缺失或不一致。32 条规则含鱼识前置鱼，前置 ID/名称均能在国服表中找到。
 
-2026-10-23 完成 32 条鱼识跨来源核对：23 条一致，8 条为 Tracker 缺少鱼识持续时间而鱼糕有记录，1 条前置鱼时间条件冲突。冲突鱼 ID 24994 的前置鱼 23056、24203，在 Tracker 中分别为 ET 04–08、00–04，鱼糕同钓场记录均为全天；未擅自覆盖计算规则。详情展示各自状态，保留社区候选标记。鱼糕版本 803987e，Tracker 固定版本、原始快照和 SHA256 见 `data/fishing-intuition-audit.json` 与 `data/fishing-intuition-observations.json`。
+2026-10-23 完成 32 条鱼识跨来源核对及缺项补全：24 条条件一致，8 条使用鱼糕记录补全鱼识持续时间，0 条待补，0 条实际条件冲突。补充项保存为 `intuitionDuration`（秒数、来源、版本及核对时间），同时更新详情和规则条件；不修改原始 Tracker 数据，不将单源补充伪称为双源时长一致。
 
-重建命令：`node scripts/audit-fish-intuition.mjs .wrangler/fishing-sources/tracker.js data/fishing-intuition-observations.json`（原始 Tracker 文件须先按固定版本下载）。刷新基础目录后须重新运行该命令；输入 Tracker SHA256 不匹配时拒绝复用旧观察结果，应重新采集公开资料。`test:ops` 检查报告与两个区服目录的核对元数据一致。
+补充时长：巨蛇头鳢 350 秒、小腿鲶 300 秒、希望鲤鱼 300 秒、深坑徨灵 300 秒、水没翠玉 360 秒、碧空之心 900 秒、闪电球 90 秒、三刃海虎 600 秒。国服和国际服同时补齐。
+
+首轮“七彩天主”前置时间冲突是核对口径误报，现已纠正。鱼糕将自身条件与泳饵依赖分开存储：橙彩鱼自身全天，但红彩鱼限制 ET 04–08；蓝彩鱼自身全天，但紫彩鱼限制 ET 00–04。使用鱼糕 `SpotFish.covertConstraintsBySmallFishes` 合并依赖后，与 Tracker 的有效时间完全一致；原始字段和依赖链均保留在观察快照，不覆盖原始鱼窗。鱼糕版本 803987e，Tracker 固定版本、原始快照和 SHA256 见 `data/fishing-intuition-audit.json` 与 `data/fishing-intuition-observations.json`。快照以未使用鱼眼的条件核对。
+
+重建命令：`node scripts/audit-fish-intuition.mjs .wrangler/fishing-sources/tracker.js data/fishing-intuition-observations.json`（原始 Tracker 文件须先按固定版本下载）。`refresh-fishing-catalog.mjs` 在重建基础目录后自动重新应用观察快照，避免刷新丢失补充。输入 Tracker SHA256 不匹配时拒绝复用旧审计；来源 ID 改变等情况停止生成，应重新采集公开资料。`test:ops` 检查报告与两个区服目录的核对元数据、8 条具体时长、补充幂等性及泳饵归一化。
 
 修复了前置鱼数组被当成对象键而错误生成 ID 的导入问题，保留数量、鱼识持续时间、可选鱼饵与技能条件；修复连续天气、午夜造成的假关窗及不限时间天气规则产生重复有限窗口的问题。433 条有预测规则的鱼为时间天气不限；该数量与另 359 条仅有不限时间天气资料的鱼是不同集合。不限规则使用 `unrestricted` 标记；界面不把时间域边界作为开关窗时间，提醒不对其生成开窗任务。
 

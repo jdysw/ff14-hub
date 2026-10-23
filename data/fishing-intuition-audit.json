@@ -1,19 +1,20 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-23T09:33:41.488Z",
+  "generatedAt": "2026-10-23T10:35:42.117Z",
   "sources": {
     "trackerRevision": "d0e1ab5bba62c2b57356e690a73676cd4751b64d",
     "trackerSha256": "749f2644c9b5cfac0d022c2a0e80835f69c74147a20373c4af5e9a4e75a64b4a",
     "fishcakeVersion": "803987e",
     "fishcakeUrl": "https://fish.ffmomola.com",
-    "observedAt": "2026-10-23T09:27:18.469Z",
-    "observationsSha256": "3fe78909acb0e66566d8eeb08b7c438a554c336146185940c2a3145bc1da5b46"
+    "observedAt": "2026-10-23T10:31:57.395Z",
+    "observationsSha256": "e9506a3ffc5e6a9e9bc19f0b6cb2dda2d090f85b30c233733302a8a92d4effca"
   },
   "meaning": "Field agreement is not a simulation of player preparation time. Conflicting or missing facts remain explicit.",
   "total": 32,
-  "matched": 23,
-  "partial": 8,
-  "conflicts": 1,
+  "matched": 24,
+  "supplemented": 8,
+  "partial": 0,
+  "conflicts": 0,
   "missing": 0,
   "records": [
     {
@@ -35,7 +36,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 8754,
@@ -56,7 +58,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 8760,
@@ -77,7 +80,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 8763,
@@ -98,7 +102,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 8764,
@@ -119,7 +124,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 8769,
@@ -140,7 +146,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 8775,
@@ -161,7 +168,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 17588,
@@ -190,7 +198,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 17589,
@@ -211,7 +220,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 17590,
@@ -232,7 +242,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 17591,
@@ -261,7 +272,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 17592,
@@ -282,7 +294,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 17593,
@@ -303,11 +316,12 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 24994,
-      "status": "conflict",
+      "status": "matched",
       "spotId": 168,
       "predators": [
         [
@@ -328,22 +342,64 @@
       "predecessors": [
         {
           "id": 23056,
-          "status": "conflict"
+          "status": "matched",
+          "normalizedMooch": true,
+          "rawConditions": {
+            "startHour": 0,
+            "endHour": 24,
+            "currentWeather": [],
+            "previousWeather": []
+          },
+          "effectiveConditions": {
+            "startHour": 4,
+            "endHour": 8,
+            "currentWeather": [],
+            "previousWeather": []
+          },
+          "moochDependencies": [
+            {
+              "id": 22397,
+              "startHour": 4,
+              "endHour": 8,
+              "currentWeather": [],
+              "previousWeather": []
+            }
+          ]
         },
         {
           "id": 24203,
-          "status": "conflict"
+          "status": "matched",
+          "normalizedMooch": true,
+          "rawConditions": {
+            "startHour": 0,
+            "endHour": 24,
+            "currentWeather": [],
+            "previousWeather": []
+          },
+          "effectiveConditions": {
+            "startHour": 0,
+            "endHour": 4,
+            "currentWeather": [],
+            "previousWeather": []
+          },
+          "moochDependencies": [
+            {
+              "id": 21177,
+              "startHour": 0,
+              "endHour": 4,
+              "currentWeather": [],
+              "previousWeather": []
+            }
+          ]
         },
         {
           "id": 24204,
           "status": "matched"
         }
       ],
-      "differences": [
-        "predecessor time/weather 23056",
-        "predecessor time/weather 24203"
-      ],
-      "missingFields": []
+      "differences": [],
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 24991,
@@ -364,7 +420,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 24992,
@@ -385,7 +442,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 33240,
@@ -414,7 +472,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 33241,
@@ -435,7 +494,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 33244,
@@ -456,7 +516,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 41403,
@@ -477,7 +538,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 41407,
@@ -498,7 +560,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 41408,
@@ -519,7 +582,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 41409,
@@ -540,7 +604,8 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 41412,
@@ -577,11 +642,12 @@
         }
       ],
       "differences": [],
-      "missingFields": []
+      "missingFields": [],
+      "supplementedFields": []
     },
     {
       "id": 46195,
-      "status": "partial",
+      "status": "supplemented",
       "spotId": 329,
       "predators": [
         [
@@ -598,13 +664,14 @@
         }
       ],
       "differences": [],
-      "missingFields": [
+      "missingFields": [],
+      "supplementedFields": [
         "intuition duration"
       ]
     },
     {
       "id": 49797,
-      "status": "partial",
+      "status": "supplemented",
       "spotId": 313,
       "predators": [
         [
@@ -621,13 +688,14 @@
         }
       ],
       "differences": [],
-      "missingFields": [
+      "missingFields": [],
+      "supplementedFields": [
         "intuition duration"
       ]
     },
     {
       "id": 49801,
-      "status": "partial",
+      "status": "supplemented",
       "spotId": 333,
       "predators": [
         [
@@ -652,13 +720,14 @@
         }
       ],
       "differences": [],
-      "missingFields": [
+      "missingFields": [],
+      "supplementedFields": [
         "intuition duration"
       ]
     },
     {
       "id": 52005,
-      "status": "partial",
+      "status": "supplemented",
       "spotId": 321,
       "predators": [
         [
@@ -675,13 +744,14 @@
         }
       ],
       "differences": [],
-      "missingFields": [
+      "missingFields": [],
+      "supplementedFields": [
         "intuition duration"
       ]
     },
     {
       "id": 52008,
-      "status": "partial",
+      "status": "supplemented",
       "spotId": 302,
       "predators": [
         [
@@ -698,13 +768,14 @@
         }
       ],
       "differences": [],
-      "missingFields": [
+      "missingFields": [],
+      "supplementedFields": [
         "intuition duration"
       ]
     },
     {
       "id": 52009,
-      "status": "partial",
+      "status": "supplemented",
       "spotId": 315,
       "predators": [
         [
@@ -729,13 +800,14 @@
         }
       ],
       "differences": [],
-      "missingFields": [
+      "missingFields": [],
+      "supplementedFields": [
         "intuition duration"
       ]
     },
     {
       "id": 52297,
-      "status": "partial",
+      "status": "supplemented",
       "spotId": 326,
       "predators": [
         [
@@ -752,13 +824,14 @@
         }
       ],
       "differences": [],
-      "missingFields": [
+      "missingFields": [],
+      "supplementedFields": [
         "intuition duration"
       ]
     },
     {
       "id": 52011,
-      "status": "partial",
+      "status": "supplemented",
       "spotId": 332,
       "predators": [
         [
@@ -783,7 +856,8 @@
         }
       ],
       "differences": [],
-      "missingFields": [
+      "missingFields": [],
+      "supplementedFields": [
         "intuition duration"
       ]
     }

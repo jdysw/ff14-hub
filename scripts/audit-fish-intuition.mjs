@@ -1,6 +1,6 @@
 import {readFile,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
-import {auditIntuition} from './lib/fish-intuition-audit.mjs';
+import {auditIntuition,supplementIntuition} from './lib/fish-intuition-audit.mjs';
 const [trackerPath,snapshotPath]=process.argv.slice(2);
 if(!trackerPath||!snapshotPath)throw new Error('Usage: tracker-data.js fishcake-observations.json');
 const raw=await readFile(trackerPath,'utf8'),snapshotText=await readFile(snapshotPath,'utf8');
@@ -20,16 +20,18 @@ await writeFile('data/fishing-intuition-audit.json',JSON.stringify(report,null,2
 const cn=JSON.parse(await readFile('apps/web/public/fishing/catalog-cn.json','utf8')),names=new Map(cn.fish.map(f=>[f.id,f.name]));
 for(const region of ['cn','global']){
   const path=`apps/web/public/fishing/catalog-${region}.json`,catalog=JSON.parse(await readFile(path,'utf8'));
-  catalog.intuitionCrosscheck={total:result.total,matched:result.matched,partial:result.partial,conflicts:result.conflicts,missing:result.missing,checkedAt:snapshot.observedAt,fishcakeVersion:snapshot.version};
-  for(const row of result.records){const fish=catalog.fish.find(f=>f.id===row.id);if(!fish)continue;
+  catalog.intuitionCrosscheck={total:result.total,matched:result.matched,supplemented:result.supplemented,partial:result.partial,conflicts:result.conflicts,missing:result.missing,checkedAt:snapshot.observedAt,fishcakeVersion:snapshot.version};
+  for(const row of result.records){const index=catalog.fish.findIndex(f=>f.id===row.id);if(index<0)continue;const fish=supplementIntuition(catalog.fish[index],row,snapshot);catalog.fish[index]=fish;
     const descriptions=[];
-    if(row.status==='partial')descriptions.push(`鱼糕标注鱼识持续 ${row.intuitionSeconds} 秒；Tracker 暂未提供时长。`);
-    for(const predecessor of row.predecessors??[]){if(predecessor.status==='matched')continue;
+    if(row.status==='supplemented')descriptions.push(`已按鱼糕补全鱼识持续时间：${row.intuitionSeconds} 秒；Tracker 原记录未提供时长，来源条件与补充字段分别保留。`);
+    if(row.status==='partial')descriptions.push('来源时长资料仍不完整，未擅自填写。');
+    for(const predecessor of row.predecessors??[]){if(predecessor.normalizedMooch)descriptions.push(`${names.get(predecessor.id)??predecessor.id}：合并泳饵依赖后 ET ${predecessor.effectiveConditions.startHour}–${predecessor.effectiveConditions.endHour}，与 Tracker 一致。`);if(predecessor.status==='matched')continue;
       const fact=snapshot.fish.find(f=>f.id===row.id).spots.find(s=>s.spotId===row.spotId).preconditions.find(p=>p.id===predecessor.id)?.spots?.[0],reference=tracker.FISH[predecessor.id];
       descriptions.push(`${names.get(predecessor.id)??predecessor.id}：Tracker ET ${reference?.startHour}–${reference?.endHour}；鱼糕 ET ${fact?.startHour}–${fact?.endHour}，准备时间条件存在差异。`);
     }
-    fish.intuitionCrosscheck={status:row.status,description:descriptions.join(' '),checkedAt:snapshot.observedAt,fishcakeVersion:snapshot.version};
+    // Retain the previous public enum so an already-open PWA can still parse catalogs.
+    fish.intuitionCrosscheck={status:row.status==='supplemented'?'partial':row.status,...(row.status==='supplemented'?{supplemented:true}:{}),description:descriptions.join(' '),checkedAt:snapshot.observedAt,fishcakeVersion:snapshot.version};
   }
   await writeFile(path,JSON.stringify(catalog)+'\n');
 }
-console.log(JSON.stringify({total:result.total,matched:result.matched,partial:result.partial,conflicts:result.conflicts,missing:result.missing}));
+console.log(JSON.stringify({total:result.total,matched:result.matched,supplemented:result.supplemented,partial:result.partial,conflicts:result.conflicts,missing:result.missing}));

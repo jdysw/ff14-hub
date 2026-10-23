@@ -26,6 +26,17 @@ beforeEach(()=>{reminderSettings.clear();vi.stubGlobal('Worker',ForecastWorker);
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});
 const publicPort=(catalog=fixture):DataPort=>({moduleId:'ff14.fishing',operations:['fish.catalog'],call:<T,>()=>Promise.resolve(catalog as T)});
 
+it('shows filled intuition duration with its source and the corrected mooch comparison',async()=>{
+  const selected=source.fish.filter(f=>f.id===46195||f.id===24994);
+  render(<FishingBoard data={publicPort({...source,fish:selected,coverage:{total:2,forecast:2,always:0,unknown:0}})} initialFilters={{region:'cn',view:'all',kind:'all',text:'',hideCaught:false,windowHours:24}}/>);
+  await screen.findByText('巨蛇头鳢');
+  expect(screen.getByText('鱼识持续 350 秒（鱼糕补充）；尚未计算前置鱼准备的可行性。')).toBeTruthy();
+  expect(screen.getByText(/已按鱼糕补全鱼识持续时间：350 秒/)).toBeTruthy();
+  expect(screen.getByText(/橙彩鱼：合并泳饵依赖后 ET 4–8，与 Tracker 一致/)).toBeTruthy();
+  expect(screen.queryByText(/准备时间条件存在差异/)).toBeNull();
+  expect(screen.getByText(/24 条一致、8 条已按鱼糕补全时长、0 条资料待补、0 条条件差异/)).toBeTruthy();
+});
+
 it('renders actionable fish directly, and searches beyond the first 30 records',async()=>{
   render(<FishingBoard data={publicPort()} compact/>);
   await screen.findByText('测试鱼0');
