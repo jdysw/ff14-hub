@@ -53,7 +53,6 @@ import {
   validateNavExportIntegrity,
   validateNavUrl,
   type NavConflict,
-  type NavCatalogEntry,
   type NavExportDocument,
   type NavFilter,
   type NavGroup,
