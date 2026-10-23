@@ -7,6 +7,16 @@ import './fishing-board.css';
 import {registerPrivateDraftSource} from '../pwa/draft-registry';
 import {fishCountdown as duration} from './countdown';
 const localTime=(ms:number)=>new Date(ms).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
+const windowDate=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+const windowClock=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+const windowDay=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'});
+function WindowPeriod({window}:{window:{startsAtUtcMs:number;endsAtUtcMs:number;unrestricted?:boolean}|null}){
+  if(!window||window.unrestricted)return null;
+  const start=windowDate.format(window.startsAtUtcMs),end=(windowDay.format(window.startsAtUtcMs)===windowDay.format(window.endsAtUtcMs)?windowClock:windowDate).format(window.endsAtUtcMs);
+  return <span className="fish-window-period" title="北京时间" aria-label={`北京时间 ${start} 至 ${end}`}>
+    <time dateTime={new Date(window.startsAtUtcMs).toISOString()}>{start}</time><span aria-hidden="true">–</span><time dateTime={new Date(window.endsAtUtcMs).toISOString()}>{end}</time>
+  </span>;
+}
 const etTime=(hour:number)=>{const minutes=Math.round(hour*60);return `${String(Math.floor(minutes/60)).padStart(2,'0')}:${String(minutes%60).padStart(2,'0')}`;};
 const kindLabel={normal:'普通鱼',big:'鱼王',legendary:'鱼皇'};
 const tugLabel:Record<string,string>={light:'轻竿 !',medium:'中竿 !!',heavy:'重竿 !!!'};
@@ -156,6 +166,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
                 <span className="fish-glance__fish"><strong>{fish.name}</strong><small>{fish.location}</small></span>
                 <span className="fish-glance__time">
                   <small>{state.open?`${duration(state.open.endsAtUtcMs-now)} 后结束`:state.next?`${duration(state.next.startsAtUtcMs-now)} 后开始`:state.always?'时间天气不限':'查看完整信息'}</small>
+                  <WindowPeriod window={state.open??state.next}/>
                 </span>
               </button>
             </li>;
@@ -201,6 +212,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
             <span className={`fish-board__window${state.open?' is-open':''}`}>
               <strong>{fish.rule&&forecasts===null?'正在计算':state.open?(state.open.candidateOnly?'候选窗口中':'时间天气匹配'):state.always?'时间天气不限':state.next?(state.next.candidateOnly?'后续候选':'即将匹配'):state.unknown?'窗口资料待补':`${hours} 小时内暂无窗口`}</strong>
               <small>{state.open?`${duration(state.open.endsAtUtcMs-now)}后关闭`:state.next?`${duration(state.next.startsAtUtcMs-now)}后开放`:state.always?'无已知时间 / 天气限制':'可展开查看已有资料'}</small>
+              <WindowPeriod window={state.open??state.next}/>
             </span></summary>
             <div className="fish-board__detail">
               <p>{fish.zone} · {fish.location}{fish.patch?` · ${fish.patch} 版本`:''}</p>
