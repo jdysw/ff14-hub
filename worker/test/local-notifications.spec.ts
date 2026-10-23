@@ -46,7 +46,8 @@ it('limits retries without leaking provider content',async()=>{
 it('refunds rejected provider attempts without exhausting the daily delivery quota',async()=>{
   await register();
   const {id}= (await env.DB.prepare('SELECT id FROM local_push_devices').first<{id:string}>())!;
-  const now=Date.now();
+  // 固定在 UTC 正午，避免临近 00:00 运行时跨日导致额度断言偶发失败。
+  const now=Date.parse('2026-10-24T12:00:00Z');
   const job=(key:string):LocalNotificationJob=>({key,title:key,body:'正文',dueAt:now,expiresAt:now+600_000});
   await replaceLocalJobs(env.DB,id,[job('retry')],now);
   const failing=vi.fn(()=>Promise.resolve(503));
