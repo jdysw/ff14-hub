@@ -14,6 +14,6 @@ describe('single-user local-first API surface',()=>{
     expect((await SELF.fetch(base+'/health')).status).toBe(200);
     expect((await SELF.fetch(base+'/navigation/catalog')).status).toBe(200);
     expect((await SELF.fetch(base+'/local-notifications/status')).status).toBe(401);
-    expect((await SELF.fetch(base+'/widgets/v1/summary?region=cn')).status).not.toBe(404);
+    expect((await SELF.fetch(base+'/widgets/v1/summary?region=cn')).status).toBe(200);
   });
 });
