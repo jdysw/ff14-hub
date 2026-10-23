@@ -123,3 +123,17 @@
 **本轮续做**：`packages/shared/src/nav-api.ts` 已将文本规范化、导航投影、目录升级判定及书签 HTML 安全扫描器分别提取至 `nav-normalize.ts`、`nav-projection.ts`、`nav-catalog-decisions.ts`、`nav-bookmark-parser.ts`。原入口保留所有公开 API，解析器的 URL 校验与上限由原契约显式注入，内部模块只通过 `import type` 引用旧类型，避免运行时循环。新增 facade 同一性及解析输出一致性测试。静态复核确认前三个抽取源码片段与原文件完全一致；书签扫描器除导出、函数签名和显式依赖注入外，函数正文与原实现一致。共享契约入口从 1,663 行缩减至约 1,054 行。`forecast-session.ts` 也增加鱼类预测规则比较及相同元数据冲突后的存活任务复用逻辑，防止结果串用和冗余 Worker。\n\n**尚未实施**：结构化 JSON 导入/导出解析的剩余模块化、大型工作台/生命周期服务、鱼类目录按需分片与主动删除历史兼容 API；它们仍需完整类型检查、D1 测试或真实数据迁移评估，不能因静态审计就直接移除。
 
 **运行验证状态**：尝试恢复原 DevSpace 工作空间 `E:\\deepseek\\workplace1` 及其工作空间 ID，连接仍返回内部错误；容器也无法解析私有 GitHub 源码域名。已使用独立 SQLite 进行 `UPDATE ... WHERE changes()>0` 基本语义验证，并完成 GitHub 源码片段与 CSS 完整内容的静态一致性复核，但**未运行 pnpm verify、workerd、Gradle 或真实浏览器测试**。PR 应保持 Draft，不应自动合并/部署。
+
+## 7. 单用户架构决策：主动移除历史兼容（本轮更新，优先于第 2/4/6 节的旧建议）
+
+维护者确认 **目前只有其本人使用 FF14 Hub，不需要保持早期设备/工作空间/服务器端 Widget 工作台客户端兼容**。该新事实改变了初次审计“在无法证明外部调用者之前暂时保留”的前提；下面按新约束执行，不是此前静态审计自相矛盾。
+
+已提交至本 PR：
+
+- API 装配删除 `/api/v1/identity/*`、`/api/v1/me/*` 和旧演示 `/api/v1/modules/catalog`，并删除原路由处理器；保留公开导航、活动、鱼类、Android Widget、唯一 owner 管理与独立后台通知。
+- 删除旧设备身份/配对/恢复、工作空间模块注册与生命周期、服务端工作台/个人导航 CRUD、旧鱼糕 Hub 同步、工作空间提示和提醒调度模块。**复用中的凭证摘要、公共目录与推送传输保留**，并未按目录名称整目录删除。
+- 将 `worker/modules/fish/service.ts` 收缩为公共鱼类读取；将 `worker/modules/events/service.ts` 从个人/公共混合服务收缩为公共活动只读。Cron 只运行现行 `local_push_jobs` 路径。
+- 移除只验证旧功能的 HTTP/服务端工作台测试和临时身份恢复演练脚本，重建了公开鱼类、活动、目录与旧路由 JSON 404 的回归测试；`worker/test/helpers.ts` 收敛为当前测试所需辅助。**这属于功能退役，不是为测试通过而修改期望；所有新用例仍必须真实执行才能算通过。**
+- README、当前 API 清单和运维手册转为单用户本机优先契约。保留旧 SQL 迁移以维护 D1 `d1_migrations` 已应用历史，**未运行 DROP TABLE 或清空生产 D1**。另有资料库历史 ADR 属过去决策，不自动删除。
+
+静态验证：已对现行 Worker 实现及剩余 workerd 回归测试执行 GitHub 源码相对导入目标核对，全部可解析至仍存在的本仓库文件。该检查不覆盖运行时逻辑、TypeScript 类型错误及真实 D1 行为；**DevSpace 仍无法打开，`pnpm verify:release`、workerd、Web E2E 和 Android Gradle 仍未执行。** 尽管移除了兼容代码，PR #78 仍应保留 Draft，禁止直接合并生产。
