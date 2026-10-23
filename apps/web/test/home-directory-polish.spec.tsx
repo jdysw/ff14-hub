@@ -83,6 +83,7 @@ it('uses the same input for Ctrl+K and slash while leaving editor keystrokes alo
   render(<LocalApp/>);await screen.findByText('市场工具');
   const input=screen.getByRole('searchbox',{name:'全站搜索关键词'});
   fireEvent.keyDown(window,{key:'k',ctrlKey:true});await waitFor(()=>expect(document.activeElement).toBe(input));
+  fireEvent.keyDown(input,{key:'ArrowDown'});expect(document.activeElement?.textContent).toContain('今日计划');
   const editor=document.createElement('textarea');document.body.append(editor);editor.focus();
   fireEvent.keyDown(editor,{key:'/'});expect(document.activeElement).toBe(editor);editor.remove();
   expect(document.querySelector('dialog')).toBeNull();

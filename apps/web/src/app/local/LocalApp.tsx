@@ -98,9 +98,10 @@ export function LocalApp(){
   const [visibleLimit,setVisibleLimit]=useState(36);
   const showSearch=useCallback(()=>{
     setSearchOpen(true);
-    requestAnimationFrame(()=>{const input=searchRef.current;if(!input?.isConnected||document.querySelector('dialog[open]'))return;input.focus({preventScroll:true});window.scrollTo({top:0,behavior:'auto'});});
+    requestAnimationFrame(()=>{const input=searchRef.current;if(!input?.isConnected||document.querySelector('dialog[open]')||document.activeElement?.closest('#global-search-results'))return;input.focus({preventScroll:true});window.scrollTo({top:0,behavior:'auto'});});
   },[]);
   const closeSearch=()=>{searchRef.current?.focus({preventScroll:true});setSearchOpen(false);};
+  const focusSearchResult=()=>{const first=document.querySelector<HTMLElement>('#global-search-results [data-search-result]');if(first)first.focus();else requestAnimationFrame(()=>document.querySelector<HTMLElement>('#global-search-results [data-search-result]')?.focus());};
   useEffect(()=>{
     let alive=true;let revision=-1;
     const refresh=()=>{void store.read().then(next=>{if(alive&&next.revision>=revision){revision=next.revision;setData(next);setError(null);}}).catch((cause:unknown)=>{if(alive)setError(cause instanceof Error?cause.message:'读取本机数据失败');});};
@@ -149,12 +150,12 @@ export function LocalApp(){
       </button>
       <div className="home-global-search">
         <button className="home-global-search__label" type="button" aria-label="全站搜索" aria-expanded={searchOpen} aria-controls="global-search-results" onClick={showSearch}><UiIcon name="search"/><span>全站搜索</span></button>
-        <form role="search" aria-label="全站搜索" onSubmit={event=>{event.preventDefault();setSearchOpen(true);requestAnimationFrame(()=>document.querySelector<HTMLElement>('#global-search-results [data-search-result]')?.focus());}}>
+        <form role="search" aria-label="全站搜索" onSubmit={event=>{event.preventDefault();setSearchOpen(true);focusSearchResult();}}>
           <label className="visually-hidden" htmlFor="global-search-input">全站搜索关键词</label>
           <input id="global-search-input" ref={searchRef} type="search" value={search} maxLength={100} autoComplete="off" placeholder="网站、鱼名、活动或功能" aria-controls="global-search-results" onFocus={showSearch} onClick={()=>setSearchOpen(true)} onChange={event=>{setSearch(event.target.value);setSearchOpen(true);}} onKeyDown={event=>{
             if(event.nativeEvent.isComposing)return;
             if(event.key==='Escape'){event.preventDefault();closeSearch();}
-            if(event.key==='ArrowDown'){event.preventDefault();setSearchOpen(true);requestAnimationFrame(()=>document.querySelector<HTMLElement>('#global-search-results [data-search-result]')?.focus());}
+            if(event.key==='ArrowDown'){event.preventDefault();setSearchOpen(true);focusSearchResult();}
           }}/>
           {search?<button type="button" className="home-global-search__clear" aria-label="清空搜索" onClick={()=>{setSearch('');showSearch();}}>×</button>:<kbd aria-hidden="true">/</kbd>}
         </form>
