@@ -12,13 +12,16 @@ FF14 导航、国服活动、钓鱼预测与个人资料工具站。当前前端
 
 具体配置与限制见 [个人同步和通知](docs/personal-sync-and-notifications.md)、[管理员运维](docs/site-admin-operations.md)、[源码审核与架构调整](docs/source-audit-and-cleanup.md)。
 
+代码质量与架构整理见 [2026-10-24 审计与修复记录](docs/code-architecture-audit-2026-10-24.md)，完整 Web/Worker 与 Android 本地测试门禁见 [免费手动发布验证清单](docs/manual-release-verification.md)。默认 `verify` **不执行 Android Gradle**；需要 JDK 17 / Android SDK 的原生测试时，须单独按清单运行。
+
 ## 开发与验证
 
 Node.js >= 22.12.0，pnpm 固定为 package.json 声明的版本。依赖精确版本由 pnpm catalog 和锁文件维护。
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm run verify                  # lint、类型、单测、运维测试、构建干跑
+pnpm run verify                  # lint、类型、单测、运维测试、Android 规则一致性、构建干跑
+pnpm run verify:release          # 上述验证 + preview/production Wrangler 配置干跑
 pnpm run db:migrate:local         # 仅本地数据库
 pnpm run build:web
 pnpm run dev:api                 # 同源 Worker + ASSETS，默认 localhost:8787
