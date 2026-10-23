@@ -26,12 +26,60 @@ beforeEach(()=>{reminderSettings.clear();vi.stubGlobal('Worker',ForecastWorker);
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});
 const publicPort=(catalog=fixture):DataPort=>({moduleId:'ff14.fishing',operations:['fish.catalog'],call:<T,>()=>Promise.resolve(catalog as T)});
 
+it('separates finite open, future and unrestricted fish and applies future range outside the expanded page',async()=>{
+  const entries=[{...fish[0]!,kind:'normal' as const},fish[1]!,fish[2]!,fish[3]!,{...fish[4]!,method:'spear' as const,rule:null}];
+  class ScopeWorker{
+    onmessage:((event:MessageEvent)=>void)|null=null;
+    postMessage(input:{from:number;region:FishRegion}){
+      const forecasts=entries.slice(0,4).map((entry,index)=>({id:entry.id,failed:false,windows:[{
+        occurrenceKey:`scope:${entry.id}`,region:input.region,fishId:entry.id,ruleVersion:'test',
+        startsAtUtcMs:index===0?input.from-60000:index===3?0:input.from+(index===1?3:12)*3600000,
+        endsAtUtcMs:index===3?Date.UTC(2100,0,1):input.from+(index===0?1:index===1?4:13)*3600000,
+        weatherChain:{previous:'晴',current:'晴'},validationStatus:'unverified',candidateOnly:true,conditions:[],...(index===3?{unrestricted:true}:{})
+      }]}));
+      queueMicrotask(()=>this.onmessage?.(new MessageEvent('message',{data:{forecasts}})));
+    }
+    terminate(){this.onmessage=null;}
+  }
+  vi.stubGlobal('Worker',ScopeWorker);render(<FishingBoard data={publicPort({...fixture,fish:entries,coverage:{total:5,forecast:4,always:0,unknown:1}})}/>);
+  await screen.findByText('测试鱼0');expect(document.querySelectorAll('.fish-board__row')).toHaveLength(1);
+  expect(screen.getByRole('button',{name:'开放中'}).getAttribute('aria-pressed')).toBe('true');
+  expect(screen.queryByRole('combobox',{name:'获取方式'})).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:'即将开放'}));await screen.findByText('测试鱼1');expect(document.querySelectorAll('.fish-board__row')).toHaveLength(2);
+  fireEvent.click(screen.getByRole('button',{name:'6 小时'}));expect(screen.queryByText('测试鱼2')).toBeNull();expect(screen.getByText('测试鱼1')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button',{name:'时间天气不限'}));expect(screen.getByText('测试鱼3')).toBeTruthy();expect(document.querySelectorAll('.fish-board__row')).toHaveLength(1);
+  fireEvent.click(screen.getByRole('button',{name:'即将开放'}));fireEvent.click(screen.getByRole('button',{name:'全部资料'}));expect(document.querySelectorAll('.fish-board__row')).toHaveLength(5);expect(screen.getByText('测试鱼0').closest('article')?.textContent).toContain('后关闭');
+  fireEvent.change(screen.getByRole('combobox',{name:'获取方式'}),{target:{value:'spear'}});expect(document.querySelectorAll('.fish-board__row')).toHaveLength(1);expect(screen.getByText('测试鱼4')).toBeTruthy();
+});
+
+it('exposes active constraints and lets an unsuccessful window search keep its query in the complete catalog',async()=>{
+  const unknown={...base,id:9999,name:'未知时间普通鱼',kind:'normal' as const,always:false,rule:null};
+  render(<FishingBoard data={publicPort({...fixture,fish:[...fish,unknown],coverage:{total:35,forecast:34,always:0,unknown:1}})}/>);
+  fireEvent.change(screen.getByRole('combobox',{name:'鱼类类型'}),{target:{value:'rare'}});
+  fireEvent.change(screen.getByRole('searchbox',{name:'搜索鱼类'}),{target:{value:unknown.name}});
+  await screen.findByText('当前筛选下没有结果，并不代表目录未收录。');
+  expect(screen.getByRole('button',{name:'清除鱼种筛选'})).toBeTruthy();
+  fireEvent.click(screen.getByRole('button',{name:`在全部资料中搜索“${unknown.name}”`}));
+  await screen.findByText(unknown.name);expect(screen.getByRole<HTMLInputElement>('searchbox',{name:'搜索鱼类'}).value).toBe(unknown.name);
+  expect(screen.getByRole<HTMLSelectElement>('combobox',{name:'鱼类类型'}).value).toBe('all');
+  fireEvent.click(screen.getByRole('button',{name:'清除搜索词'}));expect(screen.getByRole<HTMLInputElement>('searchbox',{name:'搜索鱼类'}).value).toBe('');
+  expect(screen.queryByRole('button',{name:'清除筛选'})).toBeNull();
+});
+
 it('special records expose acquisition locations and stay out of the normal fish filter',async()=>{
   const selected=source.fish.filter(f=>[4925,29994,52224,6688].includes(f.id));
   render(<FishingBoard data={publicPort({...source,fish:selected,coverage:{total:4,forecast:0,always:1,unknown:3}})} initialFilters={{region:'cn',view:'all',kind:'all',text:'',hideCaught:false,windowHours:24}}/>);
   await screen.findByText('第二期重建用的云冠跳鱼');expect(screen.getByText(/来源记录地点：云冠洞穴/)).toBeTruthy();expect(screen.getAllByText(/列出地点不代表当前仍可获取/).length).toBeGreaterThan(0);
   fireEvent.change(screen.getByRole('combobox',{name:'鱼类类型'}),{target:{value:'normal'}});expect(screen.queryByText('陈旧的鞣革地图')).toBeNull();expect(screen.getByText('蝲蛄')).toBeTruthy();
   fireEvent.change(screen.getByRole('combobox',{name:'鱼类类型'}),{target:{value:'special'}});expect(screen.getByText('陈旧的鞣革地图')).toBeTruthy();expect(screen.queryByText('蝲蛄')).toBeNull();
+});
+
+it('searches fish names by default and only matches bait after an explicit scope change',async()=>{
+  const entries=[{...fish[0]!,name:'蝲蛄',bait:['蛾蛹']},{...fish[1]!,name:'梦幻虾虎',bait:['蝲蛄']}];
+  render(<FishingBoard data={publicPort({...fixture,fish:entries,coverage:{total:2,forecast:2,always:0,unknown:0}})} initialFilters={{region:'cn',view:'all',kind:'all',text:'蝲蛄',hideCaught:false,windowHours:24}}/>);
+  await screen.findByText('蝲蛄',{selector:'strong'});expect(screen.queryByText('梦幻虾虎',{selector:'strong'})).toBeNull();
+  fireEvent.change(screen.getByRole('combobox',{name:'搜索范围'}),{target:{value:'bait'}});
+  expect(screen.getByText('梦幻虾虎',{selector:'strong'})).toBeTruthy();expect(screen.queryByText('蝲蛄',{selector:'strong'})).toBeNull();
 });
 
 it('shows full audit coverage and separates spear conditions from ocean voyage conditions',async()=>{
@@ -58,6 +106,7 @@ it('shows filled intuition duration with its source and the corrected mooch comp
 
 it('renders actionable fish directly, and searches beyond the first 30 records',async()=>{
   render(<FishingBoard data={publicPort()} compact/>);
+  fireEvent.click(screen.getByRole('button',{name:'时间天气不限'}));
   await screen.findByText('测试鱼0');
   expect(document.querySelectorAll('.fish-board__row')).toHaveLength(6);
   fireEvent.change(screen.getByRole('searchbox',{name:'搜索鱼类'}),{target:{value:'测试鱼31'}});
@@ -88,15 +137,15 @@ it('undo restores a caught fish after it disappears, using a new revision and op
   await screen.findByRole('button',{name:'钓获 测试鱼0'});expect(writes.map(w=>[w.value,w.expectedRevision])).toEqual([[true,0],[false,1]]);expect(writes[0]?.operationId).not.toBe(writes[1]?.operationId);
 });
 it('undo refuses to overwrite a record changed by another tab or synchronization',async()=>{
-  const f=editablePort();render(<FishingBoard data={f.data}/>);const button=await screen.findByRole('button',{name:'钓获 测试鱼0'});await waitFor(()=>expect(button.hasAttribute('disabled')).toBe(false));fireEvent.click(button);
+  const f=editablePort();render(<FishingBoard data={f.data}/>);fireEvent.click(screen.getByRole('button',{name:'时间天气不限'}));const button=await screen.findByRole('button',{name:'钓获 测试鱼0'});await waitFor(()=>expect(button.hasAttribute('disabled')).toBe(false));fireEvent.click(button);
   const undo=await screen.findByRole('button',{name:'撤销'});f.concurrentEdit();fireEvent.click(undo);await screen.findByText('这条鱼已被其他页面或同步更新，未覆盖新记录。');expect(f.writes).toHaveLength(1);
 });
 it('shows home filters and opens the full catalog without hidden caught or rarity filters',()=>{
   const open=vi.fn();render(<FishingBoard data={publicPort()} embedded onOpenDetail={open}/>);
-  expect(screen.getByRole('button',{name:'未钓获'})).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:'查看全部鱼类'}));expect(open).toHaveBeenCalledWith(expect.objectContaining({view:'all',kind:'all',hideCaught:false}));
+  expect(screen.queryByRole('checkbox',{name:'只看未钓获'})).toBeNull();expect(screen.getByRole('combobox',{name:'首页鱼种'})).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:'查看全部鱼类'}));expect(open).toHaveBeenCalledWith(expect.objectContaining({view:'all',kind:'all',hideCaught:false}));
 });
 it('saves an individual alarm and lead time without pretending browser permission is enabled',async()=>{
-  const f=editablePort();render(<FishingBoard data={f.data}/>);const button=await screen.findByRole('button',{name:'提醒 测试鱼0'});await waitFor(()=>expect(button.hasAttribute('disabled')).toBe(false));fireEvent.click(button);
+  const f=editablePort();render(<FishingBoard data={f.data}/>);fireEvent.click(screen.getByRole('button',{name:'时间天气不限'}));const button=await screen.findByRole('button',{name:'提醒 测试鱼0'});await waitFor(()=>expect(button.hasAttribute('disabled')).toBe(false));fireEvent.click(button);
   await screen.findByRole('region',{name:'测试鱼0的提醒'});const save=screen.getByRole('button',{name:'保存提醒标记'});await waitFor(()=>expect(save.hasAttribute('disabled')).toBe(false));fireEvent.change(screen.getByRole('combobox',{name:'单鱼提醒提前时间'}),{target:{value:'15'}});fireEvent.click(save);
   await screen.findByText('已保存这条鱼的提醒标记');expect(f.writes[0]).toMatchObject({field:'alarm',value:true});expect(reminderSettings.get('notifications')).toMatchObject({browser:false,fishLeadMinutes:{'cn:1000':15}});
   fireEvent.click(screen.getByRole('button',{name:'提醒 测试鱼0'}));await screen.findByRole('button',{name:'取消这条鱼的提醒'});fireEvent.click(screen.getByRole('button',{name:'取消这条鱼的提醒'}));await screen.findByText('已取消这条鱼的提醒');expect(f.writes[1]).toMatchObject({field:'alarm',value:false,expectedRevision:1});
@@ -108,7 +157,7 @@ it('notification targeting identifies exactly one fish even when caught and open
 it('shows fish lacking rules in full catalog without a false all-day claim',async()=>{
   const unknown={...base,id:9999,name:'条件待补鱼',always:false,rule:null};
   render(<FishingBoard data={publicPort({...fixture,fish:[unknown],coverage:{total:1,forecast:0,always:0,unknown:1}})}/>);
-  fireEvent.click(screen.getByRole('button',{name:'全部鱼类'}));
+  fireEvent.click(screen.getByRole('button',{name:'全部资料'}));
   await screen.findByText('条件待补鱼');
   expect(screen.getByText('窗口资料待补')).toBeDefined();
   expect(screen.queryByText('全天')).toBeNull();
@@ -123,6 +172,7 @@ it('keeps failed mutation intent and retries the identical operation',async()=>{
   });
   const data:DataPort={moduleId:'ff14.fishing',operations:['fish.catalog','fish.progress','fish.progress.read'],call:<T,>(op:string,input?:unknown)=>call(op,input) as Promise<T>};
   render(<FishingBoard data={data}/>);
+  fireEvent.click(screen.getByRole('button',{name:'时间天气不限'}));
   const pin=await screen.findByRole('button',{name:'收藏 测试鱼0'});
   await waitFor(()=>expect(pin.hasAttribute('disabled')).toBe(false));
   fireEvent.click(pin);
@@ -168,7 +218,7 @@ it('home uses 24 hours and retains every matched fish in its scrollable list',as
   render(<FishingBoard data={publicPort()} expanded initialFilters={selection}/>);
   await waitFor(()=>expect(document.querySelectorAll('.fish-board__row')).toHaveLength(34));
   expect(screen.getByText('测试鱼16')).toBeDefined();
-  fireEvent.click(screen.getByRole('button',{name:'未来 6 小时'}));
+  fireEvent.click(screen.getByRole('button',{name:'6 小时'}));
   await waitFor(()=>expect(document.querySelectorAll('.fish-board__row')).toHaveLength(17));
   fireEvent.click(screen.getByRole('button',{name:'24 小时'}));
   await waitFor(()=>expect(document.querySelectorAll('.fish-board__row')).toHaveLength(34));
@@ -199,7 +249,7 @@ it('clicking an individual home fish opens detail prefiltered to that fish',asyn
   expect(preview.querySelector('.fish-glance__time strong')).toBeNull();
   expect(preview.querySelector('progress')).toBeNull();
   fireEvent.click(screen.getByRole('button',{name:'查看测试鱼0的完整鱼窗'}));
-  expect(onOpenDetail).toHaveBeenCalledWith(expect.objectContaining({region:'cn',text:'测试鱼0',view:'windows'}));
+  expect(onOpenDetail).toHaveBeenCalledWith(expect.objectContaining({region:'cn',text:'',view:'all',fishId:1000,kind:'all',hideCaught:false}));
 });
 
 it('home defaults to finite open windows, shows next times in future, and unions followed flags without hiding normal or caught fish',async()=>{
