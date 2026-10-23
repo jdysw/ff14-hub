@@ -53,8 +53,6 @@ export function LocalModuleOverlay({title,origin,onClose,children}:LocalModuleOv
     dialog.dataset['phase']='opening';
     // 原生模态对话框：浏览器负责背景 inert、Tab 焦点约束和 Esc。
     if(!dialog.open)dialog.showModal();
-    const previousOverflow=document.documentElement.style.overflow;
-    document.documentElement.style.overflow='hidden';
     const motion=typeof window.matchMedia==='function'&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const panel=panelRef.current,content=contentRef.current,spatial=spatialMotion();
     if(motion&&panel?.animate&&spatial){
@@ -75,7 +73,6 @@ export function LocalModuleOverlay({title,origin,onClose,children}:LocalModuleOv
     return()=>{
       mountedRef.current=false;
       cancelAnimations();
-      document.documentElement.style.overflow=previousOverflow;
       if(dialog.open)dialog.close();
     };
   },[cancelAnimations,spatialMotion]);
@@ -123,6 +120,7 @@ export function LocalModuleOverlay({title,origin,onClose,children}:LocalModuleOv
 
   return createPortal(<dialog ref={dialogRef} className="local-module-overlay"
     aria-labelledby={headingId}
+    onClose={event=>{if(!event.currentTarget.open)finishClose();}}
     onCancel={event=>{event.preventDefault();requestClose();}}
     onClick={event=>{if(event.target===event.currentTarget)requestClose();}}>
     <div ref={panelRef} className="local-module-overlay__panel">

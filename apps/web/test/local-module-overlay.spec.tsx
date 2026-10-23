@@ -89,6 +89,20 @@ it('dismisses on Escape or the explicit close control',()=>{
   trigger.remove();
 });
 
+it('handles native dismissal once and leaves no inline document scroll lock',()=>{
+  const {trigger,origin}=createOrigin(),onClose=vi.fn();
+  const before=document.documentElement.style.overflow;
+  const {unmount}=render(<LocalModuleOverlay title="PVP" origin={origin} onClose={onClose}><div>轮换资料</div></LocalModuleOverlay>);
+  expect(document.documentElement.style.overflow).toBe(before);
+  const dialog=document.querySelector<HTMLDialogElement>('dialog.local-module-overlay')!;
+  // A queued close from an earlier mount must not dismiss a reopened dialog.
+  fireEvent(dialog,new Event('close'));expect(onClose).not.toHaveBeenCalled();expect(dialog.open).toBe(true);
+  dialog.close();fireEvent(dialog,new Event('close'));
+  expect(onClose).toHaveBeenCalledOnce();expect(document.activeElement).toBe(trigger);
+  fireEvent(dialog,new Event('close'));expect(onClose).toHaveBeenCalledOnce();
+  unmount();expect(document.documentElement.style.overflow).toBe(before);trigger.remove();
+});
+
 it('closing during entrance starts from the visible frame and closes exactly once',async()=>{
   const {animate,handles}=enableAnimation();
   const {trigger,origin}=createOrigin();const onClose=vi.fn();
