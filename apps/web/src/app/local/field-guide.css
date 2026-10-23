@@ -224,6 +224,10 @@ html {scrollbar-gutter:stable;}
 }
 
 /* Only the data rows scroll; headings, counts, filters and the surrounding page stay put. */
+.local-app .home-status-tabs{display:flex;flex-wrap:wrap;gap:8px;border-bottom:1px solid var(--field-line);margin:10px 0;padding-bottom:4px;}
+.local-app .home-status-tabs button{min-height:44px;border:0;border-bottom:2px solid transparent;border-radius:0;padding:6px 10px;background:transparent;font:inherit;font-size:13px;color:var(--field-muted);cursor:pointer;}
+.local-app .home-status-tabs button[aria-pressed=true]{border-bottom-color:var(--field-accent);color:var(--field-accent);font-weight:650;}
+.local-app .home-status-tabs button:focus-visible{outline:2px solid var(--field-accent);outline-offset:2px;}
 .local-app .local-dashboard__module {--home-event-row-height:96px;--home-fish-row-height:64px;}
 .local-app .local-dashboard__module .home-official__list,
 .local-app .local-dashboard__module .fish-glance__list {

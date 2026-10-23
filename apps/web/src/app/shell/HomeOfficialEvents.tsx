@@ -65,6 +65,7 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
   const [state, setState] = useState<ViewState>({ kind: 'loading' });
   const [refresh, setRefresh] = useState(0);
   const [clock, setClock] = useState(Date.now);
+  const [phase,setPhase]=useState<'active'|'upcoming'>('active');
 
   useEffect(() => {
     const id = window.setInterval(() => setClock(Date.now()), 1_000);
@@ -110,7 +111,8 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
   // 不截断数据；4 项的可视窗口由列表样式控制。
   const allEvents = state.kind === 'ready' ? state.value.events : [];
   const unknownCount = allEvents.filter(item => !isScheduled(item)).length;
-  const important = homeEventHighlights(allEvents, now);
+  const highlights=homeEventHighlights(allEvents,now);
+  const important=highlights.filter(item=>phase==='active'?item.startsAt!<=now&&item.endsAt!>now:item.startsAt!>now);
   const reload = () => { setRefresh(value => value + 1); };
 
   return <section className="home-official" aria-label="国服官方活动">
@@ -123,7 +125,10 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
           aria-label="从首页隐藏国服活动模块">隐藏</button>
       </div>
     </header>
-    
+    <div className="home-status-tabs" role="group" aria-label="首页活动切换">
+      <button type="button" aria-pressed={phase==='active'} onClick={()=>setPhase('active')}>进行中活动</button>
+      <button type="button" aria-pressed={phase==='upcoming'} onClick={()=>setPhase('upcoming')}>未来活动</button>
+    </div>
     {state.kind === 'loading' && <p className="home-state" role="status">正在获取最新活动…</p>}
     {state.kind === 'error' && <div className="home-official__notice" role="alert">
       活动暂时无法加载。 <button className="text-button" type="button" onClick={reload}>重试</button>
@@ -136,8 +141,8 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
         <button type="button" onClick={onOpenCalendar}><strong>{overview.upcoming.length}</strong><span>未来 7 天开始</span></button>
         <button type="button" onClick={onOpenCalendar}><strong>{overview.ending.length}</strong><span>24 小时内结束</span></button>
       </div>
-      {important.length === 0 && <p className="home-state">目前没有已确认时间的未结束活动。{unknownCount > 0 ? '待核实公告可在完整日历查看。' : ''}</p>}
-      {important.length > 0 && <ul className="home-official__list" tabIndex={0} aria-label="国服活动列表">
+      {important.length === 0 && <p className="home-state">{phase==='active'?'目前没有已确认时间的进行中活动，可切换“未来活动”查看。':'目前没有已确认时间的未来活动。'}{unknownCount > 0 ? '待核实公告可在完整日历查看。' : ''}</p>}
+      {important.length > 0 && <ul key={phase} className="home-official__list" tabIndex={0} aria-label="国服活动列表">
         {important.map(item => <OfficialEventSummary key={item.id} item={item} now={now}/>)}
       </ul>}
     </>}

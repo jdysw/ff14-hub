@@ -61,8 +61,8 @@ it('undo refuses to overwrite a record changed by another tab or synchronization
   const f=editablePort();render(<FishingBoard data={f.data}/>);const button=await screen.findByRole('button',{name:'钓获 测试鱼0'});await waitFor(()=>expect(button.hasAttribute('disabled')).toBe(false));fireEvent.click(button);
   const undo=await screen.findByRole('button',{name:'撤销'});f.concurrentEdit();fireEvent.click(undo);await screen.findByText('这条鱼已被其他页面或同步更新，未覆盖新记录。');expect(f.writes).toHaveLength(1);
 });
-it('shows home filters and opens the full catalog without hidden caught or rarity filters',async()=>{
-  const open=vi.fn();render(<FishingBoard data={publicPort()} embedded onOpenDetail={open}/>);await screen.findByText('测试鱼0');
+it('shows home filters and opens the full catalog without hidden caught or rarity filters',()=>{
+  const open=vi.fn();render(<FishingBoard data={publicPort()} embedded onOpenDetail={open}/>);
   expect(screen.getByRole('button',{name:'未钓获'})).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:'查看全部鱼类'}));expect(open).toHaveBeenCalledWith(expect.objectContaining({view:'all',kind:'all',hideCaught:false}));
 });
 it('saves an individual alarm and lead time without pretending browser permission is enabled',async()=>{
@@ -122,6 +122,7 @@ it('home uses 24 hours and retains every matched fish in its scrollable list',as
   vi.stubGlobal('Worker',ScheduledWorker);
   const onOpenDetail=vi.fn<(selection:FishDetailSelection)=>void>();
   render(<FishingBoard data={publicPort()} embedded onOpenDetail={onOpenDetail}/>);
+  fireEvent.click(screen.getByRole('button',{name:'未来鱼窗'}));
   await screen.findByText('测试鱼0');
   await waitFor(()=>expect(document.querySelectorAll('.fish-glance__item')).toHaveLength(34));
   expect(document.querySelectorAll('.fish-board__row')).toHaveLength(0);
@@ -169,4 +170,26 @@ it('clicking an individual home fish opens detail prefiltered to that fish',asyn
   expect(preview.querySelector('progress')).toBeNull();
   fireEvent.click(screen.getByRole('button',{name:'查看测试鱼0的完整鱼窗'}));
   expect(onOpenDetail).toHaveBeenCalledWith(expect.objectContaining({region:'cn',text:'测试鱼0',view:'windows'}));
+});
+
+it('home defaults to finite open windows, shows next times in future, and unions followed flags without hiding normal or caught fish',async()=>{
+  const entries=[fish[0]!,{...fish[1]!,kind:'normal' as const},{...fish[2]!,kind:'normal' as const}];
+  class PhaseWorker{
+    onmessage:((event:MessageEvent)=>void)|null=null;
+    postMessage(input:{from:number;region:FishRegion}){
+      const make=(id:number,start:number,end:number,unrestricted=false)=>({occurrenceKey:`phase:${id}:${start}`,region:input.region,fishId:id,ruleVersion:'test',startsAtUtcMs:start,endsAtUtcMs:end,weatherChain:{previous:'晴',current:'晴'},validationStatus:'unverified',candidateOnly:true,conditions:[],...(unrestricted?{unrestricted:true}:{})});
+      const forecasts=entries.map((entry,index)=>({id:entry.id,failed:false,windows:index===0?[make(entry.id,input.from-60000,input.from+60000),make(entry.id,input.from+3600000,input.from+3660000)]:index===1?[make(entry.id,input.from+7200000,input.from+7260000)]:[make(entry.id,0,Date.UTC(2100,0,1),true)]}));
+      queueMicrotask(()=>this.onmessage?.(new MessageEvent('message',{data:{forecasts}})));
+    }
+    terminate(){this.onmessage=null;}
+  }
+  vi.stubGlobal('Worker',PhaseWorker);
+  const fields=[{fishId:1001,field:'alarm'},{fishId:1001,field:'pinned'},{fishId:1002,field:'pinned'},{fishId:1002,field:'caught'}].map(f=>({...f,region:'cn',value:true,revision:1,updatedAt:1}));
+  const data:DataPort={moduleId:'ff14.fishing',operations:['fish.catalog','fish.progress.read'],call:<T,>(operation:string)=>Promise.resolve((operation==='fish.catalog'?{...fixture,fish:entries,coverage:{total:3,forecast:3,always:0,unknown:0}}:{fields,watermark:1}) as T)};
+  const open=vi.fn();render(<FishingBoard data={data} embedded onOpenDetail={open}/>);
+  await screen.findByRole('button',{name:'查看测试鱼0的完整鱼窗'});expect(document.querySelectorAll('.fish-glance__item')).toHaveLength(1);expect(screen.queryByText('测试鱼2')).toBeNull();
+  expect(screen.getByRole('button',{name:'开放中鱼窗'}).getAttribute('aria-pressed')).toBe('true');
+  fireEvent.click(screen.getByRole('button',{name:'未来鱼窗'}));expect(document.querySelector('.fish-glance__time')?.textContent).toContain('后开始');expect(document.querySelector('.fish-glance__time')?.textContent).not.toContain('后结束');
+  fireEvent.click(screen.getByRole('button',{name:'关注鱼窗'}));await screen.findByText('测试鱼1');expect(screen.getByText('测试鱼2')).toBeTruthy();expect(document.querySelectorAll('.fish-glance__item')).toHaveLength(2);expect(screen.queryByText('测试鱼0')).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:'全部鱼窗 ↗'}));expect(open).toHaveBeenCalledWith(expect.objectContaining({view:'followed',kind:'all',hideCaught:false}));
 });
