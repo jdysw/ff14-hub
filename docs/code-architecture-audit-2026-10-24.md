@@ -116,10 +116,10 @@
 | 通知配额与失败重试 | `worker/modules/reminders/local-push.ts` 原子完成任务 + 根据同一租约条件返还未被渠道接受的配额；`worker/test/local-notifications.spec.ts` 新增失败、并发、租约过期案例 | 必须实际运行 workerd/D1 测试；注意“2xx 被接受”不等于终端已展示，超时仍有不可避免的不确定性 |
 | 钓鱼看板性能 | 新增 `fish/forecast-session.ts` 共享 Worker 订阅，`FishingBoard.tsx` 将秒级展示与分钟/鱼窗边界列表计算分离；新增单元测试 | 必须执行 Web 单测、实际浏览器可见性恢复和 React Profiler；尚未测性能百分比 |
 | 导航持久化边界 | `worker/modules/nav/persistence.ts` 从原服务**等价移动**约 725 行 D1 行投影、事务内快照读取与 SQL 语句工厂；`service.ts` 维持既有公开类型和原业务调用 | 已做源码片段字节级还原比对（除 export 标记相同）；仍须全量导航 D1 集成测试，特别是快照、导入、墓碑、幂等及并发 |
-| UI 容器 | 提取 `use-navigation-catalog.ts`，`LocalApp.tsx` 不再直接维护公共目录网络请求/后台变更监听 | 原有首页目录回归测试须执行；剩余布局/CSS 拆分不应在无视觉验收环境下强做 |
+| UI 容器与样式 | 提取 `use-navigation-catalog.ts`；将 `modern-ui.css` 按原级联顺序拆为基础、页面内容、模块和 PVP 样式（四段拼接与原文本完全一致），并新增 CSS 顺序测试 | 原有首页目录回归、移动端视觉与可访问性测试仍须执行；不得只按静态文本等价声明视觉验收通过 |
 | 兼容清单 | 新增 `docs/api-compatibility-inventory.md`，明确 IndexedDB/通知/D1 旧工作空间数据所有权 | **没有**经授权的生产 D1 只读数据与客户端日志访问；不得据静态扫描删 API、表或历史迁移 |
 | 验证与文档 | 新增 `docs/manual-release-verification.md`，`verify` 纳入 Android PVP 规则生成一致性检查，`verify:release` 增加 Wrangler 配置干跑，修正 README、pnpm catalog 陈旧注释和管理员/CSP 文档 | 默认不启用 GitHub Actions；Android Gradle、联网依赖审计、浏览器 E2E 仍是独立手动门禁 |
 
-**未实现**：继续拆分 `packages/shared/src/nav-api.ts`、历史工作台和生命周期巨型服务、目录按需分片、主 CSS 大规模整理。它们属于需要完整类型检查、测试和视觉验收的后续改动，不能因为同一个 PR 已有审计结论便在缺乏运行环境时宣称完成。
+**本轮续做**：`packages/shared/src/nav-api.ts` 已完成纯逻辑首轮拆分，提取 `nav-normalize.ts`、`nav-projection.ts`、`nav-catalog-decisions.ts`，原入口保留函数与类型 re-export，并加入 facade 身份回归测试。静态复核确认抽取的三个源码片段及剩余 facade 与原文件字节级一致（不包含新增导出语句）；`forecast-session.ts` 也补充比较实际鱼类预测规则，防止同版本元数据碰撞。\n\n**尚未实施**：剩余书签导入解析、大型工作台/生命周期服务、鱼类目录按需分片与主动删除历史兼容 API；它们仍需完整类型检查、D1 测试或真实数据迁移评估，不能因静态审计就直接移除。
 
-**运行验证状态**：当前环境的 DevSpace 工作空间无法打开，容器也无法访问私有 GitHub 源码及仓库依赖，因此截至本记录更新时仅完成 GitHub 差异与静态源码一致性复核，**未运行 pnpm verify、workerd、Gradle 或真实浏览器测试**。PR 应保持 Draft，不应自动合并/部署。
+**运行验证状态**：尝试恢复原 DevSpace 工作空间 `E:\\deepseek\\workplace1` 及其工作空间 ID，连接仍返回内部错误；容器也无法解析私有 GitHub 源码域名。已使用独立 SQLite 进行 `UPDATE ... WHERE changes()>0` 基本语义验证，并完成 GitHub 源码片段与 CSS 完整内容的静态一致性复核，但**未运行 pnpm verify、workerd、Gradle 或真实浏览器测试**。PR 应保持 Draft，不应自动合并/部署。
