@@ -59,6 +59,21 @@ import {
   type NavMembership,
 } from '../src/nav-api';
 import { validateModuleManifest } from '../src/module-manifest';
+import {normalizeNavText as sourceNormalize} from '../src/nav-normalize';
+import {filterNavLinks as sourceFilter,sortNavLinks as sourceSort,projectNavLinks as sourceProject} from '../src/nav-projection';
+import {navCatalogEntryState as sourceState,catalogUpgradePlan as sourcePlan,decideCatalogImport as sourceDecision} from '../src/nav-catalog-decisions';
+
+
+// Facade must preserve public references; no second implementation in the legacy entrypoint.
+it('keeps the nav-api exports identical to the extracted pure modules',()=>{
+  expect(normalizeNavText).toBe(sourceNormalize);
+  expect(filterNavLinks).toBe(sourceFilter);
+  expect(sortNavLinks).toBe(sourceSort);
+  expect(projectNavLinks).toBe(sourceProject);
+  expect(navCatalogEntryState).toBe(sourceState);
+  expect(catalogUpgradePlan).toBe(sourcePlan);
+  expect(decideCatalogImport).toBe(sourceDecision);
+});
 
 const T0 = 1_700_000_000_000;
 
