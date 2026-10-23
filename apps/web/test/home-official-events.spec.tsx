@@ -28,6 +28,14 @@ describe('首页公开活动', () => {
     await screen.findByText('目前没有已确认时间的进行中活动，可切换“未来活动”查看。');
     fireEvent.click(screen.getByRole('button',{name:'未来活动'}));expect(screen.getByText('魔光键影')).toBeTruthy();
     expect(screen.getByText(/8.0版本更新维护前（结束日期待确认）/)).toBeTruthy();expect(screen.getByText('距开始')).toBeTruthy();expect(screen.queryByText('距结束')).toBeNull();
+    expect(document.querySelector('.home-official-event__timer .home-official-event__end')?.textContent).toBe('结束：8.0版本更新维护前');
+  });
+  it('倒计时下显示北京时间结束日期，保留跨年份信息和机器可读时间',async()=>{
+    vi.stubGlobal('fetch',vi.fn(()=>Promise.resolve(Response.json(response))));
+    render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
+    await screen.findByText('官方测试活动');
+    const end=document.querySelector('.home-official-event__timer .home-official-event__end time');
+    expect(end?.textContent).toBe('2030/10/20 13:00');expect(end?.getAttribute('dateTime')).toBe('2030-10-20T05:00:00.000Z');
   });
   it('keeps switching at time boundaries on the current data without refetching',async()=>{
     vi.useFakeTimers();
