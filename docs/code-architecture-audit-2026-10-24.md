@@ -120,6 +120,6 @@
 | 兼容清单 | 新增 `docs/api-compatibility-inventory.md`，明确 IndexedDB/通知/D1 旧工作空间数据所有权 | **没有**经授权的生产 D1 只读数据与客户端日志访问；不得据静态扫描删 API、表或历史迁移 |
 | 验证与文档 | 新增 `docs/manual-release-verification.md`，`verify` 纳入 Android PVP 规则生成一致性检查，`verify:release` 增加 Wrangler 配置干跑，修正 README、pnpm catalog 陈旧注释和管理员/CSP 文档 | 默认不启用 GitHub Actions；Android Gradle、联网依赖审计、浏览器 E2E 仍是独立手动门禁 |
 
-**本轮续做**：`packages/shared/src/nav-api.ts` 已完成纯逻辑首轮拆分，提取 `nav-normalize.ts`、`nav-projection.ts`、`nav-catalog-decisions.ts`，原入口保留函数与类型 re-export，并加入 facade 身份回归测试。静态复核确认抽取的三个源码片段及剩余 facade 与原文件字节级一致（不包含新增导出语句）；`forecast-session.ts` 也补充比较实际鱼类预测规则，防止同版本元数据碰撞。\n\n**尚未实施**：剩余书签导入解析、大型工作台/生命周期服务、鱼类目录按需分片与主动删除历史兼容 API；它们仍需完整类型检查、D1 测试或真实数据迁移评估，不能因静态审计就直接移除。
+**本轮续做**：`packages/shared/src/nav-api.ts` 已将文本规范化、导航投影、目录升级判定及书签 HTML 安全扫描器分别提取至 `nav-normalize.ts`、`nav-projection.ts`、`nav-catalog-decisions.ts`、`nav-bookmark-parser.ts`。原入口保留所有公开 API，解析器的 URL 校验与上限由原契约显式注入，内部模块只通过 `import type` 引用旧类型，避免运行时循环。新增 facade 同一性及解析输出一致性测试。静态复核确认前三个抽取源码片段与原文件完全一致；书签扫描器除导出、函数签名和显式依赖注入外，函数正文与原实现一致。共享契约入口从 1,663 行缩减至约 1,054 行。`forecast-session.ts` 也增加鱼类预测规则比较及相同元数据冲突后的存活任务复用逻辑，防止结果串用和冗余 Worker。\n\n**尚未实施**：结构化 JSON 导入/导出解析的剩余模块化、大型工作台/生命周期服务、鱼类目录按需分片与主动删除历史兼容 API；它们仍需完整类型检查、D1 测试或真实数据迁移评估，不能因静态审计就直接移除。
 
 **运行验证状态**：尝试恢复原 DevSpace 工作空间 `E:\\deepseek\\workplace1` 及其工作空间 ID，连接仍返回内部错误；容器也无法解析私有 GitHub 源码域名。已使用独立 SQLite 进行 `UPDATE ... WHERE changes()>0` 基本语义验证，并完成 GitHub 源码片段与 CSS 完整内容的静态一致性复核，但**未运行 pnpm verify、workerd、Gradle 或真实浏览器测试**。PR 应保持 Draft，不应自动合并/部署。
