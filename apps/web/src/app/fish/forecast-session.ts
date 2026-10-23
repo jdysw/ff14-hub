@@ -10,6 +10,7 @@ import type {FishForecast} from './forecast';
 interface ForecastMessage {forecasts?:FishForecast[];error?:string}
 type Listener=(message:ForecastMessage)=>void;
 interface ForecastJob {
+  catalog:FishingCatalog;
   worker:Worker;
   listeners:Set<Listener>;
   timer:number;
@@ -17,32 +18,57 @@ interface ForecastJob {
 }
 const jobs=new Map<string,ForecastJob>();
 
+/**
+ * generatedAt 是来源标记，不是内容哈希；相同元数据的两个目录仍可能有不同的规则。
+ * 只比较参与预测的鱼 ID 与规则，避免将另一份目录的窗口错误广播给订阅者。
+ */
+function sameForecastRules(a:FishingCatalog,b:FishingCatalog):boolean{
+  if(a===b)return true;
+  if(a.fish.length!==b.fish.length)return false;
+  return a.fish.every((fish,index)=>{
+    const other=b.fish[index];
+    return other!==undefined&&fish.id===other.id&&JSON.stringify(fish.rule)===JSON.stringify(other.rule);
+  });
+}
+
 export function subscribeFishingForecast(
   catalog:FishingCatalog,region:FishRegion,hours:number,listener:Listener,
 ):()=>void{
-  const key=JSON.stringify([region,hours,catalog.generatedAt,catalog.versions,catalog.fish.length]);
+  const baseKey=JSON.stringify([region,hours,catalog.generatedAt,catalog.versions,catalog.fish.length]);
+  let key=baseKey,collision=0;
+  while(jobs.has(key)&&!sameForecastRules(jobs.get(key)!.catalog,catalog)){
+    key=baseKey+':'+String(++collision);
+  }
   let job=jobs.get(key);
   if(!job){
     const worker=new Worker(new URL('./forecast.worker.ts',import.meta.url),{type:'module'});
-    const current:ForecastJob={worker,listeners:new Set(),timer:0,last:null};
+    const current:ForecastJob={catalog,worker,listeners:new Set([listener]),timer:0,last:null};
     worker.onmessage=(event:MessageEvent<ForecastMessage>)=>{
       current.last=event.data;
       for(const subscriber of current.listeners)subscriber(event.data);
     };
     worker.onerror=()=>{
       const message={error:'鱼窗计算中断，请重试。'};
+      current.last=message;
       for(const subscriber of current.listeners)subscriber(message);
     };
     const calculate=()=>worker.postMessage({fish:catalog.fish,region,from:Date.now(),hours});
-    // Register before the first calculation. Responses can arrive in microtasks.
+    // 先注册订阅者、再发计算消息，避免首个回调丢失。
     jobs.set(key,current);
+    try{
+      calculate();
+      current.timer=window.setInterval(calculate,60_000);
+    }catch(error){
+      jobs.delete(key);
+      worker.terminate();
+      throw error;
+    }
     job=current;
-    calculate();
-    current.timer=window.setInterval(calculate,60_000);
+  }else{
+    job.listeners.add(listener);
+    if(job.last)listener(job.last);
   }
   const subscription=job;
-  subscription.listeners.add(listener);
-  if(subscription.last)listener(subscription.last);
   return ()=>{
     subscription.listeners.delete(listener);
     if(subscription.listeners.size!==0)return;
