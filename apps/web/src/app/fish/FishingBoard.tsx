@@ -3,6 +3,7 @@ import {eorzeaTime,fishProgressResponseSchema,type FishProgress,type FishProgres
 import type {DataPort} from '../../lib/data-port';
 import {fishingCatalogSchema,type CatalogFish,type FishingCatalog} from './catalog';
 import {windowState,type FishForecast} from './forecast';
+import {nextFishingWindowRefresh,subscribeFishingForecast} from './forecast-session';
 import './fishing-board.css';
 import {registerPrivateDraftSource} from '../pwa/draft-registry';
 import {fishCountdown as duration} from './countdown';
@@ -77,6 +78,8 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
   const [windowHours,setWindowHours]=useState<6|24|72|168>(initialFilters?.windowHours??24);
   const [limit,setLimit]=useState(compact?6:30);
   const [now,setNow]=useState(()=>Date.now());
+  // 倒计时每秒更新，完整目录筛选/排序仅在分钟或鱼窗边界时重新计算。
+  const [windowAsOf,setWindowAsOf]=useState(()=>Date.now());
   const [error,setError]=useState<string|null>(null);
   const [progressError,setProgressError]=useState<string|null>(null);
   const [pending,setPending]=useState<{fishId:number;field:FishProgressField;value:boolean;expectedRevision:number;operationId:string}|null>(null);
@@ -103,16 +106,34 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
 
   useEffect(()=>{
     if(!catalog)return;
-    const worker=new Worker(new URL('./forecast.worker.ts',import.meta.url),{type:'module'});
-    worker.onmessage=(event:MessageEvent<{forecasts?:FishForecast[];error?:string}>)=>{
-      if(event.data.forecasts)setForecasts(event.data.forecasts);
-      if(event.data.error)setError(event.data.error);
-    };
-    worker.onerror=()=>setError('鱼窗计算中断，请重试。');
-    const calculate=()=>worker.postMessage({fish:catalog.fish,region,from:Date.now(),hours});
-    calculate();const timer=window.setInterval(calculate,60000);
-    return()=>{window.clearInterval(timer);worker.terminate();};
+    let active=true;
+    const stop=subscribeFishingForecast(catalog,region,hours,message=>{
+      if(!active)return;
+      if(message.forecasts){setForecasts(message.forecasts);setWindowAsOf(Date.now());setError(null);}
+      if(message.error)setError(message.error);
+    });
+    return()=>{active=false;stop();};
   },[catalog,region,hours]);
+  useEffect(()=>{
+    if(!forecasts)return;
+    let timer:number;
+    const schedule=()=>{
+      const current=Date.now();
+      timer=window.setTimeout(()=>{
+        setWindowAsOf(Date.now());
+        schedule();
+      },Math.max(1,nextFishingWindowRefresh(current,forecasts)-current+1));
+    };
+    const resume=()=>{
+      if(document.visibilityState==='hidden')return;
+      window.clearTimeout(timer);
+      setWindowAsOf(Date.now());
+      schedule();
+    };
+    schedule();
+    document.addEventListener('visibilitychange',resume);
+    return()=>{window.clearTimeout(timer);document.removeEventListener('visibilitychange',resume);};
+  },[forecasts]);
   useEffect(()=>{const timer=window.setInterval(()=>setNow(Date.now()),1000);return()=>window.clearInterval(timer);},[]);
 
   useEffect(()=>{
@@ -134,7 +155,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
   const selectedPhase=embedded?(homeView==='followed'?null:homeView):view==='windows'?windowPhase:null;
   const visible=useMemo(()=>{
     return (catalog?.fish??[]).filter(fish=>{
-      const state=windowState(fish,forecastsById.get(fish.id),now);
+      const state=windowState(fish,forecastsById.get(fish.id),windowAsOf);
       const names=[fish.name,fish.englishName,...(fish.aliases??[])],locations=[fish.zone,fish.location,...(fish.acquisitionContext?.locations.map(s=>s.name)??[])];
       const searchValues=searchField==='name'?names:searchField==='location'?locations:searchField==='bait'?fish.bait:[...names,...locations,...fish.bait,fish.acquisitionContext?.label??''];
       return (embedded&&following||kind==='all'||(kind==='special'?Boolean(fish.acquisitionContext):!fish.acquisitionContext&&(kind==='rare'?fish.kind!=='normal':fish.kind===kind)))&&
@@ -144,12 +165,12 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
         (!following||flags.get(`${fish.id}:pinned`)?.value===true||flags.get(`${fish.id}:alarm`)?.value===true)&&
         (embedded&&following||!hideCaught||flags.get(`${fish.id}:caught`)?.value!==true)&&
         (following||view!=='windows'||fish.method==='rod'&&(selectedPhase==='open'?state.open!==null:selectedPhase==='upcoming'?
-          state.next!==null&&state.next.startsAtUtcMs<=now+windowHours*3600000:state.always));
+          state.next!==null&&state.next.startsAtUtcMs<=windowAsOf+windowHours*3600000:state.always));
     }).sort((a,b)=>{
-      const first=windowState(a,forecastsById.get(a.id),now),second=windowState(b,forecastsById.get(b.id),now);
+      const first=windowState(a,forecastsById.get(a.id),windowAsOf),second=windowState(b,forecastsById.get(b.id),windowAsOf);
       return (selectedPhase==='upcoming'?(first.next?.startsAtUtcMs??Infinity)-(second.next?.startsAtUtcMs??Infinity):first.sort-second.sort)||a.id-b.id;
     });
-  },[catalog,forecastsById,now,kind,method,query,searchField,view,flags,hideCaught,embedded,windowHours,targetId,following,selectedPhase]);
+  },[catalog,forecastsById,windowAsOf,kind,method,query,searchField,view,flags,hideCaught,embedded,windowHours,targetId,following,selectedPhase]);
   const changeFilter=(action:()=>void)=>{action();setLimit(compact?6:30);};
   const write=async(fish:CatalogFish,field:FishProgressField,forced?:{value:boolean;expectedRevision:number;operationId?:string;undo?:boolean}):Promise<boolean>=>{
     if(!canEdit||!progressReady||busy||mutationInFlight.current||(undoChecking.current&&!forced?.undo)||(progressError&&!pending))return false;
