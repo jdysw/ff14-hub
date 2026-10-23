@@ -50,6 +50,30 @@ it('replays the current forecast to a late subscriber and separates different ho
   stopShort();stopB();stopA();
 });
 
+it('does not reuse a worker when rules differ despite matching catalogue metadata',()=>{
+  const older={...catalog,fish:[{id:42,rule:{version:'old',startHour:4}}]} as unknown as FishingCatalog;
+  const newer={...catalog,fish:[{id:42,rule:{version:'new',startHour:8}}]} as unknown as FishingCatalog;
+  const stale=vi.fn(),fresh=vi.fn();
+  const stopA=subscribeFishingForecast(older,'cn',168,stale);
+  const stopB=subscribeFishingForecast(newer,'cn',168,fresh);
+  expect(workers).toHaveLength(2);
+  const stopC=subscribeFishingForecast({...newer,fish:[{...newer.fish[0]!}]} as FishingCatalog,'cn',168,vi.fn());
+  expect(workers).toHaveLength(2);
+  workers[0]?.onmessage?.(new MessageEvent('message',{data:{forecasts:[{id:42,failed:false,windows:[]}]}}));
+  expect(stale).toHaveBeenCalledOnce();
+  expect(fresh).not.toHaveBeenCalled();
+  stopC();stopB();stopA();
+});
+
+it('replays the latest worker error to a subsequent subscriber and cleans up on a failed post',()=>{
+  const initial=vi.fn();
+  const stop=subscribeFishingForecast(catalog,'cn',168,initial);
+  workers[0]?.onerror?.();
+  const late=vi.fn();
+  const stopLate=subscribeFishingForecast(catalog,'cn',168,late);
+  expect(late).toHaveBeenCalledWith({error:'鱼窗计算中断，请重试。'});
+  stopLate();stop();
+});
 it('schedules recomputation at minute rollover or an earlier exact fish window boundary',()=>{
   const now=Date.parse('2026-10-24T01:02:15.000Z');
   const window=(startsAtUtcMs:number,endsAtUtcMs:number)=>({
