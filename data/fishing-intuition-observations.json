@@ -1,0 +1,1297 @@
+{
+  "version": "803987e",
+  "observedAt": "2026-10-23T09:27:18.469Z",
+  "source": "https://fish.ffmomola.com",
+  "fish": [
+    {
+      "id": 8752,
+      "spots": [
+        {
+          "spotId": 58,
+          "predators": [
+            {
+              "id": 5031,
+              "count": 3
+            }
+          ],
+          "intuitionLength": 600,
+          "startHour": 0,
+          "endHour": 24,
+          "currentWeather": [],
+          "previousWeather": [],
+          "preconditions": [
+            {
+              "id": 5031,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 8754,
+      "spots": [
+        {
+          "spotId": 108,
+          "predators": [
+            {
+              "id": 4913,
+              "count": 3
+            }
+          ],
+          "intuitionLength": 350,
+          "startHour": 0,
+          "endHour": 24,
+          "currentWeather": [
+            7,
+            8
+          ],
+          "previousWeather": [],
+          "preconditions": [
+            {
+              "id": 4913,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [
+                    7,
+                    8
+                  ],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 8760,
+      "spots": [
+        {
+          "spotId": 21,
+          "predators": [
+            {
+              "id": 5008,
+              "count": 5
+            }
+          ],
+          "intuitionLength": 300,
+          "startHour": 0,
+          "endHour": 24,
+          "currentWeather": [],
+          "previousWeather": [],
+          "preconditions": [
+            {
+              "id": 5008,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 8763,
+      "spots": [
+        {
+          "spotId": 94,
+          "predators": [
+            {
+              "id": 8762,
+              "count": 1
+            }
+          ],
+          "intuitionLength": 1400,
+          "startHour": 0,
+          "endHour": 24,
+          "currentWeather": [],
+          "previousWeather": [],
+          "preconditions": [
+            {
+              "id": 8762,
+              "spots": [
+                {
+                  "startHour": 8,
+                  "endHour": 18,
+                  "currentWeather": [
+                    17
+                  ],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 8764,
+      "spots": [
+        {
+          "spotId": 74,
+          "predators": [
+            {
+              "id": 4904,
+              "count": 6
+            }
+          ],
+          "intuitionLength": 120,
+          "startHour": 0,
+          "endHour": 24,
+          "currentWeather": [],
+          "previousWeather": [],
+          "preconditions": [
+            {
+              "id": 4904,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 8769,
+      "spots": [
+        {
+          "spotId": 29,
+          "predators": [
+            {
+              "id": 5544,
+              "count": 5
+            }
+          ],
+          "intuitionLength": 180,
+          "startHour": 19,
+          "endHour": 4,
+          "currentWeather": [
+            15,
+            16
+          ],
+          "previousWeather": [],
+          "preconditions": [
+            {
+              "id": 5544,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 8775,
+      "spots": [
+        {
+          "spotId": 17,
+          "predators": [
+            {
+              "id": 8774,
+              "count": 1
+            }
+          ],
+          "intuitionLength": 60,
+          "startHour": 0,
+          "endHour": 24,
+          "currentWeather": [],
+          "previousWeather": [],
+          "preconditions": [
+            {
+              "id": 8774,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [
+                    9,
+                    10
+                  ],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 17588,
+      "spots": [
+        {
+          "spotId": 124,
+          "predators": [
+            {
+              "id": 12754,
+              "count": 5
+            },
+            {
+              "id": 12800,
+              "count": 3
+            }
+          ],
+          "intuitionLength": 180,
+          "startHour": 10,
+          "endHour": 15,
+          "currentWeather": [
+            1,
+            2
+          ],
+          "previousWeather": [],
+          "preconditions": [
+            {
+              "id": 12754,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            },
+            {
+              "id": 12800,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 17589,
+      "spots": [
+        {
+          "spotId": 146,
+          "predators": [
+            {
+              "id": 13727,
+              "count": 3
+            }
+          ],
+          "intuitionLength": 105,
+          "startHour": 0,
+          "endHour": 24,
+          "currentWeather": [
+            9
+          ],
+          "previousWeather": [],
+          "preconditions": [
+            {
+              "id": 13727,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [
+                    9
+                  ],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 17590,
+      "spots": [
+        {
+          "spotId": 127,
+          "predators": [
+            {
+              "id": 12757,
+              "count": 6
+            }
+          ],
+          "intuitionLength": 160,
+          "startHour": 1,
+          "endHour": 4,
+          "currentWeather": [
+            1
+          ],
+          "previousWeather": [],
+          "preconditions": [
+            {
+              "id": 12757,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 17591,
+      "spots": [
+        {
+          "spotId": 139,
+          "predators": [
+            {
+              "id": 12753,
+              "count": 3
+            },
+            {
+              "id": 12810,
+              "count": 3
+            }
+          ],
+          "intuitionLength": 60,
+          "startHour": 5,
+          "endHour": 7,
+          "currentWeather": [
+            1
+          ],
+          "previousWeather": [],
+          "preconditions": [
+            {
+              "id": 12753,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            },
+            {
+              "id": 12810,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 17592,
+      "spots": [
+        {
+          "spotId": 112,
+          "predators": [
+            {
+              "id": 12715,
+              "count": 5
+            }
+          ],
+          "intuitionLength": 120,
+          "startHour": 0,
+          "endHour": 3,
+          "currentWeather": [
+            16
+          ],
+          "previousWeather": [],
+          "preconditions": [
+            {
+              "id": 12715,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 17593,
+      "spots": [
+        {
+          "spotId": 134,
+          "predators": [
+            {
+              "id": 12805,
+              "count": 5
+            }
+          ],
+          "intuitionLength": 100,
+          "startHour": 5,
+          "endHour": 8,
+          "currentWeather": [
+            6
+          ],
+          "previousWeather": [],
+          "preconditions": [
+            {
+              "id": 12805,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 24994,
+      "spots": [
+        {
+          "spotId": 168,
+          "predators": [
+            {
+              "id": 24203,
+              "count": 3
+            },
+            {
+              "id": 23056,
+              "count": 3
+            },
+            {
+              "id": 24204,
+              "count": 5
+            }
+          ],
+          "intuitionLength": 175,
+          "startHour": 0,
+          "endHour": 24,
+          "currentWeather": [],
+          "previousWeather": [],
+          "preconditions": [
+            {
+              "id": 24203,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            },
+            {
+              "id": 23056,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            },
+            {
+              "id": 24204,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 16,
+                  "currentWeather": [
+                    1,
+                    2
+                  ],
+                  "previousWeather": [
+                    2
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 24991,
+      "spots": [
+        {
+          "spotId": 190,
+          "predators": [
+            {
+              "id": 23060,
+              "count": 2
+            }
+          ],
+          "intuitionLength": 175,
+          "startHour": 0,
+          "endHour": 24,
+          "currentWeather": [
+            11
+          ],
+          "previousWeather": [],
+          "preconditions": [
+            {
+              "id": 23060,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [
+                    11
+                  ],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 24992,
+      "spots": [
+        {
+          "spotId": 196,
+          "predators": [
+            {
+              "id": 20040,
+              "count": 2
+            }
+          ],
+          "intuitionLength": 350,
+          "startHour": 16,
+          "endHour": 18,
+          "currentWeather": [],
+          "previousWeather": [],
+          "preconditions": [
+            {
+              "id": 20040,
+              "spots": [
+                {
+                  "startHour": 12,
+                  "endHour": 18,
+                  "currentWeather": [
+                    10
+                  ],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 33240,
+      "spots": [
+        {
+          "spotId": 212,
+          "predators": [
+            {
+              "id": 27452,
+              "count": 5
+            },
+            {
+              "id": 33319,
+              "count": 1
+            }
+          ],
+          "intuitionLength": 350,
+          "startHour": 10,
+          "endHour": 16,
+          "currentWeather": [],
+          "previousWeather": [],
+          "preconditions": [
+            {
+              "id": 27452,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            },
+            {
+              "id": 33319,
+              "spots": [
+                {
+                  "startHour": 10,
+                  "endHour": 14,
+                  "currentWeather": [
+                    6
+                  ],
+                  "previousWeather": [
+                    1,
+                    2
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 33241,
+      "spots": [
+        {
+          "spotId": 215,
+          "predators": [
+            {
+              "id": 27462,
+              "count": 10
+            }
+          ],
+          "intuitionLength": 360,
+          "startHour": 0,
+          "endHour": 2,
+          "currentWeather": [
+            14
+          ],
+          "previousWeather": [
+            11
+          ],
+          "preconditions": [
+            {
+              "id": 27462,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 33244,
+      "spots": [
+        {
+          "spotId": 232,
+          "predators": [
+            {
+              "id": 33325,
+              "count": 2
+            }
+          ],
+          "intuitionLength": 700,
+          "startHour": 0,
+          "endHour": 2,
+          "currentWeather": [
+            3
+          ],
+          "previousWeather": [
+            2
+          ],
+          "preconditions": [
+            {
+              "id": 33325,
+              "spots": [
+                {
+                  "startHour": 22,
+                  "endHour": 24,
+                  "currentWeather": [
+                    2
+                  ],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 41403,
+      "spots": [
+        {
+          "spotId": 268,
+          "predators": [
+            {
+              "id": 36449,
+              "count": 5
+            }
+          ],
+          "intuitionLength": 180,
+          "startHour": 4,
+          "endHour": 8,
+          "currentWeather": [
+            2
+          ],
+          "previousWeather": [
+            3
+          ],
+          "preconditions": [
+            {
+              "id": 36449,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 41407,
+      "spots": [
+        {
+          "spotId": 259,
+          "predators": [
+            {
+              "id": 36412,
+              "count": 3
+            }
+          ],
+          "intuitionLength": 90,
+          "startHour": 9,
+          "endHour": 12,
+          "currentWeather": [
+            2
+          ],
+          "previousWeather": [
+            1
+          ],
+          "preconditions": [
+            {
+              "id": 36412,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 41408,
+      "spots": [
+        {
+          "spotId": 269,
+          "predators": [
+            {
+              "id": 36454,
+              "count": 12
+            }
+          ],
+          "intuitionLength": 300,
+          "startHour": 14,
+          "endHour": 16,
+          "currentWeather": [
+            2
+          ],
+          "previousWeather": [
+            8
+          ],
+          "preconditions": [
+            {
+              "id": 36454,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [
+                    2
+                  ],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 41409,
+      "spots": [
+        {
+          "spotId": 270,
+          "predators": [
+            {
+              "id": 36458,
+              "count": 3
+            }
+          ],
+          "intuitionLength": 35,
+          "startHour": 16,
+          "endHour": 24,
+          "currentWeather": [
+            15
+          ],
+          "previousWeather": [
+            2
+          ],
+          "preconditions": [
+            {
+              "id": 36458,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 41412,
+      "spots": [
+        {
+          "spotId": 285,
+          "predators": [
+            {
+              "id": 36521,
+              "count": 1
+            },
+            {
+              "id": 36520,
+              "count": 2
+            },
+            {
+              "id": 36519,
+              "count": 3
+            }
+          ],
+          "intuitionLength": 600,
+          "startHour": 0,
+          "endHour": 8,
+          "currentWeather": [
+            149
+          ],
+          "previousWeather": [
+            49
+          ],
+          "preconditions": [
+            {
+              "id": 36521,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 4,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            },
+            {
+              "id": 36520,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            },
+            {
+              "id": 36519,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 46195,
+      "spots": [
+        {
+          "spotId": 329,
+          "predators": [
+            {
+              "id": 43781,
+              "count": 3
+            }
+          ],
+          "intuitionLength": 350,
+          "startHour": 4,
+          "endHour": 6,
+          "currentWeather": [
+            7
+          ],
+          "previousWeather": [],
+          "preconditions": [
+            {
+              "id": 43781,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 49797,
+      "spots": [
+        {
+          "spotId": 313,
+          "predators": [
+            {
+              "id": 43735,
+              "count": 3
+            }
+          ],
+          "intuitionLength": 300,
+          "startHour": 0,
+          "endHour": 2,
+          "currentWeather": [
+            4
+          ],
+          "previousWeather": [],
+          "preconditions": [
+            {
+              "id": 43735,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 49801,
+      "spots": [
+        {
+          "spotId": 333,
+          "predators": [
+            {
+              "id": 43796,
+              "count": 3
+            },
+            {
+              "id": 43798,
+              "count": 3
+            }
+          ],
+          "intuitionLength": 300,
+          "startHour": 22,
+          "endHour": 24,
+          "currentWeather": [
+            3
+          ],
+          "previousWeather": [
+            7
+          ],
+          "preconditions": [
+            {
+              "id": 43796,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            },
+            {
+              "id": 43798,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 52005,
+      "spots": [
+        {
+          "spotId": 321,
+          "predators": [
+            {
+              "id": 43760,
+              "count": 3
+            }
+          ],
+          "intuitionLength": 300,
+          "startHour": 6,
+          "endHour": 8,
+          "currentWeather": [
+            3
+          ],
+          "previousWeather": [
+            6
+          ],
+          "preconditions": [
+            {
+              "id": 43760,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 52008,
+      "spots": [
+        {
+          "spotId": 302,
+          "predators": [
+            {
+              "id": 43697,
+              "count": 6
+            }
+          ],
+          "intuitionLength": 360,
+          "startHour": 13,
+          "endHour": 15,
+          "currentWeather": [
+            8
+          ],
+          "previousWeather": [
+            3
+          ],
+          "preconditions": [
+            {
+              "id": 43697,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 52009,
+      "spots": [
+        {
+          "spotId": 315,
+          "predators": [
+            {
+              "id": 43740,
+              "count": 3
+            },
+            {
+              "id": 52002,
+              "count": 1
+            }
+          ],
+          "intuitionLength": 900,
+          "startHour": 16,
+          "endHour": 21,
+          "currentWeather": [
+            7
+          ],
+          "previousWeather": [
+            1
+          ],
+          "preconditions": [
+            {
+              "id": 43740,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            },
+            {
+              "id": 52002,
+              "spots": [
+                {
+                  "startHour": 16,
+                  "endHour": 21,
+                  "currentWeather": [
+                    7
+                  ],
+                  "previousWeather": [
+                    1
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 52297,
+      "spots": [
+        {
+          "spotId": 326,
+          "predators": [
+            {
+              "id": 43775,
+              "count": 1
+            }
+          ],
+          "intuitionLength": 90,
+          "startHour": 2,
+          "endHour": 4,
+          "currentWeather": [
+            50
+          ],
+          "previousWeather": [
+            10
+          ],
+          "preconditions": [
+            {
+              "id": 43775,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [],
+                  "previousWeather": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 52011,
+      "spots": [
+        {
+          "spotId": 332,
+          "predators": [
+            {
+              "id": 43795,
+              "count": 2
+            },
+            {
+              "id": 52006,
+              "count": 1
+            }
+          ],
+          "intuitionLength": 600,
+          "startHour": 8,
+          "endHour": 13,
+          "currentWeather": [
+            4
+          ],
+          "previousWeather": [
+            3
+          ],
+          "preconditions": [
+            {
+              "id": 43795,
+              "spots": [
+                {
+                  "startHour": 0,
+                  "endHour": 24,
+                  "currentWeather": [
+                    3,
+                    4
+                  ],
+                  "previousWeather": []
+                }
+              ]
+            },
+            {
+              "id": 52006,
+              "spots": [
+                {
+                  "startHour": 8,
+                  "endHour": 13,
+                  "currentWeather": [
+                    4
+                  ],
+                  "previousWeather": [
+                    3
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

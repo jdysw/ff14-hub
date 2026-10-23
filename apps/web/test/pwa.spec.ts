@@ -569,6 +569,15 @@ describe('sw.js：与 cache-policy.ts 一一对应', () => {
 
 
 describe('sw.js：首页 HTML 更新策略', () => {
+  it('鱼类目录联网优先读取新资料，断网保留已有目录', async () => {
+    const sandbox=await loadServiceWorker();
+    const cache={match:vi.fn(()=>Promise.resolve(new Response('old catalog'))),put:vi.fn(()=>Promise.resolve())};
+    vi.stubGlobal('caches',{open:()=>Promise.resolve(cache)});
+    const live=vi.fn(()=>Promise.resolve(new Response('new catalog',{headers:{'Content-Type':'application/json'}})));vi.stubGlobal('fetch',live);
+    const visit=async(path:string)=>{let result:Promise<Response>|undefined;handlerOf(sandbox,'fetch')({request:{url:APP_ORIGIN+path,method:'GET',headers:new Headers()},respondWith:(response:Promise<Response>)=>{result=response;}});return (await result!).text();};
+    expect(await visit('/fishing/catalog-cn.json')).toBe('new catalog');expect(await visit('/fishing/catalog-global.json')).toBe('new catalog');
+    live.mockRejectedValueOnce(new Error('offline'));expect(await visit('/fishing/catalog-cn.json')).toBe('old catalog');
+  });
   it('在线优先读取最新首页而不是缓存的旧工作空间页面；离线仍能回退', async () => {
     const sandbox = await loadServiceWorker();
     const cached = new Response('旧版首页：连接工作空间', { headers: { 'Content-Type': 'text/html' } });

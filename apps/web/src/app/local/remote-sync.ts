@@ -6,13 +6,22 @@ export const remoteConfigSchema=z.object({provider:z.enum(['webdav','s3']),url:z
   accessKey:z.string().max(256),secretKey:z.string().max(2000),sessionToken:z.string().max(4000)}).strict();
 export type RemoteConfig=z.infer<typeof remoteConfigSchema>;
 export const emptyRemoteConfig:RemoteConfig={provider:'webdav',url:'',username:'',password:'',region:'auto',accessKey:'',secretKey:'',sessionToken:''};
+export class RemoteSyncError extends Error{
+  constructor(readonly code:'config'|'network'|'auth'|'etag'|'format'|'conflict'|'read'|'write',message:string){super(message);this.name='RemoteSyncError';}
+}
+export function remoteFailureMessage(cause:unknown):string{
+  if(cause instanceof RemoteSyncError)return cause.message;
+  if(cause instanceof z.ZodError)return '配置或备份格式不正确，请检查必填项及备份来源；原有数据未被替换。';
+  if(cause instanceof Error&&cause.message.startsWith('本机'))return '本机数据或配置已变化，请重新读取预览；远端已确认的写入仍会保留。';
+  return '操作未完成，请检查配置并重新读取预览；写入中断时先读取远端确认结果。';
+}
 const encoder=new TextEncoder();
 const hex=(raw:ArrayBuffer)=>Array.from(new Uint8Array(raw),b=>b.toString(16).padStart(2,'0')).join('');
 const digest=async(text:string)=>hex(await crypto.subtle.digest('SHA-256',encoder.encode(text)));
 const hmac=async(key:Uint8Array,text:string)=>new Uint8Array(await crypto.subtle.sign('HMAC',await crypto.subtle.importKey('raw',new Uint8Array(key),{name:'HMAC',hash:'SHA-256'},false,['sign']),encoder.encode(text)));
 export function remoteUrl(raw:string,hubOrigin=location.origin):URL{
-  const url=new URL(raw);
-  if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||url.origin===hubOrigin||url.pathname.endsWith('/'))throw new Error('请填写独立 HTTPS 服务上的完整文件地址，不要包含账号、查询参数或目录尾斜杠');
+  let url:URL;try{url=new URL(raw);}catch{throw new RemoteSyncError('config','请填写完整的 HTTPS 文件地址，例如 https://dav.example.com/ff14/personal.json。');}
+  if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||url.origin===hubOrigin||url.pathname.endsWith('/'))throw new RemoteSyncError('config','请填写独立 HTTPS 服务上的完整文件地址，不要包含账号、查询参数或目录尾斜杠');
   return url;
 }
 /** AWS SigV4 for a single, exact S3 object URL (virtual-host or path style). */
@@ -30,32 +39,35 @@ export async function s3Headers(config:RemoteConfig,method:string,body:string,he
 }
 export function createRemoteClient(input:RemoteConfig,fetcher:typeof fetch=fetch){
   const config=remoteConfigSchema.parse(input),url=remoteUrl(config.url).href;
-  if(config.provider==='webdav'&&config.username.includes(':'))throw new Error('WebDAV 用户名不能包含冒号');
-  if(config.provider==='s3'&&(!config.accessKey||!config.secretKey))throw new Error('请填写 S3 Access Key 和 Secret Key');
+  if(config.provider==='webdav'&&config.username.includes(':'))throw new RemoteSyncError('config','WebDAV 用户名不能包含冒号');
+  if(config.provider==='s3'&&(!config.accessKey||!config.secretKey))throw new RemoteSyncError('config','请填写 S3 Access Key 和 Secret Key');
   async function request(method:string,body='',extra:Record<string,string>={}){
     let headers:Record<string,string>={...extra};
     if(config.provider==='s3')headers=await s3Headers(config,method,body,headers);
     else headers['Authorization']='Basic '+btoa(Array.from(encoder.encode(config.username+':'+config.password),b=>String.fromCharCode(b)).join(''));
     try{return await fetcher(url,{method,headers,...(method==='PUT'?{body}:{}),redirect:'error',credentials:'omit',cache:'no-store',signal:AbortSignal.timeout(30_000)});}
-    catch{throw new Error('远端连接失败，请检查地址、CORS 和权限；写入请求失败后请重新预览确认结果');}
+    catch{throw new RemoteSyncError('network','浏览器无法连接远端，可能是网络或 CORS 限制，无法在此准确区分。请检查地址、允许的 Origin 和请求头；写入中断后先重新预览。');}
   }
   return {
     async read(){
       const response=await request('GET');if(response.status===404)return {etag:null,data:null};
-      if(!response.ok)throw new Error(`远端读取失败（${response.status}），请检查凭证与文件权限`);
+      if(response.status===401||response.status===403)throw new RemoteSyncError('auth',`远端拒绝访问（${response.status}），请检查账号、应用口令或对象读取权限。`);
+      if(!response.ok)throw new RemoteSyncError('read',`远端读取失败（${response.status}），请检查服务状态后重试。`);
       const etag=response.headers.get('ETag');
-      if(!etag||!/^"[^"\r\n]+"$/.test(etag))throw new Error('远端没有暴露强 ETag，请配置 CORS 的 Expose-Headers: ETag');
+      if(!etag||!/^"[^"\r\n]+"$/.test(etag))throw new RemoteSyncError('etag','已连接远端，但未取得强 ETag。请暴露 ETag 响应头，并确认服务提供强版本标识；暂不允许覆盖写入。');
       if(Number(response.headers.get('Content-Length')??0)>8*1024*1024)throw new Error('远端备份超过 8 MiB');
       const reader=response.body?.getReader();let text='',size=0;const decoder=new TextDecoder();
       if(reader){while(true){const part=await reader.read();if(part.done)break;size+=part.value.byteLength;if(size>8*1024*1024){await reader.cancel();throw new Error('远端备份超过 8 MiB');}text+=decoder.decode(part.value,{stream:true});}text+=decoder.decode();}
-      return {etag,data:localBackupSchema.parse(JSON.parse(text.replace(/^\uFEFF/,'')) as unknown).data};
+      try{return {etag,data:localBackupSchema.parse(JSON.parse(text.replace(/^\uFEFF/,'')) as unknown).data};}
+      catch{throw new RemoteSyncError('format','文件可读取，但不是本站的完整个人备份。请选择独立的 personal.json，不要填写鱼糕原始数据文件。');}
     },
     async write(data:LocalData,etag:string|null){
       const body=JSON.stringify(localBackupSchema.parse({format:'ff14-hub-local',version:1,exportedAt:new Date().toISOString(),data}));
       if(encoder.encode(body).byteLength>8*1024*1024)throw new Error('备份超过 8 MiB');
       const response=await request('PUT',body,{'content-type':'application/json',...(etag===null?{'if-none-match':'*'}:{'if-match':etag})});
-      if(response.status===412||response.status===409)throw new Error('远端已被其他设备修改，请重新预览，未覆盖远端数据');
-      if(!response.ok)throw new Error(`远端写入失败（${response.status}）`);
+      if(response.status===412||response.status===409)throw new RemoteSyncError('conflict','远端已被其他设备修改，请重新预览，未覆盖远端数据');
+      if(response.status===401||response.status===403)throw new RemoteSyncError('auth',`远端拒绝写入（${response.status}），请检查对象写入权限；原预览不能证明可写。`);
+      if(!response.ok)throw new RemoteSyncError('write',`远端写入失败（${response.status}），请重新读取确认远端结果。`);
     },
   };
 }

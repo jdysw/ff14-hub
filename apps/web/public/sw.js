@@ -201,7 +201,7 @@ async function respondWithPublicStrategy(request) {
 
   // 首页 HTML 不是带哈希的不可变资源，必须网络优先。
   // 缓存优先会令发布后用户持续读到上个版本的首页（例如旧的「连接工作空间」提示）。
-  if (isPublicApiPath(pathname) || pathname === '/' || pathname === '/index.html') {
+  if (isPublicApiPath(pathname) || pathname === '/' || pathname === '/index.html' || pathname === '/fishing/catalog-cn.json' || pathname === '/fishing/catalog-global.json') {
     try {
       const response = await fetch(request);
       await putIfPolicyAllows(cache, request, response.clone());

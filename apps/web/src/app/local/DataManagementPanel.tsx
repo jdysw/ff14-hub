@@ -5,6 +5,8 @@ import {localBackupSchema,type LocalData,type LocalStore} from './store';
 import {usePrivateDraft} from '../pwa/draft-registry';
 import {RemoteSyncPanel} from './RemoteSyncPanel';
 import {FishcakeSyncPanel} from './FishcakeSyncPanel';
+import {BackupStatusLine} from './BackupStatusLine';
+import {recordBackupEvent} from './backup-status';
 
 export type DataSection='sync'|'fish'|'backup';
 function downloadJson(text:string,filename:string){
@@ -47,14 +49,15 @@ export function DataManagementPanel({store,data,initialSection='sync'}:{store:Lo
       <button type="button" disabled={busy} onClick={()=>{void run(async()=>downloadJson(serializeFishDocument(await store.exportFish(region)),`ffmomola-data-export-${region}.json`));}}>导出鱼糕兼容进度</button>
     </section>
     <section hidden={section!=='backup'} aria-label="本地个人备份"><h3>备份与恢复</h3><p className="local-settings__caution">数据存于当前浏览器。更换设备或清理站点数据前请导出备份。</p>
-      <button type="button" disabled={busy} onClick={()=>{void run(async()=>downloadJson(JSON.stringify(await store.exportBackup(),null,2),'ff14-hub-personal-backup.json'));}}>导出全部个人数据</button>
+      <BackupStatusLine/>
+      <button type="button" disabled={busy} onClick={()=>{void run(async()=>{downloadJson(JSON.stringify(await store.exportBackup(),null,2),'ff14-hub-personal-backup.json');try{await recordBackupEvent('exportedAt');setNotice('已发起备份下载，请确认文件已保存。');}catch{setNotice('已发起备份下载，但本机导出时间未能记录，请确认文件已保存。');}});}}>导出全部个人数据</button>
       <label className="local-settings__field">选择个人备份<input type="file" aria-label="个人备份文件" accept=".json,application/json" disabled={busy} onChange={event=>{
         const file=event.target.files?.[0];setBackup(null);setRestoreConfirmed(false);if(!file)return;
         void run(async()=>{if(file.size>8*1024*1024)throw new Error('备份超过 8 MiB 上限');const parsed:unknown=JSON.parse((await file.text()).replace(/^\uFEFF/,''));setBackup(localBackupSchema.parse(parsed));});
       }}/></label>
       {backup?<div className="local-settings__preview"><p>备份包含 {backup.data.links.length} 个个人网站、{backup.data.notes.length} 条备忘。恢复会替换本浏览器的个人数据，请先导出当前备份。</p>
         <label><input type="checkbox" checked={restoreConfirmed} onChange={event=>setRestoreConfirmed(event.target.checked)} disabled={busy}/>我已导出当前备份，确认恢复所选个人备份</label>
-        <button type="button" disabled={busy||!restoreConfirmed} onClick={()=>{void run(async()=>{await store.restoreBackup(backup);setBackup(null);setNotice('个人备份已恢复到本机。');});}}>恢复个人备份</button>
+        <button type="button" disabled={busy||!restoreConfirmed} onClick={()=>{void run(async()=>{await store.restoreBackup(backup);setBackup(null);try{await recordBackupEvent('restoredAt');setNotice('个人备份已恢复到本机。');}catch{setNotice('个人备份已恢复，但恢复时间未能记录。');}});}}>恢复个人备份</button>
       </div>:null}
     </section>
   </section>;

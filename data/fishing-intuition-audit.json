@@ -1,0 +1,791 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-23T09:33:41.488Z",
+  "sources": {
+    "trackerRevision": "d0e1ab5bba62c2b57356e690a73676cd4751b64d",
+    "trackerSha256": "749f2644c9b5cfac0d022c2a0e80835f69c74147a20373c4af5e9a4e75a64b4a",
+    "fishcakeVersion": "803987e",
+    "fishcakeUrl": "https://fish.ffmomola.com",
+    "observedAt": "2026-10-23T09:27:18.469Z",
+    "observationsSha256": "3fe78909acb0e66566d8eeb08b7c438a554c336146185940c2a3145bc1da5b46"
+  },
+  "meaning": "Field agreement is not a simulation of player preparation time. Conflicting or missing facts remain explicit.",
+  "total": 32,
+  "matched": 23,
+  "partial": 8,
+  "conflicts": 1,
+  "missing": 0,
+  "records": [
+    {
+      "id": 8752,
+      "status": "matched",
+      "spotId": 58,
+      "predators": [
+        [
+          5031,
+          3
+        ]
+      ],
+      "intuitionSeconds": 600,
+      "trackerIntuitionSeconds": 600,
+      "predecessors": [
+        {
+          "id": 5031,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 8754,
+      "status": "matched",
+      "spotId": 108,
+      "predators": [
+        [
+          4913,
+          3
+        ]
+      ],
+      "intuitionSeconds": 350,
+      "trackerIntuitionSeconds": 350,
+      "predecessors": [
+        {
+          "id": 4913,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 8760,
+      "status": "matched",
+      "spotId": 21,
+      "predators": [
+        [
+          5008,
+          5
+        ]
+      ],
+      "intuitionSeconds": 300,
+      "trackerIntuitionSeconds": 300,
+      "predecessors": [
+        {
+          "id": 5008,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 8763,
+      "status": "matched",
+      "spotId": 94,
+      "predators": [
+        [
+          8762,
+          1
+        ]
+      ],
+      "intuitionSeconds": 1400,
+      "trackerIntuitionSeconds": 1400,
+      "predecessors": [
+        {
+          "id": 8762,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 8764,
+      "status": "matched",
+      "spotId": 74,
+      "predators": [
+        [
+          4904,
+          6
+        ]
+      ],
+      "intuitionSeconds": 120,
+      "trackerIntuitionSeconds": 120,
+      "predecessors": [
+        {
+          "id": 4904,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 8769,
+      "status": "matched",
+      "spotId": 29,
+      "predators": [
+        [
+          5544,
+          5
+        ]
+      ],
+      "intuitionSeconds": 180,
+      "trackerIntuitionSeconds": 180,
+      "predecessors": [
+        {
+          "id": 5544,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 8775,
+      "status": "matched",
+      "spotId": 17,
+      "predators": [
+        [
+          8774,
+          1
+        ]
+      ],
+      "intuitionSeconds": 60,
+      "trackerIntuitionSeconds": 60,
+      "predecessors": [
+        {
+          "id": 8774,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 17588,
+      "status": "matched",
+      "spotId": 124,
+      "predators": [
+        [
+          12754,
+          5
+        ],
+        [
+          12800,
+          3
+        ]
+      ],
+      "intuitionSeconds": 180,
+      "trackerIntuitionSeconds": 180,
+      "predecessors": [
+        {
+          "id": 12754,
+          "status": "matched"
+        },
+        {
+          "id": 12800,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 17589,
+      "status": "matched",
+      "spotId": 146,
+      "predators": [
+        [
+          13727,
+          3
+        ]
+      ],
+      "intuitionSeconds": 105,
+      "trackerIntuitionSeconds": 105,
+      "predecessors": [
+        {
+          "id": 13727,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 17590,
+      "status": "matched",
+      "spotId": 127,
+      "predators": [
+        [
+          12757,
+          6
+        ]
+      ],
+      "intuitionSeconds": 160,
+      "trackerIntuitionSeconds": 160,
+      "predecessors": [
+        {
+          "id": 12757,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 17591,
+      "status": "matched",
+      "spotId": 139,
+      "predators": [
+        [
+          12753,
+          3
+        ],
+        [
+          12810,
+          3
+        ]
+      ],
+      "intuitionSeconds": 60,
+      "trackerIntuitionSeconds": 60,
+      "predecessors": [
+        {
+          "id": 12753,
+          "status": "matched"
+        },
+        {
+          "id": 12810,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 17592,
+      "status": "matched",
+      "spotId": 112,
+      "predators": [
+        [
+          12715,
+          5
+        ]
+      ],
+      "intuitionSeconds": 120,
+      "trackerIntuitionSeconds": 120,
+      "predecessors": [
+        {
+          "id": 12715,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 17593,
+      "status": "matched",
+      "spotId": 134,
+      "predators": [
+        [
+          12805,
+          5
+        ]
+      ],
+      "intuitionSeconds": 100,
+      "trackerIntuitionSeconds": 100,
+      "predecessors": [
+        {
+          "id": 12805,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 24994,
+      "status": "conflict",
+      "spotId": 168,
+      "predators": [
+        [
+          23056,
+          3
+        ],
+        [
+          24203,
+          3
+        ],
+        [
+          24204,
+          5
+        ]
+      ],
+      "intuitionSeconds": 175,
+      "trackerIntuitionSeconds": 175,
+      "predecessors": [
+        {
+          "id": 23056,
+          "status": "conflict"
+        },
+        {
+          "id": 24203,
+          "status": "conflict"
+        },
+        {
+          "id": 24204,
+          "status": "matched"
+        }
+      ],
+      "differences": [
+        "predecessor time/weather 23056",
+        "predecessor time/weather 24203"
+      ],
+      "missingFields": []
+    },
+    {
+      "id": 24991,
+      "status": "matched",
+      "spotId": 190,
+      "predators": [
+        [
+          23060,
+          2
+        ]
+      ],
+      "intuitionSeconds": 175,
+      "trackerIntuitionSeconds": 175,
+      "predecessors": [
+        {
+          "id": 23060,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 24992,
+      "status": "matched",
+      "spotId": 196,
+      "predators": [
+        [
+          20040,
+          2
+        ]
+      ],
+      "intuitionSeconds": 350,
+      "trackerIntuitionSeconds": 350,
+      "predecessors": [
+        {
+          "id": 20040,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 33240,
+      "status": "matched",
+      "spotId": 212,
+      "predators": [
+        [
+          27452,
+          5
+        ],
+        [
+          33319,
+          1
+        ]
+      ],
+      "intuitionSeconds": 350,
+      "trackerIntuitionSeconds": 350,
+      "predecessors": [
+        {
+          "id": 27452,
+          "status": "matched"
+        },
+        {
+          "id": 33319,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 33241,
+      "status": "matched",
+      "spotId": 215,
+      "predators": [
+        [
+          27462,
+          10
+        ]
+      ],
+      "intuitionSeconds": 360,
+      "trackerIntuitionSeconds": 360,
+      "predecessors": [
+        {
+          "id": 27462,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 33244,
+      "status": "matched",
+      "spotId": 232,
+      "predators": [
+        [
+          33325,
+          2
+        ]
+      ],
+      "intuitionSeconds": 700,
+      "trackerIntuitionSeconds": 700,
+      "predecessors": [
+        {
+          "id": 33325,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 41403,
+      "status": "matched",
+      "spotId": 268,
+      "predators": [
+        [
+          36449,
+          5
+        ]
+      ],
+      "intuitionSeconds": 180,
+      "trackerIntuitionSeconds": 180,
+      "predecessors": [
+        {
+          "id": 36449,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 41407,
+      "status": "matched",
+      "spotId": 259,
+      "predators": [
+        [
+          36412,
+          3
+        ]
+      ],
+      "intuitionSeconds": 90,
+      "trackerIntuitionSeconds": 90,
+      "predecessors": [
+        {
+          "id": 36412,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 41408,
+      "status": "matched",
+      "spotId": 269,
+      "predators": [
+        [
+          36454,
+          12
+        ]
+      ],
+      "intuitionSeconds": 300,
+      "trackerIntuitionSeconds": 300,
+      "predecessors": [
+        {
+          "id": 36454,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 41409,
+      "status": "matched",
+      "spotId": 270,
+      "predators": [
+        [
+          36458,
+          3
+        ]
+      ],
+      "intuitionSeconds": 35,
+      "trackerIntuitionSeconds": 35,
+      "predecessors": [
+        {
+          "id": 36458,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 41412,
+      "status": "matched",
+      "spotId": 285,
+      "predators": [
+        [
+          36519,
+          3
+        ],
+        [
+          36520,
+          2
+        ],
+        [
+          36521,
+          1
+        ]
+      ],
+      "intuitionSeconds": 600,
+      "trackerIntuitionSeconds": 600,
+      "predecessors": [
+        {
+          "id": 36519,
+          "status": "matched"
+        },
+        {
+          "id": 36520,
+          "status": "matched"
+        },
+        {
+          "id": 36521,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": []
+    },
+    {
+      "id": 46195,
+      "status": "partial",
+      "spotId": 329,
+      "predators": [
+        [
+          43781,
+          3
+        ]
+      ],
+      "intuitionSeconds": 350,
+      "trackerIntuitionSeconds": null,
+      "predecessors": [
+        {
+          "id": 43781,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": [
+        "intuition duration"
+      ]
+    },
+    {
+      "id": 49797,
+      "status": "partial",
+      "spotId": 313,
+      "predators": [
+        [
+          43735,
+          3
+        ]
+      ],
+      "intuitionSeconds": 300,
+      "trackerIntuitionSeconds": null,
+      "predecessors": [
+        {
+          "id": 43735,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": [
+        "intuition duration"
+      ]
+    },
+    {
+      "id": 49801,
+      "status": "partial",
+      "spotId": 333,
+      "predators": [
+        [
+          43796,
+          3
+        ],
+        [
+          43798,
+          3
+        ]
+      ],
+      "intuitionSeconds": 300,
+      "trackerIntuitionSeconds": null,
+      "predecessors": [
+        {
+          "id": 43796,
+          "status": "matched"
+        },
+        {
+          "id": 43798,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": [
+        "intuition duration"
+      ]
+    },
+    {
+      "id": 52005,
+      "status": "partial",
+      "spotId": 321,
+      "predators": [
+        [
+          43760,
+          3
+        ]
+      ],
+      "intuitionSeconds": 300,
+      "trackerIntuitionSeconds": null,
+      "predecessors": [
+        {
+          "id": 43760,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": [
+        "intuition duration"
+      ]
+    },
+    {
+      "id": 52008,
+      "status": "partial",
+      "spotId": 302,
+      "predators": [
+        [
+          43697,
+          6
+        ]
+      ],
+      "intuitionSeconds": 360,
+      "trackerIntuitionSeconds": null,
+      "predecessors": [
+        {
+          "id": 43697,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": [
+        "intuition duration"
+      ]
+    },
+    {
+      "id": 52009,
+      "status": "partial",
+      "spotId": 315,
+      "predators": [
+        [
+          43740,
+          3
+        ],
+        [
+          52002,
+          1
+        ]
+      ],
+      "intuitionSeconds": 900,
+      "trackerIntuitionSeconds": null,
+      "predecessors": [
+        {
+          "id": 43740,
+          "status": "matched"
+        },
+        {
+          "id": 52002,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": [
+        "intuition duration"
+      ]
+    },
+    {
+      "id": 52297,
+      "status": "partial",
+      "spotId": 326,
+      "predators": [
+        [
+          43775,
+          1
+        ]
+      ],
+      "intuitionSeconds": 90,
+      "trackerIntuitionSeconds": null,
+      "predecessors": [
+        {
+          "id": 43775,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": [
+        "intuition duration"
+      ]
+    },
+    {
+      "id": 52011,
+      "status": "partial",
+      "spotId": 332,
+      "predators": [
+        [
+          43795,
+          2
+        ],
+        [
+          52006,
+          1
+        ]
+      ],
+      "intuitionSeconds": 600,
+      "trackerIntuitionSeconds": null,
+      "predecessors": [
+        {
+          "id": 43795,
+          "status": "matched"
+        },
+        {
+          "id": 52006,
+          "status": "matched"
+        }
+      ],
+      "differences": [],
+      "missingFields": [
+        "intuition duration"
+      ]
+    }
+  ]
+}
