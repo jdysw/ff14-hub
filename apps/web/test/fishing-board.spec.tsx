@@ -26,6 +26,14 @@ beforeEach(()=>{reminderSettings.clear();vi.stubGlobal('Worker',ForecastWorker);
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});
 const publicPort=(catalog=fixture):DataPort=>({moduleId:'ff14.fishing',operations:['fish.catalog'],call:<T,>()=>Promise.resolve(catalog as T)});
 
+it('special records expose acquisition locations and stay out of the normal fish filter',async()=>{
+  const selected=source.fish.filter(f=>[4925,29994,52224,6688].includes(f.id));
+  render(<FishingBoard data={publicPort({...source,fish:selected,coverage:{total:4,forecast:0,always:1,unknown:3}})} initialFilters={{region:'cn',view:'all',kind:'all',text:'',hideCaught:false,windowHours:24}}/>);
+  await screen.findByText('第二期重建用的云冠跳鱼');expect(screen.getByText(/来源记录地点：云冠洞穴/)).toBeTruthy();expect(screen.getAllByText(/列出地点不代表当前仍可获取/).length).toBeGreaterThan(0);
+  fireEvent.change(screen.getByRole('combobox',{name:'鱼类类型'}),{target:{value:'normal'}});expect(screen.queryByText('陈旧的鞣革地图')).toBeNull();expect(screen.getByText('蝲蛄')).toBeTruthy();
+  fireEvent.change(screen.getByRole('combobox',{name:'鱼类类型'}),{target:{value:'special'}});expect(screen.getByText('陈旧的鞣革地图')).toBeTruthy();expect(screen.queryByText('蝲蛄')).toBeNull();
+});
+
 it('shows full audit coverage and separates spear conditions from ocean voyage conditions',async()=>{
   const selected=source.fish.filter(f=>f.id===36535||f.id===51228);
   render(<FishingBoard data={publicPort({...source,fish:selected,coverage:{total:2,forecast:0,always:0,unknown:2}})} initialFilters={{region:'cn',view:'all',kind:'all',text:'',hideCaught:false,windowHours:24}}/>);

@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {periods,teamcraftPeriods,effectivePeriods,pathSteps,compatiblePaths,checkField,normalizedOceanTimes,completeMoochPath} from '../lib/fishing-crosscheck.mjs';
 import {correctCatalog} from '../lib/fishing-corrections.mjs';
+import {firstPositiveId,buildSpecialContexts} from '../lib/fishing-special-content.mjs';
 const json=async path=>JSON.parse(await readFile(path,'utf8'));
 test('normalizes minute precision, overnight spans and inherited mooch time',()=>{
   assert.deepEqual(periods(23.5,1.083333373),teamcraftPeriods({spawns:[23.5],duration:94.8}));
@@ -17,6 +18,18 @@ test('bait choices and abbreviated mooch paths do not become false condition con
   assert.equal(checkField('field',{one:undefined,two:1}).status,'single-source');
   assert.equal(checkField('field',{catalog:1,fishcake:1}).status,'single-source');
   assert.equal(checkField('field',{one:1,two:2}).status,'conflict');
+});
+test('zero sentinel falls back to real spots and virtual IDs are not attached to unrelated special fish',()=>{
+  assert.equal(firstPositiveId(undefined,'0',10001),10001);assert.equal(firstPositiveId(-1,0,'37'),37);assert.equal(firstPositiveId(null,undefined),0);
+  const contexts=buildSpecialContexts({
+    game:new Map([[1,{method:'rod',IsInLog:'False'}],[2,{method:'rod',IsInLog:'False'}],[3,{method:'rod',IsInLog:'False'}],[4,{method:'rod',IsInLog:'True'}]]),
+    itemRows:new Map([[1,{ItemUICategory:'1'}],[2,{ItemUICategory:'1'}],[3,{ItemUICategory:'1',Description:'任务专用'}]]),itemCategories:new Map([['1','水产品']]),wksItems:new Set([1]),
+    gameSpots:new Map([[10001,{id:'10001',PlaceName:'10',TerritoryType:'0','Item[0]':'1'}],[37,{id:'37',PlaceName:'11',TerritoryType:'20','Item[0]':'99'}]]),
+    places:new Map([[10,'任务水域'],[11,'野外水域']]),tcLog:[{itemId:1,spot:{id:10001}}],rawSources:{2:[{spot:10001,bait:123}],3:[{spot:37,bait:124}]},territories:new Map()
+  });
+  assert.equal(contexts.get(1).category,'cosmic');assert.equal(contexts.get(1).locations[0].evidence,'corroborated');
+  assert.deepEqual(contexts.get(2).locations,[]);assert.deepEqual(contexts.get(2).baitIds,[]);assert.deepEqual(contexts.get(2).unmatchedSpotIds,[10001]);
+  assert.equal(contexts.get(3).locations[0].evidence,'community-record');assert.deepEqual(contexts.get(3).baitIds,[124]);assert.equal(contexts.has(4),false);
 });
 test('ocean day and sunset enum numbers differ between sources and must be mapped semantically',async()=>{
   const conventions=await json('data/fishing-source-conventions.json');
@@ -41,7 +54,7 @@ test('all catalog identities have individual audit rows and source-limited evide
     const catalog=await json(`apps/web/public/fishing/catalog-${region}.json`),audit=report.regions.find(r=>r.region===region);
     assert.equal(audit.total,total);assert.equal(audit.records.length,total);assert.equal(new Set(audit.records.map(r=>r.id)).size,total);
     assert.deepEqual(audit.records.map(r=>r.id).sort((a,b)=>a-b),catalog.fish.map(f=>f.id).sort((a,b)=>a-b));
-    assert.equal(audit.checked+audit.partial+audit.conflicts+audit.singleSource,total);assert.ok(audit.fieldsCompared>25000);
+    assert.equal(audit.checked+audit.special+audit.partial+audit.conflicts+audit.singleSource,total);assert.ok(audit.fieldsCompared>25000);
     assert.deepEqual(catalog.crossSourceAudit.total,audit.total);assert.equal(catalog.fish.filter(f=>f.crossSourceAudit).length,total);
     const elephant=catalog.fish.find(f=>f.id===14218),nautilus=catalog.fish.find(f=>f.id===4906);
     assert.equal(elephant.rule.endHour,24);assert.equal(nautilus.rule.startHour,18);assert.equal(nautilus.rule.endHour,6);assert.equal(nautilus.always,false);
@@ -52,6 +65,16 @@ test('all catalog identities have individual audit rows and source-limited evide
     assert.ok(catalog.fish.find(f=>f.id===36535).conditions.some(c=>c.startsWith('鱼识前置')&&!c.includes('乐园石斑鱼')));
     assert.ok(catalog.fish.every(f=>!f.rule||f.rule.validationStatus==='unverified'));
     assert.ok(catalog.fish.every(f=>!f.rule||f.rule.version.length<=80));
-    if(region==='cn'){assert.ok(audit.singleSource>0);assert.ok(audit.partial>0);assert.equal(catalog.fish.find(f=>f.id===20144).location,'红玉炮台附近');assert.ok(catalog.fish.find(f=>f.id===43807).aliases.includes('泽拉多'));}
+    assert.equal(catalog.fish.filter(f=>f.acquisitionContext).length,audit.special);
+    assert.ok(catalog.fish.filter(f=>f.acquisitionContext).every(f=>f.acquisitionContext.inFishingLog===false&&(!f.rule||f.acquisitionContext.category==='collectable')&&!f.always));
+    for(const id of [43903,43904,43905,43906]){const collectible=catalog.fish.find(f=>f.id===id);assert.equal(collectible.acquisitionContext.category,'collectable');assert.ok(collectible.rule);}
+    if(region==='cn'){
+      assert.ok(audit.specialSourceOnly>0);assert.equal(audit.special,958);assert.equal(audit.checked,1806);
+      assert.equal(catalog.fish.find(f=>f.id===20144).location,'红玉炮台附近');assert.ok(catalog.fish.find(f=>f.id===43807).aliases.includes('泽拉多'));
+      assert.equal(catalog.fish.find(f=>f.id===29994).spotId,10001);assert.equal(catalog.fish.find(f=>f.id===29994).location,'云冠洞穴');
+      assert.equal(catalog.fish.find(f=>f.id===52224).acquisitionContext.category,'cosmic');
+      assert.equal(catalog.fish.find(f=>f.id===6688).acquisitionContext.category,'associated-item');
+      const old=catalog.fish.find(f=>f.id===13734).acquisitionContext;assert.equal(old.locations.length,0);assert.ok(old.unmatchedSpotIds.includes(10005));
+    }
   }
 });

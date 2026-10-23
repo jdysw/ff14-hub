@@ -3,12 +3,21 @@ const pairs=value=>(value??[]).map(p=>[p.id,p.count??p.amount]).sort((a,b)=>a[0]
 const tcTug={0:'medium',1:'heavy',2:'light'},tcHook={1:'Powerful',2:'Precision'};
 const correctedVersion=version=>{const suffix='-crosscheck-v1';return version.replace(/-crosscheck-v1$/,'').slice(0,80-suffix.length)+suffix;};
 import {effectivePeriods,periods,teamcraftPeriods,normalizedOceanTimes} from './fishing-crosscheck.mjs';
-export function correctCatalog({catalog,fishcake,teamcraft,items,spotNames,snapshot,tracker,conventions}){
+export function correctCatalog({catalog,fishcake,teamcraft,items,spotNames,snapshot,tracker,conventions,specialContexts=new Map()}){
   const changes=[];
   const label=id=>catalog.region==='cn'?items.get(id)??tracker.ITEMS[id]?.name_en:tracker.ITEMS[id]?.name_en??items.get(id);
   for(const fish of catalog.fish){
-    const s=fishcake.get(fish.id)?.spots.find(s=>s.spotId===fish.spotId),tc=teamcraft.get(fish.id)?.find(n=>n.id===fish.spotId&&!n.identityOnly),changed=[];
+    const changed=[];
     const assign=(key,value,source)=>{if(value!==undefined&&value!==null&&!same(fish[key],value)){changes.push({id:fish.id,field:key,before:fish[key],after:value,source});fish[key]=value;changed.push(key);}};
+    const special=specialContexts.get(fish.id);
+    if(special){
+      assign('acquisitionContext',special,'game flags, item context and teamcraft acquisition records');
+      if(fish.spotId<=0&&special.locations.length)assign('spotId',special.locations[0].spotId,'game item-to-spot membership and teamcraft source');
+      const selected=special.locations.find(s=>s.spotId===fish.spotId);
+      if(selected){assign('location',selected.name,selected.sources.join('+'));assign('zone',special.zone,'game context');}
+      if(!fish.bait.length&&special.baitIds.length){const labels=special.baitIds.map(label).filter(Boolean);if(labels.length)assign('bait',labels,'teamcraft raw acquisition');}
+    }
+    const s=fishcake.get(fish.id)?.spots.find(s=>s.spotId===fish.spotId),tc=teamcraft.get(fish.id)?.find(n=>n.id===fish.spotId&&!n.identityOnly);
     if(catalog.region==='cn'&&spotNames.get(fish.spotId))assign('location',spotNames.get(fish.spotId),'cn-game-table');
     if(s){
       if(tracker.FISH[fish.id]?.bestCatchPath)fish.catchPathIds=tracker.FISH[fish.id].bestCatchPath;
