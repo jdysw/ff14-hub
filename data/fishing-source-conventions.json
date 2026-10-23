@@ -1,0 +1,12 @@
+{
+  "teamcraftRevision": "522a09ee9f65455d937be131c7c9ade15e72aaa8",
+  "oceanTimeEnumSource": "https://github.com/ffxiv-teamcraft/ffxiv-teamcraft/blob/522a09ee9f65455d937be131c7c9ade15e72aaa8/apps/client/src/app/pages/allagan-reports/model/ocean-fishing-time.ts",
+  "teamcraftOceanTimes": {"0": "any", "1": "sunset", "2": "day", "3": "night"},
+  "fishcakeVersion": "803987e",
+  "fishcakeOceanTimes": {"1": "day", "2": "sunset", "3": "night"},
+  "fishcakeOceanTimeEvidence": "Public IKD time model observed on 2026-10-23: 1 early/day, 2 noon/Sunset, 3 late/Night; labels read from name.en, not inferred from name.chs",
+  "teamcraftTug": {"0": "medium", "1": "heavy", "2": "light"},
+  "teamcraftHookset": {"1": "powerful", "2": "precision"},
+  "teamcraftDurationUnit": "ET minutes, not intuition seconds",
+  "fishcakeShadowSize": {"Small": "small", "Average": "medium", "Big": "large"}
+}

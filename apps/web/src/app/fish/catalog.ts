@@ -4,9 +4,13 @@ export const catalogFishSchema=z.object({id:z.number().int().positive(),name:z.s
   kind:z.enum(['normal','big','legendary']),method:z.enum(['rod','spear','ocean']),level:z.number(),patch:z.string(),
   zone:z.string(),location:z.string(),spotId:z.number(),bait:z.array(z.string()),tug:z.string(),hookset:z.string(),
   conditions:z.array(z.string()),always:z.boolean(),rule:fishRuleSchema.nullable(),
+  aliases:z.array(z.string()).optional(),
+  catchPathIds:z.array(z.union([z.number().int().positive(),z.array(z.number().int().positive())])).optional(),
+  crossSourceAudit:z.object({status:z.enum(['checked','partial','single-source','conflict']),compared:z.number().int().nonnegative(),sources:z.array(z.string()),notes:z.array(z.string()),sourceLimitedFields:z.number().int().nonnegative()}).optional(),
   intuitionDuration:z.object({seconds:z.number().int().positive().max(86400),source:z.literal('fishcake'),sourceVersion:z.string(),checkedAt:z.string()}).optional(),
   intuitionCrosscheck:z.object({status:z.enum(['matched','partial','conflict','missing']),supplemented:z.boolean().optional(),description:z.string(),checkedAt:z.string(),fishcakeVersion:z.string()}).optional()});
 export const fishingCatalogSchema=z.object({schemaVersion:z.literal(1),region:z.enum(['cn','global']),generatedAt:z.string(),
+  crossSourceAudit:z.object({total:z.number().int(),checked:z.number().int(),partial:z.number().int(),conflicts:z.number().int(),singleSource:z.number().int(),fieldsCompared:z.number().int(),resolvedDifferences:z.number().int(),intuitionRecords:z.number().int().optional(),checkedAt:z.string(),sourceVersions:z.object({tracker:z.string(),cn:z.string(),teamcraft:z.string(),fishcake:z.string()})}).optional(),
   intuitionCrosscheck:z.object({total:z.number(),matched:z.number(),supplemented:z.number().optional(),partial:z.number(),conflicts:z.number(),missing:z.number(),checkedAt:z.string(),fishcakeVersion:z.string()}).optional(),
   accuracy:z.object({weatherMatched:z.number().int().nonnegative(),weatherMismatch:z.number().int().nonnegative(),weatherMissing:z.number().int().nonnegative(),
     fishWithPredators:z.number().int().nonnegative(),gameplayVerified:z.number().int().nonnegative()}).optional(),

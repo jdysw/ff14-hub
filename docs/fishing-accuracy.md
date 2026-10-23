@@ -1,5 +1,7 @@
 # 钓鱼数据准确性首轮
 
+全目录后续核对见 [fishing-cross-source-audit.md](fishing-cross-source-audit.md)。本文的 32 条指首轮普通鱼识范围；全目录报告逐条覆盖国服 2764 条及国际服 1724 条，并分别展示来源不足与已处理差异。
+
 来源固定版本见 `data/fishing-sources.json`，逐鱼核对和原始输入文件 SHA256 见 `data/fishing-accuracy-audit.json`。
 
 国服 2764 条身份来自游戏表，其中 874 条具备社区时间天气预测规则，另 359 条资料无时间天气限制，1531 条仍缺少普通鱼窗规则或属于其他钓鱼内容。逐条对照国服 FishingSpot → TerritoryType → WeatherRate，对天气随机值 0～99 的全部映射进行比较，874 条一致，0 条缺失或不一致。32 条规则含鱼识前置鱼，前置 ID/名称均能在国服表中找到。

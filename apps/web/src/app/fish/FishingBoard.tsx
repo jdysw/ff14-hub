@@ -22,6 +22,7 @@ const etTime=(hour:number)=>{const minutes=Math.round(hour*60);return `${String(
 const kindLabel={normal:'普通鱼',big:'鱼王',legendary:'鱼皇'};
 const tugLabel:Record<string,string>={light:'轻竿 !',medium:'中竿 !!',heavy:'重竿 !!!'};
 const hookLabel:Record<string,string>={Precision:'精准提钩',Powerful:'强力提钩'};
+const auditStatus={checked:'可比资料已核对',partial:'部分条件资料待补','single-source':'社区条件资料待补',conflict:'存在待处理的来源差异'};
 type View='windows'|'all'|'pinned'|'followed';
 type HomeView='open'|'upcoming'|'followed';
 export interface FishDetailSelection {
@@ -266,7 +267,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
           <details {...(targetId===fish.id?{open:true}:{})}><summary className="fish-board__row-main"><span className="fish-board__identity"><strong>{fish.name}</strong><small>{fish.method==='spear'?'刺鱼':fish.method==='ocean'?'海钓':kindLabel[fish.kind]} · {fish.location}</small></span>
             <span className="fish-board__bait">{fish.bait.join(' → ')||'鱼饵资料待补'}</span>
             <span className={`fish-board__window${state.open?' is-open':''}`}>
-              <strong>{fish.rule&&forecasts===null?'正在计算':state.open?(state.open.candidateOnly?'候选窗口中':'时间天气匹配'):state.always?'时间天气不限':state.next?(state.next.candidateOnly?'后续候选':'即将匹配'):state.unknown?'窗口资料待补':`${hours} 小时内暂无窗口`}</strong>
+              <strong>{fish.method==='ocean'?'海钓 · 查看航次条件':fish.method==='spear'?'刺鱼 · 查看鱼影条件':fish.rule&&forecasts===null?'正在计算':state.open?(state.open.candidateOnly?'候选窗口中':'时间天气匹配'):state.always?'时间天气不限':state.next?(state.next.candidateOnly?'后续候选':'即将匹配'):state.unknown?'窗口资料待补':`${hours} 小时内暂无窗口`}</strong>
               <small>{state.open?`${duration(state.open.endsAtUtcMs-now)}后关闭`:state.next?`${duration(state.next.startsAtUtcMs-now)}后开放`:state.always?'无已知时间 / 天气限制':'可展开查看已有资料'}</small>
               <WindowPeriod window={state.open??state.next}/>
             </span></summary>
@@ -275,9 +276,10 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
               <p>鱼饵路径：{fish.bait.join(' → ')||'尚未收录'}{fish.tug?` · ${tugLabel[fish.tug]??fish.tug}`:''}{fish.hookset?` · ${hookLabel[fish.hookset]??fish.hookset}`:''}</p>
               {fish.conditions.length?<ul>{fish.conditions.map(condition=><li key={condition}>{condition}</li>)}</ul>:null}
               {fish.intuitionCrosscheck?<p>鱼识来源核对：{fish.intuitionCrosscheck.description||(fish.intuitionCrosscheck.status==='matched'?'鱼糕与 Tracker 的前置鱼、数量、时长及时间天气条件一致。':'来源资料尚不完整。')}<small> 核对于 {new Date(fish.intuitionCrosscheck.checkedAt).toLocaleDateString('zh-CN')}。</small></p>:null}
-              {fish.rule?<p>ET {etTime(fish.rule.startHour)} – {etTime(fish.rule.endHour)} · 天气：{fish.rule.previousWeather.join(' / ')||'不限'} → {fish.rule.currentWeather.join(' / ')||'不限'}。时间规则来自社区数据；鱼饵、鱼识及技能条件仍需另行满足。</p>:<p>{state.always?'资料未标注时间和天气限制，仍需满足鱼饵、任务等要求。':'尚无可靠预测规则；不会把资料缺失显示为全天可钓。'}</p>}
+              {fish.crossSourceAudit?<div className="fish-board__audit"><p>资料交叉核对：{auditStatus[fish.crossSourceAudit.status]} · {fish.crossSourceAudit.compared} 项可比资料。</p>{fish.crossSourceAudit.notes.map(note=><p key={note}>{note}</p>)}</div>:null}
+              {fish.rule?<p>ET {etTime(fish.rule.startHour)} – {etTime(fish.rule.endHour)} · 天气：{fish.rule.previousWeather.join(' / ')||'不限'} → {fish.rule.currentWeather.join(' / ')||'不限'}。时间规则来自社区数据；鱼饵、鱼识及技能条件仍需另行满足。</p>:<p>{fish.method==='ocean'?'海钓请结合本页条件与航次查看。':fish.method==='spear'?'刺鱼请结合本页鱼影触发和鱼识条件查看。':state.always?'资料未标注时间和天气限制，仍需满足鱼饵、任务等要求。':'尚无可靠预测规则；不会把资料缺失显示为全天可钓。'}</p>}
               {forecast?.windows.some(window=>!window.unrestricted)?<ol>{forecast.windows.filter(window=>!window.unrestricted).slice(0,5).map(window=><li key={window.occurrenceKey}>{localTime(window.startsAtUtcMs)} — {localTime(window.endsAtUtcMs)} <span>{window.weatherSegments&&window.weatherSegments.length>1?'连续窗口，包含多段天气':`${window.weatherChain.previous} → ${window.weatherChain.current}`}</span></li>)}</ol>:null}
-              {fish.spotId>0?<a href={`https://fish.ffmomola.com/ng/#/wiki/fishing/spot/${fish.spotId}/fish/${fish.id}`} target="_blank" rel="noreferrer noopener">在鱼糕查看钓法参考</a>:null}
+              {fish.spotId>0?<a href={`https://fish.ffmomola.com/ng/#/wiki/${fish.method==='spear'?'spearfishing':'fishing'}/spot/${fish.spotId}/fish/${fish.id}`} target="_blank" rel="noreferrer noopener">在鱼糕查看钓法参考</a>:null}
             </div>
           </details>
           <div className="fish-board__actions">{(['pinned','caught'] as const).map(field=><button type="button" key={field} aria-label={`${field==='pinned'?'收藏':'钓获'} ${fish.name}`} aria-pressed={flags.get(`${fish.id}:${field}`)?.value??false}
@@ -288,9 +290,10 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
       {visible.length===0&&forecasts!==null?<p className="fish-board__empty">{view==='pinned'?'还没有收藏的鱼。可以在鱼类旁标记收藏。':view==='followed'?'还没有关注的鱼。收藏或设置提醒后即可在这里查看。':(embedded||expanded)&&view==='windows'?'这个时间范围内暂无鱼窗，可选择更长时间范围。':'没有匹配的鱼。试试其他分类或搜索词；“全部鱼类”也会显示资料待补的记录。'}</p>:null}
       {!embedded&&!expanded&&visible.length>limit?<button className="fish-board__more" type="button" onClick={()=>setLimit(n=>n+(compact?10:30))}>显示更多（还有 {visible.length-limit} 种）</button>:null}
       {onImport?<button className="fish-board__more" type="button" onClick={onImport}>导入鱼糕钓获记录</button>:null}
-      <details className="fish-board__sources"><summary>数据覆盖与来源</summary><p>{region==='cn'?'国服':'国际服'}目录 {catalog.coverage.total} 条 · 有窗口规则 {catalog.coverage.forecast} 条 · 无时间天气限制 {catalog.coverage.always} 条 · 规则待补 {catalog.coverage.unknown} 条。完整目录参与筛选，页面显示数量不会限制鱼窗计算。</p>
+      <details className="fish-board__sources"><summary>数据覆盖与来源</summary><p>{region==='cn'?'国服':'国际服'}目录 {catalog.coverage.total} 条 · 有窗口规则 {catalog.coverage.forecast} 条 · 无时间天气限制 {catalog.coverage.always} 条 · 普通鱼窗未收录或其他玩法 {catalog.coverage.unknown} 条。完整目录参与筛选，页面显示数量不会限制鱼窗计算。</p>
         {catalog.accuracy?<p>已对照国服游戏表核对 {catalog.accuracy.weatherMatched} 条规则的天气概率；{catalog.accuracy.fishWithPredators} 条含前置鱼条件。鱼识条件以鱼糕及其他来源交叉核对为准；资料有冲突或缺失时会保留提示。</p>:null}
-        {catalog.intuitionCrosscheck?<p>鱼识跨源比对 {catalog.intuitionCrosscheck.total} 条：{catalog.intuitionCrosscheck.matched} 条一致、{catalog.intuitionCrosscheck.supplemented??0} 条已按鱼糕补全时长、{catalog.intuitionCrosscheck.partial} 条资料待补、{catalog.intuitionCrosscheck.conflicts} 条条件差异，详情保留来源与具体说明。</p>:null}
+        {catalog.intuitionCrosscheck&&!catalog.crossSourceAudit?<p>鱼识跨源比对 {catalog.intuitionCrosscheck.total} 条：{catalog.intuitionCrosscheck.matched} 条一致、{catalog.intuitionCrosscheck.supplemented??0} 条已按鱼糕补全时长、{catalog.intuitionCrosscheck.partial} 条资料待补、{catalog.intuitionCrosscheck.conflicts} 条条件差异，详情保留来源与具体说明。</p>:null}
+        {catalog.crossSourceAudit?<p>全目录交叉核对 {catalog.crossSourceAudit.total} 条：{catalog.crossSourceAudit.checked} 条可比资料已核对、{catalog.crossSourceAudit.partial} 条部分条件来源不足、{catalog.crossSourceAudit.singleSource} 条仅有游戏表资料、{catalog.crossSourceAudit.conflicts} 条差异待处理。鱼识时长已收录 {catalog.crossSourceAudit.intuitionRecords??0} 条。核对日期 {new Date(catalog.crossSourceAudit.checkedAt).toLocaleDateString('zh-CN')}。<a href="https://github.com/jdysw/ff14-hub/blob/main/data/fishing-full-crosscheck.json" target="_blank" rel="noreferrer noopener">查看逐条核对报告 ↗</a></p>:null}
         <p>目录更新于 {new Date(catalog.generatedAt).toLocaleDateString('zh-CN')}。国服名称与身份来自游戏表，时间天气规则来自社区；海钓和未知规则不套用普通鱼窗。</p>
         <a href={`https://github.com/icykoneko/ff14-fish-tracker-app/tree/${catalog.versions.tracker}`} target="_blank" rel="noreferrer noopener">Fish Tracker 规则来源</a>{' / '}
         <a href={`https://github.com/thewakingsands/ffxiv-datamining-cn/tree/${catalog.versions.cn}`} target="_blank" rel="noreferrer noopener">国服游戏表</a></details>
