@@ -66,6 +66,21 @@ it('refunds rejected provider attempts without exhausting the daily delivery quo
   expect(await runLocalNotifications(env.DB,now+300_003,success)).toBe(0);
   expect(success).toHaveBeenCalledOnce();
 });
+it('releases capacity for both throttled and permanently rejected provider responses',async()=>{
+  await register();
+  const {id}=(await env.DB.prepare('SELECT id FROM local_push_devices').first<{id:string}>())!;
+  const now=Date.parse('2026-10-24T12:00:00Z');
+  for(const [index,status] of [429,400].entries()){
+    const key='status-'+status;
+    await replaceLocalJobs(env.DB,id,[{key,title:key,body:'正文',dueAt:now,expiresAt:now+600_000}],now+index*10);
+    expect(await runLocalNotifications(env.DB,now+index*10,()=>Promise.resolve(status))).toBe(0);
+    expect((await env.DB.prepare('SELECT sent_count FROM local_push_devices WHERE id=?').bind(id)
+      .first<{sent_count:number}>())?.sent_count).toBe(0);
+    const row=await env.DB.prepare('SELECT status FROM local_push_jobs WHERE device_id=? AND job_key=?')
+      .bind(id,key).first<{status:string}>();
+    expect(row?.status).toBe(status===429?'queued':'failed');
+  }
+});
 it('holds capacity for an in-flight provider call and releases it on a thrown error',async()=>{
   await register();
   const {id}= (await env.DB.prepare('SELECT id FROM local_push_devices').first<{id:string}>())!;
