@@ -20,7 +20,9 @@ class ForecastWorker {
   }
   terminate(){this.onmessage=null;}
 }
-beforeEach(()=>vi.stubGlobal('Worker',ForecastWorker));
+const reminderSettings=vi.hoisted(()=>new Map<string,unknown>());
+vi.mock('../src/app/local/secure-storage',()=>({readDeviceRecord:(key:string)=>Promise.resolve(reminderSettings.get(key)??null),updateDeviceRecord:(key:string,change:(previous:unknown)=>unknown)=>{const next=change(reminderSettings.get(key)??null);reminderSettings.set(key,next);return Promise.resolve(next);}}));
+beforeEach(()=>{reminderSettings.clear();vi.stubGlobal('Worker',ForecastWorker);});
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});
 const publicPort=(catalog=fixture):DataPort=>({moduleId:'ff14.fishing',operations:['fish.catalog'],call:<T,>()=>Promise.resolve(catalog as T)});
 
@@ -34,6 +36,44 @@ it('renders actionable fish directly, and searches beyond the first 30 records',
   fireEvent.click(screen.getByText('测试鱼31'));
   expect(document.querySelector('details')?.open).toBe(true);
   expect(screen.getByText(/鱼饵路径：沟鼠尾巴/)).toBeDefined();
+});
+
+function editablePort(){
+  let fields:{region:'cn';fishId:number;field:'caught'|'pinned'|'alarm';value:boolean;revision:number;updatedAt:number}[]=[],watermark=0;
+  const writes:{field:string;value:boolean;expectedRevision:number;operationId:string}[]=[];
+  const data:DataPort={moduleId:'ff14.fishing',operations:['fish.catalog','fish.progress','fish.progress.read'],call:<T,>(op:string,input?:unknown):Promise<T>=>{
+    if(op==='fish.catalog')return Promise.resolve({...fixture,fish:[fish[0]],coverage:{total:1,forecast:1,always:0,unknown:0}} as T);
+    if(op==='fish.progress.read')return Promise.resolve({fields:structuredClone(fields),watermark} as T);
+    const edit=input as typeof fields[number]&{expectedRevision:number;operationId:string};const previous=fields.find(f=>f.field===edit.field);
+    if((previous?.revision??0)!==edit.expectedRevision)return Promise.reject(new Error('conflict'));
+    writes.push(edit);fields=fields.filter(f=>f.field!==edit.field);fields.push({region:'cn',fishId:1000,field:edit.field,value:edit.value,revision:edit.expectedRevision+1,updatedAt:Date.now()});watermark++;
+    return Promise.resolve({} as T);
+  }};
+  return {data,writes,concurrentEdit(){fields=fields.map(f=>({...f,revision:f.revision+1}));watermark++;}};
+}
+it('undo restores a caught fish after it disappears, using a new revision and operation',async()=>{
+  const {data,writes}=editablePort();render(<FishingBoard data={data} initialFilters={{region:'cn',view:'all',kind:'all',text:'',hideCaught:true,windowHours:24}}/>);
+  const caught=await screen.findByRole('button',{name:'钓获 测试鱼0'});await waitFor(()=>expect(caught.hasAttribute('disabled')).toBe(false));fireEvent.click(caught);
+  const undo=await screen.findByRole('button',{name:'撤销'});expect(screen.queryByRole('button',{name:'钓获 测试鱼0'})).toBeNull();fireEvent.click(undo);
+  await screen.findByRole('button',{name:'钓获 测试鱼0'});expect(writes.map(w=>[w.value,w.expectedRevision])).toEqual([[true,0],[false,1]]);expect(writes[0]?.operationId).not.toBe(writes[1]?.operationId);
+});
+it('undo refuses to overwrite a record changed by another tab or synchronization',async()=>{
+  const f=editablePort();render(<FishingBoard data={f.data}/>);const button=await screen.findByRole('button',{name:'钓获 测试鱼0'});await waitFor(()=>expect(button.hasAttribute('disabled')).toBe(false));fireEvent.click(button);
+  const undo=await screen.findByRole('button',{name:'撤销'});f.concurrentEdit();fireEvent.click(undo);await screen.findByText('这条鱼已被其他页面或同步更新，未覆盖新记录。');expect(f.writes).toHaveLength(1);
+});
+it('shows home filters and opens the full catalog without hidden caught or rarity filters',async()=>{
+  const open=vi.fn();render(<FishingBoard data={publicPort()} embedded onOpenDetail={open}/>);await screen.findByText('测试鱼0');
+  expect(screen.getByRole('button',{name:'未钓获'})).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:'查看全部鱼类'}));expect(open).toHaveBeenCalledWith(expect.objectContaining({view:'all',kind:'all',hideCaught:false}));
+});
+it('saves an individual alarm and lead time without pretending browser permission is enabled',async()=>{
+  const f=editablePort();render(<FishingBoard data={f.data}/>);const button=await screen.findByRole('button',{name:'提醒 测试鱼0'});await waitFor(()=>expect(button.hasAttribute('disabled')).toBe(false));fireEvent.click(button);
+  await screen.findByRole('region',{name:'测试鱼0的提醒'});const save=screen.getByRole('button',{name:'保存提醒标记'});await waitFor(()=>expect(save.hasAttribute('disabled')).toBe(false));fireEvent.change(screen.getByRole('combobox',{name:'单鱼提醒提前时间'}),{target:{value:'15'}});fireEvent.click(save);
+  await screen.findByText('已保存这条鱼的提醒标记');expect(f.writes[0]).toMatchObject({field:'alarm',value:true});expect(reminderSettings.get('notifications')).toMatchObject({browser:false,fishLeadMinutes:{'cn:1000':15}});
+  fireEvent.click(screen.getByRole('button',{name:'提醒 测试鱼0'}));await screen.findByRole('button',{name:'取消这条鱼的提醒'});fireEvent.click(screen.getByRole('button',{name:'取消这条鱼的提醒'}));await screen.findByText('已取消这条鱼的提醒');expect(f.writes[1]).toMatchObject({field:'alarm',value:false,expectedRevision:1});
+});
+it('notification targeting identifies exactly one fish even when caught and opens its details',async()=>{
+  render(<FishingBoard data={publicPort()} expanded initialFilters={{region:'cn',view:'all',kind:'all',text:'',hideCaught:false,windowHours:24,fishId:1031}}/>);
+  await screen.findByText('测试鱼31');expect(document.querySelectorAll('.fish-board__row')).toHaveLength(1);expect(document.querySelector('.fish-board__row details')?.hasAttribute('open')).toBe(true);
 });
 it('shows fish lacking rules in full catalog without a false all-day claim',async()=>{
   const unknown={...base,id:9999,name:'条件待补鱼',always:false,rule:null};

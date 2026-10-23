@@ -1,9 +1,10 @@
-import {lazy,Suspense,useEffect,useMemo,useRef,useState} from 'react';
+import {lazy,Suspense,useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {API_ROUTES,matchesDirectorySearch,canonicalNavUrl,navCatalogResponseSchema,type NavCatalogEntry} from '@ff14-hub/shared';
 import {directoryLinks} from './directory-links';
 import {HomeOfficialEvents} from '../shell/HomeOfficialEvents';
 import {PublicCalendarPage} from '../events/PublicCalendarPage';
 import {FishingBoard,type FishDetailSelection} from '../fish/FishingBoard';
+import {parseFishLink} from '../fish/fish-link';
 import {PvpBoard} from '../pvp/PvpBoard';
 import {LocalModuleOverlay,type ModuleOrigin} from './LocalModuleOverlay';
 import {createLocalStore,type LocalData} from './store';
@@ -28,6 +29,7 @@ function siteDomain(url:string):string{
 
 export function LocalApp(){
   const [store]=useState(()=>createLocalStore());
+  const subscribeProgress=useCallback((listener:()=>void)=>store.subscribe(listener),[store]);
   const dataPort=useMemo(()=>localFishPort(store),[store]);
   const [data,setData]=useState<LocalData|null>(null);
   const [catalog,setCatalog]=useState<NavCatalogEntry[]>([]);
@@ -35,6 +37,9 @@ export function LocalApp(){
   const [catalogLoading,setCatalogLoading]=useState(true);
   const [catalogReload,setCatalogReload]=useState(0);
   const [error,setError]=useState<string|null>(null);
+  const [fishEntry,setFishEntry]=useState(()=>parseFishLink(location.search));
+  const handledFishEntry=useRef('');
+  useEffect(()=>{const changed=()=>{handledFishEntry.current='';setFishEntry(parseFishLink(location.search));};window.addEventListener('popstate',changed);return()=>window.removeEventListener('popstate',changed);},[]);
   const notificationEntry=['notifications','reminders'].includes(new URLSearchParams(location.search).get('view')??'');
   const [view,setView]=useState<'home'|'settings'|'admin'>(notificationEntry?'settings':'home');
   const [expanded,setExpanded]=useState<null|{
@@ -43,15 +48,20 @@ export function LocalApp(){
     fishFilters?:FishDetailSelection;
   }>(null);
   // 共用一个从模块位置展开的详情层；关闭后保留首页的筛选和滚动位置。
-  const openModule=(kind:'events'|'fishing'|'pvp'|'notes',fishFilters?:FishDetailSelection)=>{
+  const openModule=useCallback((kind:'events'|'fishing'|'pvp'|'notes',fishFilters?:FishDetailSelection)=>{
     const source=document.querySelector<HTMLElement>(`[data-module="${kind}"]`);
-    if(!source)return;
-    const {top,left,width,height}=source.getBoundingClientRect();
+    const {top,left,width,height}=source?.getBoundingClientRect()??{top:80,left:window.innerWidth/2,width:0,height:0};
     setExpanded({
-      kind,origin:{rect:{top,left,width,height},element:source,returnFocus:document.activeElement instanceof HTMLElement?document.activeElement:null},
+      kind,origin:{rect:{top,left,width,height},...(source?{element:source}:{}),returnFocus:document.activeElement instanceof HTMLElement?document.activeElement:null},
       ...(fishFilters?{fishFilters}:{}),
     });
-  };
+  },[]);
+  const dataReady=data!==null;
+  useEffect(()=>{
+    if(!dataReady||!fishEntry)return;
+    const key=JSON.stringify(fishEntry);if(handledFishEntry.current===key)return;handledFishEntry.current=key;
+    setView('home');openModule('fishing',{...fishEntry,view:'all',kind:'all',text:'',hideCaught:false,windowHours:24});
+  },[dataReady,fishEntry,openModule]);
   const [settingsTab,setSettingsTab]=useState<SettingsTab>(notificationEntry?'notifications':'home');
   const [dataSection,setDataSection]=useState<DataSection>('sync');
   useEffect(()=>startLocalNotifications(store),[store]);
@@ -143,7 +153,7 @@ export function LocalApp(){
               </p>:enabledSections.map(section=><div className="local-dashboard__module" key={section} data-module={section}>
                 {section==='events'?<HomeOfficialEvents onOpenCalendar={()=>openModule('events')}
                   onHide={()=>{void store.change(document=>{document.data.configuration.visible.events=false;}).catch(()=>setError('设置未能保存到本机'));}}/>:
-                section==='fishing'?<FishingBoard data={dataPort} initialRegion={data.configuration.region} embedded onOpenDetail={selection=>openModule('fishing',selection)}/>:
+                section==='fishing'?<FishingBoard data={dataPort} subscribeProgress={subscribeProgress} initialRegion={data.configuration.region} embedded onOpenDetail={selection=>openModule('fishing',selection)}/>:
                 section==='pvp'?<PvpBoard onOpenDetail={()=>openModule('pvp')}/>:
                 <section className="local-notes" aria-label="我的备忘">
                   <header className="local-notes__heading"><h3>备忘</h3>
@@ -198,12 +208,12 @@ export function LocalApp(){
         </div>}
     </main>
     {expanded&&data&&view==='home'?<LocalModuleOverlay
-      key={expanded.kind}
+      key={expanded.kind+':'+String(expanded.fishFilters?.fishId??'')+':'+String(expanded.fishFilters?.windowStartsAt??'')}
       title={{events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的备忘'}[expanded.kind]}
       origin={expanded.origin}
       onClose={()=>setExpanded(null)}>
       {expanded.kind==='events'?<PublicCalendarPage overlay onBack={()=>setExpanded(null)}/>:
-        expanded.kind==='fishing'?<FishingBoard data={dataPort} initialRegion={data.configuration.region}
+        expanded.kind==='fishing'?<FishingBoard data={dataPort} subscribeProgress={subscribeProgress} initialRegion={data.configuration.region} onNotificationSettings={()=>{setExpanded(null);setSettingsTab('notifications');setView('settings');}}
           initialFilters={expanded.fishFilters} expanded onImport={()=>{
             setExpanded(null);setDataSection('fish');setSettingsTab('data');setView('settings');
           }}/>:

@@ -21,6 +21,18 @@
 @media(prefers-reduced-motion:reduce){.fish-board *{scroll-behavior:auto}}
 .fish-window-period{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:0 3px;margin-top:2px;color:var(--text-muted);font-size:12px;line-height:1.45;font-variant-numeric:tabular-nums;min-width:0}
 .fish-window-period time{white-space:nowrap}
+.fish-board__filter-tags{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:8px 0;color:var(--text-muted);font-size:12px}
+.fish-board__filter-tags :is(span,button){padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);font:inherit}
+.fish-board__filter-tags button{cursor:pointer;min-height:44px;color:inherit}
+.fish-board__filter-tags button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.fish-board__feedback{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;margin:12px 0;font-size:14px}
+.fish-board__feedback button{color:var(--accent);border:0;background:none;padding:4px 12px}
+.fish-reminder-panel{border:1px solid var(--border);border-radius:8px;padding:16px;margin:16px 0;font-size:14px;overflow-wrap:anywhere}
+.fish-reminder-panel header{display:flex;align-items:center;justify-content:space-between;gap:12px}.fish-reminder-panel h3{font-size:16px;margin:0}
+.fish-reminder-panel label{display:grid;gap:6px;max-width:260px}.fish-reminder-panel__actions{display:flex;gap:8px;flex-wrap:wrap}
+.fish-reminder-panel__actions button,.fish-reminder-panel header button{border:1px solid var(--border);background:var(--bg);border-radius:6px;padding:6px 10px}
+.fish-board__actions{width:156px}.fish-board__row>details{margin-right:176px}.fish-board__columns{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) minmax(0,1.1fr) 156px}
+@media(max-width:640px){.fish-board__row>details{margin-right:0}.fish-board__actions{width:auto;flex-wrap:wrap}.fish-board__actions button{min-width:48px}}
 .fish-board__window .fish-window-period{justify-content:flex-start}
 @media(max-width:640px){.fish-board__window .fish-window-period{justify-content:flex-end;max-width:190px}}
 

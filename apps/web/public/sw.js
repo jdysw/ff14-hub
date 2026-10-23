@@ -379,6 +379,12 @@ self.addEventListener('push', (event) => {
 });
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  // Never navigate to a URL supplied by the push payload.
-  event.waitUntil(self.clients.openWindow('/?view=notifications'));
+  // Construct a fixed internal route from validated IDs, never accept a payload URL.
+  const target=event.notification.data?.fish;
+  let url='/?view=notifications';
+  if(target&&(target.region==='cn'||target.region==='global')&&Number.isSafeInteger(target.fishId)&&target.fishId>0&&
+    Number.isSafeInteger(target.windowStartsAt)&&target.windowStartsAt>=0&&target.windowStartsAt<=Date.UTC(2100,0,1)){
+    url=`/?view=fish&region=${target.region}&fish=${target.fishId}&window=${target.windowStartsAt}`;
+  }
+  event.waitUntil(self.clients.openWindow(url));
 });
