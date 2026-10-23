@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
-import { ApiError, fishListQuerySchema, fishWindowQuerySchema, fishProgressWriteSchema, fishRegionSchema, fishWindows } from '@ff14-hub/shared';
+import { ApiError, fishListQuerySchema, fishWindowQuerySchema, fishWindows } from '@ff14-hub/shared';
 import { z } from 'zod';
 import type { AppBindings } from '../../types';
 import { noStoreJson } from '../../lib/response';
-import { parsedJsonBody, validateJsonBody, validateQuery } from '../../middleware/validation';
-import { readFish, readProgress, writeProgress } from '../../modules/fish/service';
+import {validateQuery} from '../../middleware/validation';
+import {readFish} from '../../modules/fish/service';
 import { methodNotAllowed } from '../../middleware/error-handler';
 
 export const fishRoutes = new Hono<AppBindings>();
@@ -43,18 +43,3 @@ fishRoutes.get('/windows',validateQuery(fishWindowQuerySchema),async (c) => {
 });
 fishRoutes.all('*',methodNotAllowed(['GET']));
 
-const progressQuerySchema = z.object({region:fishRegionSchema});
-export function registerFishProgressRoutes(me: Hono<AppBindings>): void {
-  me.get('/fish-progress',validateQuery(progressQuerySchema),async (c) => {
-    const q = progressQuerySchema.parse(queryOf(c.req.url));
-    return noStoreJson(c,await readProgress(c.env.DB,c.get('workspaceId'),q.region));
-  });
-  me.put('/fish-progress',validateJsonBody(fishProgressWriteSchema),async (c) => {
-    const result = await writeProgress(c.env.DB,c.get('workspaceId'),parsedJsonBody(c,fishProgressWriteSchema));
-    if (!result.ok) {
-      const code = result.reason === 'fish_not_found'?'not_found':result.reason === 'persist_failed'?'internal_error':'conflict';
-      throw new ApiError(code,result.detail,result.reason);
-    }
-    return noStoreJson(c,{field:result.value,replayed:result.replayed});
-  });
-}
