@@ -231,7 +231,7 @@ html {scrollbar-gutter:stable;}
 .local-app .local-dashboard__module {--home-event-row-height:96px;--home-fish-row-height:64px;}
 .local-app .local-dashboard__module .home-official__list,
 .local-app .local-dashboard__module .fish-glance__list {
-  display:block;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;
+  display:block;overflow-y:auto;overflow-x:hidden;overscroll-behavior:auto;
   scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:#9ebaae transparent;
   padding-right:8px;
 }

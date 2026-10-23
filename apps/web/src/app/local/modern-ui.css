@@ -214,8 +214,8 @@ body { background:var(--bg);color:var(--text);font-family:Inter,'PingFang SC','M
 .local-directory__notice button,.local-directory__empty button{background:transparent;color:#385f9d;border:0;padding:6px;}
 /* Settings: horizontal categories and one focused content panel. */
 .local-app .local-settings{
-  flex:1 1 auto;min-height:0;max-width:1150px;width:100%;height:100%;margin:0 auto;
-  display:flex;flex-direction:column;overflow:hidden;background:#fff;
+  flex:0 0 auto;min-height:0;max-width:1150px;width:100%;height:auto;margin:0 auto;
+  display:flex;flex-direction:column;overflow:visible;background:#fff;
   border:1px solid var(--border);border-radius:14px;box-shadow:none;
 }
 .local-settings__sidebar {
@@ -237,7 +237,7 @@ body { background:var(--bg);color:var(--text);font-family:Inter,'PingFang SC','M
   background:#fff;color:#566b83;font-size:11px;
 }
 .local-settings__content{
-  flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;
+  flex:0 0 auto;min-height:0;overflow:visible;overscroll-behavior:auto;
   padding:clamp(18px,3vw,36px);background:#fff;
 }
 .local-settings__content>section{max-width:900px;padding:0;border:0;}
@@ -525,8 +525,8 @@ body { background:var(--bg);color:var(--text);font-family:Inter,'PingFang SC','M
 .local-detail__note h3{font-size:16px;margin:0 0 8px;}
 .local-detail__note p{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;color:#53667a;line-height:1.7;}
 .local-detail__empty{color:#738497;font-size:13px;}
-.local-app:has(.local-settings){height:100dvh;overflow:hidden;}
-.local-app__main:has(.local-settings){display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+/* Settings use the document scroll, including short windows and mobile keyboards. */
+.local-app__main:has(.local-settings){display:block;overflow:visible;min-height:0;}
 .local-app :is(a,button,input,select,summary,textarea):focus-visible{outline:2px solid #4f80b0;outline-offset:3px;}
 @media(max-width:920px){
   .local-dashboard__module-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));grid-auto-rows:auto;max-height:none;overflow:visible;}
@@ -616,6 +616,7 @@ body { background:var(--bg);color:var(--text);font-family:Inter,'PingFang SC','M
 
 /* 首页数据量控制：前 20 条优先可读，其余由统一的展开层承载。 */
 /* 统一模块展开交互：原生 dialog 提供模态焦点、键盘 Esc 和背景不可操作。 */
+html:has(.local-module-overlay[open]){overflow:hidden;}
 .local-module-overlay{
   position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;
   max-width:none;max-height:none;margin:0;padding:clamp(12px,3vh,36px) clamp(12px,3vw,44px);
