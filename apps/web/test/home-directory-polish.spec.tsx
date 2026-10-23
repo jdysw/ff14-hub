@@ -9,6 +9,8 @@ vi.mock('../src/app/local/store',()=>({createLocalStore:()=>({read,change,subscr
 vi.mock('../src/app/local/fish-port',()=>({localFishPort:()=>({operations:[],call:vi.fn()})}));
 vi.mock('../src/app/fish/FishingBoard',()=>({FishingBoard:()=>null}));
 vi.mock('../src/app/shell/HomeOfficialEvents',()=>({HomeOfficialEvents:()=>null}));
+vi.mock('../src/app/fish/catalog',()=>({loadFishingCatalog:()=>Promise.resolve({fish:[]})}));
+vi.mock('../src/app/local/public-resources',()=>({loadPublicCalendar:()=>Promise.resolve({events:[]})}));
 vi.mock('../src/app/admin/site-settings',()=>({useSiteSettings:()=>({siteName:'FF14 Hub',announcementEnabled:false,announcement:'',homeCalendarEnabled:true})}));
 vi.mock('../src/app/events/calendar-admin-session',()=>({useCalendarAdminSession:()=>({authenticated:false})}));
 vi.mock('../src/app/pwa/PwaStatusBar',()=>({PwaStatusBar:()=>null}));
@@ -17,6 +19,7 @@ const entries=[['market','市场工具','市场与经济'],['fish','钓鱼工具
   sourceVersion:3,sortOrder:1,sourceUrl:'https://example.org/',sourceName:'测试',verifiedAt:1,verificationStatus:'verified',updatedAt:1,
 }));
 beforeEach(()=>{
+  vi.stubGlobal('scrollTo',vi.fn());
   read.mockResolvedValue({version:1,revision:0,fish:{cn:[],global:[]},links:[],notes:[],configuration:{order:['events','fishing','notes'],visible:{events:false,fishing:false,notes:false},region:'cn'}});
   vi.stubGlobal('fetch',vi.fn().mockImplementation(()=>Promise.resolve(new Response(JSON.stringify({entries,sourceVersion:3,updatedAt:1}),{status:200}))));
 });
@@ -31,15 +34,19 @@ it('does not show an empty result while the first public catalog is still loadin
   expect(screen.queryByText('没有找到匹配的网站')).toBeNull();
 });
 
-it('exposes category and search filters, announces result counts, and resets all filters',async()=>{
+it('retains directory categories and replaces its duplicate search with unified inline results',async()=>{
   render(<LocalApp/>);
   await screen.findByText('市场工具');
   fireEvent.click(within(directory().getByRole('navigation',{name:'网站分类'})).getByRole('button',{name:'市场与经济'}));
   expect(screen.queryByRole('combobox',{name:'更多分类'})).toBeNull();
   expect(directory().queryByText('钓鱼工具')).toBeNull();
   expect(directory().getByText('1 / 2 个网站')).toBeDefined();
-  fireEvent.change(screen.getByRole('searchbox',{name:'搜索网站'}),{target:{value:'不存在'}});
-  expect(directory().getByText('没有找到匹配的网站')).toBeDefined();
+  expect(screen.queryByRole('searchbox',{name:'搜索网站'})).toBeNull();
+  fireEvent.change(screen.getByRole('searchbox',{name:'全站搜索关键词'}),{target:{value:'钓鱼工具'}});
+  const results=await screen.findByRole('region',{name:'全站搜索结果'});
+  expect(within(results).getByText('钓鱼工具')).toBeDefined();
+  expect(document.querySelector('main')?.contains(results)).toBe(true);expect(document.querySelector('dialog')).toBeNull();
+  expect(directory().queryByText('钓鱼工具')).toBeNull();
   fireEvent.click(directory().getByRole('button',{name:'清除筛选'}));
   expect(directory().getByText('2 个网站')).toBeDefined();
   expect(directory().getByText('钓鱼工具')).toBeDefined();
@@ -65,7 +72,26 @@ it('does not steal focus out of an open modal with the slash shortcut',async()=>
   fireEvent.keyDown(window,{key:'/'});
   expect(document.activeElement).toBe(button);
   dialog.remove();
-  fireEvent.change(screen.getByRole('searchbox',{name:'搜索网站'}),{target:{value:'市场'}});
-  fireEvent.keyDown(screen.getByRole('searchbox',{name:'搜索网站'}),{key:'Escape'});
+  const input=screen.getByRole('searchbox',{name:'全站搜索关键词'});
+  fireEvent.keyDown(window,{key:'/'});await waitFor(()=>expect(document.activeElement).toBe(input));
+  fireEvent.change(input,{target:{value:'市场'}});
+  fireEvent.keyDown(input,{key:'Escape'});
+  expect(screen.queryByRole('region',{name:'全站搜索结果'})).toBeNull();expect(screen.getByRole<HTMLInputElement>('searchbox',{name:'全站搜索关键词'}).value).toBe('市场');
   await waitFor(()=>expect(directory().getByText('2 个网站')).toBeDefined());
+});
+it('uses the same input for Ctrl+K and slash while leaving editor keystrokes alone',async()=>{
+  render(<LocalApp/>);await screen.findByText('市场工具');
+  const input=screen.getByRole('searchbox',{name:'全站搜索关键词'});
+  fireEvent.keyDown(window,{key:'k',ctrlKey:true});await waitFor(()=>expect(document.activeElement).toBe(input));
+  const editor=document.createElement('textarea');document.body.append(editor);editor.focus();
+  fireEvent.keyDown(editor,{key:'/'});expect(document.activeElement).toBe(editor);editor.remove();
+  expect(document.querySelector('dialog')).toBeNull();
+});
+it('opens inline search without unmounting an unfinished settings form',async()=>{
+  render(<LocalApp/>);await screen.findByText('市场工具');fireEvent.click(screen.getByRole('button',{name:'设置'}));
+  fireEvent.click(screen.getByRole('button',{name:'备忘'}));
+  fireEvent.change(screen.getByRole('textbox',{name:'标题'}),{target:{value:'尚未保存的备忘'}});
+  fireEvent.focus(screen.getByRole('searchbox',{name:'全站搜索关键词'}));
+  await screen.findByRole('region',{name:'全站搜索结果'});
+  expect(screen.getByRole<HTMLInputElement>('textbox',{name:'标题'}).value).toBe('尚未保存的备忘');expect(change).not.toHaveBeenCalled();
 });
