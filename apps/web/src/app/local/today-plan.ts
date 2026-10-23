@@ -17,4 +17,8 @@ export function planFish(fish:readonly CatalogFish[],fields:LocalData['fish']['c
   }
   return {rows:rows.sort((a,b)=>Math.max(a.startsAt,now)-Math.max(b.startsAt,now)||a.endsAt-b.endsAt||a.fishId-b.fishId),watched:watched.length,limited:watched.length>50,unavailable,unrestricted};
 }
-export function planEvents(events:readonly EventCalendarItem[],now:number){const end=chinaDayEnd(now);return events.filter(e=>e.startsAt!==null&&e.endsAt!==null&&e.endsAt>e.startsAt&&((e.startsAt>=now&&e.startsAt<end)||(e.endsAt>now&&e.endsAt<=end))).sort((a,b)=>Math.min(a.startsAt!>=now?a.startsAt!:Infinity,a.endsAt!)-Math.min(b.startsAt!>=now?b.startsAt!:Infinity,b.endsAt!));}
+export function planEvents(events:readonly EventCalendarItem[],now:number){
+  const end=chinaDayEnd(now);
+  const node=(e:EventCalendarItem)=>Math.min(e.startsAt!==null&&e.startsAt>=now?e.startsAt:Infinity,e.endsAt!==null&&e.endsAt>now?e.endsAt:Infinity);
+  return events.filter(e=>e.startsAt!==null&&(e.endsAt===null||e.endsAt>e.startsAt)&&((e.startsAt>=now&&e.startsAt<end)||(e.endsAt!==null&&e.endsAt>now&&e.endsAt<=end))).sort((a,b)=>node(a)-node(b));
+}

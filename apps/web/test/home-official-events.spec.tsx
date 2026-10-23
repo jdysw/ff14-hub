@@ -21,6 +21,14 @@ const response = {
 } as const;
 
 describe('首页公开活动', () => {
+  it('未来活动显示官方确认的开始倒计时，同时保留维护前结束的原始条件',async()=>{
+    const now=Date.UTC(2026,9,24),entry={...response.events[0],id:'official:394486',title:'魔光键影',startsAt:Date.UTC(2026,9,28,8),endsAt:null,description:'活动结束条件：8.0版本更新维护前'};
+    vi.stubGlobal('fetch',vi.fn(()=>Promise.resolve(Response.json({...response,serverTimeMs:now,events:[entry]}))));
+    render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
+    await screen.findByText('目前没有已确认时间的进行中活动，可切换“未来活动”查看。');
+    fireEvent.click(screen.getByRole('button',{name:'未来活动'}));expect(screen.getByText('魔光键影')).toBeTruthy();
+    expect(screen.getByText(/8.0版本更新维护前（结束日期待确认）/)).toBeTruthy();expect(screen.getByText('距开始')).toBeTruthy();expect(screen.queryByText('距结束')).toBeNull();
+  });
   it('keeps switching at time boundaries on the current data without refetching',async()=>{
     vi.useFakeTimers();
     try{

@@ -2,7 +2,7 @@
 import { eventCalendarResponseSchema, type EventCalendarItem, type EventCalendarResponse } from '@ff14-hub/shared';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  calendarOverview, chinaDateTime, displayCalendarTitle, eventStatus, isScheduled, SOON_MS,calendarCountdown,
+  calendarOverview, calendarTimeLabel, displayCalendarTitle, eventStatus, isScheduled, SOON_MS,calendarCountdown,
 } from '../events/public-calendar-utils';
 
 export const HOME_EVENT_LIMIT = 4;
@@ -21,7 +21,7 @@ export function homeEventHighlights(items: readonly EventCalendarItem[], now: nu
     return 3;
   };
   return items
-    .filter(item => isScheduled(item) && item.endsAt! >= now)
+    .filter(item => eventStatus(item,now)==='upcoming'||isScheduled(item) && item.endsAt! >= now)
     .sort((a, b) => {
       const diff = rank(a) - rank(b);
       if (diff) return diff;
@@ -49,7 +49,7 @@ function OfficialEventSummary({ item, now }: { readonly item: EventCalendarItem;
       <h3>{item.sourceUrl
         ? <a href={item.sourceUrl} rel="noopener noreferrer" target="_blank">{displayCalendarTitle(item.title)}</a>
         : displayCalendarTitle(item.title)}</h3>
-      <p>{isScheduled(item) ? chinaDateTime(item.startsAt!) + ' — ' + chinaDateTime(item.endsAt!) : '官方起止时间未确认'}</p>
+      <p>{calendarTimeLabel(item)}</p>
     </div>
     <div className="home-official-event__timer" aria-label={target === null ? label : label + calendarCountdown(target, now)}>
       <span>{target === null ? '时间待确认' : (status === 'upcoming' ? '距开始' : '距结束')}</span>
@@ -110,7 +110,7 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
     calendarOverview(state.kind === 'ready' ? state.value.events : [], now), [state, now]);
   // 不截断数据；4 项的可视窗口由列表样式控制。
   const allEvents = state.kind === 'ready' ? state.value.events : [];
-  const unknownCount = allEvents.filter(item => !isScheduled(item)).length;
+  const unknownCount = allEvents.filter(item => eventStatus(item,now)==='unscheduled').length;
   const highlights=homeEventHighlights(allEvents,now);
   const important=highlights.filter(item=>phase==='active'?item.startsAt!<=now&&item.endsAt!>now:item.startsAt!>now);
   const reload = () => { setRefresh(value => value + 1); };

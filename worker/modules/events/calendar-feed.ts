@@ -8,6 +8,7 @@ const HOST = 'https://cqnews.web.sdo.com';
 const NEWS_INDEX = 'https://ff.web.sdo.com/web8/index.html#/newstab/newslist';
 export const CN_CALENDAR_CACHE_MS = 6 * 60 * 60_000;
 const STALE_MS = 12 * 60 * 60_000;
+type NewsCode='5310'|'5311'|'5203';
 let cache: { checkedAtMs: number; events: EventCalendarItem[]; partial: boolean } | null = null;
 const requestSignal=(signal?:AbortSignal)=>signal?AbortSignal.any([signal,AbortSignal.timeout(10_000)]):AbortSignal.timeout(10_000);
 
@@ -66,6 +67,15 @@ export function extractOfficialActivityRange(html: string): { startsAt: number; 
   const startsAt = chinaTimestamp(m[1] ?? '');
   const endsAt = chinaTimestamp(m[2] ?? '');
   return startsAt !== null && endsAt !== null && endsAt >= startsAt ? { startsAt, endsAt } : null;
+}
+
+/** Keep a confirmed start when the official ending is a named maintenance, never invent its date. */
+export function extractOfficialActivityTiming(html:string):{startsAt:number;endsAt:number|null;endCondition?:string}|null{
+  const complete=extractOfficialActivityRange(html);if(complete)return complete;
+  const plain=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,' ').replace(/<[^>]*>/g,' ').replace(/&nbsp;|&#160;|[\u3000\s]+/gi,' ').slice(0,100000);
+  const match=/(?:活动时间|活动期间|举办时间|起止时间)\s*[：:]?\s*(\d{4}年\d{1,2}月\d{1,2}日\s*\d{1,2}:\d{2}(?::\d{2})?)\s*(?:至|到|~|～|—|－|-|–)\s*(\d{1,2}\.\d{1,2}版本(?:更新)?维护(?:开始)?前)/.exec(plain);
+  const startsAt=match?chinaTimestamp(match[1]??''):null;
+  return startsAt===null?null:{startsAt,endsAt:null,endCondition:match![2]!};
 }
 
 /** 仅允许官网活动专题 URL（固定官方域名和 /project/ 路径），拒绝任意网页代理。 */
@@ -156,7 +166,7 @@ interface OfficialEntry {
   projectUrl: string | null;
 }
 
-async function newsCategory(code: '5311' | '5203', signal?:AbortSignal): Promise<Record<string, unknown>[]> {
+async function newsCategory(code: NewsCode, signal?:AbortSignal): Promise<Record<string, unknown>[]> {
   const payload = await json('/api/news/newsList?gameCode=ff&CategoryCode=' + code + '&pageIndex=0&pageSize=30', signal);
   if (!record(payload) || String(payload['Code']) !== '0' || !Array.isArray(payload['Data'])) {
     throw new Error('official_list_shape_changed');
@@ -183,10 +193,12 @@ export function eventCategory(title: string): string {
 function entryKey(title: string): string {
   return title.normalize('NFKC').replace(/[\s！!。·・~～【】]/g, '').toLowerCase();
 }
-function officialEntry(row: Record<string, unknown>, code: '5311' | '5203'): OfficialEntry | null {
+function officialEntry(row: Record<string, unknown>, code: NewsCode): OfficialEntry | null {
   const id = typeof row['Id'] === 'number' ? row['Id'] : Number(row['Id']);
   const title = clean(row['Title']);
   if (!Number.isSafeInteger(id) || id <= 0 || !title) return null;
+  // News is broader than activities; retain explicit event/release signals, not every news post.
+  if(code==='5310'&&!/活动|联动|正式登场|限时|季节|庆典|转播|通行证|免费畅玩|签到/.test(title+' '+clean(row['Summary'],600)))return null;
   const projectUrl = officialProjectUrl(row['OutLink']);
   // 5203 栏还包含道具商城公告；不能将整个栏目都当作活动。
   if (code === '5203' && projectUrl === null &&
@@ -197,19 +209,19 @@ function officialEntry(row: Record<string, unknown>, code: '5311' | '5203'): Off
     detailId: id, sourceUrl: officialLink(row['OutLink'], id), projectUrl,
   };
 }
-function combineEntry(existing: OfficialEntry, current: OfficialEntry, code: '5311' | '5203'): OfficialEntry {
+function combineEntry(existing: OfficialEntry, current: OfficialEntry, code: NewsCode): OfficialEntry {
   // 5311 公告详情通常有完整正文；5203 通常携带完整官网活动专题链接。
   return {
     ...existing,
     published: existing.published >= current.published ? existing.published : current.published,
-    detailId: code === '5311' ? current.id : existing.detailId,
+    detailId: code === '5311'||code==='5310' ? current.id : existing.detailId,
     projectUrl: existing.projectUrl ?? current.projectUrl,
     sourceUrl: current.projectUrl ?? existing.projectUrl ?? existing.sourceUrl,
     description: existing.description || current.description,
   };
 }
 function deduplicate(rows: {
-  code: '5311' | '5203';
+  code: NewsCode;
   values: Record<string, unknown>[];
 }[]): OfficialEntry[] {
   const unique = new Map<string, OfficialEntry>();
@@ -227,40 +239,51 @@ function deduplicate(rows: {
 }
 
 async function refresh(signal?:AbortSignal): Promise<void> {
-  const sources = await Promise.allSettled([newsCategory('5311',signal), newsCategory('5203',signal)]);
-  const successful: { code: '5311' | '5203'; values: Record<string, unknown>[] }[] = [];
+  const sources = await Promise.allSettled([newsCategory('5311',signal), newsCategory('5203',signal),newsCategory('5310',signal)]);
+  const successful: { code: NewsCode; values: Record<string, unknown>[] }[] = [];
   const first = sources[0];
   const second = sources[1];
   if (first?.status === 'fulfilled') successful.push({ code: '5311', values: first.value });
   if (second?.status === 'fulfilled') successful.push({ code: '5203', values: second.value });
+  const third=sources[2];if(third?.status==='fulfilled')successful.push({code:'5310',values:third.value});
   if (successful.length === 0) throw new Error('official_sources_unavailable');
 
-  const entries = deduplicate(successful).slice(0, 30);
+  const entries = deduplicate(successful);
+  // Independent per-category budgets prevent a busy news feed starving long-running activities.
+  // At most 3 lists + 36 details + 8 landing pages: below the free Worker subrequest limit.
+  const detailKeys=new Set(successful.flatMap(group=>deduplicate([group]).slice(0,12).map(entry=>entryKey(entry.title))));
   const events: EventCalendarItem[] = entries.map((entry) => ({
     id: 'official:' + entry.id, region: 'cn',
     title: entry.title, description: entry.description, category: entry.category,
     location: '', startsAt: null, endsAt: null, allDay: false, sourceUrl: entry.sourceUrl,
   }));
 
-  // 最新的 16 条按 3 路并发查询官方详情/专题。其余公告仍展示，但不伪造时间。
-  for (let i = 0; i < Math.min(events.length, 16); i += 3) {
-    await Promise.all(events.slice(i, i + 3).map(async (event, offset) => {
-      const entry = entries[i + offset];
-      if (!entry) return;
+  const selected=entries.map((entry,index)=>({entry,event:events[index]!})).filter(({entry})=>detailKeys.has(entryKey(entry.title)));
+  let landingBudget=8,detailFailures=0;
+  for (let i = 0; i < selected.length; i += 6) {
+    await Promise.all(selected.slice(i,i+6).map(async ({entry,event}) => {
       const content = await articleDetail(entry.detailId,signal);
-      let range = content === null ? null : extractOfficialActivityRange(content);
-      if (range === null && entry.projectUrl !== null) {
-        const landing = await officialHtml(entry.projectUrl,signal);
-        range = landing === null ? null : extractOfficialLandingRange(landing);
+      if(content===null)detailFailures++;
+      let range = content === null ? null : extractOfficialActivityTiming(content);
+      const linkedProject=content?.matchAll(/href\s*=\s*["']([^"']+)["']/gi);
+      const projectUrl=entry.projectUrl??(linkedProject?[...linkedProject].map(m=>officialProjectUrl(m[1])).find(Boolean)??null:null);
+      if (range === null && projectUrl !== null&&landingBudget>0) {
+        landingBudget--;
+        const landing = await officialHtml(projectUrl,signal);
+        const complete=landing===null?null:extractOfficialLandingRange(landing);
+        if(complete)range=complete;
       }
       if (range !== null) {
         event.startsAt = range.startsAt;
         event.endsAt = range.endsAt;
+        // Existing strict clients accept description; preserve the ending without a wire-contract change.
+        if('endCondition' in range&&range.endCondition)event.description=[event.description.slice(0,450),'活动结束条件：'+range.endCondition].filter(Boolean).join('\n');
       }
     }));
   }
   signal?.throwIfAborted();
-  cache = { checkedAtMs: Date.now(), events, partial: sources.some((value) => value.status === 'rejected') };
+  console.info(JSON.stringify({event:'official_calendar_coverage',categories:successful.map(group=>({code:group.code,count:group.values.length})),discovered:events.length,detailsChecked:selected.length,detailFailures,scheduled:events.filter(e=>e.startsAt!==null&&e.endsAt!==null).length,startOnly:events.filter(e=>e.startsAt!==null&&e.endsAt===null).length,detailsDeferred:entries.length-selected.length}));
+  cache = { checkedAtMs: Date.now(), events, partial: detailFailures>0||sources.some((value) => value.status === 'rejected') };
 }
 export async function readCnCalendar(nowMs = Date.now(),signal?:AbortSignal,force=false): Promise<EventCalendarResponse> {
   let stale = false;

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { EventCalendarItem } from '@ff14-hub/shared';
 import {
   calendarOverview, chinaDayKey, chinaMonthDays, chinaToday,
-  eventStatus, eventsForChinaDay, isScheduled,
+  eventStatus, eventsForChinaDay, isScheduled,calendarTimeLabel,
 } from '../src/app/events/public-calendar-utils';
 
 const start = Date.UTC(2026, 9, 19, 15, 30); // 北京时间 2026-10-19 23:30
@@ -14,6 +14,15 @@ function event(id: string, startsAt: number | null, endsAt: number | null): Even
 }
 
 describe('国服公开月历纯逻辑', () => {
+  it('已确认开始但结束为维护条件的活动可进入未来与开始日，不虚构长期进行中或截止时间',()=>{
+    const startsAt=Date.UTC(2026,9,28,8),item={...event('keybound',startsAt,null),description:'活动结束条件：8.0版本更新维护前'};
+    const now=Date.UTC(2026,9,24);
+    expect(eventStatus(item,now)).toBe('upcoming');expect(isScheduled(item)).toBe(false);
+    expect(calendarOverview([item],now).upcoming).toEqual([item]);
+    expect(eventsForChinaDay([item],'2026-10-28')).toEqual([item]);expect(eventsForChinaDay([item],'2026-10-29')).toEqual([]);
+    expect(eventStatus(item,startsAt+1)).toBe('unscheduled');expect(calendarOverview([item],startsAt+1).active).toEqual([]);
+    expect(calendarTimeLabel(item)).toContain('8.0版本更新维护前（结束日期待确认）');
+  });
   it('按北京时间而非浏览器时区生成日期键', () => {
     expect(chinaDayKey(start)).toBe('2026-10-19');
     expect(chinaDayKey(start + 60 * 60_000)).toBe('2026-10-20');

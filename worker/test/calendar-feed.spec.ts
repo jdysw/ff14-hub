@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { eventCategory, extractOfficialActivityRange, extractOfficialLandingRange, readCnCalendar, resetCnCalendarCacheForTests } from '../modules/events/calendar-feed';
+import { eventCategory, extractOfficialActivityRange, extractOfficialActivityTiming,extractOfficialLandingRange, readCnCalendar, resetCnCalendarCacheForTests } from '../modules/events/calendar-feed';
 
 afterEach(() => { resetCnCalendarCacheForTests(); vi.unstubAllGlobals(); });
 
@@ -15,6 +15,13 @@ describe('国服官方活动分类', () => {
 });
 
 describe('盛趣官方公告活动时间提取', () => {
+  it('保留维护前结束的明确开始时间，但不猜维护日期或把宣传日期当活动时间',()=>{
+    const text='<p>活动时间：2026年10月28日16:00～8.0版本更新维护前</p>';
+    expect(extractOfficialActivityTiming(text)).toEqual({startsAt:Date.UTC(2026,9,28,8),endsAt:null,endCondition:'8.0版本更新维护前'});
+    expect(extractOfficialActivityTiming('10月28日正式登场，8.0版本更新维护前结束')).toBeNull();
+    expect(extractOfficialActivityTiming('活动时间：2026年2月30日16:00～8.0版本更新维护前')).toBeNull();
+    expect(extractOfficialActivityTiming('<script>'+text+'</script>')).toBeNull();
+  });
   it('从明确的北京时间完整区间提取', () => {
     const result = extractOfficialActivityRange(
       '<p>活动时间：2026年10月19日 10:00 ～ 2026年11月2日 23:59</p>',
@@ -44,6 +51,10 @@ describe('盛趣官方公告活动时间提取', () => {
 });
 
 describe('盛趣官方活动 API 适配器', () => {
+  it('marks failed detail acquisition partial so an incomplete refresh cannot replace the durable calendar',async()=>{
+    vi.stubGlobal('fetch',vi.fn((url:string)=>Promise.resolve(String(url).includes('newsDetail')?new Response('',{status:503}):Response.json({Code:'0',Data:[{Id:42,Title:'官方活动',PublishDate:'2026/10/21'}]}))));
+    const value=await readCnCalendar();expect(value.source.stale).toBe(true);expect(value.events[0]?.startsAt).toBeNull();
+  });
   it('does not include upstream URLs or query values in failure diagnostics',async()=>{
     const warn=vi.spyOn(console,'warn').mockImplementation(()=>{});
     vi.stubGlobal('fetch',vi.fn(()=>Promise.reject(new TypeError('Failed to fetch https://cqnews.web.sdo.com/api/news/newsList?credential=test-only-private-value'))));
@@ -61,7 +72,7 @@ describe('盛趣官方活动 API 适配器', () => {
       return Promise.resolve(new Response('',{status:302,headers:{Location:'https://untrusted.example/calendar'}}));
     }));
     await expect(readCnCalendar()).rejects.toThrow('国服官方活动 API 暂不可用');
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
     expect(calls.every(call=>call.redirect==='manual'&&call.url.startsWith('https://cqnews.web.sdo.com/api/news/'))).toBe(true);
   });
   it('rejects oversized upstream bodies even without a content-length header',async()=>{
@@ -97,6 +108,23 @@ describe('盛趣官方活动 API 适配器', () => {
 });
 
 describe('官方专题时间与两个栏目去重', () => {
+  it('发现新闻栏独有的魔光键影，并在繁忙新闻栏下保留较早的长期活动详情预算',async()=>{
+    const calls:string[]=[];
+    vi.stubGlobal('fetch',vi.fn((url:string)=>{
+      calls.push(String(url));
+      const payload=String(url).includes('newsDetail')?{Code:'0',Data:{Content:String(url).includes('id=394486')?'<p>活动时间：2026年10月28日16:00～8.0版本更新维护前</p>':'<p>活动时间：2026年7月25日18:00～2027年2月1日14:00</p>'}}:
+        {Code:'0',Data:String(url).includes('CategoryCode=5310')?[{Id:394486,Title:'金碟游乐场“魔光键影” 10月28日正式登场！',PublishDate:'2026/10/21 16:22:55'},...Array.from({length:20},(_,i)=>({Id:400000+i,Title:'新闻活动 '+i,PublishDate:'2026/10/23 16:00:00'}))]:String(url).includes('CategoryCode=5311')?[{Id:391233,Title:'月卡启航计划现已开启！',PublishDate:'2026/07/25 18:40:00'}]:[]};
+      return Promise.resolve(Response.json(payload));
+    }));
+    const value=await readCnCalendar();
+    const future=value.events.find(e=>e.id==='official:394486');
+    // A newer flood may exceed this category's 12 detail slots; the identity must still be retained.
+    expect(future).toBeDefined();expect(value.events.find(e=>e.id==='official:391233')?.startsAt).toBe(Date.UTC(2026,6,25,10));
+    expect(calls.length).toBeLessThanOrEqual(47);
+    resetCnCalendarCacheForTests();
+    vi.stubGlobal('fetch',vi.fn((url:string)=>Promise.resolve(Response.json(String(url).includes('newsDetail')?{Code:'0',Data:{Content:'<p>活动时间：2026年10月28日16:00～8.0版本更新维护前</p>'}}:{Code:'0',Data:String(url).includes('CategoryCode=5310')?[{Id:394486,Title:'金碟游乐场“魔光键影” 10月28日正式登场！',PublishDate:'2026/10/21 16:22:55'}]:[]}))));
+    const actual=(await readCnCalendar()).events[0]!;expect(actual.startsAt).toBe(Date.UTC(2026,9,28,8));expect(actual.endsAt).toBeNull();expect(actual.description).toContain('活动结束条件：8.0版本更新维护前');
+  });
   it('解析官方专题明确的同年短格式，并拒绝缺年份的跨年区间', () => {
     expect(extractOfficialLandingRange(
       '<script>不应提取脚本日期</script><p class="jp">2026年10月15日16:00 ～ 11月2日22:59</p>',

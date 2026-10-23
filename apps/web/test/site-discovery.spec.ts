@@ -31,6 +31,7 @@ it('activity plan excludes unknown, ended and tomorrow-only events and respects 
   const now=Date.parse('2026-10-23T15:00:00Z'),end=chinaDayEnd(now);
   const event={id:'one',title:'活动',region:'cn',category:'',startsAt:now-1,endsAt:now+1000,description:'',sourceUrl:null,location:'',allDay:false} as EventCalendarItem;
   expect(planEvents([event,{...event,id:'unknown',startsAt:null},{...event,id:'ended',endsAt:now-1},{...event,id:'tomorrow',startsAt:end,endsAt:end+1000}],now).map(e=>e.id)).toEqual(['one']);
+  expect(planEvents([{...event,id:'start-only',startsAt:now+2000,endsAt:null},{...event,id:'past-unknown-end',startsAt:now-1000,endsAt:null}],now).map(e=>e.id)).toEqual(['start-only']);
 });
 it('old note backups remain valid and completed notes survive merge without resetting other personal data',()=>{
   const original={...empty(),notes:[{id:crypto.randomUUID(),title:'周常',text:'备忘'}]};expect(localDataSchema.parse(original).notes[0]?.completed).toBeUndefined();
