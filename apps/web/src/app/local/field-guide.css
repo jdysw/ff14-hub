@@ -235,7 +235,8 @@ html {scrollbar-gutter:stable;}
 .local-app .local-dashboard__module .home-official-event {height:var(--home-event-row-height);min-height:var(--home-event-row-height);}
 .local-app .local-dashboard__module .fish-glance__list {max-height:calc(4 * var(--home-fish-row-height));}
 .local-app .local-dashboard__module .fish-glance__item {height:var(--home-fish-row-height);min-height:0;}
-.local-app .local-dashboard__module .fish-glance__item button {height:100%;min-height:0;padding-block:10px;}
+.local-app .local-dashboard__module .fish-glance__item button {height:100%;min-height:0;padding-block:8px;}
+.local-app .fish-glance__time .fish-window-period {max-width:190px;margin-left:auto;}
 .local-app .local-directory__filters {display:flex;flex-wrap:wrap;overflow:visible;}
 @media(max-width:700px) {
   .local-app .local-dashboard__module {--home-event-row-height:124px;--home-fish-row-height:72px;}

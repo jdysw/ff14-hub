@@ -19,4 +19,8 @@
 .fish-board--home{border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-block:24px}
 @media(max-width:640px){.fish-board__heading{align-items:flex-start}.fish-board__heading h2{font-size:21px}.fish-board__clock{display:grid;text-align:right}.fish-board__clock strong{margin-left:0}.fish-board__tabs{gap:18px}.fish-board__columns{display:none}.fish-board__row>details{margin-right:0}.fish-board__row-main{grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:18px 0}.fish-board__bait{grid-column:1;grid-row:2}.fish-board__window{grid-column:2;grid-row:1 / span 2;text-align:right}.fish-board__actions{position:static;margin:0 0 12px}.fish-board__filters{gap:8px}.fish-board__summary span{display:none}.fish-board__actions{top:auto}.fish-board__detail{padding-bottom:12px}}
 @media(prefers-reduced-motion:reduce){.fish-board *{scroll-behavior:auto}}
+.fish-window-period{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:0 3px;margin-top:2px;color:var(--text-muted);font-size:12px;line-height:1.45;font-variant-numeric:tabular-nums;min-width:0}
+.fish-window-period time{white-space:nowrap}
+.fish-board__window .fish-window-period{justify-content:flex-start}
+@media(max-width:640px){.fish-board__window .fish-window-period{justify-content:flex-end;max-width:190px}}
 
