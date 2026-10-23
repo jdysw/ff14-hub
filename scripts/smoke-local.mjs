@@ -11,7 +11,7 @@
  * 校验内容（对应本轮验收的「本地同域静态页与 /api/v1/health 冒烟」）：
  *   1. GET /                 同域静态页可访问，且带 CSP
  *   2. GET /api/v1/health    200 且 database=ok
- *   3. GET /api/v1/me/profile 未授权必须是 401
+ *   3. GET /api/v1/me/profile 旧工作空间接口必须是 404
  *   4. GET /api/v1/nope      未知 API 路径必须是 JSON 404（不能是 HTML）
  * 任一项失败即以退出码 1 结束，不隐藏失败。
  */
@@ -66,8 +66,8 @@ async function checkUnauthorized() {
     body = null;
   }
   record(
-    'GET /api/v1/me/profile 未授权',
-    response.status === 401 && body !== null && body.code === 'unauthorized' && typeof body.requestId === 'string',
+    'GET /api/v1/me/profile 旧接口下线',
+    response.status === 404 && body !== null && body.code === 'not_found' && typeof body.requestId === 'string',
     `status=${response.status} code=${body?.code ?? 'n/a'}`,
   );
 }
