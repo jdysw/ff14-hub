@@ -134,6 +134,17 @@
 - 删除旧设备身份/配对/恢复、工作空间模块注册与生命周期、服务端工作台/个人导航 CRUD、旧鱼糕 Hub 同步、工作空间提示和提醒调度模块。**复用中的凭证摘要、公共目录与推送传输保留**，并未按目录名称整目录删除。
 - 将 `worker/modules/fish/service.ts` 收缩为公共鱼类读取；将 `worker/modules/events/service.ts` 从个人/公共混合服务收缩为公共活动只读。Cron 只运行现行 `local_push_jobs` 路径。
 - 移除只验证旧功能的 HTTP/服务端工作台测试和临时身份恢复演练脚本，重建了公开鱼类、活动、目录与旧路由 JSON 404 的回归测试；`worker/test/helpers.ts` 收敛为当前测试所需辅助。**这属于功能退役，不是为测试通过而修改期望；所有新用例仍必须真实执行才能算通过。**
-- README、当前 API 清单和运维手册转为单用户本机优先契约。保留旧 SQL 迁移以维护 D1 `d1_migrations` 已应用历史，**未运行 DROP TABLE 或清空生产 D1**。另有资料库历史 ADR 属过去决策，不自动删除。
+- README、当前 API 清单和运维手册转为单用户本机优先契约。已按后续明确要求将活动 SQL 迁移压缩为同名 `0001_core.sql` 新基线，以 D1 旧迁移记账避免旧库重跑，**未运行 DROP TABLE、重置迁移账本或清空生产 D1**。另有资料库历史 ADR 属过去决策，不自动删除。
 
 静态验证：已对现行 Worker 实现及剩余 workerd 回归测试执行 GitHub 源码相对导入目标核对，全部可解析至仍存在的本仓库文件。该检查不覆盖运行时逻辑、TypeScript 类型错误及真实 D1 行为；**DevSpace 仍无法打开，`pnpm verify:release`、workerd、Web E2E 和 Android Gradle 仍未执行。** 尽管移除了兼容代码，PR #78 仍应保留 Draft，禁止直接合并生产。
+
+
+## 8. 单文件 D1 初始化结构（本次继续推进，覆盖前述“不移除历史迁移”的旧判断）
+
+维护者明确要求**重新整理为一份全新的初始数据库结构**。本次以同名 `migrations/0001_core.sql` 替换早期仅包含工作空间基础表的初始迁移，从活动迁移目录中删除 `0002–0021` 二十份旧文件；全新 D1 从唯一文件建立现行的 **16 张表、10 个索引和 6 个审计触发器**，不再创建旧身份、工作空间、个人服务端导航、服务端工作台、旧三副本同步与通知表。
+
+- 保留公共 `nav_catalog_links`、`events`、`fish_catalog`、`official_calendar_snapshots`，独立 owner 的 `calendar_admin_*`、`site_admin_settings*`、`nav_catalog_edits`、`auth_rate_limits`，以及 `local_push_devices/local_push_jobs`；审计触发器从已验证的历史 SQL 原样合入。
+- 原 `0001_core.sql` 文件名**不变**，目的是利用旧 D1 已记账迁移记录跳过新版基线，绝不重跑并更改现有生产表。先前“历史 SQL 文件全保留”的保守建议已由新的单用户需求及明确的过渡策略覆盖；**生产 D1 的 `d1_migrations` 本身并没有改动**。
+- 已重写 `worker/test/migrations.spec.ts`，从旧设备凭证等 637 行遗留断言改为新库真实 16 表、索引/触发器、通知外键级联、审计及 D1 迁移账本幂等回归。新增独立静态脚本 `scripts/ops/check-d1-baseline.mjs`，已加入 `pnpm run verify`。
+- 未来增量迁移从 `0022` 开始，避免旧生产 D1 的 0002–0021 迁移名字冲突；旧库若尚未完整应用到 0021，**不能**直接假定部署新 Worker 可用，先按 [单文件 D1 基线与过渡手册](d1-single-baseline.md) 核对、备份和补齐或迁入新库。
+- 此次操作仅变更 GitHub 源码，**没有执行生产或预览 D1 迁移，也未清理线上旧表和数据**。在 DevSpace 仍不可用的情况下，**尚未执行真实 workerd/D1 迁移测试与全量 `pnpm verify:release`**，PR 保持 Draft。
