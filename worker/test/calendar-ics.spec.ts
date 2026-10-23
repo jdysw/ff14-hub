@@ -29,7 +29,8 @@ function data(): EventCalendarResponse {
 
 describe('公开活动 ICS 格式和安全边界', () => {
   it('只订阅严格已核实时间段，UTC 起止与排他结束时刻正确', () => {
-    const ics = createOfficialCalendarIcs(data());
+    const value=data();value.events.push({...value.events[0]!,id:'official:394486',title:'维护前结束日期未定',endsAt:null});
+    const ics = createOfficialCalendarIcs(value);
     expect(ics).toContain('BEGIN:VCALENDAR\r\n');
     expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(1);
     expect(ics).toContain('DTSTART:20261019T080000Z');
@@ -37,6 +38,7 @@ describe('公开活动 ICS 格式和安全边界', () => {
     expect(ics).toContain('SUMMARY:守护天节\\,活动\\;更新');
     expect(ics).not.toContain('不确定时间');
     expect(ics).not.toContain('时间点');
+    expect(ics).not.toContain('维护前结束日期未定');
     expect(ics).toContain('URL:https://actff1.web.sdo.com/project/seasonal/index.html');
     expect(ics).toContain('END:VCALENDAR\r\n');
     expect(ics.split('\r\n').every(line => new TextEncoder().encode(line).length <= 75)).toBe(true);

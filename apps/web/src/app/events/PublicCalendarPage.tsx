@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import './public-calendar.css';
 import {
   calendarOverview, chinaDateTime, chinaMonthDays, chinaToday,
-  displayCalendarTitle, eventStatus, eventsForChinaDay, isScheduled,
+  displayCalendarTitle, eventStatus, eventsForChinaDay, hasKnownStart,calendarTimeLabel,
 } from './public-calendar-utils';
 
 type DataState =
@@ -32,7 +32,7 @@ function CalendarEvent({ event, now }: { readonly event: EventCalendarItem; read
     <span className="calendar-center__event-category">{event.category || '官方公告'} · {label}</span>
     <strong>{displayCalendarTitle(event.title)}</strong>
     <span className="calendar-center__event-time">
-      {isScheduled(event) ? chinaDateTime(event.startsAt!) + ' — ' + chinaDateTime(event.endsAt!) : '官方起止时间未确认'}
+      {calendarTimeLabel(event)}
     </span>
     {event.description && <span className="calendar-center__event-description">{event.description}</span>}
   </>;
@@ -105,12 +105,12 @@ export function PublicCalendarPage({ onBack, overlay = false,initialEventId }: {
     return !term || (event.title + ' ' + event.description + ' ' + event.category).normalize('NFKC').toLowerCase().includes(term);
   }), [events, now, phase, category, search,targetId]);
   const dayEvents = useMemo(() => eventsForChinaDay(filtered, selectedDay), [filtered, selectedDay]);
-  const knownList = useMemo(() => filtered.filter(isScheduled).sort((a, b) => {
-    const aEnded = a.endsAt! < now, bEnded = b.endsAt! < now;
+  const knownList = useMemo(() => filtered.filter(hasKnownStart).sort((a, b) => {
+    const aEnded = a.endsAt!==null&&a.endsAt < now, bEnded = b.endsAt!==null&&b.endsAt < now;
     if (aEnded !== bEnded) return aEnded ? 1 : -1;
-    return aEnded ? b.endsAt! - a.endsAt! : a.endsAt! - b.endsAt!;
+    return aEnded ? b.endsAt! - a.endsAt! : (a.endsAt??a.startsAt!) - (b.endsAt??b.startsAt!);
   }), [filtered, now]);
-  const unknownList = useMemo(() => filtered.filter(x => !isScheduled(x)), [filtered]);
+  const unknownList = useMemo(() => filtered.filter(x => !hasKnownStart(x)), [filtered]);
 
   const summary = (label: string, count: number, nextPhase: PhaseFilter) =>
     <button type="button" className="calendar-center__stat"
@@ -192,7 +192,7 @@ export function PublicCalendarPage({ onBack, overlay = false,initialEventId }: {
           {PHASES.map(f => <button type="button" key={f.value} aria-pressed={phase === f.value}
             onClick={() => setPhase(f.value)}>{f.label}</button>)}
         </div>
-        <h3>{phase === 'history' ? '历史已结束' : '未结束的已确认日程'} · {knownList.length} 项</h3>
+        <h3>{phase === 'history' ? '历史已结束' : '已确认开始时间的活动'} · {knownList.length} 项</h3>
         {knownList.length ? <ul className="calendar-center__events">{knownList.map(x => <CalendarEvent key={x.id} event={x} now={now}/>)}</ul>
           : <p className="home-state">此筛选条件下暂无已确认日程。</p>}
       </section>}
