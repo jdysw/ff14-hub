@@ -83,6 +83,22 @@ it('holds capacity for an in-flight provider call and releases it on a thrown er
   expect(await first).toBe(0);
   expect((await env.DB.prepare('SELECT sent_count FROM local_push_devices WHERE id=?').bind(id).first<{sent_count:number}>())?.sent_count).toBe(0);
 });
+it('does not refund another lease when a delayed worker loses ownership',async()=>{
+  await register();
+  const {id}=(await env.DB.prepare('SELECT id FROM local_push_devices').first<{id:string}>())!;
+  const now=Date.now();
+  await replaceLocalJobs(env.DB,id,[{key:'claimed',title:'测试',body:'正文',dueAt:now,expiresAt:now+600_000}],now);
+  let rejectSend:((error:Error)=>void)|undefined;
+  let started:()=>void=()=>{};
+  const pending=new Promise<void>(resolve=>{started=resolve;});
+  const inFlight=runLocalNotifications(env.DB,now,()=>new Promise<number>((_,reject)=>{rejectSend=reject;started();}));
+  await pending;
+  // Simulate lease takeover after the original worker's call stalls.
+  await env.DB.prepare("UPDATE local_push_jobs SET claim_token='newer-claim' WHERE device_id=? AND job_key='claimed'").bind(id).run();
+  rejectSend?.(new Error('delayed transport error'));
+  expect(await inFlight).toBe(0);
+  expect((await env.DB.prepare('SELECT sent_count FROM local_push_devices WHERE id=?').bind(id).first<{sent_count:number}>())?.sent_count).toBe(1);
+});
 it('keeps saved delivery time and deadline options when a delayed client only updates watched fish',async()=>{
   const token=await register();
   const put=(value:unknown)=>SELF.fetch(root+'/plan',{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(value)});
