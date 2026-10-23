@@ -71,15 +71,15 @@ it('holds capacity for an in-flight provider call and releases it on a thrown er
   const now=Date.now();
   const job=(key:string):LocalNotificationJob=>({key,title:key,body:'正文',dueAt:now,expiresAt:now+600_000});
   await replaceLocalJobs(env.DB,id,[job('first'),job('second')],now);
-  let rejectSend:((cause:Error)=>void)|undefined;
+  const gate:{reject?:(cause:Error)=>void}={};
   let started:()=>void=()=>{};
   const startedPromise=new Promise<void>(resolve=>{started=resolve;});
-  const sender=vi.fn(()=>new Promise<number>((_,reject)=>{rejectSend=reject;started();}));
+  const sender=vi.fn(()=>new Promise<number>((_,reject)=>{gate.reject=reject;started();}));
   const first=runLocalNotifications(env.DB,now,sender);
   await startedPromise;
   expect(await runLocalNotifications(env.DB,now+1,sender)).toBe(0);
   expect(sender).toHaveBeenCalledOnce();
-  rejectSend?.(new Error('provider timeout'));
+  gate.reject?.(new Error('provider timeout'));
   expect(await first).toBe(0);
   expect((await env.DB.prepare('SELECT sent_count FROM local_push_devices WHERE id=?').bind(id).first<{sent_count:number}>())?.sent_count).toBe(0);
 });
@@ -88,14 +88,14 @@ it('does not refund another lease when a delayed worker loses ownership',async()
   const {id}=(await env.DB.prepare('SELECT id FROM local_push_devices').first<{id:string}>())!;
   const now=Date.now();
   await replaceLocalJobs(env.DB,id,[{key:'claimed',title:'测试',body:'正文',dueAt:now,expiresAt:now+600_000}],now);
-  let rejectSend:((error:Error)=>void)|undefined;
+  const gate:{reject?:(error:Error)=>void}={};
   let started:()=>void=()=>{};
   const pending=new Promise<void>(resolve=>{started=resolve;});
-  const inFlight=runLocalNotifications(env.DB,now,()=>new Promise<number>((_,reject)=>{rejectSend=reject;started();}));
+  const inFlight=runLocalNotifications(env.DB,now,()=>new Promise<number>((_,reject)=>{gate.reject=reject;started();}));
   await pending;
   // Simulate lease takeover after the original worker's call stalls.
   await env.DB.prepare("UPDATE local_push_jobs SET claim_token='newer-claim' WHERE device_id=? AND job_key='claimed'").bind(id).run();
-  rejectSend?.(new Error('delayed transport error'));
+  gate.reject?.(new Error('delayed transport error'));
   expect(await inFlight).toBe(0);
   expect((await env.DB.prepare('SELECT sent_count FROM local_push_devices WHERE id=?').bind(id).first<{sent_count:number}>())?.sent_count).toBe(1);
 });
