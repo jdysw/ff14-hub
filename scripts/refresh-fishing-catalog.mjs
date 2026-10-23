@@ -22,4 +22,5 @@ const local=name=>path.join(directory,name);
 run('prepare-fish-tracker-import.mjs',[local('tracker.js'),'global',revisions.tracker,local('global.json')]);
 run('prepare-fish-cn-import.mjs',[local('global.json'),local('tracker.js'),...['Item','FishParameter','Weather','FishingSpot','PlaceName'].map(n=>local(n+'.csv')),revisions.cn,local('cn.json')]);
 run('build-fishing-catalog.mjs',[directory,revisions.tracker,revisions.cn,revisions.teamcraft]);
+run('audit-fish-intuition.mjs',[local('tracker.js'),path.join(root,'data/fishing-intuition-observations.json')]);
 console.log('Public snapshots generated. Personal progress is stored only in the browser; no database import required.');
