@@ -432,6 +432,12 @@ describe('sw.js：与 cache-policy.ts 一一对应', () => {
     handlerOf(sandbox,'notificationclick')({notification:{close:()=>undefined,data:{url:'https://evil.test'}},waitUntil:(promise:Promise<void>)=>{pending=promise;}});await pending;
     expect(sandbox.openedUrls).toEqual(['/?view=notifications']);
   });
+  it('鱼窗通知仅按校验后的 ID 打开固定同源目标',async()=>{
+    const sandbox=await loadServiceWorker();let pending=Promise.resolve();
+    const click=(fish:unknown)=>handlerOf(sandbox,'notificationclick')({notification:{close:()=>undefined,data:{fish,url:'https://evil.test'}},waitUntil:(promise:Promise<void>)=>{pending=promise;}});
+    click({region:'cn',fishId:8754,windowStartsAt:123});await pending;expect(sandbox.openedUrls[0]).toBe('/?view=fish&region=cn&fish=8754&window=123');
+    click({region:'cn',fishId:1.5,windowStartsAt:123});await pending;expect(sandbox.openedUrls[1]).toBe('/?view=notifications');
+  });
 
   it('对同一批请求/响应输入，sw.js 的判断与 TypeScript 侧逐条一致', async () => {
     const sandbox = await loadServiceWorker();

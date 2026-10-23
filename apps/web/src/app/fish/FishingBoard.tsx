@@ -6,6 +6,7 @@ import {windowState,type FishForecast} from './forecast';
 import './fishing-board.css';
 import {registerPrivateDraftSource} from '../pwa/draft-registry';
 import {fishCountdown as duration} from './countdown';
+import {FishReminderPanel} from './FishReminderPanel';
 const localTime=(ms:number)=>new Date(ms).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
 const windowDate=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 const windowClock=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
@@ -29,9 +30,12 @@ export interface FishDetailSelection {
   readonly text:string;
   readonly hideCaught:boolean;
   readonly windowHours:6|24|72|168;
+  readonly fishId?:number;
+  readonly windowStartsAt?:number;
 }
 
 interface FishingBoardProps {
+  subscribeProgress?:(listener:()=>void)=>()=>void;onNotificationSettings?:()=>void;
   data:DataPort;initialRegion?:FishRegion;hours?:number;compact?:boolean;embedded?:boolean;expanded?:boolean;initialFilters?:FishDetailSelection|undefined;onOpenDetail?:(selection:FishDetailSelection)=>void;onReady?:()=>void;onError?:((error:unknown)=>void)|undefined;onConnect?:()=>void;onImport?:()=>void;
 }
 export function FishingBoard(props:FishingBoardProps){
@@ -40,7 +44,7 @@ export function FishingBoard(props:FishingBoardProps){
   return <FishingBoardSession key={`${region}:${reload}:${props.data.operations.join(',')}`} {...props} region={region}
     onRegion={setRegion} onReload={()=>setReload(n=>n+1)}/>;
 }
-function FishingBoardSession({data,region,hours=168,compact=false,embedded=false,expanded=false,initialFilters,onOpenDetail,onReady,onError,onConnect,onImport,onRegion,onReload}:FishingBoardProps&{
+function FishingBoardSession({data,region,hours=168,compact=false,embedded=false,expanded=false,initialFilters,onOpenDetail,onReady,onError,onConnect,onImport,onRegion,onReload,subscribeProgress,onNotificationSettings}:FishingBoardProps&{
   region:FishRegion;onRegion:(region:FishRegion)=>void;onReload:()=>void;
 }){
   const [catalog,setCatalog]=useState<FishingCatalog|null>(null);
@@ -49,6 +53,12 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
   const [view,setView]=useState<View>(initialFilters?.view??'windows');
   const [kind,setKind]=useState(initialFilters?.kind??'rare');
   const [text,setText]=useState(initialFilters?.text??'');
+  const [targetId,setTargetId]=useState<number|null>(initialFilters?.fishId??null);
+  const [reminderFish,setReminderFish]=useState<CatalogFish|null>(null);
+  const [undo,setUndo]=useState<{fish:CatalogFish;value:boolean;revision:number;operationId:string;expiresAt:number}|null>(null);
+  const [feedback,setFeedback]=useState('');
+  const offerUndo=useRef(true);
+  const mutationInFlight=useRef(false),undoChecking=useRef(false);
   // 首页默认排除已钓获，便于优先查看仍需完成的鱼窗；用户可自行取消筛选。
   const [hideCaught,setHideCaught]=useState(initialFilters?.hideCaught??embedded);
   // 时间范围控制首页的数据密度，绝不使用固定条数截断选定范围。
@@ -102,9 +112,9 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
         if(alive&&current===generation.current&&result.watermark>=progressWatermark.current){progressWatermark.current=result.watermark;setFields(result.fields);setProgressReady(true);if(pendingIntent.current===null)setProgressError(null);}
       }catch{if(alive)setProgressError('个人进度未能读取；暂时禁止修改，请刷新重试。');}
     };
-    void load();const timer=window.setInterval(()=>{void load();},30000);
-    return()=>{alive=false;window.clearInterval(timer);};
-  },[data,region]);
+    void load();const timer=window.setInterval(()=>{void load();},30000),unsubscribe=subscribeProgress?.(()=>{void load();});
+    return()=>{alive=false;window.clearInterval(timer);unsubscribe?.();};
+  },[data,region,subscribeProgress]);
   const flags=useMemo(()=>new Map(fields.map(field=>[`${field.fishId}:${field.field}`,field])),[fields]);
   const forecastsById=useMemo(()=>new Map((forecasts??[]).map(item=>[item.id,item])),[forecasts]);
   const query=text.trim().toLocaleLowerCase();
@@ -112,6 +122,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
     return (catalog?.fish??[]).filter(fish=>{
       const state=windowState(fish,forecastsById.get(fish.id),now);
       return (kind==='all'||(kind==='rare'?fish.kind!=='normal':fish.kind===kind))&&
+        (targetId===null||fish.id===targetId)&&
         (!query||[fish.name,fish.englishName,fish.zone,fish.location,...fish.bait].join(' ').toLocaleLowerCase().includes(query))&&
         (view!=='pinned'||flags.get(`${fish.id}:pinned`)?.value===true)&&(!hideCaught||flags.get(`${fish.id}:caught`)?.value!==true)&&
         (view!=='windows'||fish.method==='rod'&&(
@@ -120,25 +131,42 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
           state.always
         ));
     }).sort((a,b)=>windowState(a,forecastsById.get(a.id),now).sort-windowState(b,forecastsById.get(b.id),now).sort||a.id-b.id);
-  },[catalog,forecastsById,now,kind,query,view,flags,hideCaught,embedded,expanded,windowHours]);
+  },[catalog,forecastsById,now,kind,query,view,flags,hideCaught,embedded,expanded,windowHours,targetId]);
   const changeFilter=(action:()=>void)=>{action();setLimit(compact?6:30);};
-  const write=async(fish:CatalogFish,field:FishProgressField)=>{
-    if(!canEdit||!progressReady||busy||(progressError&&!pending))return;
-    const intent=pending??{fishId:fish.id,field,value:!(flags.get(`${fish.id}:${field}`)?.value??false),
-      expectedRevision:flags.get(`${fish.id}:${field}`)?.revision??0,operationId:crypto.randomUUID()};
+  const write=async(fish:CatalogFish,field:FishProgressField,forced?:{value:boolean;expectedRevision:number;operationId?:string;undo?:boolean}):Promise<boolean>=>{
+    if(!canEdit||!progressReady||busy||mutationInFlight.current||(undoChecking.current&&!forced?.undo)||(progressError&&!pending))return false;
+    mutationInFlight.current=true;
+    const intent=pending??{fishId:fish.id,field,value:forced?.value??!(flags.get(`${fish.id}:${field}`)?.value??false),
+      expectedRevision:forced?.expectedRevision??flags.get(`${fish.id}:${field}`)?.revision??0,operationId:forced?.operationId??crypto.randomUUID()};
+    if(!pending)offerUndo.current=field==='caught'&&!forced?.undo;
     const current=generation.current;setBusy(true);setPending(intent);pendingIntent.current=intent;
     try{
       await data.call('fish.progress',{...intent,region});
       const fresh=fishProgressResponseSchema.parse(await data.call('fish.progress.read',{region}));
-      if(current===generation.current&&fresh.watermark>=progressWatermark.current){progressWatermark.current=fresh.watermark;setFields(fresh.fields);setPending(null);pendingIntent.current=null;setProgressError(null);}
-    }catch{if(current===generation.current)setProgressError('标记未保存。你的选择已保留，可重试或重新读取最新进度。');}
-    finally{if(current===generation.current)setBusy(false);}
+      if(current===generation.current&&fresh.watermark>=progressWatermark.current){progressWatermark.current=fresh.watermark;setFields(fresh.fields);setPending(null);pendingIntent.current=null;setProgressError(null);
+        const saved=fresh.fields.find(f=>f.fishId===intent.fishId&&f.field===intent.field);
+        if(offerUndo.current&&saved?.value===intent.value&&saved.revision===intent.expectedRevision+1)setUndo({fish,value:!intent.value,revision:saved.revision,operationId:crypto.randomUUID(),expiresAt:Date.now()+15000});
+        else if(field==='caught')setUndo(null);
+        setFeedback(field==='alarm'?(intent.value?'已保存这条鱼的提醒标记':'已取消这条鱼的提醒'):field==='caught'&&!offerUndo.current?'已撤销本次钓获修改':`已${intent.value?'标记':'取消'}${field==='caught'?'钓获':'收藏'}：${fish.name}`);return true;
+      }
+      return false;
+    }catch{if(current===generation.current)setProgressError('标记未保存。你的选择已保留，可重试或重新读取最新进度。');return false;}
+    finally{mutationInFlight.current=false;if(current===generation.current)setBusy(false);}
   };
   const openDetail=(overrides:Partial<FishDetailSelection>={})=>{
     onOpenDetail?.({region,view,kind,text,hideCaught,windowHours,...overrides});
   };
   const displayed=expanded?visible:visible.slice(0,limit);
   const et=eorzeaTime(now);
+  const undoNotice=<div className="fish-board__feedback" role="status">{feedback}{undo&&undo.expiresAt>now?<button type="button" disabled={busy||pending!==null} onClick={()=>{
+    if(undoChecking.current||mutationInFlight.current)return;undoChecking.current=true;
+    void (async()=>{try{
+      const fresh=fishProgressResponseSchema.parse(await data.call('fish.progress.read',{region})),saved=fresh.fields.find(f=>f.fishId===undo.fish.id&&f.field==='caught');
+      if(saved?.revision!==undo.revision||saved.value===undo.value){setUndo(null);setFeedback('这条鱼已被其他页面或同步更新，未覆盖新记录。');return;}
+      await write(undo.fish,'caught',{value:undo.value,expectedRevision:undo.revision,operationId:undo.operationId,undo:true});
+    }catch{setFeedback('最新进度暂时无法读取，请重试撤销。');}finally{undoChecking.current=false;}})();
+  }}>撤销</button>:null}</div>;
+  const clearFishFilters=()=>{setTargetId(null);setText('');setKind('all');setView('all');setHideCaught(false);setLimit(compact?6:30);};
   if(embedded){
     const active=visible.filter(fish=>{const state=windowState(fish,forecastsById.get(fish.id),now);return state.open!==null||state.always;}).length;
     const ready=catalog!==null&&forecasts!==null;
@@ -150,6 +178,11 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
       <div className="fish-glance__meta">
         <span>{region==='cn'?'国服':'国际服'} · 艾欧泽亚时间 <strong>{String(et.hour).padStart(2,'0')}:{String(et.minute).padStart(2,'0')}</strong></span>
         <span>未来 {windowHours} 小时</span>
+      </div>
+      <div className="fish-board__filter-tags" aria-label="当前鱼窗筛选">
+        <button type="button" aria-pressed={hideCaught} onClick={()=>setHideCaught(value=>!value)}>{hideCaught?'未钓获':'含已钓获'}</button>
+        <button type="button" onClick={()=>setKind(value=>value==='all'?'rare':'all')}>{kind==='all'?'所有鱼类':'鱼王 / 鱼皇'}</button>
+        <button type="button" onClick={()=>openDetail({view:'all',kind:'all',hideCaught:false,text:''})}>查看全部鱼类</button>
       </div>
       {error?<p className="fish-glance__message" role="alert">{error} <button type="button" onClick={onReload}>重试</button></p>:
       !ready?<p className="fish-glance__message" role="status">正在计算鱼窗…</p>:<>
@@ -182,9 +215,15 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
         {embedded&&onOpenDetail?<button type="button" className="fish-board__open-detail" onClick={()=>openDetail()}>查看完整鱼窗 ↗</button>:null}
       </div>
     </header>
+    {feedback?undoNotice:null}
+    {targetId!==null&&initialFilters?.windowStartsAt!==undefined&&forecasts!==null&&initialFilters.windowStartsAt<now&&!forecasts.some(f=>f.id===initialFilters.fishId&&f.windows.some(w=>w.startsAtUtcMs===initialFilters.windowStartsAt))?<p role="status">原提醒的窗口已结束或已更新，下面显示最新鱼窗。</p>:null}
+    {targetId!==null?<p className="fish-board__account">已定位通知中的鱼类。<button type="button" onClick={clearFishFilters}>查看全部鱼类</button></p>:null}
+    {targetId!==null&&catalog&&!catalog.fish.some(f=>f.id===targetId)?<p role="alert">当前区服目录尚未收录这条鱼，可查看全部鱼类或切换区服。</p>:null}
+    {reminderFish?<FishReminderPanel key={region+':'+reminderFish.id} fish={reminderFish} region={region} enabled={flags.get(`${reminderFish.id}:alarm`)?.value??false} caught={flags.get(`${reminderFish.id}:caught`)?.value??false}
+      onSave={value=>write(reminderFish,'alarm',{value,expectedRevision:flags.get(`${reminderFish.id}:alarm`)?.revision??0})} onClose={()=>setReminderFish(null)} {...(onNotificationSettings?{onSettings:onNotificationSettings}:{})}/>:null}
     <div className="fish-board__toolbar">
       <div className="fish-board__tabs" role="group" aria-label="钓鱼视图">{([['windows','近期鱼窗'],['all','全部鱼类'],['pinned','我的收藏']] as const).map(([value,label])=>
-        <button type="button" key={value} aria-pressed={view===value} onClick={()=>{if(embedded&&value==='all'&&onOpenDetail){onOpenDetail({region,view:'all',kind:'all',text,hideCaught,windowHours});return;}changeFilter(()=>{setView(value);if(value==='all')setKind('all');});}}>{label}{embedded&&value==='all'?' ↗':''}</button>)}</div>
+        <button type="button" key={value} aria-pressed={view===value} onClick={()=>{if(embedded&&value==='all'&&onOpenDetail){onOpenDetail({region,view:'all',kind:'all',text,hideCaught,windowHours});return;}changeFilter(()=>{setTargetId(null);setView(value);if(value==='all')setKind('all');});}}>{label}{embedded&&value==='all'?' ↗':''}</button>)}</div>
       <label className="fish-board__region"><span className="visually-hidden">钓鱼区服</span><select aria-label="钓鱼区服" value={region} onChange={event=>onRegion(event.target.value as FishRegion)}><option value="cn">国服</option><option value="global">国际服</option></select></label>
     </div>
     {(embedded||expanded)&&view==='windows'?<div className="fish-board__range" role="group" aria-label="首页鱼窗时间范围">
@@ -193,7 +232,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
         <button type="button" key={value} aria-pressed={windowHours===value}
           onClick={()=>setWindowHours(value)}>{label}</button>)}
     </div>:null}
-    <div className="fish-board__filters"><label><span className="visually-hidden">搜索鱼类</span><input type="search" value={text} placeholder="搜索鱼名、钓场或鱼饵" onChange={event=>changeFilter(()=>setText(event.target.value))}/></label>
+    <div className="fish-board__filters"><label><span className="visually-hidden">搜索鱼类</span><input type="search" value={text} placeholder="搜索鱼名、钓场或鱼饵" onChange={event=>changeFilter(()=>{setText(event.target.value);setTargetId(null);})}/></label>
       <label><span className="visually-hidden">鱼类类型</span><select aria-label="鱼类类型" value={kind} onChange={event=>changeFilter(()=>setKind(event.target.value))}><option value="all">所有鱼类</option><option value="rare">鱼王与鱼皇</option><option value="big">鱼王</option><option value="legendary">鱼皇</option><option value="normal">普通鱼</option></select></label></div>
     {error?<p role="alert">{error} <button type="button" onClick={onReload}>重试</button></p>:null}
     {progressError?<p role="alert">{progressError}{pending?<button type="button" disabled={busy} onClick={()=>{
@@ -207,7 +246,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
       <div className="fish-board__list">{displayed.map(fish=>{
         const forecast=forecastsById.get(fish.id),state=windowState(fish,forecast,now);
         return <article className="fish-board__row" key={fish.id}>
-          <details><summary className="fish-board__row-main"><span className="fish-board__identity"><strong>{fish.name}</strong><small>{fish.method==='spear'?'刺鱼':fish.method==='ocean'?'海钓':kindLabel[fish.kind]} · {fish.location}</small></span>
+          <details {...(targetId===fish.id?{open:true}:{})}><summary className="fish-board__row-main"><span className="fish-board__identity"><strong>{fish.name}</strong><small>{fish.method==='spear'?'刺鱼':fish.method==='ocean'?'海钓':kindLabel[fish.kind]} · {fish.location}</small></span>
             <span className="fish-board__bait">{fish.bait.join(' → ')||'鱼饵资料待补'}</span>
             <span className={`fish-board__window${state.open?' is-open':''}`}>
               <strong>{fish.rule&&forecasts===null?'正在计算':state.open?(state.open.candidateOnly?'候选窗口中':'时间天气匹配'):state.always?'时间天气不限':state.next?(state.next.candidateOnly?'后续候选':'即将匹配'):state.unknown?'窗口资料待补':`${hours} 小时内暂无窗口`}</strong>
@@ -224,7 +263,8 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
             </div>
           </details>
           <div className="fish-board__actions">{(['pinned','caught'] as const).map(field=><button type="button" key={field} aria-label={`${field==='pinned'?'收藏':'钓获'} ${fish.name}`} aria-pressed={flags.get(`${fish.id}:${field}`)?.value??false}
-            disabled={!canEdit||!progressReady||busy||progressError!==null||pending!==null} title={!canEdit?'连接工作空间并启用钓鱼模块后保存标记':undefined} onClick={()=>{void write(fish,field);}}>{field==='pinned'?'收藏':'钓获'}</button>)}</div>
+            disabled={!canEdit||!progressReady||busy||progressError!==null||pending!==null} title={!canEdit?'连接工作空间并启用钓鱼模块后保存标记':undefined} onClick={()=>{void write(fish,field);}}>{field==='pinned'?'收藏':'钓获'}</button>)}
+            <button type="button" aria-label={`提醒 ${fish.name}`} aria-pressed={flags.get(`${fish.id}:alarm`)?.value??false} disabled={!canEdit||!progressReady||busy||pending!==null||progressError!==null} onClick={()=>setReminderFish(fish)}>提醒</button></div>
         </article>;
       })}</div>
       {visible.length===0&&forecasts!==null?<p className="fish-board__empty">{view==='pinned'?'还没有收藏的鱼。可以在鱼类旁标记收藏。':(embedded||expanded)&&view==='windows'?'这个时间范围内暂无鱼窗，可选择更长时间范围。':'没有匹配的鱼。试试其他分类或搜索词；“全部鱼类”也会显示资料待补的记录。'}</p>:null}

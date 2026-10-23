@@ -74,6 +74,15 @@ it('schedules user-selected China time and lists every repeated fish window in c
     const times=[...group.matchAll(/^(\d{2}):(\d{2})–/gm)].map(match=>Number(match[1])*60+Number(match[2]));expect(times).toEqual([...times].sort((a,b)=>a-b));
   }
 });
+it('labels community and intuition windows as candidates and never sends unrestricted or unknown mechanics as openings',()=>{
+  const now=Date.parse('2026-10-21T00:00:00Z');
+  const rule={schemaVersion:1 as const,region:'cn' as const,fishId:1,version:'community',zoneId:'test',startHour:1,endHour:3,weatherRates:[{weather:'clear',chance:100}],currentWeather:[],previousWeather:[],conditions:[{kind:'intuition' as const,description:'需鱼识'}],validationStatus:'unverified' as const};
+  const target={...digest,targets:[{region:'cn' as const,fishId:1}]};
+  const render=(r:typeof rule)=>renderFishDigest(target,now,{cn:{fish:[{id:1,name:'候选测试鱼',location:'测试钓场',rule:r}]}});
+  const candidate=render(rule);expect(candidate.actionable).toBe(true);expect(candidate.body).toContain('[候选]');expect(candidate.body).toContain('鱼识');
+  const unrestricted=render({...rule,startHour:0,endHour:24});expect(unrestricted.actionable).toBe(false);expect(unrestricted.body).not.toContain('00:00–24:00');
+  const unknown=renderFishDigest(target,now,{cn:{fish:[{id:1,name:'未知',location:'测试钓场',rule:{...rule,conditions:[{kind:'unknown',description:'未建模'}]}}]}});expect(unknown.actionable).toBe(false);expect(unknown.body).toContain('未知机制');
+});
 it('includes optional 3-day and 1-day deadlines without turning undated announcements into reminders',()=>{
   const now=Date.parse('2026-10-21T00:00:00Z');
   const event=(id:string,days:number|null)=>({id,title:id,region:'cn' as const,category:'活动',description:'',location:'',startsAt:now-86400_000,endsAt:days===null?null:now+days*86400_000,sourceUrl:null,allDay:false});

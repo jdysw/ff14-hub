@@ -11,17 +11,18 @@ const digestFishSchema=z.object({id:z.number().int().positive(),name:z.string().
 type Catalog={fish:z.infer<typeof digestFishSchema>[]};
 export function renderFishDigest(settings:FishDigestSettings,now:number,catalogs:Partial<Record<'cn'|'global',Catalog>>,events:EventCalendarItem[]=[]){
   const start=Math.floor((now+OFFSET)/DAY)*DAY-OFFSET;
-  const rows:{time:number;end:number;name:string;location:string;region:string}[]=[];
+  const rows:{time:number;end:number;name:string;location:string;region:string;candidate:boolean}[]=[];
   let unverified=0;
   for(const target of settings.targets){const fish=catalogs[target.region]?.fish.find(item=>item.id===target.fishId);
-    if(!fish?.rule||fish.rule.validationStatus!=='verified'||fish.rule.conditions.length>0){unverified++;continue;}
+    if(!fish?.rule||fish.rule.conditions.some(c=>c.kind==='unknown')){unverified++;continue;}
     for(const window of fishWindows({region:target.region,rules:[fish.rule],from:start,to:start+2*DAY})){
-      if(!window.candidateOnly)rows.push({time:window.startsAtUtcMs,end:window.endsAtUtcMs,name:fish.name,location:fish.location,region:target.region==='cn'?'国服':'国际服'});
+      if(!window.unrestricted)rows.push({time:window.startsAtUtcMs,end:window.endsAtUtcMs,name:fish.name,location:fish.location,region:target.region==='cn'?'国服':'国际服',candidate:window.candidateOnly});
     }
   }
   rows.sort((a,b)=>a.time-b.time||a.name.localeCompare(b.name,'zh-CN'));
   const date=(stamp:number)=>new Date(stamp+OFFSET).toISOString().slice(0,10),clock=(stamp:number)=>new Date(stamp+OFFSET).toISOString().slice(11,16);
   const text=['FF14 每日汇总（北京时间）',''];
+  if(rows.some(row=>row.candidate))text.push('候选鱼窗来自社区时间天气规则；鱼饵、鱼识及技能条件仍需另行满足。','');
   let endingCount=0;
   if(settings.eventEndDays.length){
     text.push('活动截止提醒','');
@@ -34,10 +35,10 @@ export function renderFishDigest(settings:FishDigestSettings,now:number,catalogs
     const from=start+day*DAY,to=from+DAY;
     text.push(`${day===0?'今天':'明天'} ${date(from)}`,'');
     const items=rows.filter(row=>row.time<to&&row.end>from);
-    for(const row of items)text.push(`${clock(Math.max(from,row.time))}–${row.end>=to?'24:00':clock(row.end)} ${row.name} · ${row.location}（${row.region}）${row.end<=now?' [已过]':''}`,'');
-    if(items.length===0)text.push('没有已确认的可钓窗口。','');
+    for(const row of items)text.push(`${clock(Math.max(from,row.time))}–${row.end>=to?'24:00':clock(row.end)} ${row.name} · ${row.location}（${row.region}）${row.candidate?' [候选]':''}${row.end<=now?' [已过]':''}`,'');
+    if(items.length===0)text.push('没有符合时间天气规则的有限窗口。','');
   }
-  if(unverified)text.push(`另有 ${unverified} 条鱼缺少已验证规则或包含额外条件，请在网页中确认，未编造可钓时间。`);
+  if(unverified)text.push(`另有 ${unverified} 条鱼缺少规则或包含未知机制，请在网页中确认，未编造可钓时间。`);
   return {title:`FF14 每日汇总 · ${date(start)}`,body:text.join('\n'),actionable:rows.length>0||endingCount>0};
 }
 export async function planDailyFishDigests(env:Env,now:number){
