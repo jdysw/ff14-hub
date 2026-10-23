@@ -80,6 +80,7 @@ code { background: #f0f3f6; }
 .home-official-event__timer { display: grid; gap: 4px; flex: 0 0 auto; min-width: 92px; text-align: right; font-variant-numeric: tabular-nums; }
 .home-official-event__timer span { font-size: 11px; color: var(--text-muted); }
 .home-official-event__timer strong { font-size: 14px; font-weight: 650; color: var(--accent); }
+.home-official-event__timer .home-official-event__end{display:block;font-size:11px;line-height:1.4;color:var(--text-muted);overflow-wrap:anywhere;}
 .home-official__notice { padding: 10px 14px; margin: 12px 0; background: #f6f7f8; border-radius: 6px; font-size: 13px; color: var(--text-muted); }
 
 /* 玩家设置：明确的分组、小尺寸卡片；开发/验收入口折叠到高级设置。 */

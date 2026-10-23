@@ -32,10 +32,13 @@ export function isScheduled(item: EventCalendarItem): boolean {
 export function hasKnownStart(item:EventCalendarItem):boolean{
   return item.startsAt!==null&&Number.isFinite(item.startsAt)&&(item.endsAt===null||isScheduled(item));
 }
+export function calendarEndCondition(item:EventCalendarItem):string|null{
+  return /(?:^|\n)活动结束条件：([^\n]+)/.exec(item.description)?.[1]??null;
+}
 export function calendarTimeLabel(item:EventCalendarItem):string{
   if(isScheduled(item))return chinaDateTime(item.startsAt!)+' — '+chinaDateTime(item.endsAt!);
   if(hasKnownStart(item)){
-    const condition=/(?:^|\n)活动结束条件：([^\n]+)/.exec(item.description)?.[1];
+    const condition=calendarEndCondition(item);
     return chinaDateTime(item.startsAt!)+' 开始 · '+(condition?condition+'（结束日期待确认）':'结束时间待确认');
   }
   return '官方起止时间未确认';

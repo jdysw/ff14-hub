@@ -2,7 +2,7 @@
 import { eventCalendarResponseSchema, type EventCalendarItem, type EventCalendarResponse } from '@ff14-hub/shared';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  calendarOverview, calendarTimeLabel, displayCalendarTitle, eventStatus, isScheduled, SOON_MS,calendarCountdown,
+  calendarOverview, calendarTimeLabel, calendarEndCondition,chinaDateTime,displayCalendarTitle, eventStatus, isScheduled, SOON_MS,calendarCountdown,
 } from '../events/public-calendar-utils';
 
 export const HOME_EVENT_LIMIT = 4;
@@ -54,6 +54,9 @@ function OfficialEventSummary({ item, now }: { readonly item: EventCalendarItem;
     <div className="home-official-event__timer" aria-label={target === null ? label : label + calendarCountdown(target, now)}>
       <span>{target === null ? '时间待确认' : (status === 'upcoming' ? '距开始' : '距结束')}</span>
       <strong>{target === null ? '—' : calendarCountdown(target, now)}</strong>
+      <small className="home-official-event__end" title="北京时间">
+        {item.endsAt!==null?<><span>结束：</span><time dateTime={new Date(item.endsAt).toISOString()}>{chinaDateTime(item.endsAt)}</time></>:<>结束：{calendarEndCondition(item)??'时间待确认'}</>}
+      </small>
     </div>
   </li>;
 }
