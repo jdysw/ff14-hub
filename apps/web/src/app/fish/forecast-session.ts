@@ -35,11 +35,21 @@ export function subscribeFishingForecast(
   catalog:FishingCatalog,region:FishRegion,hours:number,listener:Listener,
 ):()=>void{
   const baseKey=JSON.stringify([region,hours,catalog.generatedAt,catalog.versions,catalog.fish.length]);
-  let key=baseKey,collision=0;
-  while(jobs.has(key)&&!sameForecastRules(jobs.get(key)!.catalog,catalog)){
-    key=baseKey+':'+String(++collision);
+  // 优先扫描所有同元数据的存活任务：较早的任务退出后，不能因为基础 key 空了
+  // 就绕过仍在使用的 :1/:2 任务，重新启动一份相同规则的 Worker。
+  let key=baseKey;
+  let job:ForecastJob|undefined;
+  for(const [candidateKey,candidate] of jobs){
+    if((candidateKey===baseKey||candidateKey.startsWith(baseKey+':'))&&sameForecastRules(candidate.catalog,catalog)){
+      key=candidateKey;
+      job=candidate;
+      break;
+    }
   }
-  let job=jobs.get(key);
+  if(!job){
+    let collision=0;
+    while(jobs.has(key))key=baseKey+':'+String(++collision);
+  }
   if(!job){
     const worker=new Worker(new URL('./forecast.worker.ts',import.meta.url),{type:'module'});
     const current:ForecastJob={catalog,worker,listeners:new Set([listener]),timer:0,last:null};
