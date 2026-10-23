@@ -48,12 +48,13 @@ function currentMonthKey(day: string, direction: number): string {
   return new Date(Date.UTC(year, month - 1 + direction, 1)).toISOString().slice(0, 10);
 }
 
-export function PublicCalendarPage({ onBack, overlay = false }: { readonly onBack: () => void; readonly overlay?: boolean }) {
+export function PublicCalendarPage({ onBack, overlay = false,initialEventId }: { readonly onBack: () => void; readonly overlay?: boolean;readonly initialEventId?:string }) {
   const [state, setState] = useState<DataState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
   const [clock, setClock] = useState(Date.now);
   const [selectedDay, setSelectedDay] = useState(() => chinaToday(Date.now()));
-  const [mode, setMode] = useState<DisplayMode>('month');
+  const [mode, setMode] = useState<DisplayMode>(initialEventId?'list':'month');
+  const [targetId,setTargetId]=useState(initialEventId??null);
   const [category, setCategory] = useState('all');
   const [phase, setPhase] = useState<PhaseFilter>('all');
   const [search, setSearch] = useState('');
@@ -92,6 +93,7 @@ export function PublicCalendarPage({ onBack, overlay = false }: { readonly onBac
   const days = useMemo(() => chinaMonthDays(selectedYear, selectedMonth), [selectedYear, selectedMonth]);
   const hasFilter = category !== 'all' || phase !== 'all' || search.trim() !== '';
   const filtered = useMemo(() => events.filter(event => {
+    if(targetId!==null)return event.id===targetId;
     if (category !== 'all' && (event.category || '官方公告') !== category) return false;
     const status = eventStatus(event, now);
     // 默认未结束：历史只在明确点选「历史已结束」时显示。
@@ -101,7 +103,7 @@ export function PublicCalendarPage({ onBack, overlay = false }: { readonly onBac
       !(phase === 'active' && status === 'ending') && status !== phase) return false;
     const term = search.trim().normalize('NFKC').toLowerCase();
     return !term || (event.title + ' ' + event.description + ' ' + event.category).normalize('NFKC').toLowerCase().includes(term);
-  }), [events, now, phase, category, search]);
+  }), [events, now, phase, category, search,targetId]);
   const dayEvents = useMemo(() => eventsForChinaDay(filtered, selectedDay), [filtered, selectedDay]);
   const knownList = useMemo(() => filtered.filter(isScheduled).sort((a, b) => {
     const aEnded = a.endsAt! < now, bEnded = b.endsAt! < now;
@@ -117,6 +119,7 @@ export function PublicCalendarPage({ onBack, overlay = false }: { readonly onBac
     </button>;
 
   return <div className="calendar-center">
+    {targetId?<p role="status">已定位所选活动。<button type="button" onClick={()=>setTargetId(null)}>查看全部活动</button>{state.status==='loaded'&&!events.some(e=>e.id===targetId)?' 该活动已移除或暂未收录。':''}</p>:null}
     <header className="calendar-center__header">
       <div>
         {!overlay&&<button type="button" className="text-button" onClick={onBack}>← 返回首页</button>}

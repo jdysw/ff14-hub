@@ -37,7 +37,7 @@ const configurationSchema=z.preprocess(value=>{
   visible:z.object({events:z.boolean(),fishing:z.boolean(),pvp:z.boolean(),notes:z.boolean()}).strict(),
   region:z.enum(['cn','global']),
 }).strict());
-export const localDataSchema=z.object({version:z.literal(1),revision:z.number().int().nonnegative(),fish:z.object({cn:z.array(fishProgressSchema).max(15000),global:z.array(fishProgressSchema).max(15000)}).strict(),configuration:configurationSchema,links:z.array(localLinkSchema).max(2000),notes:z.array(z.object({id:z.uuid(),title:z.string().min(1).max(100),text:z.string().max(10000)}).strict()).max(100)}).strict()
+export const localDataSchema=z.object({version:z.literal(1),revision:z.number().int().nonnegative(),fish:z.object({cn:z.array(fishProgressSchema).max(15000),global:z.array(fishProgressSchema).max(15000)}).strict(),configuration:configurationSchema,links:z.array(localLinkSchema).max(2000),notes:z.array(z.object({id:z.uuid(),title:z.string().min(1).max(100),text:z.string().max(10000),completed:z.boolean().optional()}).strict()).max(100)}).strict()
   .refine(data=>['cn','global'].every(region=>{const fields=data.fish[region as FishRegion];return fields.every(f=>f.region===region)&&new Set(fields.map(f=>`${f.fishId}:${f.field}`)).size===fields.length;})&&new Set(data.links.map(link=>link.id)).size===data.links.length,'备份含重复或区服不一致的数据');
 export type LocalData=z.infer<typeof localDataSchema>;
 export const localBackupSchema=z.object({format:z.literal('ff14-hub-local'),version:z.literal(1),exportedAt:z.string(),data:localDataSchema}).strict();

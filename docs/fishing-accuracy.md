@@ -2,7 +2,11 @@
 
 来源固定版本见 `data/fishing-sources.json`，逐鱼核对和原始输入文件 SHA256 见 `data/fishing-accuracy-audit.json`。
 
-国服 2764 条身份来自游戏表，其中 874 条具备社区时间天气预测规则，另 359 条资料无时间天气限制，1531 条仍缺少普通鱼窗规则或属于其他钓鱼内容。逐条对照国服 FishingSpot → TerritoryType → WeatherRate，对天气随机值 0～99 的全部映射进行比较，874 条一致，0 条缺失或不一致。32 条规则含鱼识前置鱼，前置 ID/名称均能在国服表中找到；这仅证明引用完整，不等于已经完成跨来源条件核对。
+国服 2764 条身份来自游戏表，其中 874 条具备社区时间天气预测规则，另 359 条资料无时间天气限制，1531 条仍缺少普通鱼窗规则或属于其他钓鱼内容。逐条对照国服 FishingSpot → TerritoryType → WeatherRate，对天气随机值 0～99 的全部映射进行比较，874 条一致，0 条缺失或不一致。32 条规则含鱼识前置鱼，前置 ID/名称均能在国服表中找到。
+
+2026-10-23 完成 32 条鱼识跨来源核对：23 条一致，8 条为 Tracker 缺少鱼识持续时间而鱼糕有记录，1 条前置鱼时间条件冲突。冲突鱼 ID 24994 的前置鱼 23056、24203，在 Tracker 中分别为 ET 04–08、00–04，鱼糕同钓场记录均为全天；未擅自覆盖计算规则。详情展示各自状态，保留社区候选标记。鱼糕版本 803987e，Tracker 固定版本、原始快照和 SHA256 见 `data/fishing-intuition-audit.json` 与 `data/fishing-intuition-observations.json`。
+
+重建命令：`node scripts/audit-fish-intuition.mjs .wrangler/fishing-sources/tracker.js data/fishing-intuition-observations.json`（原始 Tracker 文件须先按固定版本下载）。刷新基础目录后须重新运行该命令；输入 Tracker SHA256 不匹配时拒绝复用旧观察结果，应重新采集公开资料。`test:ops` 检查报告与两个区服目录的核对元数据一致。
 
 修复了前置鱼数组被当成对象键而错误生成 ID 的导入问题，保留数量、鱼识持续时间、可选鱼饵与技能条件；修复连续天气、午夜造成的假关窗及不限时间天气规则产生重复有限窗口的问题。433 条有预测规则的鱼为时间天气不限；该数量与另 359 条仅有不限时间天气资料的鱼是不同集合。不限规则使用 `unrestricted` 标记；界面不把时间域边界作为开关窗时间，提醒不对其生成开窗任务。
 

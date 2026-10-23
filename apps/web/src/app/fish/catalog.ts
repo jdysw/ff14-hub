@@ -3,8 +3,10 @@ import {fishRuleSchema,fishRegionSchema,type FishRegion} from '@ff14-hub/shared'
 export const catalogFishSchema=z.object({id:z.number().int().positive(),name:z.string(),englishName:z.string(),
   kind:z.enum(['normal','big','legendary']),method:z.enum(['rod','spear','ocean']),level:z.number(),patch:z.string(),
   zone:z.string(),location:z.string(),spotId:z.number(),bait:z.array(z.string()),tug:z.string(),hookset:z.string(),
-  conditions:z.array(z.string()),always:z.boolean(),rule:fishRuleSchema.nullable()});
+  conditions:z.array(z.string()),always:z.boolean(),rule:fishRuleSchema.nullable(),
+  intuitionCrosscheck:z.object({status:z.enum(['matched','partial','conflict','missing']),description:z.string(),checkedAt:z.string(),fishcakeVersion:z.string()}).optional()});
 export const fishingCatalogSchema=z.object({schemaVersion:z.literal(1),region:z.enum(['cn','global']),generatedAt:z.string(),
+  intuitionCrosscheck:z.object({total:z.number(),matched:z.number(),partial:z.number(),conflicts:z.number(),missing:z.number(),checkedAt:z.string(),fishcakeVersion:z.string()}).optional(),
   accuracy:z.object({weatherMatched:z.number().int().nonnegative(),weatherMismatch:z.number().int().nonnegative(),weatherMissing:z.number().int().nonnegative(),
     fishWithPredators:z.number().int().nonnegative(),gameplayVerified:z.number().int().nonnegative()}).optional(),
   versions:z.object({tracker:z.string(),cn:z.string(),teamcraft:z.string()}),

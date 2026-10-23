@@ -43,6 +43,12 @@
     "ALLOWED_ORIGINS": ""
   },
 
+  // Workers Builds 分支预览仅连接测试 D1，不继承生产路由、Cron 或密钥。
+  "previews": {
+    "vars": {"ENVIRONMENT": "preview", "ENABLE_TEST_ROUTES": "0", "ALLOWED_ORIGINS": ""},
+    "d1_databases": [{"binding": "DB", "database_name": "ff14-hub-preview", "database_id": "dc1e8d15-74ea-42a5-9090-b553002cce28", "migrations_dir": "migrations"}]
+  },
+
   // 预览与生产环境分离：各自持有独立的 D1 与 ENVIRONMENT。
   // main / assets / compatibility_date 沿用顶层；vars 和 bindings 不继承，必须逐环境声明。
   // 占位 ID 会被发布预检拒绝；真实 ID 与 Secrets 必须在发布准备时分别配置。

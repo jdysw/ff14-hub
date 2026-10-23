@@ -19,6 +19,10 @@ import {PwaStatusBar} from '../pwa/PwaStatusBar';
 import {useSiteSettings} from '../admin/site-settings';
 import {useCalendarAdminSession} from '../events/calendar-admin-session';
 import './local.css';
+import './site-discovery.css';
+import {GlobalSearch} from './GlobalSearch';
+import {TodayPlan} from './TodayPlan';
+import type {FeatureTarget,FishSearchTarget} from './site-search';
 
 const SiteAdminPage=lazy(()=>import('../admin/SiteAdminPage').then(module=>({default:module.SiteAdminPage})));
 
@@ -43,17 +47,19 @@ export function LocalApp(){
   const notificationEntry=['notifications','reminders'].includes(new URLSearchParams(location.search).get('view')??'');
   const [view,setView]=useState<'home'|'settings'|'admin'>(notificationEntry?'settings':'home');
   const [expanded,setExpanded]=useState<null|{
-    kind:'events'|'fishing'|'pvp'|'notes';
+    kind:'events'|'fishing'|'pvp'|'notes'|'search'|'plan';
     origin:ModuleOrigin;
     fishFilters?:FishDetailSelection;
+    eventId?:string;
   }>(null);
   // 共用一个从模块位置展开的详情层；关闭后保留首页的筛选和滚动位置。
-  const openModule=useCallback((kind:'events'|'fishing'|'pvp'|'notes',fishFilters?:FishDetailSelection)=>{
+  const openModule=useCallback((kind:'events'|'fishing'|'pvp'|'notes'|'search'|'plan',fishFilters?:FishDetailSelection,eventId?:string)=>{
     const source=document.querySelector<HTMLElement>(`[data-module="${kind}"]`);
     const {top,left,width,height}=source?.getBoundingClientRect()??{top:80,left:window.innerWidth/2,width:0,height:0};
     setExpanded({
-      kind,origin:{rect:{top,left,width,height},...(source?{element:source}:{}),returnFocus:document.activeElement instanceof HTMLElement?document.activeElement:null},
+      kind,origin:{rect:{top,left,width,height},...(source?{element:source}:{}),returnFocus:document.activeElement instanceof HTMLElement?(document.activeElement.closest('dialog')?document.querySelector<HTMLElement>('button[aria-label="全站搜索"]'):document.activeElement):null},
       ...(fishFilters?{fishFilters}:{}),
+      ...(eventId?{eventId}:{}),
     });
   },[]);
   const dataReady=data!==null;
@@ -64,6 +70,13 @@ export function LocalApp(){
   },[dataReady,fishEntry,openModule]);
   const [settingsTab,setSettingsTab]=useState<SettingsTab>(notificationEntry?'notifications':'home');
   const [dataSection,setDataSection]=useState<DataSection>('sync');
+  const openFish=(target:FishSearchTarget)=>{setView('home');openModule('fishing',{...target,view:'all',kind:'all',text:'',hideCaught:false,windowHours:24});};
+  const openEvent=(id:string)=>{setView('home');openModule('events',undefined,id);};
+  const openFeature=(target:FeatureTarget)=>{
+    if(target==='sync'||target==='backup'||target==='notifications'||target==='notes'){
+      setExpanded(null);setSettingsTab(target==='notifications'?'notifications':target==='notes'?'notes':'data');if(target==='sync'||target==='backup')setDataSection(target);setView('settings');
+    }else openModule(target);
+  };
   useEffect(()=>startLocalNotifications(store),[store]);
   useEffect(()=>startFishcakeSync(store),[store]);
   const [category,setCategory]=useState('all');
@@ -96,9 +109,9 @@ export function LocalApp(){
   const reloadCatalog=()=>{setCatalogLoading(true);setCatalogError(false);setCatalogReload(value=>value+1);};
   useEffect(()=>{const refresh=()=>{setCatalogLoading(true);setCatalogError(false);setCatalogReload(value=>value+1);};window.addEventListener('ff14hub:directory-changed',refresh);return()=>window.removeEventListener('ff14hub:directory-changed',refresh);},[]);
   useEffect(()=>{
-    const shortcut=(event:KeyboardEvent)=>{if(document.querySelector('dialog[open]'))return;if(event.key==='/'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!(event.target instanceof HTMLElement&&(event.target.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)))){event.preventDefault();setView('home');requestAnimationFrame(()=>searchRef.current?.focus());}};
+    const shortcut=(event:KeyboardEvent)=>{if(document.querySelector('dialog[open]'))return;if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k'){event.preventDefault();openModule('search');return;}if(event.key==='/'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!(event.target instanceof HTMLElement&&(event.target.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)))){event.preventDefault();setView('home');requestAnimationFrame(()=>searchRef.current?.focus());}};
     window.addEventListener('keydown',shortcut);return()=>window.removeEventListener('keydown',shortcut);
-  },[]);
+  },[openModule]);
   const query=search.trim();
   // 合并系统与本地目录：本地收藏和人工简介优先，搜索覆盖系统别名与标签。
   const allLinks=useMemo(()=>directoryLinks(catalog,data?.links??[]),[catalog,data]);
@@ -126,6 +139,8 @@ export function LocalApp(){
         <h1 className="brand__title">{siteSettings.siteName}</h1>
       </button>
       <div className="local-app__header-actions">
+        <button className="site-discovery-trigger" type="button" aria-label="全站搜索" disabled={!data} onClick={()=>openModule('search')}>全站搜索</button>
+        <button className="site-discovery-trigger" type="button" disabled={!data} onClick={()=>openModule('plan')}>今日计划</button>
         {view==='home'&&data?<a className="local-app__nav-jump" href="#local-navigation">导航站 ↓</a>:null}
         {view!=='home'&&<button type="button" className="local-app__back" onClick={()=>setView('home')}>← <span>返回</span></button>}
         <button className="shell__settings" type="button" aria-label={view==='settings'?'返回首页':'设置'} aria-pressed={view==='settings'} onClick={()=>setView(view==='settings'?'home':'settings')}>
@@ -207,12 +222,14 @@ export function LocalApp(){
           </section>
         </div>}
     </main>
-    {expanded&&data&&view==='home'?<LocalModuleOverlay
-      key={expanded.kind+':'+String(expanded.fishFilters?.fishId??'')+':'+String(expanded.fishFilters?.windowStartsAt??'')}
-      title={{events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的备忘'}[expanded.kind]}
+    {expanded&&data&&view!=='admin'?<LocalModuleOverlay
+      key={expanded.kind+':'+String(expanded.fishFilters?.fishId??'')+':'+String(expanded.fishFilters?.windowStartsAt??'')+':'+String(expanded.eventId??'')}
+      title={{events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的备忘',search:'全站搜索',plan:'今日计划'}[expanded.kind]}
       origin={expanded.origin}
       onClose={()=>setExpanded(null)}>
-      {expanded.kind==='events'?<PublicCalendarPage overlay onBack={()=>setExpanded(null)}/>:
+      {expanded.kind==='search'?<GlobalSearch links={allLinks} initialRegion={data.configuration.region} onFish={openFish} onEvent={openEvent} onFeature={openFeature}/>:
+        expanded.kind==='plan'?<TodayPlan data={data} store={store} onFish={openFish} onEvent={openEvent} onFeature={openFeature}/>:
+        expanded.kind==='events'?<PublicCalendarPage overlay {...(expanded.eventId?{initialEventId:expanded.eventId}:{})} onBack={()=>setExpanded(null)}/>:
         expanded.kind==='fishing'?<FishingBoard data={dataPort} subscribeProgress={subscribeProgress} initialRegion={data.configuration.region} onNotificationSettings={()=>{setExpanded(null);setSettingsTab('notifications');setView('settings');}}
           initialFilters={expanded.fishFilters} expanded onImport={()=>{
             setExpanded(null);setDataSection('fish');setSettingsTab('data');setView('settings');
