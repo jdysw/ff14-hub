@@ -8,9 +8,8 @@
  * 相对导入 `../src/nav-api` 而不是 `../src/index`：本文件要能独立验证新契约，
  * 不依赖 barrel（`index.ts`）是否已经接线。
  */
+import { describe, expect, it } from 'vitest';
 import {
-  describe,
-  expect,
   MAX_NAV_ALIASES,
   MAX_NAV_ICON_LENGTH,
   MAX_NAV_GROUP_NAME_LENGTH,
