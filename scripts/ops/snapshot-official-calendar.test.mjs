@@ -1,6 +1,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { officialCalendarUpsertSql } from './snapshot-official-calendar.mjs';
+import { officialCalendarUpsertSql, snapshotOutputPath } from './snapshot-official-calendar.mjs';
+import path from 'node:path';
+
+test('快照生成器只能选择 .wrangler 下的单个安全 SQL 文件', () => {
+  const target = snapshotOutputPath('calendar-snapshot.sql');
+  assert.equal(path.basename(target), 'calendar-snapshot.sql');
+  assert.equal(path.basename(path.dirname(target)), '.wrangler');
+  for (const bad of ['../private.sql', '/tmp/unsafe.sql', 'a/../private.sql', '..\\\\private.sql',
+    '.secret.sql', 'out.txt', 'file.sql?query=1', '']) {
+    assert.throws(() => snapshotOutputPath(bad));
+  }
+});
 
 function feed(overrides = {}) {
   const now = Date.now();

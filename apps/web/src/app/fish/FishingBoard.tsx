@@ -208,14 +208,14 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
   // visible 始终是完整结果：统计与完整页面的筛选范围都不受截取影响。
   const homePreview=visible.slice(0,HOME_FISH_PREVIEW_LIMIT);
   const et=eorzeaTime(now);
-  const undoNotice=<div className="fish-board__feedback" role="status">{feedback}{undo&&undo.expiresAt>now?<button type="button" disabled={busy||pending!==null} onClick={()=>{
+  const undoNotice=<output className="fish-board__feedback" style={{display:'block'}}>{feedback}{undo&&undo.expiresAt>now?<button type="button" disabled={busy||pending!==null} onClick={()=>{
     if(undoChecking.current||mutationInFlight.current)return;undoChecking.current=true;
     void (async()=>{try{
       const fresh=fishProgressResponseSchema.parse(await data.call('fish.progress.read',{region})),saved=fresh.fields.find(f=>f.fishId===undo.fish.id&&f.field==='caught');
       if(saved?.revision!==undo.revision||saved.value===undo.value){setUndo(null);setFeedback('这条鱼已被其他页面或同步更新，未覆盖新记录。');return;}
       await write(undo.fish,'caught',{value:undo.value,expectedRevision:undo.revision,operationId:undo.operationId,undo:true});
     }catch{setFeedback('最新进度暂时无法读取，请重试撤销。');}finally{undoChecking.current=false;}})();
-  }}>撤销</button>:null}</div>;
+  }}>撤销</button>:null}</output>;
   const clearFishFilters=()=>{setTargetId(null);setText('');setKind('all');setMethod('all');setHideCaught(false);setLimit(compact?6:30);};
   const showCatalog=()=>{clearFishFilters();setText(text);setView('all');};
   const hasFilters=Boolean(query||kind!=='all'||(view!=='windows'&&method!=='all')||hideCaught||targetId!==null);
@@ -241,7 +241,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
         <button type="button" onClick={()=>setHomeFiltersOpen(false)}>完成筛选</button>
       </div>
       {error?<p className="fish-glance__message" role="alert">{error} <button type="button" onClick={onReload}>重试</button></p>:
-      !ready?<p className="fish-glance__message" role="status">正在计算鱼窗…</p>:<>
+      !ready?<output className="fish-glance__message" style={{display:'block'}}>正在计算鱼窗…</output>:<>
         {visible.length===0?<div className="fish-glance__empty"><strong>{homeView==='followed'?'还没有关注的鱼':'当前暂无符合条件的鱼窗'}</strong><p>{homeView==='open'?'可以看看下一场，或调整筛选条件。':homeView==='upcoming'?`未来 ${windowHours} 小时内暂无结果，可以调整筛选条件。`:'在完整鱼窗中收藏鱼类或设置提醒，即可集中查看。'}</p><button type="button" onClick={()=>homeView==='upcoming'?setHomeFiltersOpen(true):setHomeView('upcoming')}>{homeView==='upcoming'?'调整筛选':'查看未来鱼窗 →'}</button></div>:<>
           <ul key={homeView} className="fish-glance__list" aria-label="鱼窗列表">{homePreview.map(fish=>{
             const state=windowState(fish,forecastsById.get(fish.id),now);
@@ -262,7 +262,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
           </button>}
         </>}
       </>}
-      {catalog && gameDataSource()!=='live' ? <p className="fish-glance__message" role="status">{gameDataSource()==='cached'?'当前使用已保存的站点修订缓存，可能不是最新版本。':'当前使用内置鱼类目录，站点最新人工修订尚未获取。'}</p> : null}
+      {catalog && gameDataSource()!=='live' ? <output className="fish-glance__message" style={{display:'block'}}>{gameDataSource()==='cached'?'当前使用已保存的站点修订缓存，可能不是最新版本。':'当前使用内置鱼类目录，站点最新人工修订尚未获取。'}</output> : null}
       {progressError?<p className="fish-glance__message" role="alert">{progressError}</p>:null}
     </section>;
   }
@@ -273,9 +273,9 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
         {embedded&&onOpenDetail?<button type="button" className="fish-board__open-detail" onClick={()=>openDetail()}>查看完整鱼窗 ↗</button>:null}
       </div>
     </header>
-    {catalog && gameDataSource()!=='live' ? <p className="fish-board__summary" role="status">{gameDataSource()==='cached'?'当前使用上次保存的站点修订缓存。':'当前使用内置鱼类目录；站点人工修订尚未更新。'}</p> : null}
+    {catalog && gameDataSource()!=='live' ? <output className="fish-board__summary" style={{display:'block'}}>{gameDataSource()==='cached'?'当前使用上次保存的站点修订缓存。':'当前使用内置鱼类目录；站点人工修订尚未更新。'}</output> : null}
     {feedback?undoNotice:null}
-    {targetId!==null&&initialFilters?.windowStartsAt!==undefined&&forecasts!==null&&initialFilters.windowStartsAt<now&&!forecasts.some(f=>f.id===initialFilters.fishId&&f.windows.some(w=>w.startsAtUtcMs===initialFilters.windowStartsAt))?<p role="status">原提醒的窗口已结束或已更新，下面显示最新鱼窗。</p>:null}
+    {targetId!==null&&initialFilters?.windowStartsAt!==undefined&&forecasts!==null&&initialFilters.windowStartsAt<now&&!forecasts.some(f=>f.id===initialFilters.fishId&&f.windows.some(w=>w.startsAtUtcMs===initialFilters.windowStartsAt))?<output style={{display:'block'}}>原提醒的窗口已结束或已更新，下面显示最新鱼窗。</output>:null}
     {targetId!==null?<p className="fish-board__account">已定位所选鱼类。<button type="button" onClick={()=>{clearFishFilters();setView('all');}}>查看全部鱼类</button></p>:null}
     {targetId!==null&&catalog&&!catalog.fish.some(f=>f.id===targetId)?<p role="alert">当前区服目录尚未收录这条鱼，可查看全部鱼类或切换区服。</p>:null}
     {reminderFish?<FishReminderPanel key={region+':'+reminderFish.id} fish={reminderFish} region={region} enabled={flags.get(`${reminderFish.id}:alarm`)?.value??false} caught={flags.get(`${reminderFish.id}:caught`)?.value??false}
@@ -304,8 +304,8 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
     {progressError?<p role="alert">{progressError}{pending?<button type="button" disabled={busy} onClick={()=>{
       const fish=catalog?.fish.find(f=>f.id===pending.fishId);if(fish){setProgressError(null);void write(fish,pending.field);}
     }}>重试保存</button>:null}<button type="button" onClick={onReload}>重新读取</button></p>:null}
-    {!catalog?<p className="fish-board__empty" role="status">正在读取鱼类目录…</p>:<>
-      <p className="fish-board__summary" role="status">{forecasts===null?'正在计算完整目录的鱼窗…':view==='windows'?`${windowPhase==='open'?'开放中':windowPhase==='upcoming'?`未来 ${windowHours} 小时内开放`:'时间天气不限'} · ${visible.length} 种鱼`:`找到 ${visible.length} 条记录`}</p>
+    {!catalog?<output className="fish-board__empty" style={{display:'block'}}>正在读取鱼类目录…</output>:<>
+      <output className="fish-board__summary" style={{display:'block'}}>{forecasts===null?'正在计算完整目录的鱼窗…':view==='windows'?`${windowPhase==='open'?'开放中':windowPhase==='upcoming'?`未来 ${windowHours} 小时内开放`:'时间天气不限'} · ${visible.length} 种鱼`:`找到 ${visible.length} 条记录`}</output>
       {canEdit?<label className="fish-board__account"><input type="checkbox" checked={hideCaught} disabled={!progressReady} onChange={event=>changeFilter(()=>setHideCaught(event.target.checked))}/>隐藏已钓获 · 已记录 {fields.filter(field=>field.field==='caught'&&field.value).length} 种</label>:null}
       {!canEdit?<p className="fish-board__account">无需登录即可查鱼窗。{onConnect?<button type="button" onClick={onConnect}>连接工作空间保存钓获与收藏</button>:'连接工作空间并启用钓鱼模块后可保存标记。'}</p>:null}
       <div className="fish-board__columns" aria-hidden="true"><span>鱼类 / 钓场</span><span>推荐鱼饵</span><span>鱼窗</span><span>标记</span></div>

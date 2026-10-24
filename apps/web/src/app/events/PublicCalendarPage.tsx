@@ -124,7 +124,7 @@ export function PublicCalendarPage({ onBack, overlay = false,initialEventId }: {
     </button>;
 
   return <div className="calendar-center">
-    {targetId?<p role="status">已定位所选活动。<button type="button" onClick={()=>setTargetId(null)}>查看全部活动</button>{state.status==='loaded'&&!events.some(e=>e.id===targetId)?' 该活动已移除或暂未收录。':''}</p>:null}
+    {targetId?<output style={{display:'block'}}>已定位所选活动。<button type="button" onClick={()=>setTargetId(null)}>查看全部活动</button>{state.status==='loaded'&&!events.some(e=>e.id===targetId)?' 该活动已移除或暂未收录。':''}</output>:null}
     <header className="calendar-center__header">
       <div>
         {!overlay&&<button type="button" className="text-button" onClick={onBack}>← 返回首页</button>}

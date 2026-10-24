@@ -59,7 +59,7 @@
 .local-dashboard__module .fish-board__clock strong{font-size:15px;margin-left:5px;}
 .local-dashboard__module .fish-board__toolbar{gap:8px;border-bottom:1px solid #e7edf3;min-width:0;}
 .local-dashboard__module .fish-board__tabs{gap:12px;flex-wrap:wrap;}
-.local-dashboard__module .fish-board__tabs button{min-height:39px;font-size:12px;padding:9px 1px;}
+
 .local-dashboard__module .fish-board__filters{
   grid-template-columns:minmax(0,1fr) minmax(125px,max-content);
   gap:8px;margin:11px 0 3px;
@@ -68,7 +68,7 @@
   border:1px solid #dee6ef;background:#fff;border-radius:8px;
   min-height:39px;padding:7px 10px;font-size:12px;
 }
-.local-dashboard__module .fish-board__summary{font-size:12px;margin:8px 0;min-height:0;}
+
 .local-dashboard__module .fish-board__account{font-size:12px;line-height:1.7;}
 .local-dashboard__module .fish-board__columns{display:none;}
 .local-dashboard__module .fish-board__list{
@@ -113,10 +113,7 @@
 .local-dashboard__module .local-notes article h4{font-size:14px;line-height:1.5;color:#273849;}
 .local-dashboard__module .local-notes article p{font-size:12px;line-height:1.65;white-space:pre-wrap;}
 /* Readable links: scannable title + real site domain. */
-.local-app .local-directory{
-  display:block;flex:none;min-height:0;margin:0;padding:25px 0 0;
-  background:transparent;border:0;border-top:1px solid #e2e8ef;
-}
+
 .local-directory__heading-title span{font-size:12px;color:#738497;}
 .local-directory__toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;margin-bottom:10px;}
 .local-app .home-search{
@@ -230,7 +227,17 @@
   background:transparent;border-radius:7px;color:#456b92;text-decoration:none;font-size:13px;font-weight:550;
 }
 .local-app__nav-jump:hover{background:#eef4fa;color:#315d95;}
-.local-app .local-directory{scroll-margin-top:86px;}
+.local-app .local-directory{
+  display:block;
+  flex:none;
+  min-height:0;
+  margin:0;
+  padding:25px 0 0;
+  background:transparent;
+  border:0;
+  border-top:1px solid #e2e8ef;
+  scroll-margin-top:86px;
+}
 .local-dashboard__module .fish-board__header-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;}
 .local-dashboard__module .fish-board__open-detail{
   min-height:34px;background:transparent;border:0;border-radius:7px;
@@ -264,9 +271,16 @@
   background:#e5effa;color:#2c598c;border-color:#d5e3f2;font-weight:650;
 }
 .local-dashboard__module .fish-board__summary{
-  font-size:12px;color:#536a80;line-height:1.65;
+  margin:8px 0;
+  min-height:0;
+  font-size:12px;
+  color:#536a80;
+  line-height:1.65;
 }
 .local-dashboard__module .fish-board__tabs button{
+  min-height:39px;
+  font-size:12px;
+  padding:9px 1px;
   white-space:nowrap;
 }
 @media(max-width:650px){

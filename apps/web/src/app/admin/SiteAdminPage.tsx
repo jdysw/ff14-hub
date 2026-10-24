@@ -42,7 +42,7 @@ export function SiteAdminPage({onClose}: {readonly onClose:()=>void}) {
     }).catch(()=>undefined);
     calendarAdminSession.clear();setTab('overview');setGate('signedOut');
   }
-  if(gate==='checking')return <section className="panel" role="status">正在验证站点管理员会话…</section>;
+  if(gate==='checking')return <output className="panel" style={{display:'block'}}>正在验证站点管理员会话…</output>;
   if(gate==='failed')return <section className="panel" role="alert">
     <h2>管理员服务暂时不可用</h2>
     <button className="text-button" onClick={onClose}>返回设置</button>

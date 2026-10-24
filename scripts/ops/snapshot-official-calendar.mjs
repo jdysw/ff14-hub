@@ -6,10 +6,18 @@
  * 用法：node scripts/ops/snapshot-official-calendar.mjs <output-sql-path>
  * 需要 Node 24 原生 TypeScript 类型剥离支持。
  */
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { readCnCalendar } from '../../worker/modules/events/calendar-feed.ts';
+
+/** 仅向本项目固定的临时目录写入安全文件名，不允许绝对路径与 ../ 逃逸。 */
+export function snapshotOutputPath(name) {
+  if (typeof name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,80}\.sql$/.test(name)) {
+    throw new Error('快照输出文件名必须是安全的 .sql 文件名');
+  }
+  return path.join(fileURLToPath(new URL('../../.wrangler/', import.meta.url)), name);
+}
 
 export function officialCalendarUpsertSql(calendar) {
   if (!calendar || !Array.isArray(calendar.events) || calendar.events.length === 0 ||
@@ -43,12 +51,12 @@ export function officialCalendarUpsertSql(calendar) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const dest = process.argv[2];
-  if (!dest) throw new Error('必须提供 SQL 文件输出路径');
   try {
+    const dest = snapshotOutputPath(process.argv[2]);
     const feed = await readCnCalendar();
     const sql = officialCalendarUpsertSql(feed);
-    await writeFile(dest, sql + '\n', { mode: 0o600 });
+    await mkdir(path.dirname(dest), { recursive: true, mode: 0o700 });
+    await writeFile(dest, sql + '\n', { flag: 'wx', mode: 0o600 });
     console.log(JSON.stringify({
       kind: 'official_calendar_snapshot',
       count: feed.events.length, checkedAtMs: feed.source.checkedAtMs,

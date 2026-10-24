@@ -47,6 +47,6 @@ export function TodoBoard({data,store,expanded=false,onExpand}:{data:LocalData;s
     {!items.length&&<p className="todo-empty">{completed?'还没有已完成事项':'暂时没有待办，随手记一件吧。'}</p>}
     {!expanded&&items.length>5&&<button type="button" onClick={onExpand}>查看其余 {items.length-5} 项</button>}
     {times&&<output className="todo-notification-info" style={{display:'block'}}>{notificationInfo}</output>}
-    {undo&&<p role="status">已更新“{undo.title}” <button type="button" disabled={busy} onClick={()=>void run(async()=>{await store.change(document=>{const i=document.data.notes.findIndex(n=>n.id===undo.id);if(i<0)document.data.notes.push(undo);else document.data.notes[i]!.completed=Boolean(undo.completed);});setUndo(null);})}>撤销</button></p>}
+    {undo&&<output style={{display:'block'}}>已更新“{undo.title}” <button type="button" disabled={busy} onClick={()=>void run(async()=>{await store.change(document=>{const i=document.data.notes.findIndex(n=>n.id===undo.id);if(i<0)document.data.notes.push(undo);else document.data.notes[i]!.completed=Boolean(undo.completed);});setUndo(null);})}>撤销</button></output>}
   </section>;
 }

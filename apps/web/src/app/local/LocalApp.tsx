@@ -209,7 +209,7 @@ export function LocalApp(){
               </nav>
             </div>
             {subgroups.length>0&&<nav className="local-directory__subcategories" aria-label="网站子分类"><button type="button" aria-pressed={subcategory==='all'} onClick={()=>{setSubcategory('all');setVisibleLimit(36);}}>全部{category}</button>{subgroups.map(sub=><button type="button" key={sub} aria-pressed={subcategory===sub} onClick={()=>{setSubcategory(sub);setVisibleLimit(36);}}>{sub}</button>)}</nav>}
-            {catalogError&&<div role="status" className="local-directory__notice">公共目录暂时无法更新，本机网站和已加载内容仍可使用。 <button type="button" onClick={reloadCatalog}>重试</button></div>}
+            {catalogError&&<output className="local-directory__notice" style={{display:'block'}}>公共目录暂时无法更新，本机网站和已加载内容仍可使用。 <button type="button" onClick={reloadCatalog}>重试</button></output>}
             {catalogLoading?<output className="local-directory__loading" style={{display:'block'}}>正在更新网站目录…</output>:null}
             {filteredLinks.length===0?(!catalogLoading&&<div id="directory-results" className="local-directory__empty"><h3>{hasFilters?'没有找到匹配的网站':catalogError?'暂时无法读取公共目录':'还没有网站'}</h3><p>{hasFilters?'试试取消收藏筛选，或选择其他分类。':'可以在设置中添加自己的常用网站。'}</p>{hasFilters?<button type="button" onClick={clearFilters}>查看全部网站</button>:<button type="button" onClick={()=>{setSettingsTab('links');setView('settings');}}>添加个人网站</button>}</div>):
               <ul id="directory-results" className="local-directory__tiles">{filteredLinks.slice(0,visibleLimit).map(link=><li key={link.id} className="local-directory__tile">

@@ -5,19 +5,19 @@
 .local-app .local-dashboard__modules>.local-dashboard__section-heading h2::after{display:none;}
 .local-app .personal-module-grid{gap:18px;}
 .local-app .personal-module-grid.is-packed{gap:0 18px;grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);}
-.local-app .personal-module-grid .personal-module-slot>.local-dashboard__module{padding:19px 20px;border:1px solid var(--field-line);border-radius:12px;background:#fdfefb;}
+
 .local-app .personal-module-grid .local-dashboard__module :is(.home-official h2,.fish-glance__heading h2,.local-notes__heading h3,.pvp-board__heading h2){font-family:var(--field-serif);font-size:21px;line-height:1.4;letter-spacing:.4px;margin:0;}
 .local-app .personal-module-grid .local-dashboard__module :is(.home-official .home-section-heading,.fish-glance__heading,.pvp-board__heading,.local-notes__heading){min-height:30px;margin:0 0 13px;align-items:center;}
 .local-app .personal-module-grid .home-official__actions .text-button{font-size:11px;min-height:30px;padding-inline:4px;}
-.local-app .personal-module-grid .home-status-tabs{margin:0;border-bottom:1px solid var(--field-line);gap:20px;justify-content:flex-start;}
-.local-app .personal-module-grid .home-status-tabs button{font-size:12px;padding:9px 0 11px;min-height:38px;}
+
+
 .local-app .personal-module-grid .home-official-event{padding:16px 0;gap:14px;min-height:0;height:auto;}
 .local-app .personal-module-grid .home-official-event__main{display:block;}
-.local-app .personal-module-grid .home-official-event__category{display:block;font-size:11px;font-weight:400;color:var(--field-muted);margin:0 0 4px;}
+
 .local-app .personal-module-grid .home-official-event__phase{display:none;}
-.local-app .personal-module-grid .home-official-event__main h3{font-size:13px;line-height:1.6;}
-.local-app .personal-module-grid .home-official-event__main p{margin-top:6px;font-size:11px;}
-.local-app .personal-module-grid .home-official-event__timer strong{font-size:13px;font-weight:500;}
+
+
+
 .local-app .personal-module-grid .home-official-event__timer>span{font-size:11px;}
 @container official-event-card (min-width:380px){
  .local-app .personal-module-grid .home-official .home-official-event{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;}
@@ -28,39 +28,39 @@
 .local-app .personal-module-grid .fish-glance__heading h2{grid-column:1;grid-row:1;min-height:30px;margin-bottom:13px;}
 .local-app .personal-module-grid .fish-glance__heading .fish-glance__link{grid-column:2;grid-row:1;margin-bottom:13px;align-self:center;font-size:12px;}
 .local-app .personal-module-grid .fish-glance__meta{grid-column:1;grid-row:1;justify-self:start;margin:0 0 13px 59px;padding:0;font-size:11px;line-height:1.5;}
-.local-app .personal-module-grid .fish-glance__meta strong{font-family:inherit;font-weight:500;font-size:12px;line-height:1.5;}
+
 .local-app .personal-module-grid .fish-glance>:not(.fish-glance__heading):not(.fish-glance__meta){grid-column:1/-1;}
 .local-app .personal-module-grid .fish-glance__meta>span{font-size:11px;}
-.local-app .personal-module-grid .fish-glance__meta strong{font-family:inherit;font-size:12px;}
-.local-app .personal-module-grid .fish-glance__filter-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0 3px;font-size:11px;color:var(--field-muted);}
+
+
 .fish-glance__filter-bar button{display:flex;align-items:center;gap:5px;border:0;background:none;color:var(--field-accent);font:inherit;font-size:12px;padding:4px 0;min-height:32px;}
 .fish-glance__filter-bar .ui-icon{width:14px;height:14px;}
 .local-app .personal-module-grid .fish-glance__filter-panel{background:var(--field-tint);padding:12px;border-radius:7px;margin:8px 0;display:flex;flex-wrap:wrap;gap:10px 12px;}
 .local-app .personal-module-grid .fish-glance__filter-panel[hidden]{display:none;}
 .local-app .personal-module-grid .fish-glance__filter-panel label{font-size:12px;}
 .local-app .personal-module-grid .fish-glance__filter-panel button{font-size:12px;min-height:32px;padding:4px 6px;background:none;border:0;}
-.local-app .personal-module-grid .fish-glance__stats{padding:8px 0 5px;gap:16px;border:0;}
-.local-app .personal-module-grid .fish-glance__stats strong{font-family:inherit;font-weight:500;font-size:14px;line-height:1.5;margin-right:5px;}
-.local-app .personal-module-grid .fish-glance__stats span{font-size:11px;}
+
+
+
 .local-app .personal-module-grid .fish-glance:has(.fish-glance__empty) .fish-glance__stats{display:none;}
 .local-app .fish-glance__empty{padding:19px 0 6px;}
 .fish-glance__empty strong{font-size:14px;font-weight:500;}
 .fish-glance__empty p{font-size:12px;color:var(--field-muted);margin:5px 0 10px;}
 .fish-glance__empty button{font:inherit;font-size:12px;color:var(--field-accent);background:var(--field-tint);border:0;border-radius:5px;padding:8px 11px;}
-.local-app .personal-module-grid .fish-glance__columns{font-size:11px;padding:7px 0;}
+
 .local-app .personal-module-grid .fish-glance__columns,.local-app .personal-module-grid .fish-glance__item button{grid-template-columns:minmax(80px,1fr) minmax(70px,.8fr) minmax(120px,auto);column-gap:10px;}
-.local-app .personal-module-grid .fish-glance__item button{min-height:58px;padding:10px 0;}
-.local-app .personal-module-grid .fish-glance__item strong{font-size:13px;}
+
+
 .local-app .personal-module-grid .pvp-board__heading{border:0;padding:0;}
 .local-app .personal-module-grid .pvp-board__expand{font-size:12px;}
-.pvp-home-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;padding:15px 0;border-top:1px solid var(--field-line);}
+
 .pvp-home-row:first-child{border-top:0;}.pvp-home-row:last-child{padding-bottom:0;}
-.pvp-home-row__main h3{font-family:inherit;font-weight:400;font-size:11px;line-height:1.5;color:var(--field-muted);margin:0 0 4px;}
-.pvp-home-row__main>strong{font-size:15px;font-weight:600;line-height:1.5;overflow-wrap:anywhere;}
-.pvp-home-row__main p{font-size:11px;color:var(--field-muted);margin:6px 0 0;}
-.pvp-home-row__timer{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
-.pvp-home-row__timer>span,.pvp-home-row__timer>small{display:block;color:var(--field-muted);font-size:11px;}
-.pvp-home-row__timer>strong{display:block;font-size:17px;font-weight:500;color:var(--field-accent);letter-spacing:.3px;line-height:1.6;}
+
+
+
+
+
+
 .pvp-home-row__timer>small{margin-top:3px;}
 @media(max-width:900px){.local-app .personal-module-grid:not(.is-packed){grid-template-columns:minmax(0,1fr);}.local-app .personal-module-grid .local-dashboard__module+.local-dashboard__module{padding-top:19px;}}
 @media(max-width:700px){.local-app .personal-module-grid.is-packed{gap:18px;}.local-app .personal-module-grid .personal-module-slot>.local-dashboard__module{padding:17px 16px;}.local-app .personal-module-grid .fish-glance__columns{display:none;}.local-app .personal-module-grid .fish-glance__item button{grid-template-columns:minmax(0,1fr) auto;}.local-app .personal-module-grid .fish-glance__fish small{display:block;}.local-app .personal-module-grid .fish-glance__meta{margin-left:54px;}.pvp-home-row__timer>strong{font-size:15px;}.pvp-home-row__main>strong{font-size:14px;}}
@@ -68,7 +68,11 @@
 
 /* 读写层级：正文易读、元数据克制；模块边界轻而明确，不依赖强阴影。 */
 .local-app .personal-module-grid .personal-module-slot>.local-dashboard__module{
-  background:#fffefd;border-color:#d8e4db;border-radius:13px;
+  padding:19px 20px;
+  border:1px solid var(--field-line);
+  background:#fffefd;
+  border-color:#d8e4db;
+  border-radius:13px;
   box-shadow:0 2px 12px rgb(31 65 49 / 3%);
   transition:border-color .16s ease,box-shadow .16s ease;
 }
@@ -84,40 +88,105 @@
 .local-app .personal-module-grid .home-official__actions .text-button:hover,
 .local-app .personal-module-grid .fish-glance__heading .fish-glance__link:hover,
 .local-app .personal-module-grid .pvp-board__expand:hover{background:var(--field-tint);}
-.local-app .personal-module-grid .home-status-tabs{gap:18px;}
-.local-app .personal-module-grid .home-status-tabs button{min-height:44px;font-size:13px;padding:9px 0;}
+.local-app .personal-module-grid .home-status-tabs{
+  margin:0;
+  border-bottom:1px solid var(--field-line);
+  justify-content:flex-start;
+  gap:18px;
+}
+.local-app .personal-module-grid .home-status-tabs button{
+  min-height:44px;
+  font-size:13px;
+  padding:9px 0;
+}
 /* 活动条目直接在卡片中完整呈现；不再把最后一条日期裁在内层滚动边缘。 */
 .local-app .personal-module-grid .home-official__list{max-height:none;overflow:visible;padding-right:0;scrollbar-gutter:auto;}
-.local-app .personal-module-grid .home-official-event__category{font-size:12px;line-height:1.5;}
-.local-app .personal-module-grid .home-official-event__main h3{font-size:14px;line-height:1.5;}
-.local-app .personal-module-grid .home-official-event__main p{font-size:12px;line-height:1.5;margin-top:6px;}
+.local-app .personal-module-grid .home-official-event__category{
+  display:block;
+  font-weight:400;
+  color:var(--field-muted);
+  margin:0 0 4px;
+  font-size:12px;
+  line-height:1.5;
+}
+.local-app .personal-module-grid .home-official-event__main h3{
+  font-size:14px;
+  line-height:1.5;
+}
+.local-app .personal-module-grid .home-official-event__main p{
+  font-size:12px;
+  line-height:1.5;
+  margin-top:6px;
+}
 /* 右侧计时栏根据实际结束说明自适应宽度，不把“维护前”等非日期文字强制折成两行。 */
 .local-app .personal-module-grid .home-official-event__timer:has(.home-official-event__end){width:max-content;min-width:max-content;max-width:none;}
 .local-app .personal-module-grid .home-official-event__end{white-space:nowrap;overflow-wrap:normal;word-break:normal;}
-.local-app .personal-module-grid .home-official-event__timer strong{font-size:15px;font-weight:650;line-height:1.4;color:var(--field-accent);}
+.local-app .personal-module-grid .home-official-event__timer strong{
+  font-size:15px;
+  font-weight:650;
+  line-height:1.4;
+  color:var(--field-accent);
+}
 .local-app .personal-module-grid .home-official-event__timer>span,
 .local-app .personal-module-grid .home-official-event__timer .home-official-event__end{font-size:12px;line-height:1.5;}
 .local-app .personal-module-grid .fish-glance__meta,.local-app .personal-module-grid .fish-glance__meta>span{font-size:12px;}
-.local-app .personal-module-grid .fish-glance__meta strong{font-size:13px;font-variant-numeric:tabular-nums;}
-.local-app .personal-module-grid .fish-glance__filter-bar{font-size:12px;padding:6px 0;min-width:0;}
+.local-app .personal-module-grid .fish-glance__meta strong{
+  font-weight:500;
+  line-height:1.5;
+  font-family:inherit;
+  font-size:13px;
+  font-variant-numeric:tabular-nums;
+}
+.local-app .personal-module-grid .fish-glance__filter-bar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  color:var(--field-muted);
+  font-size:12px;
+  padding:6px 0;
+  min-width:0;
+}
 .local-app .personal-module-grid .fish-glance__filter-bar>span{min-width:0;overflow-wrap:anywhere;}
 .local-app .personal-module-grid .fish-glance__filter-bar button{min-height:38px;font-size:13px;white-space:nowrap;padding:5px 7px;border-radius:6px;}
 .local-app .personal-module-grid .fish-glance__filter-bar button:hover,
 .local-app .personal-module-grid .fish-glance__filter-bar button[aria-expanded=true]{background:var(--field-tint);}
-.local-app .personal-module-grid .fish-glance__stats{padding:9px 0 6px;}
-.local-app .personal-module-grid .fish-glance__stats strong{font-size:20px;font-weight:650;}
-.local-app .personal-module-grid .fish-glance__stats span{font-size:12px;}
-.local-app .personal-module-grid .fish-glance__columns{font-size:12px;color:var(--field-muted);}
-.local-app .personal-module-grid .fish-glance__item strong{font-size:14px;}
+.local-app .personal-module-grid .fish-glance__stats{
+  gap:16px;
+  border:0;
+  padding:9px 0 6px;
+}
+.local-app .personal-module-grid .fish-glance__stats strong{
+  font-family:inherit;
+  line-height:1.5;
+  margin-right:5px;
+  font-size:20px;
+  font-weight:650;
+}
+.local-app .personal-module-grid .fish-glance__stats span{
+  font-size:12px;
+}
+.local-app .personal-module-grid .fish-glance__columns{
+  padding:7px 0;
+  font-size:12px;
+  color:var(--field-muted);
+}
+.local-app .personal-module-grid .fish-glance__item strong{
+  font-size:14px;
+}
 .local-app .personal-module-grid .fish-glance__item small{font-size:12px;}
-.local-app .personal-module-grid .fish-glance__item button{min-height:58px;padding:7px 0;}
+
 .local-app .personal-module-grid .fish-glance__item button:hover{background:#f4f8f5;}
 /* 首页不是数据库表格：仅展示少量摘要，不让用户同时滚动内外两个页面。 */
 .local-app .personal-module-grid .fish-glance__list{
   max-height:none;overflow:visible;padding-right:0;scrollbar-gutter:auto;
 }
 .local-app .personal-module-grid .fish-glance__item{height:auto;min-height:58px;}
-.local-app .personal-module-grid .fish-glance__item button{height:auto;}
+.local-app .personal-module-grid .fish-glance__item button{
+  min-height:58px;
+  padding:7px 0;
+  height:auto;
+}
 .local-app .personal-module-grid .fish-glance__more-windows{
   display:flex;align-items:center;justify-content:space-between;gap:12px;
   width:100%;min-height:42px;margin-top:6px;padding:8px 11px;border:0;border-radius:7px;
@@ -129,14 +198,60 @@
 .local-app .personal-module-grid .fish-glance__more-windows:hover{background:#e4efe7;}
 .local-app .personal-module-grid .fish-glance__more-windows:focus-visible{outline:2px solid var(--field-accent);outline-offset:2px;}
 /* PVP 的地图是主要信息，轮换倒计时次之，规则说明退后一级。 */
-.pvp-home-row{gap:18px;padding:11px 0;}
+.pvp-home-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  border-top:1px solid var(--field-line);
+  gap:18px;
+  padding:11px 0;
+}
 .pvp-home-row__main{min-width:0;}
-.pvp-home-row__main h3{font-size:12px;font-weight:600;letter-spacing:.1px;}
-.pvp-home-row__main>strong{display:block;font-size:18px;font-weight:650;line-height:1.45;color:var(--field-ink);}
-.pvp-home-row__main p{font-size:12px;line-height:1.5;margin-top:7px;}
-.pvp-home-row__timer{min-width:108px;}
-.pvp-home-row__timer>span,.pvp-home-row__timer>small{font-size:12px;line-height:1.5;}
-.pvp-home-row__timer>strong{font-size:21px;font-weight:650;line-height:1.45;font-variant-numeric:tabular-nums;letter-spacing:.1px;}
+.pvp-home-row__main h3{
+  font-family:inherit;
+  line-height:1.5;
+  color:var(--field-muted);
+  margin:0 0 4px;
+  font-size:12px;
+  font-weight:600;
+  letter-spacing:.1px;
+}
+.pvp-home-row__main>strong{
+  overflow-wrap:anywhere;
+  display:block;
+  font-size:18px;
+  font-weight:650;
+  line-height:1.45;
+  color:var(--field-ink);
+}
+.pvp-home-row__main p{
+  color:var(--field-muted);
+  margin:6px 0 0;
+  font-size:12px;
+  line-height:1.5;
+  margin-top:7px;
+}
+.pvp-home-row__timer{
+  text-align:right;
+  white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+  min-width:108px;
+}
+.pvp-home-row__timer>span,.pvp-home-row__timer>small{
+  display:block;
+  color:var(--field-muted);
+  font-size:12px;
+  line-height:1.5;
+}
+.pvp-home-row__timer>strong{
+  display:block;
+  color:var(--field-accent);
+  font-size:21px;
+  font-weight:650;
+  line-height:1.45;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:.1px;
+}
 /* 导航中的 184 条网站采用轻微分隔、较大点击区域，长描述不挤压标题。 */
 .local-app .local-directory__tiles{gap:10px 13px;}
 .local-app .local-directory__tile{
