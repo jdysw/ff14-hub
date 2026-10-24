@@ -45,7 +45,7 @@ function decodeEntities(text:string):string{
 }
 
 function normalizeText(value:string,max:number):string{
-  return stripHtmlTags(decodeEntities(value)).replace(/[\p{Cc}]+/gu,' ').replace(/\s+/g,' ').trim().slice(0,max);
+  return stripHtmlTags(decodeEntities(value)).replace(/\p{Cc}+/gu,' ').replace(/\s+/g,' ').trim().slice(0,max);
 }
 
 function attributes(tag:string):Record<string,string>{
