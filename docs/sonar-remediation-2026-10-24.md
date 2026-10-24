@@ -140,6 +140,16 @@
 - [x] ESLint、TypeScript、项目单元测试 607、运维专项 59、Web/Worker 构建及项目生成物检查全量通过。
 - [ ] 新增代码质量门和历史问题总量需等待本 PR 最新扫描；禁止将主线旧扫描仍显示 648 解释为当前改动无效。
 
+## 第十六批：PR 新增问题及历史 JS 嵌套条件（2026-10-24）
+
+- [x] `PR #84@8f37973` 的 SonarCloud 完成分析：Quality Gate 通过，但有 **5 项**新增代码问题（`javascript:S3358` 1、`javascript:S7723` 2、`javascript:S9382` 2）。本批针对这 5 项作代码层修复，**关闭情况以最新 PR 复扫为准**。
+- [x] `audit-fishing-cross-sources.mjs` 修复 `throw Error()` 写法，固定输入名单通过 `Promise.all` 读取并按原顺序关联；国服/国际服结果分别处理，保留输出先后顺序与文件名，不依赖不安全的动态路径。
+- [x] `fishing-crosscheck.mjs` 将 Teamcraft 钓法判断、气象证据、海钓时段与审计状态拆成可读分支，特别保留 `undefined` 与 `null` 的既有行为差异。
+- [x] `build-fishing-catalog.mjs` 拆分泳饵名称、普通/海钓/刺鱼分类与鱼类稀有等级的多层三元；保持国服数据、传说鱼、隐藏鱼的原有优先级。
+- [x] 新增跨来源状态回归测试，明确证据一致、冲突、缺失与仅单来源的处理边界。
+- [x] 独立工作区 `pnpm run verify` 全部通过：项目测试 **607** 项、运维测试 **60** 项（新增 1 项）、ESLint、TypeScript、鱼糕生成物/Android/D1 一致性检查、Web 和 Worker dry-run 构建。
+- [ ] 尚待本 PR 最新提交完成 SonarCloud 扫描，按具体 issueKey 核对新增告警关闭、历史问题真正减少；不得把主线未合并的 648 项当作 PR 扫描数字。
+
 ## 后续批次（同一个 PR）
 
 1. **P0 安全与可靠性**：清理未完成的 High/Blocker、消息来源、路径边界及正则复杂度问题。

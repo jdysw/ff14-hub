@@ -19,6 +19,12 @@ test('bait choices and abbreviated mooch paths do not become false condition con
   assert.equal(checkField('field',{catalog:1,fishcake:1}).status,'single-source');
   assert.equal(checkField('field',{one:1,two:2}).status,'conflict');
 });
+test('跨来源状态按证据数量及一致性区分，不把缺失或冲突数据判断为匹配',()=>{
+  assert.equal(checkField('weather',{catalog:[1],game:[1],teamcraft:[1]}).status,'matched');
+  assert.equal(checkField('weather',{catalog:[1],game:[2],teamcraft:[2]}).status,'conflict');
+  assert.equal(checkField('weather',{catalog:[1],teamcraft:undefined}).status,'single-source');
+  assert.equal(checkField('weather',{catalog:undefined,game:null}).status,'single-source');
+});
 test('zero sentinel falls back to real spots and virtual IDs are not attached to unrelated special fish',()=>{
   assert.equal(firstPositiveId(undefined,'0',10001),10001);assert.equal(firstPositiveId(-1,0,'37'),37);assert.equal(firstPositiveId(null,undefined),0);
   const contexts=buildSpecialContexts({

@@ -32,7 +32,10 @@ export function checkField(field,values,equal=values=>values.every(v=>same(v,val
   const present=Object.fromEntries(Object.entries(values).filter(([,v])=>v!==undefined&&v!==null));
   const list=Object.values(present);
   const external=Object.keys(present).filter(key=>key!=='catalog').length;
-  return {field,status:list.length>1&&!equal(list)?'conflict':external<2?'single-source':'matched',values:present};
+  let status='matched';
+  if(list.length>1&&!equal(list)){status='conflict';}
+  else if(external<2){status='single-source';}
+  return {field,status,values:present};
 }
 const pairs=value=>{
   if(!Array.isArray(value))return null;
@@ -44,8 +47,34 @@ const normalizedLure=value=>{
   if(typeof value==='string')return value.toLowerCase();
   return value===null?'none':null;
 };
-const booleans=value=>value==='True'?true:value==='False'?false:null;
+const booleans=value=>{
+  if(value==='True')return true;
+  if(value==='False')return false;
+  return null;
+};
+const teamcraftWeather=(node,previous=false)=>{
+  if(previous){
+    if(node?.weathersFrom!==undefined)return sorted(node.weathersFrom);
+    if(node?.alarm?.weathersFrom!==undefined)return sorted(node.alarm.weathersFrom);
+  }else if(node?.weathers!==undefined){return sorted(node.weathers);}
+  if(node?.limited===false)return [];
+  return null;
+};
+const teamcraftOceanTime=(node,conventions)=>{
+  if(node?.oceanFishingTime===0)return [];
+  if(node?.oceanFishingTime>0)return normalizedOceanTimes([node.oceanFishingTime],conventions);
+  return null;
+};
+const weatherAuditStatus=weather=>{
+  if(weather.status==='matched')return 'matched';
+  if(weather.status==='mismatch')return 'conflict';
+  return 'missing';
+};
 /** 缺失游戏证据与竿钓、刺鱼类型分别记录，不推断未出现的来源。 */
+const teamcraftTechnique=rows=>{
+  if(!rows.length)return null;
+  return rows[0].type===4?'spear':'rod';
+};
 const gameTechnique=param=>{
   if(!param)return null;
   return param.method==='spear'?'spear':'rod';
@@ -104,7 +133,7 @@ export function auditCatalog({catalog,tracker,fishcake,teamcraft,game,items,spot
     fields.push(nameCheck);
     fields.push(checkField('identity',{game:param?item.id:null,tracker:reference?item.id:null,fishcake:cake.length?item.id:null,teamcraft:tc.length?item.id:null}));
     const technique=item.method==='spear'?'spear':'rod';
-    fields.push(checkField('technique',{catalog:technique,game:gameTechnique(param),fishcake:cake[0]?.catchType,teamcraft:tc.length?(tc[0].type===4?'spear':'rod'):null}));
+    fields.push(checkField('technique',{catalog:technique,game:gameTechnique(param),fishcake:cake[0]?.catchType,teamcraft:teamcraftTechnique(tc)}));
     if(cake.length&&param?.method!=='spear'){fields.push(checkField('oceanClassification',{catalog:item.method==='ocean',game:Number(param?.OceanStars)>0,fishcake:cake[0].fishType==='ikd'}));}
     const patch=checkField('patch',{catalog:item.patch?rounded(Number(item.patch)):null,tracker:rounded(reference?.patch),fishcake:rounded(cake[0]?.patch)});
     if(patch.status==='conflict'&&Object.values(patch.values).every(v=>Math.floor(v*10)===Math.floor(Object.values(patch.values)[0]*10))){patch.status='precision-difference';}
@@ -144,14 +173,14 @@ export function auditCatalog({catalog,tracker,fishcake,teamcraft,game,items,spot
           if(paths.length>1&&!compatiblePaths(paths))time.status='route-dependent';
         }
         fields.push({...time,spotId});
-        add('weather',{tracker:t?sorted(t.weatherSet):null,fishcake:effective?sorted(effective.currentWeather):null,teamcraft:node?.weathers!==undefined?sorted(node.weathers):node?.limited===false?[]:null});
-        add('previousWeather',{tracker:t?sorted(t.previousWeatherSet):null,fishcake:effective?sorted(effective.previousWeather):null,teamcraft:node?.weathersFrom!==undefined?sorted(node.weathersFrom):node?.alarm?.weathersFrom!==undefined?sorted(node.alarm.weathersFrom):node?.limited===false?[]:null});
+        add('weather',{tracker:t?sorted(t.weatherSet):null,fishcake:effective?sorted(effective.currentWeather):null,teamcraft:teamcraftWeather(node)});
+        add('previousWeather',{tracker:t?sorted(t.previousWeatherSet):null,fishcake:effective?sorted(effective.previousWeather):null,teamcraft:teamcraftWeather(node,true)});
         if(t&&s&&same(periods(t.startHour,t.endHour),periods(s.startHour,s.endHour))&&!same(periods(s.startHour,s.endHour),[[0,24]]))add('fishEyes',{tracker:t.fishEyes,fishcake:s.fishEyesSupported});
       }
       if(item.method==='ocean'){
         const times=s?.ocean?.ikdTimes?normalizedOceanTimes(s.ocean.ikdTimes.map(t=>t.id),conventions.fishcakeOceanTimes):null;
         const extra=Object.fromEntries(additionalEvidence.filter(e=>e.fishId===item.id&&e.spotId===spotId&&e.field==='oceanTime').map(e=>[e.source,e.value]));
-        const oceanTime=checkField('oceanTime',{fishcake:times,teamcraft:node?.oceanFishingTime===0?[]:node?.oceanFishingTime>0?normalizedOceanTimes([node.oceanFishingTime],conventions.teamcraftOceanTimes):null,...extra});
+        const oceanTime=checkField('oceanTime',{fishcake:times,teamcraft:teamcraftOceanTime(node,conventions.teamcraftOceanTimes),...extra});
         if(oceanTime.status==='conflict'&&times?.length>1&&oceanTime.values.teamcraft?.length&&oceanTime.values.teamcraft.every(t=>times.includes(t)))oceanTime.status='representation-limit';
         fields.push({...oceanTime,spotId});
         add('oceanStage',{fishcake:s?.ocean?.stage,game:oceanStages.get(spotId)});
@@ -168,7 +197,7 @@ export function auditCatalog({catalog,tracker,fishcake,teamcraft,game,items,spot
         add('intuitionDuration',{tracker:t?.intuitionLength>0?t.intuitionLength:null,fishcake:s?.intuitionSeconds>0?s.intuitionSeconds:null,catalog:item.spotId===spotId?item.intuitionDuration?.seconds:null});
       }
     }
-    const weather=weatherAudit.get(item.id);if(weather)fields.push({field:'weatherProbability',status:weather.status==='matched'?'matched':weather.status==='mismatch'?'conflict':'missing',values:weather});
+    const weather=weatherAudit.get(item.id);if(weather)fields.push({field:'weatherProbability',status:weatherAuditStatus(weather),values:weather});
     // Preserve disagreeing raw facts while explicitly recording the adopted corroborated value.
     for(const field of fields.filter(f=>f.status==='conflict')){
       const sourceValues=Object.entries(field.values).filter(([k])=>k!=='catalog'&&k!=='game');

@@ -9,15 +9,18 @@ const [directory='.wrangler/fishing-sources',snapshotPath='.wrangler/full-fishca
 const read=name=>readFile(directory+'/'+name,'utf8'),digest=s=>createHash('sha256').update(s).digest('hex');
 const raw=await read('tracker.js'),tracker=JSON.parse(raw.replace(/^const DATA = /,'').replace(/^ {2}([A-Z_]+):/gm,'  "$1":'));
 const versions=JSON.parse(await readFile('data/fishing-sources.json','utf8')),accuracy=JSON.parse(await readFile('data/fishing-accuracy-audit.json','utf8'));
-if(digest(raw)!==accuracy.files['tracker.js'])throw Error('Pinned tracker hash mismatch');
+if(digest(raw)!==accuracy.files['tracker.js'])throw new Error('Pinned tracker hash mismatch');
 const snapshotText=await readFile(snapshotPath,'utf8'),snapshot=JSON.parse(snapshotText);
 const conventions=JSON.parse(await readFile('data/fishing-source-conventions.json','utf8'));
 const evidenceText=await readFile('data/fishing-additional-evidence.json','utf8'),additionalEvidence=JSON.parse(evidenceText).records;
-if(conventions.teamcraftRevision!==versions.teamcraft||conventions.fishcakeVersion!==snapshot.version)throw Error('Source conventions need checking for these source versions');
-if(snapshot.source!=='https://fish.ffmomola.com'||!snapshot.version||new Set(snapshot.fish.map(f=>f.id)).size!==snapshot.fish.length)throw Error('Invalid public snapshot');
-const inputs={};for(const filename of ['Item.csv','ItemUICategory.csv','EventItem.csv','FishParameter.csv','SpearfishingItem.csv','SpearfishingNotebook.csv','IKDSpot.csv','WKSItemInfo.csv','TerritoryType.csv','FishingSpot.csv','PlaceName.csv','teamcraft.json','tc-fishing-sources.json','tc-fishing-log.json','tc-fishing-spots.json'])inputs[filename]=await read(filename);
+if(conventions.teamcraftRevision!==versions.teamcraft||conventions.fishcakeVersion!==snapshot.version)throw new Error('Source conventions need checking for these source versions');
+if(snapshot.source!=='https://fish.ffmomola.com'||!snapshot.version||new Set(snapshot.fish.map(f=>f.id)).size!==snapshot.fish.length)throw new Error('Invalid public snapshot');
+const inputFiles=['Item.csv','ItemUICategory.csv','EventItem.csv','FishParameter.csv','SpearfishingItem.csv','SpearfishingNotebook.csv','IKDSpot.csv','WKSItemInfo.csv','TerritoryType.csv','FishingSpot.csv','PlaceName.csv','teamcraft.json','tc-fishing-sources.json','tc-fishing-log.json','tc-fishing-spots.json'];
+// 固定文件名、结果按原顺序关联，不允许外部数据控制路径或结果顺序。
+const inputContents=await Promise.all(inputFiles.map(name=>read(name)));
+const inputs=Object.fromEntries(inputFiles.map((name,index)=>[name,inputContents[index]]));
 for(const [name,bytes] of Object.entries(inputs)){
-  if(accuracy.files[name]&&digest(bytes)!==accuracy.files[name]){throw Error('Pinned source mismatch '+name);}
+  if(accuracy.files[name]&&digest(bytes)!==accuracy.files[name]){throw new Error('Pinned source mismatch '+name);}
 }
 const items=new Map([...csvTable(inputs['Item.csv']),...csvTable(inputs['EventItem.csv'])].map(row=>[Number(row.id),row.Name||row.Singular]));
 const itemRows=new Map([...csvTable(inputs['Item.csv']),...csvTable(inputs['EventItem.csv'])].map(row=>[Number(row.id),row]));
@@ -43,7 +46,19 @@ const shadowEvidence=new Map();for(const rows of teamcraft.values())for(const no
 const oceanStages=new Map();for(const row of csvTable(inputs['IKDSpot.csv'])){if(Number(row.SpotMain)>0){oceanStages.set(Number(row.SpotMain),'normal');}
   if(Number(row.SpotSub)>0){oceanStages.set(Number(row.SpotSub),'spectral');}}
 const previous=await readFile('data/fishing-full-crosscheck.json','utf8').then(JSON.parse).catch(error=>{if(error.code==='ENOENT')return null;throw error;});
-const results=[];for(const region of ['cn','global']){const path=`apps/web/public/fishing/catalog-${region}.json`,catalog=JSON.parse(await readFile(path,'utf8'));if(catalog.fish.some(f=>!fishcake.has(f.id))){throw Error('Snapshot does not cover every catalog identity');}const context={catalog,tracker,fishcake,teamcraft,game,items,spotNames,snapshot,shadowEvidence,oceanStages,conventions,additionalEvidence,specialContexts,weatherAudit:region==='cn'?weatherAudit:new Map()};const changes=correctCatalog(context);const result=auditCatalog(context);const previousChanges=previous?.sources.fishcake===snapshot.version&&previous?.sources.tracker===versions.tracker?previous.regions.find(r=>r.region===region)?.changes??[]:[];result.changes=[...new Map([...previousChanges,...changes].map(c=>[c.id+':'+c.field,c])).values()];results.push(result);annotateCatalog(catalog,result,snapshot,versions);await writeFile(path,JSON.stringify(catalog)+'\n');}
+const results=await Promise.all(['cn','global'].map(async region=>{
+  const path=`apps/web/public/fishing/catalog-${region}.json`;
+  const catalog=JSON.parse(await readFile(path,'utf8'));
+  if(catalog.fish.some(f=>!fishcake.has(f.id))){throw new Error('Snapshot does not cover every catalog identity');}
+  const context={catalog,tracker,fishcake,teamcraft,game,items,spotNames,snapshot,shadowEvidence,oceanStages,conventions,additionalEvidence,specialContexts,weatherAudit:region==='cn'?weatherAudit:new Map()};
+  const changes=correctCatalog(context);
+  const result=auditCatalog(context);
+  const previousChanges=previous?.sources.fishcake===snapshot.version&&previous?.sources.tracker===versions.tracker?previous.regions.find(r=>r.region===region)?.changes??[]:[];
+  result.changes=[...new Map([...previousChanges,...changes].map(c=>[c.id+':'+c.field,c])).values()];
+  annotateCatalog(catalog,result,snapshot,versions);
+  await writeFile(path,JSON.stringify(catalog)+'\n');
+  return result;
+}));
 const report={schemaVersion:1,generatedAt:new Date().toISOString(),meaning:'Every catalog identity and available source spot is checked. Checked means comparable facts have agreement or an explicit corroborated resolution; it does not mean every field has multiple independent sources. Source gaps, representation limits, alternate recommended routes, and raw disagreements are retained.',sources:{...versions,fishcake:snapshot.version,observedAt:snapshot.observedAt,fishcakeSha256:digest(snapshotText),additionalEvidenceSha256:digest(evidenceText),files:Object.fromEntries(Object.entries(inputs).map(([name,bytes])=>[name,digest(bytes)])),trackerSha256:digest(raw)},regions:results};
 await writeFile('data/fishing-full-crosscheck.json',JSON.stringify(report)+'\n');
 await writeFile('data/fishing-fishcake-observations.json',snapshotText);
