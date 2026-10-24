@@ -11,7 +11,7 @@ export function FishcakeSyncPanel({store}:{store:LocalStore}){
     let alive=true;const refresh=()=>{void readFishcakeSettings().then(value=>{if(alive)setStatus(value);}).catch(()=>{});};
     refresh();window.addEventListener(FISHCAKE_SYNC_CHANGED,refresh);return()=>{alive=false;window.removeEventListener(FISHCAKE_SYNC_CHANGED,refresh);};
   },[]);
-  const run=async(action:()=>Promise<void>)=>{if(busy)return;setBusy(true);setError('');try{await action();}catch(cause){setError(cause instanceof Error?cause.message:'互通失败，请重新预览');}finally{setBusy(false);}};
+  const run=async(action:()=>Promise<void>)=>{if(busy){return;}setBusy(true);setError('');try{await action();}catch(cause){setError(cause instanceof Error?cause.message:'互通失败，请重新预览');}finally{setBusy(false);}};
   const merged=preview?mergeFishcakePreview(preview,choices):null;
   const conflicts=preview?mergeFishcakePreview(preview).conflicts:[];
   return <section className="personal-feature" aria-label="鱼糕实时互通">

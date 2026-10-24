@@ -48,13 +48,13 @@ export async function planDailyFishDigests(env:Env,now:number){
   let events:EventCalendarItem[]|undefined;
   for(const row of rows.results){
     const settings=fishDigestSchema.parse(JSON.parse(row.digest_json) as unknown);
-    if(!settings.enabled)continue;
+    if(!settings.enabled){continue;}
     for(const region of new Set(settings.targets.map(target=>target.region))){
       if(!rawCatalogs[region]){
         const response=await env.ASSETS.fetch(new Request('https://assets.invalid/fishing/catalog-'+region+'.json'));
-        if(!response.ok)throw new Error('digest_catalog_unavailable');
+        if(!response.ok){throw new Error('digest_catalog_unavailable');}
         const raw=await response.json<{fish?:unknown}>();
-        if(!Array.isArray(raw.fish)||raw.fish.length>5000)throw new Error('digest_catalog_invalid');rawCatalogs[region]=raw.fish as unknown[];
+        if(!Array.isArray(raw.fish)||raw.fish.length>5000){throw new Error('digest_catalog_invalid');}rawCatalogs[region]=raw.fish as unknown[];
       }
       const wanted=new Set(settings.targets.filter(target=>target.region===region).map(target=>target.fishId));
       catalogs[region]={fish:rawCatalogs[region].filter((item):item is {id:number}=>item!==null&&typeof item==='object'&&'id' in item&&typeof item.id==='number'&&wanted.has(item.id)).map(item=>digestFishSchema.parse(item))};

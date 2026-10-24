@@ -11,7 +11,7 @@ export function RemoteSyncPanel({store}:{store:LocalStore}){
   const [preview,setPreview]=useState<Preview|null>(null),[choices,setChoices]=useState<Record<string,'local'|'remote'>>({});
   const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState(''),[ready,setReady]=useState(false);
   useEffect(()=>{let alive=true;void readDeviceRecord<Saved>('remote-sync').then(value=>{if(alive){if(value){setConfig(remoteConfigSchema.parse(value.config));setSaved(value);}setReady(true);}}).catch(()=>{if(alive){setError('本机同步配置无法读取，请重新保存配置');setReady(true);}});return()=>{alive=false;};},[]);
-  const run=async(action:()=>Promise<void>)=>{if(busy)return;setBusy(true);setError('');setMessage('');try{await action();}catch(cause){setError(remoteFailureMessage(cause));}finally{setBusy(false);}};
+  const run=async(action:()=>Promise<void>)=>{if(busy){return;}setBusy(true);setError('');setMessage('');try{await action();}catch(cause){setError(remoteFailureMessage(cause));}finally{setBusy(false);}};
   const field=(key:keyof RemoteConfig,value:string)=>{setConfig(old=>({...old,[key]:value}));setPreview(null);setChoices({});};
   const same=saved&&JSON.stringify(config)===JSON.stringify(saved.config);
   usePrivateDraft(busy||Boolean(!same&&(config.url||config.username||config.password||config.accessKey||config.secretKey||config.sessionToken)));

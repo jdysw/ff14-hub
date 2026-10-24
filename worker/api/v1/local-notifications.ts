@@ -26,7 +26,7 @@ localNotificationRoutes.post('/register',validateJsonBody(registration),async c=
   if((c.env.BOOTSTRAP_SECRET?.length??0)<32)throw new ApiError('service_unavailable','通知加密服务尚未配置');
   const ipHash=(await hashCredential(c.req.header('CF-Connecting-IP')??'unknown')).slice(0,32);
   const quota=await enforceRateLimits(c.env.DB,[[`local-push:register:${ipHash}`,{limit:5,windowMs:300_000}],['local-push:register:global',{limit:30,windowMs:300_000}]]);
-  if(!quota.allowed)return rateLimited(c,quota);
+  if(!quota.allowed){return rateLimited(c,quota);}
   const body=parsedJsonBody(c,registration),now=Date.now();
   if(body.channel.kind==='webpush'&&!pushConfigured(c.env))throw new ApiError('service_unavailable','浏览器推送渠道尚未配置');
   const token='ffh_push_'+Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join('');
@@ -49,11 +49,11 @@ const notificationAuth:AppMiddleware=async(c,next)=>{
   if(!device)throw new ApiError('unauthorized','通知订阅已失效，请重新启用');
   c.set('deviceId',device.id);
   const quota=await enforceRateLimits(c.env.DB,[[`local-push:device:${device.id}`,{limit:20,windowMs:300_000}]]);
-  if(!quota.allowed)return rateLimited(c,quota);
+  if(!quota.allowed){return rateLimited(c,quota);}
   return await next();
 };
 localNotificationRoutes.use('*',notificationAuth);
-localNotificationRoutes.put('/plan',validateJsonBody(plan),async c=>{const body=parsedJsonBody(c,plan),jobs=checkedJobs(body.jobs);await replaceLocalJobs(c.env.DB,c.get('deviceId'),jobs);await updateDigest(c.env.DB,c.get('deviceId'),body.digest,body.targetsOnly);if(body.dailyLimit!==undefined)await c.env.DB.prepare('UPDATE local_push_devices SET daily_limit=? WHERE id=?').bind(body.dailyLimit,c.get('deviceId')).run();return noStoreJson(c,{planned:jobs.length});});
+localNotificationRoutes.put('/plan',validateJsonBody(plan),async c=>{const body=parsedJsonBody(c,plan),jobs=checkedJobs(body.jobs);await replaceLocalJobs(c.env.DB,c.get('deviceId'),jobs);await updateDigest(c.env.DB,c.get('deviceId'),body.digest,body.targetsOnly);if(body.dailyLimit!==undefined){await c.env.DB.prepare('UPDATE local_push_devices SET daily_limit=? WHERE id=?').bind(body.dailyLimit,c.get('deviceId')).run();}return noStoreJson(c,{planned:jobs.length});});
 localNotificationRoutes.get('/status',async c=>{
   const device=await c.env.DB.prepare('SELECT expires_at AS expiresAt,sent_count AS sentCount,sent_day AS sentDay,daily_limit AS dailyLimit FROM local_push_devices WHERE id=?').bind(c.get('deviceId')).first();
   const jobs=await c.env.DB.prepare('SELECT job_key AS key,due_at AS dueAt,status,attempts FROM local_push_jobs WHERE device_id=? ORDER BY due_at DESC LIMIT 30').bind(c.get('deviceId')).all();
@@ -61,9 +61,9 @@ localNotificationRoutes.get('/status',async c=>{
 });
 localNotificationRoutes.post('/test',async c=>{
   const quota=await enforceRateLimits(c.env.DB,[[`local-push:test:${c.get('deviceId')}`,{limit:2,windowMs:300_000}]]);
-  if(!quota.allowed)return rateLimited(c,quota);
+  if(!quota.allowed){return rateLimited(c,quota);}
   const row=await c.env.DB.prepare('SELECT channel_ciphertext FROM local_push_devices WHERE id=?').bind(c.get('deviceId')).first<{channel_ciphertext:string}>();
-  if(!row)throw new ApiError('unauthorized','通知订阅已失效');
+  if(!row){throw new ApiError('unauthorized','通知订阅已失效');}
   const status=await sendChannel(c.env,await decryptChannel(row.channel_ciphertext,c.env.BOOTSTRAP_SECRET!,c.get('deviceId')),'ff14-test-'+crypto.randomUUID(),{title:'FF14 Hub 通知测试',body:'后台通知已连接。活动和鱼窗提醒将在设定时间发送。'});
   return noStoreJson(c,{accepted:status>=200&&status<300});
 });
