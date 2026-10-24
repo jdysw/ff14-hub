@@ -10,6 +10,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  EVENTS_MESSAGES,
   EVENTS_MODULE_ID,
   EVENTS_WIDGET_IDS,
   EVENT_PHASES,
