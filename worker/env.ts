@@ -6,11 +6,11 @@
  *   （由根 `wrangler.jsonc` 推导）。新增绑定后必须重新运行 `pnpm run types:worker`，
  *   CI 会用 `--check` 校验生成结果与配置一致。
  * - `RuntimeEnv` 只补上生成类型无法表达的**尚未配置的 secret**：`BOOTSTRAP_SECRET`
- *   由 .dev.vars / 部署 Secrets 提供，未配置时身份初始化端点返回 503，
+ *   由 .dev.vars / 部署 Secrets 提供，未配置时管理员登录和通知登记按需拒绝，
  *   因此它在类型上是可选的。
  *
  * 运行时校验（HUB-002）：
- * - 必需绑定及变量形状在使用前经过 `parseEnv`；失败返回脱敏 500。弱初始化密钥仅禁用受保护的初始化流程，不会关闭公开站点。
+ * - 必需绑定及变量形状在使用前经过 `parseEnv`；失败返回脱敏 500。弱初始化密钥仅禁用受保护的管理/通知功能，不会关闭公开站点。
  * - 本文件只做形状校验，不读取、不记录任何凭证的值。`hasBootstrapSecret` 只记录**是否存在**。
  * - `ASSETS` 是静态资源绑定，仅在 wrangler 运行时存在，因此允许缺失并由调用方降级处理。
  */
@@ -37,7 +37,7 @@ export type EnvironmentName = (typeof ENVIRONMENTS)[number];
 /**
  * Bootstrap 初始化密钥的最小长度（字符）。
  * 要求至少 32 个字符的高熵随机值；配置了更短的值会被视为部署配置错误。
- * 该常量由 env.ts 与 identity 路由共用，避免两处出现不一致的下限。
+ * 该常量由环境校验与管理/通知入口共用，避免两处出现不一致的下限。
  */
 export const MIN_BOOTSTRAP_SECRET_LENGTH = 32;
 

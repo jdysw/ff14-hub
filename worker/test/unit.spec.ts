@@ -4,7 +4,7 @@
  * 这些测试不依赖数据库，但仍在 Workers 运行时执行，
  * 因此 crypto.subtle / btoa 等 API 的行为与生产一致。
  */
-import { DEVICE_TOKEN_PATTERN, TOKEN_BODY_LENGTH } from '@ff14-hub/shared';
+const TOKEN_BODY_LENGTH = 43;
 import { env } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 import { parseEnv, parseAllowedOrigins } from '../env';
@@ -16,7 +16,6 @@ import { isAllowedOrigin, isJsonContentType } from '../middleware/write-guard';
 import {
   credentialsEqual,
   generateCredential,
-  generateDeviceToken,
   hashCredential,
 } from '../modules/identity/credentials';
 
@@ -156,25 +155,25 @@ describe('写请求规则', () => {
   });
 });
 
-describe('凭证原语（HUB-006 契约）', () => {
-  it('生成的设备 Token 满足共享契约的形状', () => {
-    const token = generateDeviceToken();
-    expect(DEVICE_TOKEN_PATTERN.test(token)).toBe(true);
-    expect(token.length).toBe('ffh_dev_'.length + TOKEN_BODY_LENGTH);
+describe('现行高熵凭证与哈希原语', () => {
+  it('临时高熵凭证符合 32 字节无填充 base64url 的形状', () => {
+    const token = generateCredential('ffh_test_');
+    expect(/^ffh_test_[A-Za-z0-9_-]{43}$/.test(token)).toBe(true);
+    expect(token.length).toBe('ffh_test_'.length + TOKEN_BODY_LENGTH);
   });
 
   it('每次生成都不同（高熵随机的实际检验）', () => {
-    const tokens = new Set(Array.from({ length: 64 }, () => generateDeviceToken()));
+    const tokens = new Set(Array.from({ length: 64 }, () => generateCredential('ffh_test_')));
     expect(tokens.size).toBe(64);
   });
 
   it('不同前缀产出不同类别凭证', () => {
-    expect(generateCredential('ffh_rec_').startsWith('ffh_rec_')).toBe(true);
-    expect(generateCredential('ffh_pair_').startsWith('ffh_pair_')).toBe(true);
+    expect(generateCredential('ffh_admin_').startsWith('ffh_admin_')).toBe(true);
+    expect(generateCredential('ffh_push_').startsWith('ffh_push_')).toBe(true);
   });
 
   it('摘要确定、长度为 64 位十六进制，且不等于明文', async () => {
-    const token = generateDeviceToken();
+    const token = generateCredential('ffh_test_');
     const first = await hashCredential(token);
     const second = await hashCredential(token);
     expect(first).toBe(second);
@@ -197,9 +196,9 @@ describe('常量时间比较（使用平台原语）', () => {
   });
 
   it('credentialsEqual 对相同凭证返回 true、对不同凭证返回 false', async () => {
-    const token = generateDeviceToken();
+    const token = generateCredential('ffh_test_');
     expect(await credentialsEqual(token, token)).toBe(true);
-    expect(await credentialsEqual(token, generateDeviceToken())).toBe(false);
+    expect(await credentialsEqual(token, generateCredential('ffh_test_'))).toBe(false);
     // 前缀相同但主体不同也必须判为不等。
     expect(await credentialsEqual(`ffh_dev_${'A'.repeat(43)}`, `ffh_dev_${'B'.repeat(43)}`)).toBe(false);
   });

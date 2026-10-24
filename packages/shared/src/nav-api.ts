@@ -2,7 +2,7 @@
  * 自由导航契约（阶段 04：HUB-047 / HUB-048 / HUB-007 / HUB-008 / HUB-009）——前后端**共用**。
  *
  * 定位：只放**纯类型与纯函数**。无 DOM、无 D1、无 React、无网络。
- * 服务端查询端点与前端 Widget 调用**同一份**实现，因此「搜索/筛选/排序/升级判定」
+ * 当前浏览器与 Worker 使用**同一份**规则，因此「搜索/筛选/排序/升级判定」
  * 不可能出现两套规则互相漂移（这是阶段 04 的明确要求，见 ADR-0004 D5）。
  *
  * ── 为什么 URL 只允许 https（D3）──────────────────────────────────────────────
@@ -22,12 +22,7 @@
  * **显式再次导入**时才可能写个人行，且默认不覆盖用户改动。
  */
 import { z } from 'zod';
-// 纯类型导入（WidgetConfigContract）：运行时被擦除，因此 builtin-modules ↔ nav-api 之间
-// 不存在运行时循环依赖；类型层互相引用是刻意的（契约集中在同一处）。
-import type { WidgetConfigContract } from './builtin-modules';
-import type { ModuleManifest } from './module-manifest';
-import { syncConflictSchema } from './sync-api';
-import { operationIdSchema } from './workbench-api';
+import { operationIdSchema } from './operation-id';
 import {normalizeNavText} from './nav-normalize';
 import {parseBookmarkHtmlWithDependencies,skipOf} from './nav-bookmark-parser';
 export {normalizeNavText} from './nav-normalize';
@@ -694,9 +689,6 @@ export const navImportApplyRequestSchema = z
 
 
 
-/** 结构化冲突（复用同步契约里的同一形状：谁在哪个字段上冲突、如何选择）。 */
-export const navConflictSchema = syncConflictSchema;
-export type NavConflict = z.infer<typeof navConflictSchema>;
 
 // 书签解析实现移至 nav-bookmark-parser.ts，导入依赖由共享契约显式传入。
 export function parseBookmarkHtml(html: unknown, options?: { readonly defaultRegion?: NavRegion }): NavParseResult {
@@ -958,96 +950,3 @@ export function parseNavImportDocument(raw: unknown): NavImportDocumentParseResu
   const links = parseNavImportJson(parsed);
   return { kind: 'links', items: links.items, skipped: links.skipped };
 }
-
-// ---------------------------------------------------------------------------
-// 模块 Manifest 与 Widget 配置契约
-// ---------------------------------------------------------------------------
-
-export const NAV_QUICK_LINKS_CONFIG_VERSION = 1;
-export const NAV_SEARCH_CONFIG_VERSION = 1;
-
-/** `nav-quick-links`：常用/收藏网站（配置只影响**展示**，不改变数据）。 */
-export const navQuickLinksConfigSchema = z
-  .object({
-    title: z.string().min(1).max(40).default('常用网站'),
-    groupId: z.string().min(1).max(64).nullable().default(null),
-    favoritesOnly: z.boolean().default(true),
-    limit: z.number().int().min(1).max(20).default(8),
-  })
-  .strict();
-
-/** `nav-search`：搜索与分类筛选。 */
-export const navSearchConfigSchema = z
-  .object({
-    title: z.string().min(1).max(40).default('导航搜索'),
-    groupId: z.string().min(1).max(64).nullable().default(null),
-    region: navRegionSchema.default('both'),
-    tag: z.string().min(1).max(MAX_NAV_TAG_LENGTH).nullable().default(null),
-    sort: navSortModeSchema.default('manual'),
-  })
-  .strict();
-
-export type NavQuickLinksConfig = z.infer<typeof navQuickLinksConfigSchema>;
-export type NavSearchConfig = z.infer<typeof navSearchConfigSchema>;
-
-export const NAV_WIDGET_CONFIG_CONTRACTS: readonly WidgetConfigContract[] = [
-  {
-    widgetId: NAV_WIDGET_IDS.quickLinks,
-    configSchemaVersion: NAV_QUICK_LINKS_CONFIG_VERSION,
-    schema: navQuickLinksConfigSchema,
-    defaultConfig: { title: '常用网站', groupId: null, favoritesOnly: true, limit: 8 },
-    migrations: {},
-  },
-  {
-    widgetId: NAV_WIDGET_IDS.search,
-    configSchemaVersion: NAV_SEARCH_CONFIG_VERSION,
-    schema: navSearchConfigSchema,
-    defaultConfig: { title: '导航搜索', groupId: null, region: 'both', tag: null, sort: 'manual' },
-    migrations: {},
-  },
-];
-
-export function findNavWidgetConfigContract(widgetId: string): WidgetConfigContract | null {
-  return NAV_WIDGET_CONFIG_CONTRACTS.find((contract) => contract.widgetId === widgetId) ?? null;
-}
-
-/**
- * 导航模块 Manifest。
- *
- * 能力声明是**权限面**，不是装饰：`storage:own` 表示读写自己的表，
- * `navigation:read-catalog` 表示允许读取系统推荐目录。注册表会把「声明 ⊆ 授予」校验一遍，
- * 前端 Host 也会在渲染前比对，缺少能力就降级而不是照常执行。
- */
-export const NAV_MODULE_MANIFEST: ModuleManifest = {
-  id: NAV_MODULE_ID,
-  version: '1.0.0',
-  displayName: 'FF14 导航（个人链接与推荐目录）',
-  capabilities: ['storage:own', 'navigation:read-catalog'],
-  widgets: [
-    {
-      id: NAV_WIDGET_IDS.quickLinks,
-      moduleId: NAV_MODULE_ID,
-      displayName: '常用网站（收藏与分组）',
-      allowMultiple: true,
-      defaultSize: { w: 4, h: 4 },
-      minSize: { w: 2, h: 2 },
-      configSchemaVersion: NAV_QUICK_LINKS_CONFIG_VERSION,
-    },
-    {
-      id: NAV_WIDGET_IDS.search,
-      moduleId: NAV_MODULE_ID,
-      displayName: '导航搜索与分类',
-      allowMultiple: true,
-      defaultSize: { w: 4, h: 3 },
-      minSize: { w: 2, h: 2 },
-      configSchemaVersion: NAV_SEARCH_CONFIG_VERSION,
-    },
-  ],
-  routes: [{ path: '/nav', viewId: 'nav' }],
-  settingsSchemaVersion: 1,
-  lifecycle: {
-    onEnable: 'ff14.navigation.enable',
-    onDisable: 'ff14.navigation.disable',
-    onUninstall: 'ff14.navigation.uninstall',
-  },
-};

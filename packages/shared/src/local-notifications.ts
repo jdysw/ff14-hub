@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {pushSubscriptionInputSchema} from './reminder-api';
+import {pushSubscriptionInputSchema} from './web-push';
 export const localNotificationChannelSchema=z.discriminatedUnion('kind',[
   z.object({kind:z.literal('serverchan'),sendKey:z.string().regex(/^SCT[A-Za-z0-9_-]{10,200}$/)}).strict(),
   z.object({kind:z.literal('resend'),apiKey:z.string().regex(/^re_[A-Za-z0-9_-]{10,200}$/),from:z.email().max(254),to:z.email().max(254)}).strict(),

@@ -1,7 +1,7 @@
 /**
  * 活动契约（HUB-011 / ADR-0004 D8 · D9）——Worker 与前端**共用**。
  *
- * 定位（与 `workbench-api.ts` / `module-manifest.ts` 同层）：只放**纯类型与纯函数**，
+ * 定位：现行活动的纯函数/格式契约：只放**纯类型与纯函数**，
  * 无 DOM、无 D1、无 React、无网络。因此「什么算即将开始 / 进行中」「什么算合法区间」
  * 「区服怎么匹配」这三类判定在服务端校验、前端渲染与测试里是**同一份实现**，
  * 不会出现「前端这样显示、后端那样过滤」的漂移。
@@ -19,9 +19,7 @@
  * 必须与之一致（尤其：区服**没有** `both`，与公共导航目录的 `CATALOG_REGIONS` 不同）。
  */
 import { z } from 'zod';
-import type { WidgetConfigContract } from './builtin-modules';
-import type { ModuleManifest } from './module-manifest';
-import { operationIdSchema } from './workbench-api';
+import { operationIdSchema } from './operation-id';
 
 // ---------------------------------------------------------------------------
 // 常量（单一来源：Worker、前端与测试都从这里取值）
@@ -585,93 +583,3 @@ export const eventsManageConfigSchema = z
   .strict();
 
 export type EventsManageConfig = z.infer<typeof eventsManageConfigSchema>;
-
-/**
- * 本模块全部 Widget 配置契约（前端静态映射与 Manifest 的一致性基线）。
- *
- * `migrations` 全为空：这两个 Widget 的配置**从未发布过 0.x 形状**，
- * 因此没有「可用的迁移」——Host 遇到版本不认识的配置必须拒绝执行该实例，而不是猜。
- */
-export const EVENTS_WIDGET_CONFIG_CONTRACTS: readonly WidgetConfigContract[] = [
-  {
-    widgetId: EVENTS_WIDGET_IDS.upcoming,
-    configSchemaVersion: EVENTS_UPCOMING_CONFIG_VERSION,
-    schema: eventsUpcomingConfigSchema,
-    defaultConfig: { title: '活动', region: null, phase: 'upcoming', limit: 5 },
-    migrations: {},
-  },
-  {
-    widgetId: EVENTS_WIDGET_IDS.calendar,
-    configSchemaVersion: EVENTS_CALENDAR_CONFIG_VERSION,
-    schema: eventsCalendarConfigSchema,
-    defaultConfig: { title: '国服活动日历', limit: 20 },
-    migrations: {},
-  },
-  {
-    widgetId: EVENTS_WIDGET_IDS.manage,
-    configSchemaVersion: EVENTS_MANAGE_CONFIG_VERSION,
-    schema: eventsManageConfigSchema,
-    defaultConfig: { title: '活动维护', region: null },
-    migrations: {},
-  },
-];
-
-export function findEventsWidgetConfigContract(widgetId: string): WidgetConfigContract | null {
-  return EVENTS_WIDGET_CONFIG_CONTRACTS.find((contract) => contract.widgetId === widgetId) ?? null;
-}
-
-// ---------------------------------------------------------------------------
-// Module Manifest
-// ---------------------------------------------------------------------------
-
-/**
- * `ff14.events` 的 Manifest（真实模块，非 `demo.`）。
- *
- * - 能力只有 `storage:own`：读写本模块自己的表。**不申请** `network:external`
- *   （阶段 04 不抓取）、`scheduled:own`（不排程）、`notifications:push`（不提醒）。
- *   能力是权限面，不该为了「将来可能用到」而提前放宽（默认拒绝）。
- * - 生命周期 handler 名只是**静态注册表**里的键，不是可执行字符串；
- *   注册表启动期会用 `validateModuleManifest` 真校验一遍，校验失败即启动失败。
- */
-export const EVENTS_MODULE_MANIFEST: ModuleManifest = {
-  id: EVENTS_MODULE_ID,
-  version: '1.0.0',
-  displayName: '活动（日历与个人维护）',
-  capabilities: ['storage:own'],
-  widgets: [
-    {
-      id: EVENTS_WIDGET_IDS.calendar,
-      moduleId: EVENTS_MODULE_ID,
-      displayName: '国服活动日历（倒计时）',
-      allowMultiple: true,
-      defaultSize: { w: 8, h: 6 },
-      minSize: { w: 4, h: 3 },
-      configSchemaVersion: EVENTS_CALENDAR_CONFIG_VERSION,
-    },
-    {
-      id: EVENTS_WIDGET_IDS.upcoming,
-      moduleId: EVENTS_MODULE_ID,
-      displayName: '活动时间表（即将开始 / 进行中）',
-      allowMultiple: true,
-      defaultSize: { w: 6, h: 4 },
-      minSize: { w: 3, h: 2 },
-      configSchemaVersion: EVENTS_UPCOMING_CONFIG_VERSION,
-    },
-    {
-      id: EVENTS_WIDGET_IDS.manage,
-      moduleId: EVENTS_MODULE_ID,
-      displayName: '活动维护（个人活动）',
-      allowMultiple: true,
-      defaultSize: { w: 6, h: 5 },
-      minSize: { w: 4, h: 3 },
-      configSchemaVersion: EVENTS_MANAGE_CONFIG_VERSION,
-    },
-  ],
-  routes: [{ path: '/events', viewId: 'events' }],
-  settingsSchemaVersion: 1,
-  lifecycle: {
-    onEnable: 'ff14.events.enable',
-    onDisable: 'ff14.events.disable',
-    onUninstall: 'ff14.events.uninstall',
-  },
-};

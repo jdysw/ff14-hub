@@ -1,17 +1,4 @@
-/**
- * `/api/v1/navigation/catalog` —— 公开推荐目录（阶段 04：HUB-007 / HUB-047）。
- *
- * 安全前提：
- * - **只读**、匿名可读，且只返回 `nav_catalog_links`（系统目录）里的非敏感字段。
- *   没有任何端点能通过它读取或修改个人导航：目录与个人副本是两张表（ADR-0004 D1）。
- * - 不返回任何凭证、工作空间数据或探测结果；在线健康状态在本阶段恒为 `unknown`
- *   （`verificationStatus` 只描述「来源条目本身核对过」，不是「网站现在可用」）。
- * - 查询参数经共享 Schema 校验（区服用 `navRegionSchema`，非法值 → 422）。
- *
- * 懒应用种子：目录种子写在代码里（`worker/modules/nav/catalog.ts`），读取前先做一次
- * 版本化 upsert。这样迁移文件里不需要任何 INSERT，第一次读目录时目录自然就绪；
- * 重复调用 0 行变化，因此并发或重复请求都不会改变数据。
- */
+/** 公共推荐目录与主动站点元数据查询；个人导航在浏览器 IndexedDB，非旧 workspace。 */
 import {
   ApiError,
   DEFAULT_ERROR_MESSAGE,
