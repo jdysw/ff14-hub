@@ -57,7 +57,7 @@ it('does not reuse a worker when rules differ despite matching catalogue metadat
   const stopA=subscribeFishingForecast(older,'cn',168,stale);
   const stopB=subscribeFishingForecast(newer,'cn',168,fresh);
   expect(workers).toHaveLength(2);
-  const stopC=subscribeFishingForecast({...newer,fish:[{...newer.fish[0]!}]} as FishingCatalog,'cn',168,vi.fn());
+  const stopC=subscribeFishingForecast({...newer,fish:[{...newer.fish[0]!}]},'cn',168,vi.fn());
   expect(workers).toHaveLength(2);
   workers[0]?.onmessage?.(new MessageEvent('message',{data:{forecasts:[{id:42,failed:false,windows:[]}]}}));
   expect(stale).toHaveBeenCalledOnce();
