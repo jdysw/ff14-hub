@@ -10,6 +10,7 @@ export const API_ROUTES={
   fishWindows:`${API_V1_PREFIX}/fish/windows`,
   calendar:`${API_V1_PREFIX}/events/calendar`,
   site:`${API_V1_PREFIX}/site`,
+  siteData:`${API_V1_PREFIX}/site/data`,
   admin:`${API_V1_PREFIX}/admin`,
   localNotifications:`${API_V1_PREFIX}/local-notifications`,
   mobileWidgets:`${API_V1_PREFIX}/widgets/v1/summary`,

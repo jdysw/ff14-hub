@@ -7,6 +7,9 @@ describe('单用户共享契约',()=>{
     expect(shared.API_ROUTES.health).toBe('/api/v1/health');
     expect(shared.API_ROUTES.navCatalog).toBe('/api/v1/navigation/catalog');
     expect(shared.API_ROUTES.localNotifications).toBe('/api/v1/local-notifications');
+    expect(shared.API_ROUTES.siteData).toBe('/api/v1/site/data');
+    expect(typeof shared.siteGameDataSchema.parse).toBe('function');
+    expect(typeof shared.managedPresentationSchema.parse).toBe('function');
     expect(shared.API_ROUTES).not.toHaveProperty('meWorkbench');
     expect(shared.API_ROUTES).not.toHaveProperty('bootstrap');
     expect(shared).not.toHaveProperty('DEVICE_TOKEN_PREFIX');
