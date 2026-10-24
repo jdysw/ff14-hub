@@ -12,6 +12,8 @@ FF14 导航、国服活动、钓鱼预测与个人资料工具站。当前前端
 
 具体配置与限制见 [个人同步和通知](docs/personal-sync-and-notifications.md)、[管理员运维](docs/site-admin-operations.md)、[源码审核与架构调整](docs/source-audit-and-cleanup.md)。
 
+共享契约现已按单用户实际运行入口精简：退役的设备身份、服务端工作台/模块生命周期、旧 Hub 增量同步协议已移除；鱼糕 JSON 双向数据核心、个人 IndexedDB、owner TOTP 和 Web Push 保持独立。后续如需要自由模块布局，应创建新的本机契约，而不是恢复原服务端工作空间运行时。
+
 代码质量与架构整理见 [2026-10-24 审计与修复记录](docs/code-architecture-audit-2026-10-24.md)，完整 Web/Worker 与 Android 本地测试门禁见 [免费手动发布验证清单](docs/manual-release-verification.md)。默认 `verify` **不执行 Android Gradle**；需要 JDK 17 / Android SDK 的原生测试时，须单独按清单运行。
 
 ## 开发与验证
