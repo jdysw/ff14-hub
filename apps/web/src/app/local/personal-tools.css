@@ -1,0 +1,21 @@
+.local-app .personal-module-grid{gap:24px;align-items:start;}
+.local-app .personal-module-grid.is-packed{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:1px;gap:0 32px;}
+.personal-module-slot{min-width:0;align-self:start;}
+.local-app .personal-module-grid .personal-module-slot>.local-dashboard__module{border:0;padding:0;min-width:0;}
+.local-app .personal-module-slot[style*="1 / -1"] .pvp-board__current{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+.todo-board{min-width:0;}.todo-board h3{margin:0;}.todo-quick{display:flex;gap:8px;margin:14px 0;}.todo-quick input{min-width:0;flex:1;}
+.todo-board button{font:inherit;}.todo-title{min-width:0;text-align:left;background:none;border:0;flex:1;color:inherit;}.todo-title strong{display:block;font-weight:600;overflow-wrap:anywhere;}.todo-title>span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--text-muted);font-size:12px;white-space:pre-wrap;}
+.todo-board ul{padding:0;margin:0;list-style:none;}.todo-board li{display:flex;align-items:start;gap:10px;padding:14px 0;border-bottom:1px solid var(--border,#dce5df);}.todo-time{text-align:right;font-size:12px;color:var(--accent);}.todo-time small{display:block;color:var(--text-muted);font-size:11px;}.todo-tabs{display:flex;gap:16px;border-bottom:1px solid var(--border,#dce5df);}.todo-tabs button{background:none;border:0;padding:8px 0;}.todo-tabs button[aria-pressed=true]{border-bottom:2px solid var(--accent);}.todo-editor{display:grid;grid-template-columns:1fr 1fr;gap:12px;}.todo-editor label{display:grid;gap:4px;min-width:0;}.todo-editor input,.todo-editor textarea{width:100%;box-sizing:border-box;min-width:0;}.todo-editor small{grid-column:1/-1;color:var(--text-muted);}.todo-empty{color:var(--text-muted);font-size:13px;}
+.local-directory__subcategories{display:flex;gap:8px;flex-wrap:wrap;padding:8px 0 16px;}.local-directory__subcategories button{font:inherit;font-size:12px;background:none;border:1px solid var(--border,#dce5df);border-radius:4px;padding:6px 10px;color:inherit;}.local-directory__subcategories button[aria-pressed=true]{color:var(--accent);border-color:var(--accent);}
+@media(max-width:760px){.todo-board li{flex-wrap:wrap;}.todo-time{flex-basis:100%;padding-left:28px;text-align:left;}.todo-editor{grid-template-columns:1fr;}}
+@media(max-width:700px){.local-app .personal-module-grid.is-packed{display:flex;flex-direction:column;gap:24px;}.personal-module-slot{width:100%;}.local-app .personal-module-slot[style*="1 / -1"] .pvp-board__current{grid-template-columns:1fr;}}
+.brand__aetheryte{display:block;flex:none;width:38px;height:38px;object-fit:contain;}
+.local-app .todo-board button{background:none;border:0;border-radius:4px;color:var(--field-accent);padding:6px 8px;min-height:36px;font-size:12px;}
+.local-app .todo-board button:hover{background:var(--field-tint);}.local-app .todo-board button:disabled{opacity:.45;}
+.local-app .todo-quick input,.local-app .todo-editor input,.local-app .todo-editor textarea{font:inherit;font-size:14px;color:var(--field-ink);background:transparent;border:1px solid var(--field-line);border-radius:5px;padding:9px 10px;}
+.local-app .todo-quick button[type=submit]{background:var(--field-tint);}
+.local-app .todo-board .todo-title{font-size:14px;padding:0;color:var(--field-ink);}
+.local-app .todo-tabs button{padding:8px 0;border-radius:0;}.local-app .todo-tabs button[aria-pressed=true]{border-bottom:2px solid var(--field-accent);}
+.local-app .todo-editor label{font-size:12px;color:var(--field-muted);}.local-app .todo-editor small{font-size:11px;line-height:1.6;}
+.local-app .pvp-board__heading h2{font-family:var(--field-serif);font-size:26px;line-height:1.4;}
+.local-app .fish-glance:has(.fish-glance__message) .fish-glance__stats{display:none;}

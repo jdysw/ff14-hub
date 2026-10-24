@@ -37,7 +37,8 @@ it('does not show an empty result while the first public catalog is still loadin
 it('retains directory categories and replaces its duplicate search with unified inline results',async()=>{
   render(<LocalApp/>);
   await screen.findByText('市场工具');
-  fireEvent.click(within(directory().getByRole('navigation',{name:'网站分类'})).getByRole('button',{name:'市场与经济'}));
+  fireEvent.click(within(directory().getByRole('navigation',{name:'网站分类'})).getByRole('button',{name:'生产与采集'}));
+  fireEvent.click(within(directory().getByRole('navigation',{name:'网站子分类'})).getByRole('button',{name:'市场与物价'}));
   expect(screen.queryByRole('combobox',{name:'更多分类'})).toBeNull();
   expect(directory().queryByText('钓鱼工具')).toBeNull();
   expect(directory().getByText('1 / 2 个网站')).toBeDefined();
@@ -83,16 +84,16 @@ it('uses the same input for Ctrl+K and slash while leaving editor keystrokes alo
   render(<LocalApp/>);await screen.findByText('市场工具');
   const input=screen.getByRole('searchbox',{name:'全站搜索关键词'});
   fireEvent.keyDown(window,{key:'k',ctrlKey:true});await waitFor(()=>expect(document.activeElement).toBe(input));
-  fireEvent.keyDown(input,{key:'ArrowDown'});expect(document.activeElement?.textContent).toContain('今日计划');
+  fireEvent.keyDown(input,{key:'ArrowDown'});expect(document.activeElement?.textContent).toContain('我的待办');
   const editor=document.createElement('textarea');document.body.append(editor);editor.focus();
   fireEvent.keyDown(editor,{key:'/'});expect(document.activeElement).toBe(editor);editor.remove();
   expect(document.querySelector('dialog')).toBeNull();
 });
 it('opens inline search without unmounting an unfinished settings form',async()=>{
   render(<LocalApp/>);await screen.findByText('市场工具');fireEvent.click(screen.getByRole('button',{name:'设置'}));
-  fireEvent.click(screen.getByRole('button',{name:'备忘'}));
-  fireEvent.change(screen.getByRole('textbox',{name:'标题'}),{target:{value:'尚未保存的备忘'}});
+  fireEvent.click(screen.getByRole('button',{name:'待办'}));
+  fireEvent.change(screen.getByRole('textbox',{name:'待办标题'}),{target:{value:'尚未保存的备忘'}});
   fireEvent.focus(screen.getByRole('searchbox',{name:'全站搜索关键词'}));
   await screen.findByRole('region',{name:'全站搜索结果'});
-  expect(screen.getByRole<HTMLInputElement>('textbox',{name:'标题'}).value).toBe('尚未保存的备忘');expect(change).not.toHaveBeenCalled();
+  expect(screen.getByRole<HTMLInputElement>('textbox',{name:'待办标题'}).value).toBe('尚未保存的备忘');expect(change).not.toHaveBeenCalled();
 });

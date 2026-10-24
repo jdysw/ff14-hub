@@ -7,8 +7,9 @@ import {fetchNavigationMetadata} from './nav-metadata';
 import {LocalLinkEditor} from './LocalLinkEditor';
 import {DataManagementPanel,type DataSection} from './DataManagementPanel';
 import {LocalNotificationPanel} from './LocalNotificationPanel';
+import {TodoBoard} from './TodoBoard';
 
-const labels:Record<HomeSection,string>={events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的备忘'};
+const labels:Record<HomeSection,string>={events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的待办'};
 export type SettingsTab='home'|'links'|'notes'|'data'|'notifications';
 export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=false,initialTab='home',initialDataSection='sync'}:{store:LocalStore;data:LocalData;onSaved:()=>void;onAdmin?:()=>void;adminAuthenticated?:boolean;initialTab?:SettingsTab;initialDataSection?:DataSection}){
   const [activeTab,setActiveTab]=useState<SettingsTab>(initialTab);
@@ -19,25 +20,24 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
   const [description,setDescription]=useState('');
   const [faviconUrl,setFaviconUrl]=useState<string|undefined>(undefined);
   const [recognizing,setRecognizing]=useState(false);
-  const [noteTitle,setNoteTitle]=useState(''),[noteText,setNoteText]=useState('');
-  usePrivateDraft(Boolean(title||url||description||noteTitle||noteText||busy||recognizing));
+  usePrivateDraft(Boolean(title||url||description||busy||recognizing));
   const run=async(action:()=>Promise<void>)=>{
     if(busy)return;setBusy(true);setError(null);setNotice(null);
     try{await action();onSaved();}catch(cause){setError(cause instanceof ZodError?'文件或输入格式不正确，请检查后重试；原有数据仍保留。':cause instanceof Error?cause.message:'操作失败，原有数据仍保留。');}
     finally{setBusy(false);}
   };
   const move=(section:HomeSection,delta:number)=>{void run(async()=>{
-    await store.change(document=>{const order=document.data.configuration.order;const index=order.indexOf(section);const other=order[index+delta];if(other){order[index+delta]=section;order[index]=other;}});
+    await store.change(document=>{const order=document.data.configuration.order;const index=order.indexOf(section);const other=order[index+delta];if(other){order[index+delta]=section;order[index]=other;document.data.configuration.orderCustomized=true;}});
   });};
   return <div className="local-settings">
     <header className="local-settings__sidebar">
       <h2><button type="button" className="local-settings__heading-button" onClick={onAdmin}>设置</button></h2>
       <nav className="local-settings__tabs" aria-label="设置分类">
-        {([['home','首页'],['links','个人导航'],['notes','备忘'],['data','数据管理'],['notifications','通知']] as const).map(([value,label])=>
+        {([['home','首页'],['links','个人导航'],['notes','待办'],['data','数据管理'],['notifications','通知']] as const).map(([value,label])=>
           <button type="button" key={value} aria-current={activeTab===value?'page':undefined}
             className={activeTab===value?'is-active':''} onClick={()=>setActiveTab(value)}>{label}</button>)}
       </nav>
-      {adminAuthenticated?<button className="local-settings__admin" type="button" onClick={onAdmin}>站点管理后台 ↗</button>:null}
+      <button className="local-settings__admin" type="button" onClick={onAdmin}>{adminAuthenticated?'站点管理后台 ↗':'管理员登录 ↗'}</button>
     </header>
     <div className="local-settings__content">
     <div hidden={activeTab!=='data'}><DataManagementPanel store={store} data={data} initialSection={initialDataSection}/></div>
@@ -122,12 +122,7 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
         {data.links.map(link=><LocalLinkEditor key={link.id} link={link} store={store}/>)}
       </ul>
     </section>
-    <section hidden={activeTab!=='notes'}><h3>备忘</h3><form onSubmit={event=>{event.preventDefault();void run(async()=>{
-      await store.change(document=>{document.data.notes.push({id:crypto.randomUUID(),title:noteTitle.trim(),text:noteText});document.data.configuration.visible.notes=true;});setNoteTitle('');setNoteText('');
-    });}}><label className="local-settings__field">标题<input value={noteTitle} onChange={event=>setNoteTitle(event.target.value)} maxLength={100} required/></label>
-      <label className="local-settings__field">内容<textarea value={noteText} onChange={event=>setNoteText(event.target.value)} maxLength={10000} rows={3}/></label><button type="submit" disabled={busy}>添加备忘模块</button></form>
-      <ul className="local-settings__items">{data.notes.map(note=><li key={note.id}><span>{note.title}</span><button type="button" disabled={busy} onClick={()=>{void run(async()=>{await store.change(document=>{document.data.notes=document.data.notes.filter(item=>item.id!==note.id);});});}}>移除</button></li>)}</ul>
-    </section>
+    <section hidden={activeTab!=='notes'}><TodoBoard data={data} store={store} expanded/></section>
     </div>
   </div>;
 }

@@ -1,0 +1,987 @@
+[
+  {
+    "id": "catalog.import.4a24f527434058664f42",
+    "title": "国服官网",
+    "category": "官方与账号 / 官网与公告"
+  },
+  {
+    "id": "catalog.import.1c26e6869a6b830a6d68",
+    "title": "道具商城",
+    "category": "官方与账号 / 充值与商城"
+  },
+  {
+    "id": "catalog.import.c4399f9739df837935d8",
+    "title": "周边商城",
+    "category": "官方与账号 / 充值与商城"
+  },
+  {
+    "id": "catalog.import.5f781c9ddb2d82b34af2",
+    "title": "后勤补给站",
+    "category": "官方与账号 / 充值与商城"
+  },
+  {
+    "id": "catalog.import.98642f4481b416282618",
+    "title": "陆行鸟礼物站",
+    "category": "官方与账号 / 充值与商城"
+  },
+  {
+    "id": "catalog.import.1ea886e0a47eaf8f7648",
+    "title": "官方微博",
+    "category": "官方与账号 / 官网与公告"
+  },
+  {
+    "id": "catalog.import.7ed3df911a1f543f6bf6",
+    "title": "官方B站",
+    "category": "官方与账号 / 官网与公告"
+  },
+  {
+    "id": "catalog.import.13a1da6499afba3add29",
+    "title": "丝瓜卡夫卡",
+    "category": "社区与创作 / 创作者与直播"
+  },
+  {
+    "id": "catalog.import.bd4df51c45c51ffa93a2",
+    "title": "违规处理平台",
+    "category": "官方与账号 / 账号与服务"
+  },
+  {
+    "id": "catalog.import.b85cf22befff09452364",
+    "title": "萌新招待",
+    "category": "官方与账号 / 账号与服务"
+  },
+  {
+    "id": "catalog.import.2571bc972c3a41f5a6ef",
+    "title": "石之家",
+    "category": "官方与账号 / 官网与公告"
+  },
+  {
+    "id": "catalog.import.3924acdc2d4ff59f6a39",
+    "title": "游戏充值(盛趣)",
+    "category": "官方与账号 / 充值与商城"
+  },
+  {
+    "id": "catalog.import.9ffa808ffeb42c3434e9",
+    "title": "游戏充值(腾讯)",
+    "category": "官方与账号 / 充值与商城"
+  },
+  {
+    "id": "catalog.import.c7da243eef7f34c5fae5",
+    "title": "积分中心",
+    "category": "官方与账号 / 充值与商城"
+  },
+  {
+    "id": "catalog.import.8e167831a1aff7a085bd",
+    "title": "💎 水晶冲突",
+    "category": "PVP / 排名与资料"
+  },
+  {
+    "id": "catalog.import.a36f5ade55637f557012",
+    "title": "国际服官网",
+    "category": "官方与账号 / 官网与公告"
+  },
+  {
+    "id": "catalog.import.d1906d09a222b70c18e1",
+    "title": "LodeStone",
+    "category": "入门与资料 / 百科与数据库"
+  },
+  {
+    "id": "catalog.import.2f69b81c75c321a9e922",
+    "title": "官方油管",
+    "category": "官方与账号 / 官网与公告"
+  },
+  {
+    "id": "catalog.import.45246960d0d358df4bab",
+    "title": "官方推特",
+    "category": "官方与账号 / 官网与公告"
+  },
+  {
+    "id": "catalog.import.c7fa72af16776676c86c",
+    "title": "道具商城",
+    "category": "官方与账号 / 充值与商城"
+  },
+  {
+    "id": "catalog.import.a6c501728b2c0ccab0c4",
+    "title": "莫古站",
+    "category": "官方与账号 / 账号与服务"
+  },
+  {
+    "id": "catalog.import.e8edaeb3c5ac1e37ad67",
+    "title": "官方论坛",
+    "category": "官方与账号 / 官网与公告"
+  },
+  {
+    "id": "catalog.import.ded9a9cb6fc300b40b0b",
+    "title": "官方博客",
+    "category": "官方与账号 / 官网与公告"
+  },
+  {
+    "id": "catalog.import.fc53d9fd9bb858327dfb",
+    "title": "素素攻略站",
+    "category": "入门与资料 / 综合工具"
+  },
+  {
+    "id": "catalog.import.7a03f48708af3c35af38",
+    "title": "新人攻略站-新大陆见闻录",
+    "category": "入门与资料 / 新人指南"
+  },
+  {
+    "id": "catalog.import.647e589841a6c43741eb",
+    "title": "灰机中文WIKI",
+    "category": "入门与资料 / 百科与数据库"
+  },
+  {
+    "id": "catalog.import.39b5d7be179a88f6f10c",
+    "title": "加兰德数据库",
+    "category": "入门与资料 / 百科与数据库"
+  },
+  {
+    "id": "catalog.import.b19b95c272e0a4d1a71e",
+    "title": "GamerEscape WIKI",
+    "category": "入门与资料 / 百科与数据库"
+  },
+  {
+    "id": "catalog.import.dda78a4ba0fde560cc01",
+    "title": "ERIONES",
+    "category": "入门与资料 / 百科与数据库"
+  },
+  {
+    "id": "catalog.import.2f9d3c0873f60425a71a",
+    "title": "NGA艾欧泽亚",
+    "category": "社区与创作 / 论坛与社区"
+  },
+  {
+    "id": "catalog.import.6c4bc12da8ddace67ae2",
+    "title": "百度FF14贴吧",
+    "category": "社区与创作 / 论坛与社区"
+  },
+  {
+    "id": "catalog.import.154860a678ffe55a7bf9",
+    "title": "Reddit/FFXIV",
+    "category": "社区与创作 / 论坛与社区"
+  },
+  {
+    "id": "catalog.import.169ad411d42881af3598",
+    "title": "以太之光广场",
+    "category": "社区与创作 / 论坛与社区"
+  },
+  {
+    "id": "catalog.import.de95140dc071d9997e5f",
+    "title": "菓子君Okashi",
+    "category": "社区与创作 / 创作者与直播"
+  },
+  {
+    "id": "catalog.import.300880723a1b8911c852",
+    "title": "苏帕酱噗",
+    "category": "社区与创作 / 创作者与直播"
+  },
+  {
+    "id": "catalog.import.6bef5c3b5616d5471d94",
+    "title": "MMW",
+    "category": "社区与创作 / 创作者与直播"
+  },
+  {
+    "id": "catalog.import.68c41b17815677eca57d",
+    "title": "子言姐姐",
+    "category": "社区与创作 / 创作者与直播"
+  },
+  {
+    "id": "catalog.import.6228c3947f513457928b",
+    "title": "苦茶子",
+    "category": "社区与创作 / 创作者与直播"
+  },
+  {
+    "id": "catalog.import.5c3df4f7fed3cca24392",
+    "title": "顾跑跑",
+    "category": "社区与创作 / 创作者与直播"
+  },
+  {
+    "id": "catalog.import.0373f6d3347c1e65a28f",
+    "title": "Zafir的职业攻略",
+    "category": "职业与副本 / 职业与配装"
+  },
+  {
+    "id": "catalog.import.be35f5fb4f2961eaa63e",
+    "title": "叫我m酱",
+    "category": "社区与创作 / 创作者与直播"
+  },
+  {
+    "id": "catalog.import.0c764420247e84f381e5",
+    "title": "洒金笺",
+    "category": "社区与创作 / 创作者与直播"
+  },
+  {
+    "id": "catalog.import.3926e250ad5708868a24",
+    "title": "XivStrat攻略站",
+    "category": "职业与副本 / 副本攻略"
+  },
+  {
+    "id": "catalog.import.7d208201ac2ecf45d987",
+    "title": "配装计算器",
+    "category": "职业与副本 / 职业与配装"
+  },
+  {
+    "id": "catalog.import.4ccc4c178b1f4c6d7026",
+    "title": "豆芽站-副本文字攻略",
+    "category": "职业与副本 / 副本攻略"
+  },
+  {
+    "id": "catalog.import.4dd40014472ae0deb978",
+    "title": "CN FFLogs",
+    "category": "职业与副本 / 战斗日志"
+  },
+  {
+    "id": "catalog.import.91e1eb0c52f50f500865",
+    "title": "警察网",
+    "category": "职业与副本 / 战斗日志"
+  },
+  {
+    "id": "catalog.import.bf83cfd4740520835522",
+    "title": "导随记录",
+    "category": "职业与副本 / 战斗日志"
+  },
+  {
+    "id": "catalog.import.a8630f2f8f34cd1577b6",
+    "title": "招募查询",
+    "category": "职业与副本 / 战术与招募"
+  },
+  {
+    "id": "catalog.import.6181607e0d7156fc6549",
+    "title": "NGA幻想书库",
+    "category": "入门与资料 / 百科与数据库"
+  },
+  {
+    "id": "catalog.import.d56198ad189c1a5bac69",
+    "title": "Faloop!国际服狩猎工具",
+    "category": "狩猎与探索 / 狩猎与FATE"
+  },
+  {
+    "id": "catalog.import.37657b101d714de1132a",
+    "title": "OtterBot狩猎时钟",
+    "category": "狩猎与探索 / 狩猎与FATE"
+  },
+  {
+    "id": "catalog.import.252f671d16738540ad4d",
+    "title": "常见野外大型怪物&Fate解明",
+    "category": "狩猎与探索 / 狩猎与FATE"
+  },
+  {
+    "id": "catalog.import.dd00a6245e487d74f91e",
+    "title": "ACT狩猎平台银山雀儿",
+    "category": "狩猎与探索 / 狩猎与FATE"
+  },
+  {
+    "id": "catalog.import.20ea366db49586469078",
+    "title": "PVP入门指南",
+    "category": "PVP / 入门与攻略"
+  },
+  {
+    "id": "catalog.import.ac70f6a267d24be70382",
+    "title": "青魔法师技能学习攻略",
+    "category": "职业与副本 / 职业与配装"
+  },
+  {
+    "id": "catalog.import.2e522043c809e61cee0c",
+    "title": "死灵术士心得攻略",
+    "category": "职业与副本 / 副本攻略"
+  },
+  {
+    "id": "catalog.import.6445336ed464b320a1e8",
+    "title": "5v5水晶冲突PVP指北",
+    "category": "PVP / 入门与攻略"
+  },
+  {
+    "id": "catalog.import.922ec3fe20878aa04ef6",
+    "title": "灭本限时奖励",
+    "category": "日常与收藏 / 成就与收藏"
+  },
+  {
+    "id": "catalog.import.6b44bc35f581e71711ec",
+    "title": "特殊场景探索群号汇总",
+    "category": "狩猎与探索 / 探索笔记"
+  },
+  {
+    "id": "catalog.import.94ec7fc50af49d254e91",
+    "title": "古武&魂武流程攻略",
+    "category": "日常与收藏 / 特殊武器"
+  },
+  {
+    "id": "catalog.import.573969c96e9b2e38edfb",
+    "title": "Eureka Tracker",
+    "category": "狩猎与探索 / 特殊区域"
+  },
+  {
+    "id": "catalog.import.d9a75fb4df4e342dc49c",
+    "title": "博兹雅监控板",
+    "category": "狩猎与探索 / 特殊区域"
+  },
+  {
+    "id": "catalog.import.43a267cfc30e1c48d643",
+    "title": "义军武器攻略",
+    "category": "日常与收藏 / 特殊武器"
+  },
+  {
+    "id": "catalog.import.09e61641f7ae13ac1a48",
+    "title": "扎杜诺尔高原攻略",
+    "category": "狩猎与探索 / 特殊区域"
+  },
+  {
+    "id": "catalog.import.9d26c677ad9ee5010b1a",
+    "title": "贡希尔德神庙攻略",
+    "category": "狩猎与探索 / 特殊区域"
+  },
+  {
+    "id": "catalog.import.54ca33d34a6b47c6cfa7",
+    "title": "幻境武器·新月岛攻略",
+    "category": "日常与收藏 / 特殊武器"
+  },
+  {
+    "id": "catalog.import.94f9da74b20b719c5a2b",
+    "title": "新月岛追踪器",
+    "category": "狩猎与探索 / 特殊区域"
+  },
+  {
+    "id": "catalog.import.d06629995b8ad3851649",
+    "title": "新月岛魔法罐助手",
+    "category": "狩猎与探索 / 特殊区域"
+  },
+  {
+    "id": "catalog.import.3f373807521f7289a3b4",
+    "title": "新月岛萌新指南",
+    "category": "狩猎与探索 / 特殊区域"
+  },
+  {
+    "id": "catalog.import.2b76eba88d35b240ed74",
+    "title": "配方计算器",
+    "category": "生产与采集 / 制作与配方"
+  },
+  {
+    "id": "catalog.import.dcdef63fe5ce55153ca8",
+    "title": "赐福计算器",
+    "category": "生产与采集 / 制作与配方"
+  },
+  {
+    "id": "catalog.import.2657b82e875095cc43c5",
+    "title": "工坊计算器",
+    "category": "住房与经营 / 潜水艇与工坊"
+  },
+  {
+    "id": "catalog.import.2ddf67f01c769160a236",
+    "title": "无人岛工坊模拟器",
+    "category": "住房与经营 / 无人岛"
+  },
+  {
+    "id": "catalog.import.9d5950229ac4ae4586ee",
+    "title": "潜水艇攻略",
+    "category": "住房与经营 / 潜水艇与工坊"
+  },
+  {
+    "id": "catalog.import.37fba6f0d888958a1114",
+    "title": "Teamcraft工具箱",
+    "category": "生产与采集 / 制作与配方"
+  },
+  {
+    "id": "catalog.import.83644f9752c74893abcf",
+    "title": "Universalis",
+    "category": "生产与采集 / 市场与物价"
+  },
+  {
+    "id": "catalog.import.5311488da94e34ee0226",
+    "title": "晓月之捕鱼人攻略",
+    "category": "钓鱼与海钓 / 鱼窗与资料"
+  },
+  {
+    "id": "catalog.import.81adffa5999a6c28fd60",
+    "title": "鱼糕",
+    "category": "钓鱼与海钓 / 鱼窗与资料"
+  },
+  {
+    "id": "catalog.import.ad6fc7e0137bcfbcd013",
+    "title": "饥饿的猫",
+    "category": "钓鱼与海钓 / 鱼窗与资料"
+  },
+  {
+    "id": "catalog.import.7877e44dde2dc1f8303a",
+    "title": "6.0海钓冲分攻略",
+    "category": "钓鱼与海钓 / 海钓攻略"
+  },
+  {
+    "id": "catalog.import.151f45745e759855aed0",
+    "title": "susu采集时钟",
+    "category": "生产与采集 / 采集与天气"
+  },
+  {
+    "id": "catalog.import.ca982beabebf7555bc2d",
+    "title": "无人岛攻略",
+    "category": "住房与经营 / 无人岛"
+  },
+  {
+    "id": "catalog.import.5ecc2b3273d24351155c",
+    "title": "无人岛每周作业",
+    "category": "住房与经营 / 无人岛"
+  },
+  {
+    "id": "catalog.import.bb40b8876f7c99c478c2",
+    "title": "素素无人岛",
+    "category": "住房与经营 / 无人岛"
+  },
+  {
+    "id": "catalog.import.b46a6a67beb43ed0fc2e",
+    "title": "宇宙探索攻略",
+    "category": "生产与采集 / 制作与配方"
+  },
+  {
+    "id": "catalog.import.3dc985b965828ab80277",
+    "title": "宇宙天气预报",
+    "category": "生产与采集 / 采集与天气"
+  },
+  {
+    "id": "catalog.import.58e7baaeff330b34bd30",
+    "title": "罗薇娜的手抄本",
+    "category": "生产与采集 / 市场与物价"
+  },
+  {
+    "id": "catalog.import.257a90141da57d92d21b",
+    "title": "时尚品鉴攻略",
+    "category": "日常与收藏 / 金碟与休闲"
+  },
+  {
+    "id": "catalog.import.ac0299e53284cfe2e2d4",
+    "title": "九宫幻卡一览",
+    "category": "日常与收藏 / 金碟与休闲"
+  },
+  {
+    "id": "catalog.import.772da3a67452f01b6cb0",
+    "title": "萌宠之王攻略",
+    "category": "日常与收藏 / 金碟与休闲"
+  },
+  {
+    "id": "catalog.import.686408d4212c6e7f17c6",
+    "title": "陆行鸟赛跑攻略",
+    "category": "日常与收藏 / 金碟与休闲"
+  },
+  {
+    "id": "catalog.import.4b3134b7d5a6f4d2c5b2",
+    "title": "艾欧泽亚装修办",
+    "category": "住房与经营 / 买房与装修"
+  },
+  {
+    "id": "catalog.import.8550494bed7e8bd7526a",
+    "title": "住宅区数据库",
+    "category": "住房与经营 / 买房与装修"
+  },
+  {
+    "id": "catalog.import.d1f4059eba09f02a22f0",
+    "title": "栽培手册",
+    "category": "住房与经营 / 栽培"
+  },
+  {
+    "id": "catalog.import.2323f67b9234f68a73fe",
+    "title": "暖暖房产位置攻略",
+    "category": "住房与经营 / 买房与装修"
+  },
+  {
+    "id": "catalog.import.9c3704a4a5f720b091e1",
+    "title": "Housing Snap",
+    "category": "住房与经营 / 买房与装修"
+  },
+  {
+    "id": "catalog.import.547f5bc0fe22d281c1a8",
+    "title": "艾欧泽亚售楼中心",
+    "category": "住房与经营 / 买房与装修"
+  },
+  {
+    "id": "catalog.import.f1900d277fd8d4976b1f",
+    "title": "光之收藏家",
+    "category": "日常与收藏 / 成就与收藏"
+  },
+  {
+    "id": "catalog.import.29517f52cb7118553794",
+    "title": "Eorzea Collection",
+    "category": "幻化与摄影 / 幻化与染色"
+  },
+  {
+    "id": "catalog.import.911f3d110bbfb19f295c",
+    "title": "mirapi snap",
+    "category": "幻化与摄影 / 幻化与染色"
+  },
+  {
+    "id": "catalog.import.73ee7e475a002da011c5",
+    "title": "艾欧泽亚地理频道",
+    "category": "入门与资料 / 百科与数据库"
+  },
+  {
+    "id": "catalog.import.be5656c0ae76de7a7687",
+    "title": "外观装备检索 FFXIV Collection",
+    "category": "幻化与摄影 / 幻化与染色"
+  },
+  {
+    "id": "catalog.import.fb4216d552eb2a4c37b3",
+    "title": "兵装图鉴",
+    "category": "幻化与摄影 / 幻化与染色"
+  },
+  {
+    "id": "catalog.import.ab980ca86d46d1cb5669",
+    "title": "TexTools",
+    "category": "插件与开发 / 插件与启动器"
+  },
+  {
+    "id": "catalog.import.aabe9c6248234bc34fbd",
+    "title": "摄影工具 Anamnesis",
+    "category": "幻化与摄影 / 模型与摄影"
+  },
+  {
+    "id": "catalog.import.388a8e442f46e4015f2c",
+    "title": "XIV Mod Archive",
+    "category": "插件与开发 / 插件与启动器"
+  },
+  {
+    "id": "catalog.import.c646b67f067024af6f26",
+    "title": "素素辣鸡排",
+    "category": "入门与资料 / 综合工具"
+  },
+  {
+    "id": "catalog.import.700ef43f2690ab335755",
+    "title": "むーむーのネタ帳",
+    "category": "日常与收藏 / 成就与收藏"
+  },
+  {
+    "id": "catalog.import.76fae545def2fa8038b1",
+    "title": "天气查询",
+    "category": "生产与采集 / 采集与天气"
+  },
+  {
+    "id": "catalog.import.d5d9f9acf291c83ce81d",
+    "title": "光之演奏家",
+    "category": "社区与创作 / 音乐与作品"
+  },
+  {
+    "id": "catalog.import.c876eebfc849630383bb",
+    "title": "网页战术板",
+    "category": "职业与副本 / 战术与招募"
+  },
+  {
+    "id": "catalog.import.2ca05f2af2a1a94d9229",
+    "title": "呆萌ACT",
+    "category": "插件与开发 / 插件与启动器"
+  },
+  {
+    "id": "catalog.import.3ce91445819fd48c7e54",
+    "title": "咖啡ACT",
+    "category": "插件与开发 / 插件与启动器"
+  },
+  {
+    "id": "catalog.import.d432ef4cc05e69956e52",
+    "title": "NGA幻想科技",
+    "category": "插件与开发 / 插件与启动器"
+  },
+  {
+    "id": "catalog.import.faf732f6a6222d56db4a",
+    "title": "XIVLauncher",
+    "category": "插件与开发 / 插件与启动器"
+  },
+  {
+    "id": "catalog.import.21076af1ccc24983994b",
+    "title": "零的库链",
+    "category": "入门与资料 / 综合工具"
+  },
+  {
+    "id": "catalog.import.db1ed185f2561dd71486",
+    "title": "ACT日志解析",
+    "category": "职业与副本 / 战斗日志"
+  },
+  {
+    "id": "catalog.import.7da65213eac2cc2de68a",
+    "title": "探索笔记时钟",
+    "category": "狩猎与探索 / 探索笔记"
+  },
+  {
+    "id": "catalog.import.f439845383ade39938c3",
+    "title": "PostNamazu",
+    "category": "插件与开发 / 插件与启动器"
+  },
+  {
+    "id": "catalog.import.ab8c6cec14e46a67ab3b",
+    "title": "獭爹の工具箱",
+    "category": "入门与资料 / 综合工具"
+  },
+  {
+    "id": "catalog.import.c6578981401d305a6009",
+    "title": "塔塔露国际服翻译插件",
+    "category": "插件与开发 / 插件与启动器"
+  },
+  {
+    "id": "catalog.import.da8d06dd7fb93e70a274",
+    "title": "Heliosphere",
+    "category": "插件与开发 / 插件与启动器"
+  },
+  {
+    "id": "catalog.import.2d619f212f946753f63f",
+    "title": "宝宝椅",
+    "category": "插件与开发 / 插件与启动器"
+  },
+  {
+    "id": "catalog.import.51a208fe7fa96739d94f",
+    "title": "国服-道具商城",
+    "category": "官方与账号 / 充值与商城"
+  },
+  {
+    "id": "catalog.import.934cc6c8bbf4261b8700",
+    "title": "积分兑换平台",
+    "category": "官方与账号 / 充值与商城"
+  },
+  {
+    "id": "catalog.import.2daa18fd33d7d738e0f9",
+    "title": "艾欧泽亚活动中心",
+    "category": "官方与账号 / 官网与公告"
+  },
+  {
+    "id": "catalog.import.2c5ea38018e3a62b358e",
+    "title": "违规账号处罚公告",
+    "category": "官方与账号 / 账号与服务"
+  },
+  {
+    "id": "catalog.import.844deb171b0d6421e89c",
+    "title": "国际服-日服官网",
+    "category": "官方与账号 / 官网与公告"
+  },
+  {
+    "id": "catalog.import.691bddb6cb7e96954eac",
+    "title": "FF14百度贴吧",
+    "category": "社区与创作 / 论坛与社区"
+  },
+  {
+    "id": "catalog.import.cb190ca98a8183126efc",
+    "title": "官方叨鱼圈子",
+    "category": "官方与账号 / 官网与公告"
+  },
+  {
+    "id": "catalog.import.bc8bef241bd384835788",
+    "title": "FF14橘猫GingerCat",
+    "category": "社区与创作 / 创作者与直播"
+  },
+  {
+    "id": "catalog.import.3c38e8a2b5fb1c0412b0",
+    "title": "萨雷安の迦巴勒幻想大图书馆",
+    "category": "入门与资料 / 百科与数据库"
+  },
+  {
+    "id": "catalog.import.096c15ab0e575b486df2",
+    "title": "国际服招募板共享",
+    "category": "职业与副本 / 战术与招募"
+  },
+  {
+    "id": "catalog.import.2365fc9fc4e07fad9adb",
+    "title": "黑猫BlackCat",
+    "category": "钓鱼与海钓 / 鱼窗与资料"
+  },
+  {
+    "id": "catalog.import.14503d6ff7b560825725",
+    "title": "萌神神攻略库",
+    "category": "职业与副本 / 副本攻略"
+  },
+  {
+    "id": "catalog.import.7d141c95c56f0e387bdf",
+    "title": "Raid从入门到入土",
+    "category": "职业与副本 / 副本攻略"
+  },
+  {
+    "id": "catalog.import.1f6cbbaa3502061a6d14",
+    "title": "eriones国际服数据库",
+    "category": "入门与资料 / 百科与数据库"
+  },
+  {
+    "id": "catalog.import.6d7d0eb10ffb2a4c60dd",
+    "title": "艾欧泽亚萌新手册",
+    "category": "入门与资料 / 新人指南"
+  },
+  {
+    "id": "catalog.import.c347ea789266a0371d99",
+    "title": "四人副本迷宫从开门到打完",
+    "category": "职业与副本 / 副本攻略"
+  },
+  {
+    "id": "catalog.import.8d21300e016c33330f21",
+    "title": "8人讨伐歼灭战&24人大型任务攻略",
+    "category": "职业与副本 / 副本攻略"
+  },
+  {
+    "id": "catalog.import.9ee97975a62809ee67f1",
+    "title": "XIV API",
+    "category": "插件与开发 / 开发与数据"
+  },
+  {
+    "id": "catalog.import.fed126b89038718b305e",
+    "title": "ACT.呆萌版",
+    "category": "插件与开发 / 插件与启动器"
+  },
+  {
+    "id": "catalog.import.61002995932b4c0d2cb6",
+    "title": "ACT.Cafe版",
+    "category": "插件与开发 / 插件与启动器"
+  },
+  {
+    "id": "catalog.import.9f9386641203579f90c9",
+    "title": "FF14文本检索数据",
+    "category": "入门与资料 / 百科与数据库"
+  },
+  {
+    "id": "catalog.import.2a40994ee14885f22744",
+    "title": "库啵世界",
+    "category": "入门与资料 / 综合工具"
+  },
+  {
+    "id": "catalog.import.64a8225dbbbdf067530b",
+    "title": "FFXIV Web Model Viewer",
+    "category": "幻化与摄影 / 模型与摄影"
+  },
+  {
+    "id": "catalog.import.07d7d0a7760f2421757e",
+    "title": "游玩C哩酱-时尚品鉴",
+    "category": "日常与收藏 / 金碟与休闲"
+  },
+  {
+    "id": "catalog.import.4426fc5edaac57d72dbf",
+    "title": "任务检索器",
+    "category": "入门与资料 / 百科与数据库"
+  },
+  {
+    "id": "catalog.import.f33d762d522de460a187",
+    "title": "GShade画质补丁",
+    "category": "幻化与摄影 / 模型与摄影"
+  },
+  {
+    "id": "catalog.import.5d4356118e2abdc062a6",
+    "title": "FFXIV3Areal画质补丁",
+    "category": "幻化与摄影 / 模型与摄影"
+  },
+  {
+    "id": "catalog.import.6483ded3ef685009cd00",
+    "title": "仙人仙彩计算器",
+    "category": "日常与收藏 / 金碟与休闲"
+  },
+  {
+    "id": "catalog.import.10d57dc72b8fe356cdd2",
+    "title": "幻巧拼图计算器",
+    "category": "日常与收藏 / 金碟与休闲"
+  },
+  {
+    "id": "catalog.import.77d42262c9fbe396bca1",
+    "title": "陆行鸟染色计算器",
+    "category": "幻化与摄影 / 幻化与染色"
+  },
+  {
+    "id": "catalog.import.13e016d5c24112bbcdf9",
+    "title": "陆行鸟染色计算器",
+    "category": "幻化与摄影 / 幻化与染色"
+  },
+  {
+    "id": "catalog.import.97c835f8b4e5b46c50bc",
+    "title": "部队潜水艇小工具",
+    "category": "住房与经营 / 潜水艇与工坊"
+  },
+  {
+    "id": "catalog.import.84a805b72f55b45c3e04",
+    "title": "理符列表",
+    "category": "生产与采集 / 制作与配方"
+  },
+  {
+    "id": "catalog.import.15a9e49fbb6bab02c1f7",
+    "title": "成就检索器",
+    "category": "日常与收藏 / 成就与收藏"
+  },
+  {
+    "id": "catalog.import.2de1ea344c86ef64e0d6",
+    "title": "筹备补给品列表",
+    "category": "生产与采集 / 采集与天气"
+  },
+  {
+    "id": "catalog.import.a7c999e712753642305a",
+    "title": "筹备军需品列表",
+    "category": "生产与采集 / 制作与配方"
+  },
+  {
+    "id": "catalog.import.9277372def5f8ad6cc33",
+    "title": "九宫幻卡卡牌列表",
+    "category": "日常与收藏 / 金碟与休闲"
+  },
+  {
+    "id": "catalog.import.bfb64dd66240dd4e3847",
+    "title": "最终幻想14配装器",
+    "category": "职业与副本 / 职业与配装"
+  },
+  {
+    "id": "catalog.import.19b726b83e324b0fa15f",
+    "title": "光之演奏家",
+    "category": "社区与创作 / 音乐与作品"
+  },
+  {
+    "id": "catalog.import.972b6ebf1876f8b52ed2",
+    "title": "大合奏",
+    "category": "社区与创作 / 音乐与作品"
+  },
+  {
+    "id": "catalog.import.47d86f925090701f4042",
+    "title": "FF14头像生成器",
+    "category": "幻化与摄影 / 模型与摄影"
+  },
+  {
+    "id": "catalog.import.31d9ea239daec8c88aef",
+    "title": "宅爷自制弹琴达人",
+    "category": "社区与创作 / 音乐与作品"
+  },
+  {
+    "id": "catalog.import.3fe918a96c44c6d3292e",
+    "title": "无人岛动物时钟",
+    "category": "住房与经营 / 无人岛"
+  },
+  {
+    "id": "catalog.import.2bfd2d564901dad589ae",
+    "title": "狩猎入门",
+    "category": "狩猎与探索 / 狩猎与FATE"
+  },
+  {
+    "id": "catalog.import.20abfd69394805f2b2a6",
+    "title": "狩猎规划",
+    "category": "狩猎与探索 / 狩猎与FATE"
+  },
+  {
+    "id": "catalog.import.1b9fb51a8508a16cc016",
+    "title": "神意非酋的狩猎手册",
+    "category": "狩猎与探索 / 狩猎与FATE"
+  },
+  {
+    "id": "catalog.import.d1f0573eaab22318c5ae",
+    "title": "WanaHome",
+    "category": "住房与经营 / 买房与装修"
+  },
+  {
+    "id": "catalog.import.c2f47a756b6097356fdf",
+    "title": "国际服房区数据共享",
+    "category": "住房与经营 / 买房与装修"
+  },
+  {
+    "id": "catalog.import.2a19387f27f0283ca705",
+    "title": "光之收藏家",
+    "category": "日常与收藏 / 成就与收藏"
+  },
+  {
+    "id": "catalog.import.15518a8b43830a4a4c86",
+    "title": "姗姗来迟的商城套装(女)测评",
+    "category": "幻化与摄影 / 幻化与染色"
+  },
+  {
+    "id": "catalog.import.58db3af3972498332acc",
+    "title": "最终幻想14陌迪翁中心",
+    "category": "社区与创作 / 论坛与社区"
+  },
+  {
+    "id": "catalog.import.3928cc663eb6685c83fa",
+    "title": "艾欧泽亚吐槽站",
+    "category": "社区与创作 / 论坛与社区"
+  },
+  {
+    "id": "catalog.import.a66cc0e1c9a0567f15ca",
+    "title": "最终幻想14_秘银之眼杂志社",
+    "category": "社区与创作 / 创作者与直播"
+  },
+  {
+    "id": "catalog.import.f4839ee5f7df7048ad25",
+    "title": "光之收藏幻化站",
+    "category": "幻化与摄影 / 幻化与染色"
+  },
+  {
+    "id": "catalog.import.000d99319430e7ad86f6",
+    "title": "艾欧泽亚RP情报站",
+    "category": "社区与创作 / 论坛与社区"
+  },
+  {
+    "id": "catalog.import.ade2a4cf8154dab62bca",
+    "title": "NGA艾欧泽亚",
+    "category": "社区与创作 / 论坛与社区"
+  },
+  {
+    "id": "catalog.import.2a19069e5f7d6f3511b3",
+    "title": "游玩C哩酱",
+    "category": "社区与创作 / 创作者与直播"
+  },
+  {
+    "id": "catalog.import.57f038f0e7f2e6855867",
+    "title": "素素です",
+    "category": "社区与创作 / 创作者与直播"
+  },
+  {
+    "id": "catalog.import.3fab7c3cc3f3c5769d45",
+    "title": "被窝国际",
+    "category": "社区与创作 / 创作者与直播"
+  },
+  {
+    "id": "catalog.import.7d1839d144fd5a3b0857",
+    "title": "红红Aka",
+    "category": "社区与创作 / 创作者与直播"
+  },
+  {
+    "id": "catalog.import.01091aad2010fd6b4ae9",
+    "title": "Consolegameswiki",
+    "category": "入门与资料 / 百科与数据库"
+  },
+  {
+    "id": "catalog.import.3dea6248ffbc318f1221",
+    "title": "Game8",
+    "category": "入门与资料 / 百科与数据库"
+  },
+  {
+    "id": "catalog.import.89d70b46c1376ff63cdb",
+    "title": "Game8",
+    "category": "入门与资料 / 百科与数据库"
+  },
+  {
+    "id": "catalog.import.01bc52ca24bb95306642",
+    "title": "FF14 Online Wiki",
+    "category": "入门与资料 / 百科与数据库"
+  },
+  {
+    "id": "catalog.import.733dfca9348c9715353c",
+    "title": "石之家",
+    "category": "官方与账号 / 官网与公告"
+  },
+  {
+    "id": "catalog.import.1b79577f844ac9383bdc",
+    "title": "FFCafe 肥肥咖啡",
+    "category": "插件与开发 / 插件与启动器"
+  },
+  {
+    "id": "catalog.import.35e0e34da5592fe812fe",
+    "title": "XIVLauncher / 卫月",
+    "category": "插件与开发 / 插件与启动器"
+  },
+  {
+    "id": "catalog.import.b208de208a99eab7a221",
+    "title": "XivStrat",
+    "category": "职业与副本 / 战术与招募"
+  },
+  {
+    "id": "catalog.import.f220abfc16a77a8a1170",
+    "title": "FFReplay",
+    "category": "职业与副本 / 战斗日志"
+  },
+  {
+    "id": "catalog.import.81ce25d60e05754bc8db",
+    "title": "素素辣鸡排",
+    "category": "入门与资料 / 综合工具"
+  },
+  {
+    "id": "catalog.import.678ba05e7d0e8cd94cbb",
+    "title": "Bilibili直播 FF14分区",
+    "category": "社区与创作 / 创作者与直播"
+  },
+  {
+    "id": "catalog.import.4877b2bbfef8eef1a0ba",
+    "title": "Twitch FF14 tag",
+    "category": "社区与创作 / 创作者与直播"
+  },
+  {
+    "id": "catalog.import.12fd1592e83eab55f439",
+    "title": "本站画廊",
+    "category": "社区与创作 / 音乐与作品"
+  }
+]

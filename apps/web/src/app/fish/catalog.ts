@@ -1,5 +1,6 @@
 import {z} from 'zod';
 import {fishRuleSchema,fishRegionSchema,type FishRegion} from '@ff14-hub/shared';
+import {loadGameData,GAME_DATA_CHANGED} from '../admin/game-data';
 export const catalogFishSchema=z.object({id:z.number().int().positive(),name:z.string(),englishName:z.string(),
   kind:z.enum(['normal','big','legendary']),method:z.enum(['rod','spear','ocean']),level:z.number(),patch:z.string(),
   zone:z.string(),location:z.string(),spotId:z.number(),bait:z.array(z.string()),tug:z.string(),hookset:z.string(),
@@ -22,13 +23,18 @@ export type CatalogFish=z.infer<typeof catalogFishSchema>;
 export type FishingCatalog=z.infer<typeof fishingCatalogSchema>;
 
 const catalogs=new Map<FishRegion,Promise<FishingCatalog>>();
+if(typeof window!=='undefined')window.addEventListener(GAME_DATA_CHANGED,()=>catalogs.clear());
 export async function loadFishingCatalog(input:FishRegion):Promise<FishingCatalog>{
   const region=fishRegionSchema.parse(input);
   let pending=catalogs.get(region);
   if(!pending){
     pending=fetch('/fishing/catalog-'+region+'.json',{credentials:'omit',redirect:'error'})
       .then(async response=>{if(!response.ok)throw new Error('鱼类目录暂时无法加载');return fishingCatalogSchema.parse(await response.json());})
-      .then(catalog=>{if(catalog.region!==region)throw new Error('目录区服不一致');return catalog;});
+      .then(async catalog=>{if(catalog.region!==region)throw new Error('目录区服不一致');
+        let corrections;try{corrections=(await loadGameData()).fish.filter(item=>item.region===region);}catch{throw new Error('在线鱼类修订加载失败，请重试，避免使用未经确认的旧规则');}
+        if(!corrections.length)return catalog;
+        const fish=catalog.fish.map(fish=>{const patch=corrections.find(item=>item.id===fish.id);return patch?{...fish,name:patch.name,bait:patch.bait,conditions:patch.conditions,always:false,rule:patch.rule?{...patch.rule,validationStatus:'unverified'}:null,crossSourceAudit:{status:'partial',compared:fish.crossSourceAudit?.compared??0,sources:[...(fish.crossSourceAudit?.sources??[]),patch.sourceUrl],notes:[patch.reason],sourceLimitedFields:fish.crossSourceAudit?.sourceLimitedFields??0}}:fish;});
+        return fishingCatalogSchema.parse({...catalog,fish,coverage:{total:fish.length,forecast:fish.filter(item=>item.rule!==null).length,always:fish.filter(item=>!item.rule&&item.always).length,unknown:fish.filter(item=>!item.rule&&!item.always).length}});});
     catalogs.set(region,pending);void pending.catch(()=>catalogs.delete(region));
   }
   return pending;
