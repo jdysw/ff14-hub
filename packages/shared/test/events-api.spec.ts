@@ -8,9 +8,8 @@
  * 相对导入 `../src/events-api` 而不是 `../src/index`：本文件要能独立验证新契约，
  * 不依赖 barrel（`index.ts`）是否已经接线。
  */
+import { describe, expect, it } from 'vitest';
 import {
-  describe,
-  expect,
   EVENTS_MODULE_ID,
   EVENTS_WIDGET_IDS,
   EVENT_PHASES,
