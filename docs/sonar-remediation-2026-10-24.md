@@ -125,6 +125,13 @@
 - [x] 在独立工作区完成 `pnpm run verify`：鱼糕分发脚本检查、Android PVP 规则、D1 基线、ESLint、TypeScript、项目单测 **607**、运维专项 **59**、Web/Worker 构建全部通过。
 - [ ] 本批增量 PR 的 SonarCloud 扫描和历史主线问题差异仍须复核；不得用 PR 的 new-code 0 代替历史 648 清零。
 
+## 第十四批：跨来源核对的证据判定拆分（2026-10-24）
+
+- [x] 对 `fishing-crosscheck.mjs` 中游戏钓法、鱼类稀有度、原始钓点证据、Teamcraft 诱鱼技能以及审计结果状态进行纯辅助函数封装，移除密集嵌套三元表达式（`javascript:S3358`）。
+- [x] 保留钓点证据的原始有序集合：鱼糕候选钓点沿用来源顺序，Teamcraft 候选钓点沿用既有数值排序；缺失来源继续返回 `null`，不能将无证据误判为一致。
+- [x] 验证 `pnpm run verify`（项目单测 607、运维专项 59、ESLint、类型检查、鱼糕脚本/Android/D1 守卫以及 Web/Worker 构建）。
+- [ ] 需要 SonarCloud 对对应 PR 最新 SHA 重新分析，确认历史告警实际减少；主线仍未合并，因此其旧扫描不会即时减少。
+
 ## 后续批次（同一个 PR）
 
 1. **P0 安全与可靠性**：清理未完成的 High/Blocker、消息来源、路径边界及正则复杂度问题。

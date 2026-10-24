@@ -45,6 +45,31 @@ const normalizedLure=value=>{
   return value===null?'none':null;
 };
 const booleans=value=>value==='True'?true:value==='False'?false:null;
+/** 缺失游戏证据与竿钓、刺鱼类型分别记录，不推断未出现的来源。 */
+const gameTechnique=param=>{
+  if(!param)return null;
+  return param.method==='spear'?'spear':'rod';
+};
+const rarityKind=tier=>({livingLegend:'legendary',bigFish:'big',normal:'normal'})[tier]??null;
+const primarySpotEvidence=(values,expected,idOf,sortFallback=false)=>{
+  if(!values.length)return null;
+  if(values.some(value=>idOf(value)===expected))return expected;
+  const ids=values.map(idOf);
+  return sortFallback?sorted(ids):ids;
+};
+const teamcraftLure=node=>{
+  if(node?.aLure>0)return 'ambitious';
+  if(node?.mLure>0)return 'modest';
+  if(node?.aLure===0&&node?.mLure===0)return 'none';
+  return null;
+};
+const catalogAuditStatus=(conflicts,special,sources,missing,fishcake)=>{
+  if(conflicts.length)return 'conflict';
+  if(special)return 'special-content';
+  if(sources.length===1)return 'single-source';
+  if(missing.length||!fishcake.length)return 'partial';
+  return 'checked';
+};
 const intersectPeriods=(a,b)=>a.flatMap(([x,y])=>b.map(([u,v])=>[Math.max(x,u),Math.min(y,v)]).filter(([u,v])=>u<v));
 export function effectivePeriods(initial,path,lookup,seen=new Set()){
   let result=initial;
@@ -79,15 +104,15 @@ export function auditCatalog({catalog,tracker,fishcake,teamcraft,game,items,spot
     fields.push(nameCheck);
     fields.push(checkField('identity',{game:param?item.id:null,tracker:reference?item.id:null,fishcake:cake.length?item.id:null,teamcraft:tc.length?item.id:null}));
     const technique=item.method==='spear'?'spear':'rod';
-    fields.push(checkField('technique',{catalog:technique,game:param?.method==='spear'?'spear':param?'rod':null,fishcake:cake[0]?.catchType,teamcraft:tc.length?(tc[0].type===4?'spear':'rod'):null}));
+    fields.push(checkField('technique',{catalog:technique,game:gameTechnique(param),fishcake:cake[0]?.catchType,teamcraft:tc.length?(tc[0].type===4?'spear':'rod'):null}));
     if(cake.length&&param?.method!=='spear'){fields.push(checkField('oceanClassification',{catalog:item.method==='ocean',game:Number(param?.OceanStars)>0,fishcake:cake[0].fishType==='ikd'}));}
     const patch=checkField('patch',{catalog:item.patch?rounded(Number(item.patch)):null,tracker:rounded(reference?.patch),fishcake:rounded(cake[0]?.patch)});
     if(patch.status==='conflict'&&Object.values(patch.values).every(v=>Math.floor(v*10)===Math.floor(Object.values(patch.values)[0]*10))){patch.status='precision-difference';}
     fields.push(patch);
     if(param?.IsInLog&&cake[0]?.fishParameter){fields.push(checkField('inFishingLog',{game:booleans(param.IsInLog),fishcake:cake[0].fishParameter.isInLog}));}
-    if(item.method==='rod'&&cake.length){const tier=cake[0].tier;const kind=tier==='livingLegend'?'legendary':tier==='bigFish'?'big':tier==='normal'?'normal':null;fields.push(checkField('rarity',{catalog:item.kind,fishcake:kind}));}
+    if(item.method==='rod'&&cake.length){const tier=cake[0].tier;const kind=rarityKind(tier);fields.push(checkField('rarity',{catalog:item.kind,fishcake:kind}));}
     const spotIds=sorted([...cake.map(s=>s.spotId),...tc.map(s=>s.id),...(reference?.location?[reference.location]:[])]).filter(id=>Number.isSafeInteger(id)&&id>0);
-    if(item.spotId>0)fields.push(checkField('primarySpot',{catalog:item.spotId,fishcake:cake.length?(cake.some(s=>s.spotId===item.spotId)?item.spotId:cake.map(s=>s.spotId)):null,teamcraft:tc.length?(tc.some(s=>s.id===item.spotId)?item.spotId:sorted(tc.map(s=>s.id))):null}));
+    if(item.spotId>0)fields.push(checkField('primarySpot',{catalog:item.spotId,fishcake:primarySpotEvidence(cake,item.spotId,s=>s.spotId),teamcraft:primarySpotEvidence(tc,item.spotId,s=>s.id,true)}));
     else if(spotIds.length){fields.push({field:'primarySpot',status:'missing',values:{catalog:0,available:spotIds}});}
     for(const spotId of spotIds){
       const s=cake.find(s=>s.spotId===spotId),nodes=tc.filter(n=>n.id===spotId),node=nodes[0],t=reference?.location===spotId?reference:null;
@@ -105,7 +130,7 @@ export function auditCatalog({catalog,tracker,fishcake,teamcraft,game,items,spot
         add('hookset',{tracker:t?.hookset?.toLowerCase(),fishcake:s?.hookset,teamcraft:tcHook[node?.hookset]});
         add('snagging',{tracker:t?Boolean(t.snagging):null,fishcake:s?.requiresSnagging,teamcraft:node?.snagging});
         add('folklore',{tracker:t?Boolean(t.folklore):null,fishcake:s?Boolean(s.folkloreId):null,teamcraft:node?.folklore!==undefined?Boolean(node.folklore):null});
-        add('lure',{tracker:t?normalizedLure(t.lure):null,fishcake:normalizedLure(s?.lureSkillType),teamcraft:node?.aLure>0?'ambitious':node?.mLure>0?'modest':node?.aLure===0&&node?.mLure===0?'none':null});
+        add('lure',{tracker:t?normalizedLure(t.lure):null,fishcake:normalizedLure(s?.lureSkillType),teamcraft:teamcraftLure(node)});
         if(s?.lureSkillType==='ambitious'||s?.lureSkillType==='modest')add('lureStacks',{fishcake:s.lureSkillStack,teamcraft:s.lureSkillType==='ambitious'?node?.aLure:node?.mLure});
       }
       if(item.method==='rod'){
@@ -153,7 +178,7 @@ export function auditCatalog({catalog,tracker,fishcake,teamcraft,game,items,spot
     const conflicts=fields.filter(f=>f.status==='conflict'),missing=fields.filter(f=>f.status==='missing');
     const sources=['game',...(reference?['tracker']:[]),...(cake.length?['fishcake']:[]),...(tc.length?['teamcraft']:[]),...new Set(additionalEvidence.filter(e=>e.fishId===item.id).map(e=>e.source))];
     const special=item.acquisitionContext;
-    records.push({id:item.id,name:item.name,method:item.method,region:catalog.region,sources,scope:special?'special-content':'fishing-log',...(special?{acquisitionContext:special}:{}),status:conflicts.length?'conflict':special?'special-content':sources.length===1?'single-source':missing.length||!cake.length?'partial':'checked',compared:fields.filter(f=>['matched','compatible-alternatives','resolved'].includes(f.status)).length,conflicts:conflicts.map(f=>({field:f.field,spotId:f.spotId,values:f.values})),missing:missing.map(f=>f.field),fields});
+    records.push({id:item.id,name:item.name,method:item.method,region:catalog.region,sources,scope:special?'special-content':'fishing-log',...(special?{acquisitionContext:special}:{}),status:catalogAuditStatus(conflicts,special,sources,missing,cake),compared:fields.filter(f=>['matched','compatible-alternatives','resolved'].includes(f.status)).length,conflicts:conflicts.map(f=>({field:f.field,spotId:f.spotId,values:f.values})),missing:missing.map(f=>f.field),fields});
   }
   const count=status=>records.filter(r=>r.status===status).length;
   return {region:catalog.region,total:records.length,checked:count('checked'),special:count('special-content'),partial:count('partial'),conflicts:count('conflict'),singleSource:count('single-source'),specialWithLocations:records.filter(r=>r.acquisitionContext?.locations.length).length,specialWithBaits:records.filter(r=>r.acquisitionContext?.baitIds.length).length,specialSourceOnly:records.filter(r=>r.acquisitionContext&&r.sources.length===1).length,fieldsCompared:records.reduce((n,r)=>n+r.compared,0),resolvedDifferences:records.filter(r=>r.fields.some(f=>f.status==='resolved')).length,alternativeRoutes:records.filter(r=>r.fields.some(f=>f.status==='route-dependent'||f.status==='compatible-alternatives')).length,records};
