@@ -1,16 +1,16 @@
 /**
- * 凭证原语（HUB-006 契约层，本轮**不**实现完整身份流程）。
+ * 高熵凭证的独立摘要和比较原语，供现行 owner 与通知设备使用。
  *
  * 安全前提（规划 6.3，不可协商）：
- * - 设备 Token / 配对凭证 / 恢复密钥都是至少 256-bit 的高熵随机值（32 字节）。
+ * - 临时随机凭证的熵不得低于 256 bit（32 字节）。
  * - 服务端只保存 SHA-256 摘要；明文只在发放的那一刻返回给客户端一次，绝不落库、绝不落日志。
  * - SHA-256 适用于**高熵随机值**。若将来引入用户自设口令，必须改用专门的密码哈希
  *   （Argon2id/scrypt/PBKDF2）并加盐，不得复用这里的哈希。
  */
-import { DEVICE_TOKEN_PREFIX, TOKEN_RANDOM_BYTES } from '@ff14-hub/shared';
+const TOKEN_RANDOM_BYTES = 32;
 import { constantTimeEqualStrings } from '../../lib/util';
 
-/** 把字节数组编码为 base64url（无填充），与 `packages/shared` 中的 Token 形状约定一致。 */
+/** 把高熵字节数组编码为 base64url（无填充）。 */
 export function toBase64Url(bytes: Uint8Array): string {
   let binary = '';
   for (const byte of bytes) {
@@ -31,18 +31,12 @@ export async function hashCredential(credential: string): Promise<string> {
 }
 
 /**
- * 生成一个新的高熵凭证。前缀用于区分凭证种类（设备 / 恢复 / 配对）。
- * 由 HUB-006 的 Bootstrap、配对与恢复流程调用。
+ * 生成一个新的高熵凭证；用途由调用者提供的固定前缀标识。
  */
 export function generateCredential(prefix: string): string {
   const bytes = new Uint8Array(TOKEN_RANDOM_BYTES);
   crypto.getRandomValues(bytes);
   return `${prefix}${toBase64Url(bytes)}`;
-}
-
-/** 设备 Token 生成器。 */
-export function generateDeviceToken(): string {
-  return generateCredential(DEVICE_TOKEN_PREFIX);
 }
 
 /**
