@@ -31,7 +31,7 @@ export function PresentationEditor({value,onChange}:{value:SiteSettings['present
 }
 
 /** 子分类编辑区域独立渲染，避免在主分类列表及事件处理器中多层嵌套函数。 */
-function SubcategoryEditor({group,current,onChange,renamedAliases,childDraft,setChildDraft,setMessage}:{
+function SubcategoryEditor({group,current,onChange,renamedAliases,childDraft,setChildDraft,setMessage}:Readonly<{
   group:Presentation['categories'][number];
   current:Presentation;
   onChange:(next:Presentation)=>void;
@@ -39,6 +39,6 @@ function SubcategoryEditor({group,current,onChange,renamedAliases,childDraft,set
   childDraft:Record<string,string>;
   setChildDraft:(draft:Record<string,string>)=>void;
   setMessage:(message:string)=>void;
-}){
+}>) {
   return <details><summary>子分类（{group.children.length}）</summary>{group.children.map((sub,subIndex)=><div key={sub} className="site-admin__actions"><label>子分类名称<input defaultValue={sub} maxLength={18} onBlur={e=>{const next=e.target.value.trim();if(!next||next===sub){return;}if(group.children.includes(next)){setMessage('子分类名称重复');return;}onChange({...current,categories:current.categories.map(g=>g.name===group.name?{...g,children:g.children.map(value=>value===sub?next:value)}:g),categoryAliases:renamedAliases(group.name+' / '+sub,group.name+' / '+next)});}}/></label><button type="button" disabled={subIndex===0} onClick={()=>{const children=[...group.children];[children[subIndex-1],children[subIndex]]=[children[subIndex]!,children[subIndex-1]!];onChange({...current,categories:current.categories.map(g=>g.name===group.name?{...g,children}:g)});}}>上移子分类</button><button type="button" onClick={()=>onChange({...current,categories:current.categories.map(g=>g.name===group.name?{...g,children:g.children.filter(value=>value!==sub)}:g),categoryAliases:renamedAliases(group.name+' / '+sub,group.name)})}>移除子分类，网站归回主分类</button></div>)}<label>新增子分类<input maxLength={18} value={childDraft[group.name]??''} onChange={e=>setChildDraft({...childDraft,[group.name]:e.target.value})}/></label><button type="button" disabled={!childDraft[group.name]?.trim()} onClick={()=>{const sub=childDraft[group.name]!.trim();if(group.children.includes(sub)){setMessage('子分类名称重复');return;}onChange({...current,categories:current.categories.map(g=>g.name===group.name?{...g,children:[...g.children,sub]}:g)});setChildDraft({...childDraft,[group.name]:''});}}>添加子分类</button></details>;
 }

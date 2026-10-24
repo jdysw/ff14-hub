@@ -83,6 +83,13 @@
 - [x] 维持首页关注/开放/未来鱼窗的筛选优先级和 `WindowPhase` 执行路径，过滤与排序仍对完整目录进行而非预先截断。
 - [x] ESLint、TypeScript 与相关 Web 单元测试全部通过；等待 PR 最新 Sonar 扫描逐条确认。
 
+## 第九批：PR 复扫后的剩余告警
+
+- [x] `PR #84@dd1c710` 的 SonarCloud Quality Gate 已通过，但仍报告 2 条新增可维护性问题（`typescript:S6759` 和 `S2681`）；**通过质量门不等于历史问题清零**。
+- [x] 为新增的子分类组件 Props 添加 readonly 类型约束；为 SigV4 会话令牌的赋值条件补足明确代码块。
+- [x] 再次通过 ESLint、TypeScript、项目测试 605、运维专项 59 及 Web/Worker 构建。
+- [ ] PR 最新提交须重新完成 SonarCloud 扫描，才可认定上述 2 项已经消除；主线历史积压继续整改。
+
 ## 后续批次（同一个 PR）
 
 1. **P0 安全与可靠性**：清理未完成的 High/Blocker、消息来源、路径边界及正则复杂度问题。

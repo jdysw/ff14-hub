@@ -28,7 +28,7 @@ export function remoteUrl(raw:string,hubOrigin=location.origin):URL{
 export async function s3Headers(config:RemoteConfig,method:string,body:string,headers:Record<string,string>,now=new Date()):Promise<Record<string,string>>{
   const url=remoteUrl(config.url),date=now.toISOString().replace(/[:-]|\.\d{3}/g,''),day=date.slice(0,8);
   const hash=await digest(body),signed:Record<string,string>={host:url.host,'x-amz-content-sha256':hash,'x-amz-date':date,...headers};
-  if(config.sessionToken)signed['x-amz-security-token']=config.sessionToken;
+  if(config.sessionToken){signed['x-amz-security-token']=config.sessionToken;}
   // SigV4 的 CanonicalHeaders 必须使用字节序，而不是受系统 locale 影响的排序。
    const names=Object.keys(signed).sort((a,b)=>{
      if(a<b){return -1;}
