@@ -21,7 +21,7 @@
 import { z } from 'zod';
 import type { WidgetConfigContract } from './builtin-modules';
 import type { ModuleManifest } from './module-manifest';
-import { operationIdSchema } from './workbench-api';
+import { operationIdSchema } from './operation-id';
 
 // ---------------------------------------------------------------------------
 // 常量（单一来源：Worker、前端与测试都从这里取值）
