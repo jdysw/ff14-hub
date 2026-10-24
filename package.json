@@ -43,7 +43,7 @@
     "test:db-baseline": "node scripts/ops/check-d1-baseline.mjs",
     "db:ready:preview": "node scripts/ops/d1-readiness.mjs preview --remote",
     "db:ready:production": "node scripts/ops/d1-readiness.mjs production --remote",
-    "db:ready:local": "node scripts/ops/d1-readiness.mjs preview --local"
+    "db:ready:local": "node scripts/ops/d1-readiness.mjs development --local"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "catalog:",
