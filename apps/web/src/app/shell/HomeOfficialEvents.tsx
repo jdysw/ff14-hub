@@ -46,6 +46,10 @@ function eventCountdownTarget(status:CalendarPhase,item:EventCalendarItem):numbe
   if(status==='active'||status==='ending')return item.endsAt;
   return null;
 }
+function eventCountdownHeading(status:CalendarPhase,target:number|null):string{
+  if(target===null)return '时间待确认';
+  return status==='upcoming'?'距开始':'距结束';
+}
 function OfficialEventEndTime({item}:{readonly item:EventCalendarItem}){
   if(item.endsAt===null)return <>结束：{calendarEndCondition(item)??'时间待确认'}</>;
   return <><span>结束：</span><time dateTime={new Date(item.endsAt).toISOString()}>{chinaDateTime(item.endsAt)}</time></>;
@@ -64,7 +68,7 @@ function OfficialEventSummary({ item, now }: { readonly item: EventCalendarItem;
       <p>{calendarTimeLabel(item)}</p>
     </div>
     <div className="home-official-event__timer" aria-label={target === null ? label : label + calendarCountdown(target, now)}>
-      <span>{target === null ? '时间待确认' : status === 'upcoming' ? '距开始' : '距结束'}</span>
+      <span>{eventCountdownHeading(status,target)}</span>
       <strong>{target === null ? '—' : calendarCountdown(target, now)}</strong>
       <small className="home-official-event__end" title="北京时间">
         <OfficialEventEndTime item={item}/>
