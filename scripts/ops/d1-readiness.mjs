@@ -42,13 +42,13 @@ export function assessReadiness({tables,migrations,fish,foreignKeys}){
 }
 export function runReadOnlyQuery(environment,mode,sql,{runner=spawnSync}={}){
  const wrangler=path.join(root,'node_modules','wrangler','bin','wrangler.js');
- const args=[wrangler,'d1','execute','DB','--env',environment,mode,'--command',sql,'--json'];
+ const args=[wrangler,'d1','execute','DB',...(environment==='development'?[]:['--env',environment]),mode,'--command',sql,'--json'];
  const response=runner(process.execPath,args,{cwd:root,encoding:'utf8',maxBuffer:4*1024*1024,timeout:45000});
  if(response.error||response.status!==0)throw new Error('D1 只读查询失败：检查 Wrangler 凭据、环境与迁移状态');
  return readResults(response.stdout);
 }
 export function inspectD1(environment,mode,options={}){
- if(!['preview','production'].includes(environment)||!['--local','--remote'].includes(mode))throw new Error('必须显式选择 preview/production 与 --local/--remote');
+ if(!['development','preview','production'].includes(environment)||!['--local','--remote'].includes(mode)||\n    (environment==='development'&&mode!=='--local'))throw new Error('必须显式选择 development--local 或 preview/production 的 --local/--remote');
  const query=(sql)=>runReadOnlyQuery(environment,mode,sql,options);
  const tables=query(READ_ONLY_QUERIES.tables);
  const known=new Set(tables.map(row=>row.name));
