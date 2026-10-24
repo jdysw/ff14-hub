@@ -115,6 +115,16 @@
 - [x] 重新执行 `pnpm run verify`，鱼糕脚本、Android 规则、D1 基线、ESLint、TypeScript、项目单测 607 项、运维测试 59 项及 Web/Worker 构建均通过。
 - [ ] 后续并行提交仍需以新的 PR HEAD 复扫与验证，尤其不能将 `Quality Gate OK` 误解为历史 648 项清零。
 
+## 第十三批：历史脚本层控制流与鱼类审核规则（2026-10-24）
+
+- [x] 使用 SonarCloud 主线 `OPEN,CONFIRMED` API 确认历史基线 **648 项**；其中 `javascript:S3358` 30 项（跨源审计相关文件 19 项），`javascript:S2681` 22 项（其余还包含 TypeScript S2681 57 项）。该数量属于主线，**本批提交须通过新的目标分支分析核验实际关闭量**。
+- [x] 拆分 `fishing-special-content.mjs` 的专项分类条件，保持宇宙探索、重建、关联物品、任务、收藏品及图鉴外类别原有优先级。
+- [x] 拆分 `fish-intuition-audit.mjs` 中前置鱼核对状态与鱼识审计总体状态；`fish-requirements.mjs` 保留数组与映射输入的既有分支语义。
+- [x] `fishing-crosscheck.mjs` 对鱼饵对照、技能标准化、精度差异、前置依赖进行显式分支控制，明确原先始终追加交叉核对字段的行为。
+- [x] `audit-fishing-cross-sources.mjs`、`audit-fish-intuition.mjs` 和鱼糕页面注入脚本补全条件控制块；**仅更新页面脚本源文件后，通过现有生成器同步更新油猴分发脚本**，避免生成物漂移。
+- [x] 在独立工作区完成 `pnpm run verify`：鱼糕分发脚本检查、Android PVP 规则、D1 基线、ESLint、TypeScript、项目单测 **607**、运维专项 **59**、Web/Worker 构建全部通过。
+- [ ] 本批增量 PR 的 SonarCloud 扫描和历史主线问题差异仍须复核；不得用 PR 的 new-code 0 代替历史 648 清零。
+
 ## 后续批次（同一个 PR）
 
 1. **P0 安全与可靠性**：清理未完成的 High/Blocker、消息来源、路径边界及正则复杂度问题。

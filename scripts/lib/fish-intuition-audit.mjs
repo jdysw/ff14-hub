@@ -5,6 +5,17 @@ const conditions=fish=>({startHour:fish.startHour,endHour:fish.endHour,currentWe
 const observed=fish=>({startHour:fish.startHour,endHour:fish.endHour,currentWeather:ordered(fish.currentWeather),previousWeather:ordered(fish.previousWeather)});
 // Fishcake stores mooch bait restrictions separately; Tracker flattens them.
 const effectiveObserved=fish=>observed(fish.moochDependencies?.length&&fish.effectiveConditions?fish.effectiveConditions:fish);
+const predecessorStatus=(matched,source,fact)=>{
+  if(matched)return 'matched';
+  if(!source||!fact?.length)return 'missing';
+  return 'conflict';
+};
+const auditStatus=(differences,missingFields,supplementedFields)=>{
+  if(differences.length)return 'conflict';
+  if(missingFields.length)return 'partial';
+  if(supplementedFields.length)return 'supplemented';
+  return 'matched';
+};
 export function auditIntuition(tracker,snapshot){
   const records=[];
   for(const item of snapshot.fish){
@@ -20,10 +31,10 @@ export function auditIntuition(tracker,snapshot){
     const predecessors=[];
     for(const [id] of expected){const source=tracker.FISH[id],fact=spot.preconditions.find(p=>p.id===id)?.spots;
       const matching=source&&fact?.find(f=>same(conditions(source),effectiveObserved(f))),matched=!!matching;
-      predecessors.push({id,status:matched?'matched':!source||!fact?.length?'missing':'conflict',...(matching&&!same(observed(matching),effectiveObserved(matching))?{normalizedMooch:true,rawConditions:observed(matching),effectiveConditions:effectiveObserved(matching),moochDependencies:matching.moochDependencies}:{})});
+      predecessors.push({id,status:predecessorStatus(matched,source,fact),...(matching&&!same(observed(matching),effectiveObserved(matching))?{normalizedMooch:true,rawConditions:observed(matching),effectiveConditions:effectiveObserved(matching),moochDependencies:matching.moochDependencies}:{})});
       if(!matched)differences.push('predecessor time/weather '+id);
     }
-    records.push({id:item.id,status:differences.length?'conflict':missingFields.length?'partial':supplementedFields.length?'supplemented':'matched',spotId:spot.spotId,predators:actual,intuitionSeconds:spot.intuitionLength,trackerIntuitionSeconds:reference.intuitionLength??null,predecessors,differences,missingFields,supplementedFields});
+    records.push({id:item.id,status:auditStatus(differences,missingFields,supplementedFields),spotId:spot.spotId,predators:actual,intuitionSeconds:spot.intuitionLength,trackerIntuitionSeconds:reference.intuitionLength??null,predecessors,differences,missingFields,supplementedFields});
   }
   return {total:records.length,matched:records.filter(r=>r.status==='matched').length,supplemented:records.filter(r=>r.status==='supplemented').length,partial:records.filter(r=>r.status==='partial').length,conflicts:records.filter(r=>r.status==='conflict').length,missing:records.filter(r=>r.status==='missing').length,records};
 }

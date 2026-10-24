@@ -34,21 +34,27 @@ export function checkField(field,values,equal=values=>values.every(v=>same(v,val
   const external=Object.keys(present).filter(key=>key!=='catalog').length;
   return {field,status:list.length>1&&!equal(list)?'conflict':external<2?'single-source':'matched',values:present};
 }
-const pairs=value=>Array.isArray(value)?value.map(p=>Array.isArray(p)?p:[p.id,p.amount??p.count]).sort((a,b)=>a[0]-b[0]):null;
+const pairs=value=>{
+  if(!Array.isArray(value))return null;
+  return value.map(p=>Array.isArray(p)?p:[p.id,p.amount??p.count]).sort((a,b)=>a[0]-b[0]);
+};
 const rounded=value=>Number.isFinite(value)?Math.round(value*100)/100:null;
 const tcTug={0:'medium',1:'heavy',2:'light'},tcHook={1:'powerful',2:'precision'};
-const normalizedLure=value=>typeof value==='string'?value.toLowerCase():value===null?'none':null;
+const normalizedLure=value=>{
+  if(typeof value==='string')return value.toLowerCase();
+  return value===null?'none':null;
+};
 const booleans=value=>value==='True'?true:value==='False'?false:null;
 const intersectPeriods=(a,b)=>a.flatMap(([x,y])=>b.map(([u,v])=>[Math.max(x,u),Math.min(y,v)]).filter(([u,v])=>u<v));
 export function effectivePeriods(initial,path,lookup,seen=new Set()){
   let result=initial;
-  if(!result)return null;
+  if(!result){return null;}
   for(const step of path?.slice(1)??[]){
-    if(Array.isArray(step))continue;
-    if(seen.has(step))continue;
-    const dependency=lookup(step);if(!dependency)continue;
+    if(Array.isArray(step)){continue;}
+    if(seen.has(step)){continue;}
+    const dependency=lookup(step);if(!dependency){continue;}
     const next=effectivePeriods(dependency.periods,dependency.path,lookup,new Set([...seen,step]));
-    if(next)result=intersectPeriods(result,next);
+    if(next){result=intersectPeriods(result,next);}
   }
   return result;
 }
@@ -69,19 +75,20 @@ export function auditCatalog({catalog,tracker,fishcake,teamcraft,game,items,spot
     else nameValues.tracker=tracker.ITEMS[item.id]?.name_en;
     const nameCheck=checkField('name',nameValues);
     // IDs agree; a translated spelling differs, rather than fish identity.
-    if(nameCheck.status==='conflict'&&nameValues.game===item.name)nameCheck.status='localization-difference';
+    if(nameCheck.status==='conflict'&&nameValues.game===item.name){nameCheck.status='localization-difference';}
     fields.push(nameCheck);
     fields.push(checkField('identity',{game:param?item.id:null,tracker:reference?item.id:null,fishcake:cake.length?item.id:null,teamcraft:tc.length?item.id:null}));
     const technique=item.method==='spear'?'spear':'rod';
     fields.push(checkField('technique',{catalog:technique,game:param?.method==='spear'?'spear':param?'rod':null,fishcake:cake[0]?.catchType,teamcraft:tc.length?(tc[0].type===4?'spear':'rod'):null}));
-    if(cake.length&&param?.method!=='spear')fields.push(checkField('oceanClassification',{catalog:item.method==='ocean',game:Number(param?.OceanStars)>0,fishcake:cake[0].fishType==='ikd'}));
+    if(cake.length&&param?.method!=='spear'){fields.push(checkField('oceanClassification',{catalog:item.method==='ocean',game:Number(param?.OceanStars)>0,fishcake:cake[0].fishType==='ikd'}));}
     const patch=checkField('patch',{catalog:item.patch?rounded(Number(item.patch)):null,tracker:rounded(reference?.patch),fishcake:rounded(cake[0]?.patch)});
-    if(patch.status==='conflict'&&Object.values(patch.values).every(v=>Math.floor(v*10)===Math.floor(Object.values(patch.values)[0]*10)))patch.status='precision-difference';fields.push(patch);
-    if(param?.IsInLog&&cake[0]?.fishParameter)fields.push(checkField('inFishingLog',{game:booleans(param.IsInLog),fishcake:cake[0].fishParameter.isInLog}));
+    if(patch.status==='conflict'&&Object.values(patch.values).every(v=>Math.floor(v*10)===Math.floor(Object.values(patch.values)[0]*10))){patch.status='precision-difference';}
+    fields.push(patch);
+    if(param?.IsInLog&&cake[0]?.fishParameter){fields.push(checkField('inFishingLog',{game:booleans(param.IsInLog),fishcake:cake[0].fishParameter.isInLog}));}
     if(item.method==='rod'&&cake.length){const tier=cake[0].tier;const kind=tier==='livingLegend'?'legendary':tier==='bigFish'?'big':tier==='normal'?'normal':null;fields.push(checkField('rarity',{catalog:item.kind,fishcake:kind}));}
     const spotIds=sorted([...cake.map(s=>s.spotId),...tc.map(s=>s.id),...(reference?.location?[reference.location]:[])]).filter(id=>Number.isSafeInteger(id)&&id>0);
     if(item.spotId>0)fields.push(checkField('primarySpot',{catalog:item.spotId,fishcake:cake.length?(cake.some(s=>s.spotId===item.spotId)?item.spotId:cake.map(s=>s.spotId)):null,teamcraft:tc.length?(tc.some(s=>s.id===item.spotId)?item.spotId:sorted(tc.map(s=>s.id))):null}));
-    else if(spotIds.length)fields.push({field:'primarySpot',status:'missing',values:{catalog:0,available:spotIds}});
+    else if(spotIds.length){fields.push({field:'primarySpot',status:'missing',values:{catalog:0,available:spotIds}});}
     for(const spotId of spotIds){
       const s=cake.find(s=>s.spotId===spotId),nodes=tc.filter(n=>n.id===spotId),node=nodes[0],t=reference?.location===spotId?reference:null;
       const add=(name,values,equal)=>fields.push({...checkField(name,values,equal),spotId});

@@ -2,7 +2,7 @@ import {readFile,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {auditIntuition,supplementIntuition} from './lib/fish-intuition-audit.mjs';
 const [trackerPath,snapshotPath]=process.argv.slice(2);
-if(!trackerPath||!snapshotPath)throw new Error('Usage: tracker-data.js fishcake-observations.json');
+if(!trackerPath||!snapshotPath){throw new Error('Usage: tracker-data.js fishcake-observations.json');}
 const raw=await readFile(trackerPath,'utf8'),snapshotText=await readFile(snapshotPath,'utf8');
 if(!raw.startsWith('const DATA = {')||!raw.trimEnd().endsWith('}'))throw new Error('Unexpected tracker format');
 const tracker=JSON.parse(raw.replace(/^const DATA = /,'').replace(/^ {2}([A-Z_]+):/gm,'  "$1":'));
@@ -21,11 +21,11 @@ const cn=JSON.parse(await readFile('apps/web/public/fishing/catalog-cn.json','ut
 for(const region of ['cn','global']){
   const path=`apps/web/public/fishing/catalog-${region}.json`,catalog=JSON.parse(await readFile(path,'utf8'));
   catalog.intuitionCrosscheck={total:result.total,matched:result.matched,supplemented:result.supplemented,partial:result.partial,conflicts:result.conflicts,missing:result.missing,checkedAt:snapshot.observedAt,fishcakeVersion:snapshot.version};
-  for(const row of result.records){const index=catalog.fish.findIndex(f=>f.id===row.id);if(index<0)continue;const fish=supplementIntuition(catalog.fish[index],row,snapshot);catalog.fish[index]=fish;
+  for(const row of result.records){const index=catalog.fish.findIndex(f=>f.id===row.id);if(index<0){continue;}const fish=supplementIntuition(catalog.fish[index],row,snapshot);catalog.fish[index]=fish;
     const descriptions=[];
-    if(row.status==='supplemented')descriptions.push(`已按鱼糕补全鱼识持续时间：${row.intuitionSeconds} 秒；Tracker 原记录未提供时长，来源条件与补充字段分别保留。`);
-    if(row.status==='partial')descriptions.push('来源时长资料仍不完整，未擅自填写。');
-    for(const predecessor of row.predecessors??[]){if(predecessor.normalizedMooch)descriptions.push(`${names.get(predecessor.id)??predecessor.id}：合并泳饵依赖后 ET ${predecessor.effectiveConditions.startHour}–${predecessor.effectiveConditions.endHour}，与 Tracker 一致。`);if(predecessor.status==='matched')continue;
+    if(row.status==='supplemented'){descriptions.push(`已按鱼糕补全鱼识持续时间：${row.intuitionSeconds} 秒；Tracker 原记录未提供时长，来源条件与补充字段分别保留。`);}
+    if(row.status==='partial'){descriptions.push('来源时长资料仍不完整，未擅自填写。');}
+    for(const predecessor of row.predecessors??[]){if(predecessor.normalizedMooch){descriptions.push(`${names.get(predecessor.id)??predecessor.id}：合并泳饵依赖后 ET ${predecessor.effectiveConditions.startHour}–${predecessor.effectiveConditions.endHour}，与 Tracker 一致。`);}if(predecessor.status==='matched'){continue;}
       const fact=snapshot.fish.find(f=>f.id===row.id).spots.find(s=>s.spotId===row.spotId).preconditions.find(p=>p.id===predecessor.id)?.spots?.[0],reference=tracker.FISH[predecessor.id];
       descriptions.push(`${names.get(predecessor.id)??predecessor.id}：Tracker ET ${reference?.startHour}–${reference?.endHour}；鱼糕 ET ${fact?.startHour}–${fact?.endHour}，准备时间条件存在差异。`);
     }

@@ -1,4 +1,13 @@
 /** Identify non-log entries before interpreting absent normal-world fishing rules. */
+function specialCategory(id,description,uiCategory,item,wksItems){
+  // 分类优先级沿用已有规则，避免“任务/重建/收藏品”互相覆盖。
+  if(wksItems.has(id))return 'cosmic';
+  if(description.includes('伊修加德重建'))return 'reconstruction';
+  if(uiCategory&&uiCategory!=='水产品')return 'associated-item';
+  if(description.includes('任务专用')||id>=2000000)return 'quest';
+  if(item?.IsCollectable==='True')return 'collectable';
+  return 'non-log';
+}
 export function firstPositiveId(...values){return values.map(Number).find(id=>Number.isSafeInteger(id)&&id>0)??0;}
 export function buildSpecialContexts({game,itemRows,itemCategories,wksItems,gameSpots,places,tcLog,rawSources,territories}){
   const byFish=new Map();
@@ -8,7 +17,7 @@ export function buildSpecialContexts({game,itemRows,itemCategories,wksItems,game
   for(const [id,param] of game){
     const nonLog=param.method==='spear'?param.IsVisible==='False':param.IsInLog==='False';if(!nonLog){continue;}
     const item=itemRows.get(id),description=item?.Description??'',uiCategory=itemCategories.get(item?.ItemUICategory),entries=rawSources[id]??[],locations=[];
-    const category=wksItems.has(id)?'cosmic':description.includes('伊修加德重建')?'reconstruction':uiCategory&&uiCategory!=='水产品'?'associated-item':description.includes('任务专用')||id>=2000000?'quest':item?.IsCollectable==='True'?'collectable':'non-log';
+    const category=specialCategory(id,description,uiCategory,item,wksItems);
     const labels={cosmic:'宇宙探索任务资源',reconstruction:'伊修加德重建资源','associated-item':'钓鱼关联物品',quest:'任务用获取条目',collectable:'捕鱼收藏品','non-log':'图鉴外特殊条目'};
     const logs=tcByFish.get(id)??[];
     for(const spot of byFish.get(id)??[]){const spotId=Number(spot.id),name=places.get(Number(spot.PlaceName));if(!name){continue;}const community=logs.some(l=>l.spot.id===spotId);locations.push({spotId,name,sources:community?['game','teamcraft']:['game'],evidence:community?'corroborated':'game-table',territoryId:Number(spot.TerritoryType)});}
