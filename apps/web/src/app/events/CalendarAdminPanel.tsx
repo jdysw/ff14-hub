@@ -32,6 +32,16 @@ const EMPTY: Draft = {
   starts: '', ends: '', sourceUrl: '', allDay: false,
 };
 const CN_OFFSET_MS = 8 * 60 * 60_000;
+function adminModeLabel(mode:Mode|'official'):string{
+  if(mode==='hide')return '已隐藏';
+  if(mode==='upsert')return '人工维护';
+  return '公开';
+}
+function successMessage(mode:Mode):string{
+  if(mode==='upsert')return '已保存到服务器，公开日历与订阅已同步生效';
+  if(mode==='hide')return '已隐藏；管理员可随时恢复';
+  return '已恢复公开显示';
+}
 
 function chinaDatetimeInput(ms: number | null): string {
   return ms === null ? '' : new Date(ms + CN_OFFSET_MS).toISOString().slice(0,16);
@@ -159,8 +169,7 @@ export function CalendarAdminPanel({ getToken, onClose, onSaved }: {
       await fetchList();
       const saved = await response.json() as {id: string};
       setSelectedId(saved.id);
-      setMessage(method === 'upsert' ? '已保存到服务器，公开日历与订阅已同步生效' :
-        method === 'hide' ? '已隐藏；管理员可随时恢复' : '已恢复公开显示');
+      setMessage(successMessage(method));
       onSaved();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '保存失败');
@@ -204,7 +213,7 @@ export function CalendarAdminPanel({ getToken, onClose, onSaved }: {
         <ul>{visible.map(row => <li key={row.id}><button type="button"
           aria-current={selectedId === row.id ? 'true' : undefined} onClick={() => select(row)}>
           <strong>{row.item.title}</strong>
-          <span>{row.mode === 'hide' ? '已隐藏' : row.mode === 'upsert' ? '人工维护' : '公开'} · {row.item.category}</span>
+          <span>{adminModeLabel(row.mode)} · {row.item.category}</span>
           <small>{row.item.endsAt === null ? '时间待核实' : chinaDateTime(row.item.endsAt)}</small>
         </button></li>)}</ul>
       </section>

@@ -736,7 +736,9 @@ export function parseNavImportJson(raw: unknown): NavParseResult {
       ],
     };
   }
-  const list: unknown[] = Array.isArray(parsed) ? parsed : Array.isArray(container['links']) ? container['links'] : [];
+  let list: unknown[] = [];
+  if (Array.isArray(parsed)) list = parsed;
+  else if (Array.isArray(container['links'])) list = container['links'];
   const items: NavImportItem[] = [];
   const skipped: NavImportSkipped[] = [];
   const seen = new Set<string>();

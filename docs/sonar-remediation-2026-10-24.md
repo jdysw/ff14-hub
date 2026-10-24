@@ -150,6 +150,15 @@
 - [x] 独立工作区 `pnpm run verify` 全部通过：项目测试 **607** 项、运维测试 **60** 项（新增 1 项）、ESLint、TypeScript、鱼糕生成物/Android/D1 一致性检查、Web 和 Worker dry-run 构建。
 - [ ] 尚待本 PR 最新提交完成 SonarCloud 扫描，按具体 issueKey 核对新增告警关闭、历史问题真正减少；不得把主线未合并的 648 项当作 PR 扫描数字。
 
+## 第十七批：导航、活动与通知渠道条件判定（2026-10-24）
+
+- [x] `nav-api.ts` 按明确优先级选择直接导入数组或导入包 `links`，不再使用嵌套条件表达式，并保留空输入的原有结果。
+- [x] `calendar-feed.ts` 拆分国服活动起止日期的年份补全分支，继续区分显式年份、同年延续及无法确认的日期。
+- [x] `notification-channel.ts` 根据 Server酱 / Resend 渠道分支构造请求并区分回执解析，不改变内容长度上限、跳转控制、重试状态或安全头。
+- [x] `CalendarAdminPanel.tsx` 将隐藏、人工维护、恢复等后台状态文案及成功提示拆分为纯函数，保持原有提示语和顺序。
+- [x] 再次执行完整 `pnpm run verify`：项目测试 607、运维专项 60、ESLint、TypeScript、Web/Worker 构建与生成物检查全部通过。
+- [ ] 最新 PR 的 SonarCloud 扫描尚需复核；旧 `main@599d0d4` 仍记录 648 项历史问题，不代表已提交至 PR 的改动没有效果。
+
 ## 后续批次（同一个 PR）
 
 1. **P0 安全与可靠性**：清理未完成的 High/Blocker、消息来源、路径边界及正则复杂度问题。

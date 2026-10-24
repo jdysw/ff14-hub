@@ -108,9 +108,9 @@ export function extractOfficialLandingRange(html: string): { startsAt: number; e
   const firstYear = match[1]?.match(/^\d{4}/)?.[0];
   const firstMonth = Number(match[1]?.match(/年(\d{1,2})月/)?.[1]);
   const lastMonth = Number(rawEnd.match(/(?:年|^)(\d{1,2})月/)?.[1]);
-  const completedEnd = /^\d{4}年/.test(rawEnd)
-    ? rawEnd
-    : firstYear !== undefined && lastMonth >= firstMonth ? firstYear + '年' + rawEnd : '';
+  let completedEnd = '';
+  if (/^\d{4}年/.test(rawEnd)) completedEnd = rawEnd;
+  else if (firstYear !== undefined && lastMonth >= firstMonth) completedEnd = firstYear + '年' + rawEnd;
   const endsAt = chinaTimestamp(completedEnd);
   return startsAt !== null && endsAt !== null && endsAt >= startsAt ? { startsAt, endsAt } : null;
 }
