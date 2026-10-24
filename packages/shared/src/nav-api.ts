@@ -27,7 +27,7 @@ import { z } from 'zod';
 import type { WidgetConfigContract } from './builtin-modules';
 import type { ModuleManifest } from './module-manifest';
 import { syncConflictSchema } from './sync-api';
-import { operationIdSchema } from './workbench-api';
+import { operationIdSchema } from './operation-id';
 import {normalizeNavText} from './nav-normalize';
 import {parseBookmarkHtmlWithDependencies,skipOf} from './nav-bookmark-parser';
 export {normalizeNavText} from './nav-normalize';
