@@ -23,8 +23,42 @@ const HEX_DIGEST_PATTERN = /\b[0-9a-fA-F]{64}\b/g;
  * 常见敏感字段的键值对（JSON、查询串、shell 风格均覆盖）。
  * 字符类刻意排除 `&`：否则会把查询串里后续的非敏感参数一起吃掉，破坏日志可读性。
  */
-const SENSITIVE_FIELD_PATTERN =
-  /("?(?:password|passwd|pwd|secret|token|token_hash|recovery_hash|recovery_key|pairing_hash|pairing_code|api[_-]?key|private[_-]?key|p256dh|auth|auth_secret|username|webdav[_-]?password)"?\s*[:=]\s*"?)([^"',;&\s}]+)/gi;
+const SENSITIVE_FIELD_NAMES = [
+  'password','passwd','pwd','secret','token','token_hash','recovery_hash',
+  'recovery_key','pairing_hash','pairing_code','api_key','api-key','apikey',
+  'private_key','private-key','privatekey','p256dh','auth','auth_secret',
+  'username','webdav_password','webdav-password','webdavpassword',
+];
+
+/** Keep field recognition separate from value consumption to bound regex complexity. */
+function redactSensitiveFields(input: string): string {
+  const names = /[a-z\d_-]+/gi;
+  const value = /("?\s*[:=]\s*"?)([^"',;&\s}]+)/y;
+  const parts: string[] = [];
+  let cursor = 0;
+  for (;;) {
+    const match = names.exec(input);
+    if (!match) {
+      break;
+    }
+    // Preserve the existing suffix policy, e.g. access_token and mypassword.
+    const candidate = match[0].toLowerCase();
+    if (!SENSITIVE_FIELD_NAMES.some(name => candidate.endsWith(name))) {
+      continue;
+    }
+    const nameEnd = names.lastIndex;
+    value.lastIndex = nameEnd;
+    const operand = value.exec(input);
+    if (!operand) {
+      continue;
+    }
+    parts.push(input.slice(cursor, nameEnd), operand[1]!, REDACTED);
+    cursor = value.lastIndex;
+    names.lastIndex = cursor;
+  }
+  parts.push(input.slice(cursor));
+  return parts.join('');
+}
 
 /** Web Push 端点里可能内嵌的一次性密钥（查询串形式）。 */
 const URL_SECRET_QUERY_PATTERN = /([?&](?:token|key|secret|sig|signature)=)[^&\s]+/gi;
@@ -45,11 +79,11 @@ export function redactSecrets(input: unknown): string {
     }
     return '[UNPRINTABLE]';
   }
-  return input
+  const credentialsRedacted = input
     .replace(AUTHORIZATION_PATTERN, `$1${REDACTED}`)
     .replace(CREDENTIAL_PATTERN, REDACTED)
-    .replace(HEX_DIGEST_PATTERN, '[REDACTED_HEX]')
-    .replace(SENSITIVE_FIELD_PATTERN, `$1${REDACTED}`)
+    .replace(HEX_DIGEST_PATTERN, '[REDACTED_HEX]');
+  return redactSensitiveFields(credentialsRedacted)
     .replace(URL_SECRET_QUERY_PATTERN, `$1${REDACTED}`);
 }
 

@@ -210,6 +210,26 @@
 - [x] 在独立 worktree（基线 `b278c4a`，覆盖同步了本批最新源码及测试）完成 `pnpm run verify`：ESLint、TypeScript、项目单测 **610 项**（Web 267、Worker 166、shared 154、engine 17、sync 6）、运维专项 **60 项**、Web/Worker 构建、鱼糕/Android/D1 一致性检查均通过；`git diff --check` 通过。**该结果不等于在最新 PR 全树运行的集成验证**。
 - [ ] 等待 SonarCloud 对 `4fa07b7` 或之后最新 SHA 真实复扫，确认上述两个 issueKey 关闭且没有新问题；继续与主线 648 项历史问题逐条对照，Quality Gate OK 不代表历史积压清零。
 
+## 第二十四批：导航输入边界与日志脱敏正则（2026-10-24）
+
+基于 `PR #84@115eaf5` 的隔离工作树实施，未修改原 UI 开发工作区。下表记录代码层整改对象；历史 issue 的最终关闭状态仍需完整分支分析，不能从 PR new-code 0 推算。
+
+| 基线 issueKey | 规则 | 本批整改 |
+| --- | --- | --- |
+| AaFtGRAC5WNdnY_XE2Ac | typescript:S8786 | 书签片段标签剥离改为共享单向扫描，未闭合标签保持原文本 |
+| AaFtGQ8q5WNdnY_XE159 | typescript:S8786 | 网站元数据纯文本使用同一扫描器，保持实体解码顺序 |
+| AaFtGQ8q5WNdnY_XE15_ | typescript:S8786 | 属性匹配固定起点，失败时跳过完整属性名，避免逐后缀重试 |
+| AaFtGQ8q5WNdnY_XE16A | typescript:S3776 | 提取描述、标题及同源图标决策，降低元数据提取函数复杂度 |
+| AaFtGQ8q5WNdnY_XE16C | typescript:S3776 | 提取重定向验证，保留主机限制、跳转上限与错误文案 |
+| AaFL0WJd67GBU-uGZbcv | typescript:S5843 | 敏感字段改为字符段识别、固定名单后缀判定及独立值读取，保留 p256dh、大小写及既有非边界匹配 |
+| AaFL0WIn67GBU-uGZbch | typescript:S8786 | base64url 填充移除改为从首个等号截断，保留全部字节及长度余数的编码结果 |
+
+- 新增共享标签剥离与书签文本、长畸形标签/属性、字段脱敏和 base64url 回归测试。完整 `pnpm run verify` 通过，包含生成物/Android/D1 守卫、ESLint、TypeScript、全部项目测试、运维测试及 Web/Worker dry-run 构建。
+- 本地 SonarJS 4.2.2 对本批新增辅助函数及修改模块检查通过：认知复杂度阈值 15、正则复杂度阈值 20、慢正则/超线性正则及嵌套三元规则。此检查用于补充验证，不替代 SonarCloud。
+- 用改动前真实实现作对照：**12,150** 组脱敏输入、**4,913** 组元数据属性组合输出完全一致；对照脚本及本地日志只存于忽略目录 `.wrangler/`，未将旧危险正则重新引入产品或测试源码。
+- 完整回归曾检出新扫描器遗漏含数字字段 `p256dh`，已修复为包含数字的字符段扫描，保留回归断言后重新完整验证通过。
+- 提交前 SonarCloud PR Issues API 为 0；**本批提交仍须等待新 SHA 复扫**。主线 648 条基线尚未完成全量归零验收，PR 保持 Draft，不合并、不降低质量门、不隐藏规则。
+
 ## 后续批次（同一个 PR）
 
 1. **P0 安全与可靠性**：清理未完成的 High/Blocker、消息来源、路径边界及正则复杂度问题。

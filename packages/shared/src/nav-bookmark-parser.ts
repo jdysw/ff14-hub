@@ -1,5 +1,6 @@
 /** 安全扫描 Netscape 书签：纯字符解析，不调用 DOMParser 或执行 HTML。 */
 import {normalizeNavText} from './nav-normalize';
+import {stripHtmlTags} from './html-text';
 import type {NavImportItem,NavImportSkipReason,NavImportSkipped,NavParseResult,NavRegion,NavUrlValidation} from './nav-api';
 
 export interface BookmarkParseDependencies {
@@ -165,15 +166,9 @@ function decodeHtmlEntities(value: string): string {
   return result;
 }
 
-/**
- * 去掉所有标签，只留下文本（用于标题/分组名）。
- *
- * 这里的两个正则**刻意保留**：`<[^>]*>` 的字符类排除了 `>`（不可能与自身重叠）、
- * 没有分支嵌套，匹配与扫描都是线性的；`\s+` 只是单个量词、无嵌套量词、无分支。
- * 二者都不是 S5852 的形态，换成手写扫描只会引入无谓的等价性风险。
- */
+/** 去掉完整标签，只留下文本；未闭合的 '<' 原样保留，且不重复扫描后缀。 */
 function textOfFragment(fragment: string): string {
-  return decodeHtmlEntities(fragment.replace(/<[^>]*>/g, ' ')).replace(/\s+/gu, ' ').trim();
+  return decodeHtmlEntities(stripHtmlTags(fragment)).replace(/\s+/gu, ' ').trim();
 }
 
 /** 移除 script/style 内容：它们不是数据，也绝不参与解析（更不允许被执行）。 */

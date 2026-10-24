@@ -25,6 +25,23 @@ describe('navigation metadata extraction safety',()=>{
       title:'测试 & 网站',description:'网站内容 & 工具 ★',iconUrl:'https://www.example.org/static/site.ico',
     });
   });
+  it('handles long unmatched markup and attribute names as bounded plain data',()=>{
+    const info=extractSiteMetadata(
+      '<title>'+ '<'.repeat(30_000) +'</title><meta '+ 'a'.repeat(30_000) +' name=description content="工具">',
+      new URL('https://example.org/')
+    );
+    expect(info.title).toBe('<'.repeat(100));
+    expect(info.description).toBe('工具');
+  });
+  it('preserves attribute quoting, duplicate precedence and malformed-attribute recovery',()=>{
+    const info=extractSiteMetadata(
+      "<meta invalid bare= name='ignored' NAME=description content='first' content=second>"+
+      '<link rel="icon" href="https://example.org/a.ico?private=1">'+
+      '<link HREF=/valid.ico rel=apple-touch-icon>',
+      new URL('https://example.org/')
+    );
+    expect(info).toEqual({title:'',description:'second',iconUrl:'https://example.org/valid.ico'});
+  });
   it('does not accept external icons as same-site icons',()=>{
     const info=extractSiteMetadata('<head><link rel="icon" href="http://127.0.0.1/a.ico"><meta property="og:description" content="查找任务"/></head>',new URL('https://example.org/'));
     expect(info.iconUrl).toBeNull();
