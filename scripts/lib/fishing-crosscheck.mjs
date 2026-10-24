@@ -25,7 +25,7 @@ export function compatiblePaths(values){
 export function completeMoochPath(path,spotId,fishcake){
   if(!Array.isArray(path)||!path.length||Array.isArray(path[0]))return path;
   const seen=new Set();let result=[...path];
-  while(!seen.has(result[0])){seen.add(result[0]);const fish=fishcake.get(result[0])?.spots.find(s=>s.spotId===spotId),prefix=fish?.bestCatchPathIds;if(!prefix?.length)break;result=[...prefix,...result];if(result.length>12)break;}
+  while(!seen.has(result[0])){seen.add(result[0]);const fish=fishcake.get(result[0])?.spots.find(s=>s.spotId===spotId),prefix=fish?.bestCatchPathIds;if(!prefix?.length){break;}result=[...prefix,...result];if(result.length>12){break;}}
   return result;
 }
 export function checkField(field,values,equal=values=>values.every(v=>same(v,values[0]))){

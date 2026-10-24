@@ -38,15 +38,15 @@ export async function updateDeviceRecord<T>(id:string,update:(previous:T|null)=>
   for(let attempt=0;attempt<12;attempt++){
     const previous=await readRaw<CipherRecord>(id),revision=previous?.revision??0;
     const current=previous?await decrypt<T>(id,previous):null,next=update(current);
-    if(next===undefined)return current;
+    if(next===undefined){return current;}
     const iv=crypto.getRandomValues(new Uint8Array(12));
     const body=await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:new TextEncoder().encode(id)},await storageKey(),new TextEncoder().encode(JSON.stringify(next)));
     const saved=await new Promise<boolean>((resolve,reject)=>{
       const tx=db.transaction('records','readwrite'),store=tx.objectStore('records'),r=store.get(id);let changed=false;
-      r.onsuccess=()=>{const live=r.result as CipherRecord|undefined;if((live?.revision??0)!==revision)return;store.put({iv,body,revision:revision+1},id);changed=true;};
+      r.onsuccess=()=>{const live=r.result as CipherRecord|undefined;if((live?.revision??0)!==revision){return;}store.put({iv,body,revision:revision+1},id);changed=true;};
       tx.oncomplete=()=>resolve(changed);tx.onabort=tx.onerror=()=>reject(new Error('保存本机配置失败'));
     });
-    if(saved)return next;
+    if(saved){return next;}
   }
   throw new Error('其他页面正在更新本机配置，请重试');
 }

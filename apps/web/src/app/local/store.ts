@@ -87,9 +87,9 @@ export function createLocalStore(factory:()=>IDBFactory=()=>indexedDB,name='ff14
     return change(document=>{
       const fields=document.data.fish[region];let added=0;
       for(const [set,field] of [['completed','caught'],['pinned','pinned'],['alarmFish','alarm']] as const){
-        if(set!=='completed'&&!includePreferences)continue;
+        if(set!=='completed'&&!includePreferences){continue;}
         for(const fishId of new Set(imported[set])){const existing=fields.find(f=>f.fishId===fishId&&f.field===field);
-          if(existing?.value)continue;
+          if(existing?.value){continue;}
           if(existing){existing.value=true;existing.revision++;existing.updatedAt=Date.now();}
           else fields.push({region,fishId,field,value:true,revision:1,updatedAt:Date.now()});added++;
         }
@@ -113,7 +113,7 @@ export function createLocalStore(factory:()=>IDBFactory=()=>indexedDB,name='ff14
     });},
     async saveProgress(input:FishProgressWrite):Promise<FishProgress>{return change(document=>{
       const fingerprint=JSON.stringify(input),old=document.operations.find(op=>op.id===input.operationId);
-      if(old){if(old.fingerprint!==fingerprint)throw new Error('重复操作内容不一致');return old.result;}
+      if(old){if(old.fingerprint!==fingerprint){throw new Error('重复操作内容不一致');}return old.result;}
       const fields=document.data.fish[input.region];let field=fields.find(f=>f.fishId===input.fishId&&f.field===input.field);
       if((field?.revision??0)!==input.expectedRevision)throw new Error('另一个标签页已更新此标记，请重新读取后再试。');
       if(field){field.value=input.value;field.revision++;field.updatedAt=Date.now();}

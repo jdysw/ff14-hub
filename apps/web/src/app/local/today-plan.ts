@@ -9,7 +9,7 @@ export function planFish(fish:readonly CatalogFish[],fields:LocalData['fish']['c
   const wanted=new Set(watched.slice(0,50)),rows:PlannedFish[]=[];let unavailable=0,unrestricted=0;
   const byId=new Map(fish.map(f=>[f.id,f]));
   for(const id of wanted){const item=byId.get(id);
-    if(!item?.rule||item.method!=='rod'){if(item?.always)unrestricted++;else unavailable++;continue;}
+    if(!item?.rule||item.method!=='rod'){if(item?.always){unrestricted++;}else{unavailable++;}continue;}
     try{for(const w of fishWindows({region,rules:[item.rule],from:now,to:chinaDayEnd(now)})){
       if(w.unrestricted){unrestricted++;continue;}
       rows.push({fishId:id,region,name:item.name,location:item.location,startsAt:w.startsAtUtcMs,endsAt:w.endsAtUtcMs,candidate:w.candidateOnly});

@@ -22,7 +22,7 @@ export function TodayPlan({data,store,onFish,onEvent,onFeature}:{data:LocalData;
     return()=>{alive=false;worker.terminate();};
   },[region,data.fish,now]);
   const activities=useMemo(()=>planEvents(events??[],now),[events,now]),frontline=frontlineAt(now),crystal=crystallineAt(now);
-  const complete=async(id:string,value:boolean)=>{if(busy)return;setBusy(true);setError('');try{await store.change(doc=>{const note=doc.data.notes.find(n=>n.id===id);if(!note)throw new Error('备忘已被删除');note.completed=value;});}catch{setError('待办状态未保存，请重试');}finally{setBusy(false);}};
+  const complete=async(id:string,value:boolean)=>{if(busy){return;}setBusy(true);setError('');try{await store.change(doc=>{const note=doc.data.notes.find(n=>n.id===id);if(!note){throw new Error('备忘已被删除');}note.completed=value;});}catch{setError('待办状态未保存，请重试');}finally{setBusy(false);}};
   return <section className="site-discovery today-plan" aria-label="今日计划">
     <p>{new Date(now).toLocaleDateString('zh-CN',{timeZone:'Asia/Shanghai',month:'long',day:'numeric',weekday:'long'})} · 北京时间 · 关注鱼窗、活动与个人待办</p>
     <section aria-label="今日关注鱼窗"><header><h3>今日关注鱼窗</h3><label>区服<select aria-label="计划区服" value={region} onChange={e=>{setRegion(e.target.value as FishRegion);setLimit(20);}}><option value="cn">国服</option><option value="global">国际服</option></select></label></header>

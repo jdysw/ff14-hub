@@ -8,7 +8,7 @@ export interface NotificationSettings{token:string|null;channel:'serverchan'|'re
 export const defaultNotificationSettings:NotificationSettings={token:null,channel:'serverchan',events:true,eventEndDays:[3,1],fish:true,digestTime:'08:00',leadMinutes:10,dailyLimit:5,browser:false,jobs:[],lastPlan:0,error:''};
 export function digestSettings(data:LocalData,settings:NotificationSettings){
   const targets=(['cn','global'] as const).flatMap(region=>{const caught=new Set(data.fish[region].filter(f=>f.field==='caught'&&f.value).map(f=>f.fishId));return data.fish[region].filter(f=>f.field==='alarm'&&f.value&&!caught.has(f.fishId)).map(f=>({region,fishId:f.fishId}));});
-  if(settings.fish&&targets.length>50)throw new Error('后台每日汇总最多关注 50 条鱼，请减少闹钟标记后再启用');
+  if(settings.fish&&targets.length>50){throw new Error('后台每日汇总最多关注 50 条鱼，请减少闹钟标记后再启用');}
   return fishDigestSchema.parse({enabled:settings.fish||(settings.events&&settings.eventEndDays.length>0),time:settings.digestTime,eventEndDays:settings.events?settings.eventEndDays:[],targets:settings.fish?targets:[]});
 }
 export const NOTIFICATION_SETTINGS_CHANGED='ff14:local-notifications-changed';
@@ -17,15 +17,15 @@ let eventCache:{at:number;data:ReturnType<typeof eventCalendarResponseSchema.par
 export async function buildNotificationJobs(data:LocalData,settings:NotificationSettings,now=Date.now()):Promise<LocalNotificationJob[]>{
   const jobs:LocalNotificationJob[]=[],lead=settings.leadMinutes*60_000;
   jobs.push(...buildTodoNotificationJobs(data,now));
-  const add=(key:string,title:string,body:string,time:number,advance=lead)=>{if(time<=now)return;const originalDue=time-advance,dueAt=Math.max(now,originalDue);if(dueAt<=now+72*3600_000)jobs.push({key:key+':'+originalDue,title:title.slice(0,80),body:body.slice(0,200),dueAt,expiresAt:Math.min(time+15*60_000,dueAt+15*60_000)});};
+  const add=(key:string,title:string,body:string,time:number,advance=lead)=>{if(time<=now){return;}const originalDue=time-advance,dueAt=Math.max(now,originalDue);if(dueAt<=now+72*3600_000)jobs.push({key:key+':'+originalDue,title:title.slice(0,80),body:body.slice(0,200),dueAt,expiresAt:Math.min(time+15*60_000,dueAt+15*60_000)});};
   if(settings.events){
-    try{if(!eventCache||now-eventCache.at>=6*3600_000){const response=await fetch('/api/v1/events/calendar',{credentials:'omit',cache:'no-store',redirect:'error'});if(!response.ok)throw new Error('官方活动读取失败');eventCache={at:now,data:eventCalendarResponseSchema.parse(await response.json())};}}catch{/* An unavailable event feed must not suppress independently computable fish reminders. */}
+    try{if(!eventCache||now-eventCache.at>=6*3600_000){const response=await fetch('/api/v1/events/calendar',{credentials:'omit',cache:'no-store',redirect:'error'});if(!response.ok){throw new Error('官方活动读取失败');}eventCache={at:now,data:eventCalendarResponseSchema.parse(await response.json())};}}catch{/* An unavailable event feed must not suppress independently computable fish reminders. */}
     for(const item of eventCache?.data.events??[]){if(item.startsAt!==null&&item.endsAt!==null){add('event-start:'+item.id,item.title,'活动即将开始',item.startsAt);add('event-end:'+item.id,item.title,'活动即将结束',item.endsAt);}}
   }
   if(settings.fish)for(const region of ['cn','global'] as const){
     const fields=data.fish[region],caught=new Set(fields.filter(f=>f.field==='caught'&&f.value).map(f=>f.fishId));
     const wanted=new Set(fields.filter(f=>f.field==='alarm'&&f.value&&!caught.has(f.fishId)).map(f=>f.fishId));
-    if(wanted.size===0)continue;
+    if(wanted.size===0){continue;}
     const catalog=await loadFishingCatalog(region);
     const fish=catalog.fish.filter(f=>wanted.has(f.id)&&f.method==='rod'&&f.rule&&!f.rule.conditions.some(c=>c.kind==='unknown'));
     const names=new Map(fish.map(f=>[f.id,f]));
@@ -51,7 +51,7 @@ export async function registerNotifications(channel:LocalNotificationChannel,set
 export function startLocalNotifications(store:LocalStore){
   let stopped=false,timer:number|undefined,running=false;
   const renew=async(localOnly=false)=>{
-    if(stopped||running)return;running=true;
+    if(stopped||running){return;}running=true;
     try{const settings=await readDeviceRecord<NotificationSettings>('notifications');if(!settings||(!settings.token&&!settings.browser)||(localOnly&&!settings.browser))return;
       const data=await store.read(),jobs=await buildNotificationJobs(data,settings);
       const latest=await readDeviceRecord<NotificationSettings>('notifications');
@@ -59,7 +59,7 @@ export function startLocalNotifications(store:LocalStore){
       let error='';
       if(settings.token&&!localOnly)try{await notificationRequest('/plan',settings.token,'PUT',{jobs:buildTodoNotificationJobs(data),digest:digestSettings(data,settings),targetsOnly:true});}catch(cause){error=cause instanceof Error?cause.message:'后台提醒登记失败，请检查通知设置';}
       await updateDeviceRecord<NotificationSettings>('notifications',current=>{
-        if(stopped||!current||current.token!==settings.token||current.browser!==settings.browser)return undefined;
+        if(stopped||!current||current.token!==settings.token||current.browser!==settings.browser){return undefined;}
         return {...current,jobs,lastPlan:localOnly||error?current.lastPlan:Date.now(),error:localOnly?current.error:error};
       });
     }catch{/* A failed refresh preserves the durable server plan; status is available in settings. */}finally{running=false;}
@@ -67,7 +67,7 @@ export function startLocalNotifications(store:LocalStore){
   const changed=()=>{window.clearTimeout(timer);timer=window.setTimeout(()=>void renew(),2000);};
   const unsubscribe=store.subscribe(changed);
   window.addEventListener(NOTIFICATION_SETTINGS_CHANGED,changed);
-  const periodic=window.setInterval(()=>{if(document.visibilityState!=='hidden')void renew();},6*3600_000);
+  const periodic=window.setInterval(()=>{if(document.visibilityState!=='hidden'){void renew();}},6*3600_000);
   const localPeriodic=window.setInterval(()=>void renew(true),15*60_000);
   const seen=new Set<string>();
   const browserTimer=window.setInterval(()=>{void (async()=>{
