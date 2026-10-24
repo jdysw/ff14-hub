@@ -2,7 +2,7 @@
  * 自由导航契约（阶段 04：HUB-047 / HUB-048 / HUB-007 / HUB-008 / HUB-009）——前后端**共用**。
  *
  * 定位：只放**纯类型与纯函数**。无 DOM、无 D1、无 React、无网络。
- * 服务端查询端点与前端 Widget 调用**同一份**实现，因此「搜索/筛选/排序/升级判定」
+ * 当前浏览器与 Worker 使用**同一份**规则，因此「搜索/筛选/排序/升级判定」
  * 不可能出现两套规则互相漂移（这是阶段 04 的明确要求，见 ADR-0004 D5）。
  *
  * ── 为什么 URL 只允许 https（D3）──────────────────────────────────────────────
@@ -22,8 +22,6 @@
  * **显式再次导入**时才可能写个人行，且默认不覆盖用户改动。
  */
 import { z } from 'zod';
-// 纯类型导入（WidgetConfigContract）：运行时被擦除，因此 builtin-modules ↔ nav-api 之间
-// 不存在运行时循环依赖；类型层互相引用是刻意的（契约集中在同一处）。
 import { operationIdSchema } from './operation-id';
 import {normalizeNavText} from './nav-normalize';
 import {parseBookmarkHtmlWithDependencies,skipOf} from './nav-bookmark-parser';
