@@ -3,13 +3,13 @@ import type {Env} from '../../env';
 import {decryptChannel,sendChannel} from './notification-channel';
 import {planDailyFishDigests} from './fish-digest';
 export function checkedJobs(raw:unknown,now=Date.now()):LocalNotificationJob[]{
-  return localNotificationJobsSchema.parse(raw).filter(job=>job.expiresAt>now&&job.dueAt>=now-60_000&&job.dueAt<=now+72*3600_000&&job.expiresAt>job.dueAt&&job.expiresAt<=job.dueAt+15*60_000);
+  return localNotificationJobsSchema.parse(raw).filter(job=>job.expiresAt>now&&job.dueAt>=now-60_000&&job.dueAt<=now+(job.key.startsWith('todo:')?365*86400000:72*3600_000)&&job.expiresAt>job.dueAt&&job.expiresAt<=job.dueAt+15*60_000);
 }
 export async function replaceLocalJobs(db:D1Database,device:string,jobs:LocalNotificationJob[],now=Date.now()){
   const statements=[db.prepare(`UPDATE local_push_jobs SET status='cancelled' WHERE device_id=? AND status IN('queued','leased') AND job_key NOT LIKE 'digest:%' AND job_key NOT IN(SELECT value FROM json_each(?))`).bind(device,JSON.stringify(jobs.map(job=>job.key))),
     ...jobs.map(job=>db.prepare(`INSERT INTO local_push_jobs(device_id,job_key,payload,due_at,expires_at) VALUES(?,?,?,?,?)
-      ON CONFLICT(device_id,job_key) DO UPDATE SET payload=excluded.payload,due_at=excluded.due_at,expires_at=excluded.expires_at
-      WHERE local_push_jobs.status='queued'`).bind(device,job.key,JSON.stringify(job),job.dueAt,job.expiresAt)),
+      ON CONFLICT(device_id,job_key) DO UPDATE SET payload=excluded.payload,due_at=excluded.due_at,expires_at=excluded.expires_at,status='queued',attempts=CASE WHEN local_push_jobs.status='cancelled' THEN 0 ELSE local_push_jobs.attempts END
+      WHERE local_push_jobs.status IN('queued','cancelled')`).bind(device,job.key,JSON.stringify(job),job.dueAt,job.expiresAt)),
     db.prepare('UPDATE local_push_devices SET expires_at=?,updated_at=? WHERE id=?').bind(now+90*86400_000,now,device)];
   await db.batch(statements);
 }

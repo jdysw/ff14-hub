@@ -3,7 +3,7 @@
  * 所有业务修改在此统一授权，未认证设备 Token 与浏览器端口令均不得替代管理员会话。
  * 不提供任何 HTTP 注册 / 初始账号创建接口。
  */
-import { ApiError } from '@ff14-hub/shared';
+import { ApiError,siteGameDataSchema,eventCalendarItemSchema } from '@ff14-hub/shared';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { noStoreJson } from '../../lib/response';
@@ -17,6 +17,8 @@ import { readCnCalendar } from '../../modules/events/calendar-feed';
 import { refreshOfficialCalendarSnapshot } from '../../modules/events/calendar-refresh';
 import { calendarMutationSchema, calendarToggleSchema, listEditorEntries, saveCalendarEdit } from '../../modules/events/calendar-editor';
 import { registerAdminNavigation } from './admin-navigation';
+import {contentStates,saveContentState} from '../../modules/admin/content-state';
+import {readGameData,saveGameData} from '../../modules/admin/game-data';
 
 export const adminRoutes = new Hono<AppBindings>();
 export const publicSiteRoutes = new Hono<AppBindings>();
@@ -37,6 +39,7 @@ export function adminAuth(): AppMiddleware {
 
 // 公开 API 只有展示配置，不包含账号状态、鉴权信息或部署密钥。
 publicSiteRoutes.get('/',async c=>noStoreJson(c,await readSiteSettings(c.env.DB)));
+publicSiteRoutes.get('/data',async c=>noStoreJson(c,await readGameData(c.env.DB)));
 publicSiteRoutes.all('*',methodNotAllowed(['GET']));
 
 adminRoutes.post('/login',validateJsonBody(loginSchema),async c=>{
@@ -47,12 +50,44 @@ adminRoutes.post('/login',validateJsonBody(loginSchema),async c=>{
   return noStoreJson(c,{token:await issueAdminSession(c.env.DB)});
 });
 adminRoutes.get('/session',adminAuth(),c=>noStoreJson(c,{administrator:true,role:'owner'}));
+adminRoutes.get('/content-state',adminAuth(),async c=>noStoreJson(c,{records:await contentStates(c.env.DB)}));
+adminRoutes.get('/content-audit',adminAuth(),async c=>noStoreJson(c,{records:(await c.env.DB.prepare('SELECT domain,content_id,state,title,revision,updated_at FROM admin_content_audit ORDER BY id DESC LIMIT 100').all()).results}));
+const contentStateSchema=z.object({domain:z.enum(['navigation','calendar']),contentId:z.string().min(1).max(150),state:z.enum(['active','trash','deleted']),expectedRevision:z.number().int().nonnegative()}).strict();
+adminRoutes.put('/content-state',adminAuth(),validateJsonBody(contentStateSchema),async c=>{
+  const body=parsedJsonBody(c,contentStateSchema);
+  let title:string;
+  let snapshot:string|undefined;
+  if(body.domain==='navigation'){
+    const row=await c.env.DB.prepare('SELECT json_extract(payload,\'$.title\') AS title FROM nav_catalog_edits WHERE id=? UNION ALL SELECT title FROM nav_catalog_links WHERE id=? LIMIT 1').bind(body.contentId,body.contentId).first<{title:string}>();
+    title=row?.title??'';
+  }else{
+    await assertEditableId(c.env.DB,body.contentId);
+    const previous=await c.env.DB.prepare("SELECT title,record_payload,revision FROM admin_content_state WHERE domain='calendar' AND content_id=?").bind(body.contentId).first<{title:string;record_payload:string|null;revision:number}>();
+    const edit=(await listEditorEntries(c.env.DB)).find(row=>row.id===body.contentId);
+    const original=(await readOfficialCalendarSnapshot(c.env.DB))?.events.find(row=>row.id===body.contentId);
+    const item=edit?.item??original;
+    title=item?.title??previous?.title??'活动';
+    if(body.state==='trash'&&item)snapshot=JSON.stringify(item);
+    if(body.state==='active'&&!item&&previous?.record_payload){
+      if(previous.revision!==body.expectedRevision)throw new ApiError('conflict','回收站内容已更新');
+      const restored=eventCalendarItemSchema.parse(JSON.parse(previous.record_payload));
+      await saveCalendarEdit(c.env.DB,'owner',body.contentId,'upsert',restored,edit?.revision??0);
+    }
+  }
+  if(!title)throw new ApiError('not_found','内容不存在');
+  return noStoreJson(c,await saveContentState(c.env.DB,{...body,title,...(snapshot?{snapshot}:{})}));
+});
 adminRoutes.post('/logout',adminAuth(),async c=>{
   await revokeAdminSession(c.env.DB,c.req.header('Authorization'));
   return noStoreJson(c,{ok:true});
 });
 
 adminRoutes.get('/settings',adminAuth(),async c=>noStoreJson(c,await readSiteSettings(c.env.DB)));
+adminRoutes.get('/game-data',adminAuth(),async c=>noStoreJson(c,await readGameData(c.env.DB)));
+const gameDataMutation=z.object({expectedRevision:z.number().int().nonnegative(),data:siteGameDataSchema}).strict();
+adminRoutes.put('/game-data',adminAuth(),validateJsonBody(gameDataMutation),async c=>{const input=parsedJsonBody(c,gameDataMutation);return noStoreJson(c,await saveGameData(c.env.DB,input.data,input.expectedRevision));});
+adminRoutes.get('/game-data/history',adminAuth(),async c=>noStoreJson(c,{records:(await c.env.DB.prepare('SELECT revision,updated_at FROM site_game_data_history ORDER BY revision DESC LIMIT 50').all()).results}));
+adminRoutes.get('/game-data/history/:revision',adminAuth(),async c=>{const row=await c.env.DB.prepare('SELECT payload FROM site_game_data_history WHERE revision=?').bind(Number(c.req.param('revision'))).first<{payload:string}>();if(!row)throw new ApiError('not_found','版本不存在');return noStoreJson(c,{data:siteGameDataSchema.parse(JSON.parse(row.payload))});});
 adminRoutes.put('/settings',adminAuth(),validateJsonBody(siteSettingsMutationSchema),async c=>{
   const input=parsedJsonBody(c,siteSettingsMutationSchema);
   return noStoreJson(c,await updateSiteSettings(c.env.DB,input));
@@ -64,6 +99,7 @@ async function assertEditableId(db:D1Database,id:string):Promise<void> {
   const saved=await db.prepare('SELECT id FROM calendar_editor_entries WHERE id=?')
     .bind(id).first<{id:string}>();
   if(saved!==null)return;
+  if(await db.prepare("SELECT 1 FROM admin_content_state WHERE domain='calendar' AND content_id=?").bind(id).first())return;
   const base=await readOfficialCalendarSnapshot(db);
   if(base?.events.some(event=>event.id===id))return;
   throw new ApiError('not_found','活动不存在');
@@ -72,10 +108,19 @@ async function assertEditableId(db:D1Database,id:string):Promise<void> {
 /** 管理台显示官方原始数据和人工修改的版本号，避免普通访问取得编辑审计信息。 */
 adminRoutes.post('/calendar/refresh', adminAuth(), async c => {
   await throttleAdmin(c.env.DB,'admin:calendar-refresh',1);
+  const run=await c.env.DB.prepare("INSERT INTO admin_sync_runs(started_at,status) VALUES(?,'running') RETURNING id").bind(Date.now()).first<{id:number}>();
   const stored=await refreshOfficialCalendarSnapshot(c.env.DB,Date.now(),readCnCalendar,true);
+  const checked=await readOfficialCalendarSnapshot(c.env.DB);
+  if(run)await c.env.DB.prepare('UPDATE admin_sync_runs SET finished_at=?,status=?,item_count=? WHERE id=?').bind(Date.now(),stored?'success':'failed',checked?.events.length??0,run.id).run();
   if(!stored)return c.json({code:'service_unavailable',message:'官方同步失败，已保留原有活动数据，请稍后重试'},503);
   const snapshot=await readOfficialCalendarSnapshot(c.env.DB);
   return noStoreJson(c,{ok:true,checkedAtMs:snapshot?.source.checkedAtMs});
+});
+adminRoutes.get('/operations',adminAuth(),async c=>{
+  const snapshot=await readOfficialCalendarSnapshot(c.env.DB);
+  const records=(await c.env.DB.prepare('SELECT started_at,finished_at,status,item_count FROM admin_sync_runs ORDER BY id DESC LIMIT 30').all()).results;
+  const counts=await c.env.DB.prepare("SELECT (SELECT COUNT(*) FROM nav_catalog_links) AS websites,(SELECT COUNT(*) FROM nav_catalog_edits) AS websiteEdits,(SELECT COUNT(*) FROM calendar_editor_entries) AS eventEdits,(SELECT COUNT(*) FROM admin_content_state WHERE state='trash') AS trash").first();
+  return noStoreJson(c,{counts,calendar:snapshot?{count:snapshot.events.length,checkedAt:snapshot.source.checkedAtMs,stale:snapshot.source.stale}:null,records});
 });
 
 adminRoutes.get('/calendar/items', adminAuth(), async (c) => {

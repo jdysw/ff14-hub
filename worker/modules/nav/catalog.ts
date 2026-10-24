@@ -37,7 +37,7 @@ import { canonicalNavUrl } from '@ff14-hub/shared';
  * 从 2 开始，库内版本可以被改小到 1（合法）来做验证——这是把不变量变成可测行为的代价，
  * 而不是把版本号当成装饰。
  */
-export const NAV_CATALOG_SOURCE_VERSION = 3;
+export const NAV_CATALOG_SOURCE_VERSION = 4;
 
 /**
  * 本阶段核对时间（UTC 毫秒，固定常量：核对时间必须可复现，不能在每次请求时取 `Date.now()`）。
@@ -61,7 +61,7 @@ const LEGACY_CATALOG_SEED: readonly NavCatalogEntry[] = [
     title: 'The Lodestone（全球官方社区）',
     url: 'https://na.finalfantasyxiv.com/lodestone/',
     description: '官方社区与新闻入口（国际服）：公告、更新日志、角色与部队页面。',
-    category: '官方',
+    category: '官方与账号 / 官网与公告',
     tags: ['官方', '新闻', '社区'],
     aliases: ['Lodestone', '石之家'],
     icon: '📰',
@@ -87,7 +87,7 @@ const LEGACY_CATALOG_SEED: readonly NavCatalogEntry[] = [
     title: '最终幻想14（国服）官方网站',
     url: 'https://ff.web.sdo.com/',
     description: '国服官方站点：公告、活动与客户端下载入口。',
-    category: '官方',
+    category: '官方与账号 / 官网与公告',
     tags: ['官方', '国服', '新闻'],
     aliases: ['国服官网', '最终幻想14国服'],
     icon: '🏠',
@@ -108,7 +108,7 @@ const LEGACY_CATALOG_SEED: readonly NavCatalogEntry[] = [
     title: 'Garland Tools（迦兰德数据库）',
     url: 'https://garlandtools.org/',
     description: '物品、任务、采集位置与成就的社区数据库（作者站点）。',
-    category: '数据工具',
+    category: '入门与资料 / 百科与数据库',
     tags: ['数据', '采集', '物品'],
     aliases: ['Garland', '迦兰德'],
     icon: '📚',
@@ -129,7 +129,7 @@ const LEGACY_CATALOG_SEED: readonly NavCatalogEntry[] = [
     title: 'Universalis（市场板价格）',
     url: 'https://universalis.app/',
     description: '社区维护的市场板价格查询服务（国际服）。',
-    category: '数据工具',
+    category: '生产与采集 / 市场与物价',
     tags: ['市场板', '价格'],
     aliases: ['Universalis', '市场板价格'],
     icon: '📈',
@@ -151,7 +151,7 @@ const LEGACY_CATALOG_SEED: readonly NavCatalogEntry[] = [
     title: 'Teamcraft（生产与配装协作）',
     url: 'https://ffxivteamcraft.com/',
     description: '生产模拟、配装与协作清单工具（作者站点）。',
-    category: '数据工具',
+    category: '生产与采集 / 制作与配方',
     tags: ['生产', '配装', '协作'],
     aliases: ['Teamcraft'],
     icon: '🛠️',

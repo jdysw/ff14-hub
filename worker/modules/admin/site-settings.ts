@@ -2,7 +2,7 @@
  * 全站公共展示设置：白名单字段、服务器输入验证、D1 乐观锁和数据库触发器审计。
  * 禁止保存密钥、数据库参数、CORS、安全开关等运维级配置。
  */
-import { ApiError } from '@ff14-hub/shared';
+import { ApiError,managedPresentationSchema,DEFAULT_CATEGORIES,DEFAULT_HOME } from '@ff14-hub/shared';
 import { z } from 'zod';
 
 export const siteSettingsSchema = z.object({
@@ -10,13 +10,15 @@ export const siteSettingsSchema = z.object({
   announcement: z.string().max(500),
   announcementEnabled: z.boolean(),
   homeCalendarEnabled: z.boolean(),
+  presentation:managedPresentationSchema.default({categories:DEFAULT_CATEGORIES,home:DEFAULT_HOME,categoryAliases:{}}),
 }).strict();
 export type SiteSettings = z.infer<typeof siteSettingsSchema>;
 export const DEFAULT_SITE_SETTINGS: SiteSettings = Object.freeze({
-  siteName: 'FF14 Hub',
+  siteName: '私用以太之光',
   announcement: '',
   announcementEnabled: false,
   homeCalendarEnabled: true,
+  presentation:{categories:DEFAULT_CATEGORIES,home:DEFAULT_HOME,categoryAliases:{}},
 });
 export const siteSettingsMutationSchema = z.object({
   expectedRevision: z.number().int().min(0),

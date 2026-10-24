@@ -115,7 +115,7 @@ describe('独立管理员账号密码 + TOTP 双因子',()=>{
     expect(published.status).toBe(200);
     const initial=await published.json<{revision:number;settings:{siteName:string}}>();
     expect(initial.revision).toBe(0);
-    expect(initial.settings.siteName).toBe('FF14 Hub');
+    expect(initial.settings.siteName).toBe('私用以太之光');
     expect((await request('/settings','PUT',undefined,{
       expectedRevision:0,settings:{siteName:'新标题',announcement:'维护公告',announcementEnabled:true,homeCalendarEnabled:false},
     })).status).toBe(401);

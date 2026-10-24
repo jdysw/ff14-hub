@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <title>私用以太之光</title>
+  <path d="M66 5 78 47 74 66 82 79 68 98 48 88 54 51Z" fill="#74c5d6"/>
+  <path d="m66 5 4 49-8 16 6 28-20-10 6-37Z" fill="#43a8c6"/>
+  <path d="m66 5 10 43-11 20 3 30-8-28 9-19Z" fill="#edf9f7"/>
+  <path d="m49 30 4-13 4 11-3 7Z" fill="#4eacc8"/>
+  <path d="m49 38 7 1-4 10Z" fill="#c69a51"/>
+  <path d="M49 35c-3 3 8 5 10 1" stroke="#bf9146" stroke-width="2" stroke-linecap="round"/>
+  <path d="M89 56c20-1 32 6 27 15-4 8-18 17-35 23M43 91C22 94 9 89 10 81c1-10 17-20 39-27" stroke="#c29a54" stroke-width="3"/>
+  <path d="M36 84c11-2 38-14 49-23 9-7 10-10 5-11" stroke="#f9fbf4" stroke-width="7" stroke-linecap="round"/>
+  <path d="M36 84c11-2 38-14 49-23 9-7 10-10 5-11" stroke="#c29a54" stroke-width="3" stroke-linecap="round"/>
+  <path d="m10 78 8 9-16 2Zm105-4 11 8-16 1ZM67 88l6 9-7 13-6-14ZM43 77l5 10-7-2-2-6Z" fill="#69bed3"/>
+  <path d="m67 88-7 8 6 14" stroke="#eff9f6" stroke-width="1.4"/>
+  <path d="M58 109c6 4-1 8-8 12h33c-8-5-15-8-8-12" stroke="#bf9146" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

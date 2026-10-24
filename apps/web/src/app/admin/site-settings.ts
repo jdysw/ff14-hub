@@ -1,17 +1,19 @@
 /** 匿名公开站点展示设置：失败时退回内置安全默认值，不读取任何私有身份信息。 */
 import { useCallback, useEffect, useState } from 'react';
+import {managedPresentationSchema,DEFAULT_CATEGORIES,DEFAULT_HOME} from '@ff14-hub/shared';
 export interface SiteSettings {
   readonly siteName: string;
   readonly announcement: string;
   readonly announcementEnabled: boolean;
   readonly homeCalendarEnabled: boolean;
+  readonly presentation?:ReturnType<typeof managedPresentationSchema.parse>;
 }
 export interface SiteSettingsDocument {
   readonly revision:number;
   readonly settings:SiteSettings;
 }
 export const DEFAULT_SITE_SETTINGS:SiteSettings=Object.freeze({
-  siteName:'FF14 Hub',announcement:'',announcementEnabled:false,homeCalendarEnabled:true,
+  siteName:'私用以太之光',announcement:'',announcementEnabled:false,homeCalendarEnabled:true,presentation:{categories:DEFAULT_CATEGORIES,home:DEFAULT_HOME,categoryAliases:{}},
 });
 export const SITE_SETTINGS_CHANGED='ff14hub:site-settings-changed';
 export function useSiteSettings():SiteSettings {
@@ -26,7 +28,8 @@ export function useSiteSettings():SiteSettings {
           typeof data.settings.announcement!=='string' ||
           typeof data.settings.announcementEnabled!=='boolean' ||
           typeof data.settings.homeCalendarEnabled!=='boolean')return;
-        setSettings(data.settings);
+        const presentation=managedPresentationSchema.safeParse(data.settings.presentation);
+        setSettings({...data.settings,...(presentation.success?{presentation:presentation.data}:{presentation:{categories:DEFAULT_CATEGORIES,home:DEFAULT_HOME,categoryAliases:{}}})});
       }).catch(()=>undefined);
     return ()=>controller.abort();
   },[]);

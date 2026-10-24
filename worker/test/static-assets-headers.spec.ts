@@ -69,8 +69,8 @@ describe('PWA：manifest 响应头与内容', () => {
     expect(response.headers.get('Content-Type')).toBe('application/manifest+json; charset=utf-8');
     expect(response.headers.get('Cache-Control')).toBe('no-cache');
     const manifest = JSON.parse(await response.text()) as Record<string, unknown>;
-    expect(manifest['name']).toBe('FF14 Hub — 个人导航与模块化工作台');
-    expect(manifest['short_name']).toBe('FF14 Hub');
+    expect(manifest['name']).toBe('私用以太之光 — FF14 日常助手');
+    expect(manifest['short_name']).toBe('私用以太之光');
     expect(manifest['start_url']).toBe('/');
     expect(manifest['display']).toBe('standalone');
     // 主题色由当前 UI 设计决定，不应把旧深色方案硬编码进 PWA 接口测试。

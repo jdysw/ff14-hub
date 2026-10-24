@@ -1,7 +1,6 @@
 import {Hono} from 'hono';
 import {
-  CRYSTAL_ANCHOR_UTC,CRYSTAL_MAPS,CRYSTAL_PERIOD_MS,FRONTLINE_ANCHOR_UTC,FRONTLINE_MAPS,
-  PVP_DAY_MS,PVP_RULE_VERSION,crystallineAt,frontlineAt,fishWindows,
+  crystallineAt,frontlineAt,fishWindows,
   mobileWidgetQueryV1Schema,mobileWidgetResponseV1Schema,
   type MobileWidgetResponseV1,
 } from '@ff14-hub/shared';
@@ -12,6 +11,7 @@ import {methodNotAllowed} from '../../middleware/error-handler';
 import {readFish} from '../../modules/fish/service';
 import {readOfficialCalendarSnapshot} from '../../modules/events/calendar-snapshot';
 import {applyCalendarEdits} from '../../modules/events/calendar-editor';
+import {readGameData} from '../../modules/admin/game-data';
 
 export const mobileWidgetRoutes=new Hono<AppBindings>();
 
@@ -19,17 +19,18 @@ export const mobileWidgetRoutes=new Hono<AppBindings>();
 mobileWidgetRoutes.get('/v1/summary',validateQuery(mobileWidgetQueryV1Schema),async(c)=>{
   const params=mobileWidgetQueryV1Schema.parse(Object.fromEntries(new URL(c.req.url).searchParams));
   const now=Date.now();
-  const front=frontlineAt(now),crystal=crystallineAt(now);
+  const rules=(await readGameData(c.env.DB)).data.pvp;
+  const front=frontlineAt(now,rules),crystal=crystallineAt(now,rules);
   const pvp:MobileWidgetResponseV1['pvp']={
     frontline:{
       current:front.current,next:front.next,startsAtMs:front.startsAt,changesAtMs:front.changesAt,
-      anchorUtcMs:FRONTLINE_ANCHOR_UTC,anchorIndex:4,periodMs:PVP_DAY_MS,
-      cycle:[...FRONTLINE_MAPS],ruleVersion:PVP_RULE_VERSION,
+      anchorUtcMs:rules.frontline.anchor,anchorIndex:rules.frontline.anchorIndex,periodMs:rules.frontline.period,
+      cycle:rules.frontline.maps,ruleVersion:rules.version,
     },
     crystalline:{
       current:crystal.current,next:crystal.next,startsAtMs:crystal.startsAt,changesAtMs:crystal.changesAt,
-      anchorUtcMs:CRYSTAL_ANCHOR_UTC,anchorIndex:6,periodMs:CRYSTAL_PERIOD_MS,
-      cycle:[...CRYSTAL_MAPS],ruleVersion:PVP_RULE_VERSION,
+      anchorUtcMs:rules.crystalline.anchor,anchorIndex:rules.crystalline.anchorIndex,periodMs:rules.crystalline.period,
+      cycle:rules.crystalline.maps,ruleVersion:rules.version,
     },
   };
   let fish:MobileWidgetResponseV1['fish']={status:'selection_required',items:[]};

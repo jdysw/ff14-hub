@@ -3,11 +3,9 @@
     "id": "catalog.import.4a24f527434058664f42",
     "title": "国服官网",
     "url": "https://ff.web.sdo.com/",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国服官方"
-    ],
+    "description": "游戏资讯与公告入口",
+    "category": "官方与账号 / 官网与公告",
+    "tags": [],
     "aliases": [
       "最终幻想14"
     ],
@@ -40,11 +38,9 @@
     "id": "catalog.import.1c26e6869a6b830a6d68",
     "title": "道具商城",
     "url": "https://qu.sdo.com/game/1",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国服官方"
-    ],
+    "description": "充值、商品或奖励兑换入口",
+    "category": "官方与账号 / 充值与商城",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -63,11 +59,9 @@
     "id": "catalog.import.c4399f9739df837935d8",
     "title": "周边商城",
     "url": "https://qu.sdo.com/surround-shop?merchantId=1",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国服官方"
-    ],
+    "description": "充值、商品或奖励兑换入口",
+    "category": "官方与账号 / 充值与商城",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -86,11 +80,9 @@
     "id": "catalog.import.5f781c9ddb2d82b34af2",
     "title": "后勤补给站",
     "url": "https://actff1.web.sdo.com/project/141028dgf/index.html",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国服官方"
-    ],
+    "description": "充值、商品或奖励兑换入口",
+    "category": "官方与账号 / 充值与商城",
+    "tags": [],
     "aliases": [
       "大国防联军后勤补给站"
     ],
@@ -117,11 +109,9 @@
     "id": "catalog.import.98642f4481b416282618",
     "title": "陆行鸟礼物站",
     "url": "https://ffpay.sdo.com/pc/giftsStation/index.html#/index",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国服官方"
-    ],
+    "description": "充值、商品或奖励兑换入口",
+    "category": "官方与账号 / 充值与商城",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -146,11 +136,9 @@
     "id": "catalog.import.1ea886e0a47eaf8f7648",
     "title": "官方微博",
     "url": "https://weibo.com/cnff14",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国服官方"
-    ],
+    "description": "游戏资讯与公告入口",
+    "category": "官方与账号 / 官网与公告",
+    "tags": [],
     "aliases": [
       "最终幻想14"
     ],
@@ -177,11 +165,9 @@
     "id": "catalog.import.7ed3df911a1f543f6bf6",
     "title": "官方B站",
     "url": "https://space.bilibili.com/6655514",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国服官方"
-    ],
+    "description": "游戏资讯与公告入口",
+    "category": "官方与账号 / 官网与公告",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -200,11 +186,9 @@
     "id": "catalog.import.13a1da6499afba3add29",
     "title": "丝瓜卡夫卡",
     "url": "https://weibo.com/siguakafuka",
-    "description": "",
-    "category": "社区与创作",
-    "tags": [
-      "国服官方"
-    ],
+    "description": "玩家创作、资讯或直播入口",
+    "category": "社区与创作 / 创作者与直播",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -229,11 +213,9 @@
     "id": "catalog.import.bd4df51c45c51ffa93a2",
     "title": "违规处理平台",
     "url": "https://actff1.web.sdo.com/project/20210621ffviolation/index.html#/index",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国服官方"
-    ],
+    "description": "游戏账号及官方服务入口",
+    "category": "官方与账号 / 账号与服务",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -252,11 +234,9 @@
     "id": "catalog.import.b85cf22befff09452364",
     "title": "萌新招待",
     "url": "https://actff1.web.sdo.com/20190315Zhaodai/index.html#/index",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国服官方"
-    ],
+    "description": "游戏账号及官方服务入口",
+    "category": "官方与账号 / 账号与服务",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -281,11 +261,9 @@
     "id": "catalog.import.2571bc972c3a41f5a6ef",
     "title": "石之家",
     "url": "https://ff14risingstones.web.sdo.com/pc/index.html#/post",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国服官方"
-    ],
+    "description": "游戏资讯与公告入口",
+    "category": "官方与账号 / 官网与公告",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -304,11 +282,9 @@
     "id": "catalog.import.3924acdc2d4ff59f6a39",
     "title": "游戏充值(盛趣)",
     "url": "https://pay.sdo.com/item/GWPAY-100001900",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国服官方"
-    ],
+    "description": "充值、商品或奖励兑换入口",
+    "category": "官方与账号 / 充值与商城",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -327,11 +303,9 @@
     "id": "catalog.import.9ffa808ffeb42c3434e9",
     "title": "游戏充值(腾讯)",
     "url": "https://www.wegame.com.cn/mall/list.html?game_id=2000340",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国服官方"
-    ],
+    "description": "充值、商品或奖励兑换入口",
+    "category": "官方与账号 / 充值与商城",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -350,11 +324,9 @@
     "id": "catalog.import.c7da243eef7f34c5fae5",
     "title": "积分中心",
     "url": "https://qu.sdo.com/personal-center?merchantId=#pointsindex-1",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国服官方"
-    ],
+    "description": "充值、商品或奖励兑换入口",
+    "category": "官方与账号 / 充值与商城",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -373,11 +345,9 @@
     "id": "catalog.import.8e167831a1aff7a085bd",
     "title": "💎 水晶冲突",
     "url": "https://actff1.web.sdo.com/project/ffcrystranking/index.html#/index",
-    "description": "",
-    "category": "社区与创作",
-    "tags": [
-      "国服官方"
-    ],
+    "description": "PVP 排名与相关信息",
+    "category": "PVP / 排名与资料",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -396,11 +366,9 @@
     "id": "catalog.import.a36f5ade55637f557012",
     "title": "国际服官网",
     "url": "https://www.finalfantasyxiv.com/",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国际服官方"
-    ],
+    "description": "游戏资讯与公告入口",
+    "category": "官方与账号 / 官网与公告",
+    "tags": [],
     "aliases": [
       "国际服-官网",
       "FINAL FANTASY XIV"
@@ -434,11 +402,9 @@
     "id": "catalog.import.d1906d09a222b70c18e1",
     "title": "LodeStone",
     "url": "https://jp.finalfantasyxiv.com/lodestone/playguide/db/",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国际服官方"
-    ],
+    "description": "游戏资料检索与百科查询",
+    "category": "入门与资料 / 百科与数据库",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -457,11 +423,9 @@
     "id": "catalog.import.2f69b81c75c321a9e922",
     "title": "官方油管",
     "url": "https://www.youtube.com/user/FINALFANTASYXIV",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国际服官方"
-    ],
+    "description": "游戏资讯与公告入口",
+    "category": "官方与账号 / 官网与公告",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -480,11 +444,9 @@
     "id": "catalog.import.45246960d0d358df4bab",
     "title": "官方推特",
     "url": "https://twitter.com/ff_xiv_jp",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国际服官方"
-    ],
+    "description": "游戏资讯与公告入口",
+    "category": "官方与账号 / 官网与公告",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -503,11 +465,9 @@
     "id": "catalog.import.c7fa72af16776676c86c",
     "title": "道具商城",
     "url": "https://store.finalfantasyxiv.com/ffxivstore/ja-jp/",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国际服官方"
-    ],
+    "description": "充值、商品或奖励兑换入口",
+    "category": "官方与账号 / 充值与商城",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -526,11 +486,9 @@
     "id": "catalog.import.a6c501728b2c0ccab0c4",
     "title": "莫古站",
     "url": "https://secure.square-enix.com/account/app/svc/ffxivshopacctop",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国际服官方"
-    ],
+    "description": "游戏账号及官方服务入口",
+    "category": "官方与账号 / 账号与服务",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -549,11 +507,9 @@
     "id": "catalog.import.e8edaeb3c5ac1e37ad67",
     "title": "官方论坛",
     "url": "https://forum.square-enix.com/ffxiv/forum.php",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国际服官方"
-    ],
+    "description": "游戏资讯与公告入口",
+    "category": "官方与账号 / 官网与公告",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -572,11 +528,9 @@
     "id": "catalog.import.ded9a9cb6fc300b40b0b",
     "title": "官方博客",
     "url": "https://jp.finalfantasyxiv.com/blog/",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "国际服官方"
-    ],
+    "description": "游戏资讯与公告入口",
+    "category": "官方与账号 / 官网与公告",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -595,8 +549,8 @@
     "id": "catalog.import.fc53d9fd9bb858327dfb",
     "title": "素素攻略站",
     "url": "https://www.ffxiv.cn/v2/",
-    "description": "",
-    "category": "新手与百科",
+    "description": "多种游戏查询与实用工具入口",
+    "category": "入门与资料 / 综合工具",
     "tags": [
       "综合型网站&数据库"
     ],
@@ -625,7 +579,7 @@
     "title": "新人攻略站-新大陆见闻录",
     "url": "https://ff14.org/",
     "description": "面向新人的入坑、职业选择与游戏基础指南。",
-    "category": "新手与百科",
+    "category": "入门与资料 / 新人指南",
     "tags": [
       "综合型网站&数据库"
     ],
@@ -663,7 +617,7 @@
     "title": "灰机中文WIKI",
     "url": "https://ff14.huijiwiki.com/wiki/%E9%A6%96%E9%A1%B5",
     "description": "查询物品、任务、副本机制与游戏百科。",
-    "category": "新手与百科",
+    "category": "入门与资料 / 百科与数据库",
     "tags": [
       "综合型网站&数据库"
     ],
@@ -701,7 +655,7 @@
     "title": "加兰德数据库",
     "url": "https://garlandtools.cn/",
     "description": "国服物品、配方、采集点与任务数据。",
-    "category": "新手与百科",
+    "category": "入门与资料 / 百科与数据库",
     "tags": [
       "综合型网站&数据库"
     ],
@@ -738,8 +692,8 @@
     "id": "catalog.import.b19b95c272e0a4d1a71e",
     "title": "GamerEscape WIKI",
     "url": "https://ffxiv.gamerescape.com/wiki/Main_Page",
-    "description": "",
-    "category": "新手与百科",
+    "description": "游戏资料检索与百科查询",
+    "category": "入门与资料 / 百科与数据库",
     "tags": [
       "综合型网站&数据库"
     ],
@@ -761,8 +715,8 @@
     "id": "catalog.import.dda78a4ba0fde560cc01",
     "title": "ERIONES",
     "url": "https://eriones.com/",
-    "description": "",
-    "category": "新手与百科",
+    "description": "游戏资料检索与百科查询",
+    "category": "入门与资料 / 百科与数据库",
     "tags": [
       "综合型网站&数据库"
     ],
@@ -784,8 +738,8 @@
     "id": "catalog.import.2f9d3c0873f60425a71a",
     "title": "NGA艾欧泽亚",
     "url": "https://bbs.nga.cn/thread.php?fid=-362960",
-    "description": "",
-    "category": "社区与创作",
+    "description": "玩家交流与社区内容",
+    "category": "社区与创作 / 论坛与社区",
     "tags": [
       "玩家交流"
     ],
@@ -815,8 +769,8 @@
     "id": "catalog.import.6c4bc12da8ddace67ae2",
     "title": "百度FF14贴吧",
     "url": "https://tieba.baidu.com/f?ie=utf-8&kw=ff14&tp=0",
-    "description": "",
-    "category": "社区与创作",
+    "description": "玩家交流与社区内容",
+    "category": "社区与创作 / 论坛与社区",
     "tags": [
       "玩家交流"
     ],
@@ -838,8 +792,8 @@
     "id": "catalog.import.154860a678ffe55a7bf9",
     "title": "Reddit/FFXIV",
     "url": "https://www.reddit.com/r/ffxiv/",
-    "description": "",
-    "category": "社区与创作",
+    "description": "玩家交流与社区内容",
+    "category": "社区与创作 / 论坛与社区",
     "tags": [
       "玩家交流"
     ],
@@ -861,8 +815,8 @@
     "id": "catalog.import.169ad411d42881af3598",
     "title": "以太之光广场",
     "url": "https://weibo.com/u/7755458431",
-    "description": "",
-    "category": "社区与创作",
+    "description": "玩家交流与社区内容",
+    "category": "社区与创作 / 论坛与社区",
     "tags": [
       "玩家交流"
     ],
@@ -890,8 +844,8 @@
     "id": "catalog.import.de95140dc071d9997e5f",
     "title": "菓子君Okashi",
     "url": "https://space.bilibili.com/932340",
-    "description": "",
-    "category": "社区与创作",
+    "description": "玩家创作、资讯或直播入口",
+    "category": "社区与创作 / 创作者与直播",
     "tags": [
       "视频UP主"
     ],
@@ -921,8 +875,8 @@
     "id": "catalog.import.300880723a1b8911c852",
     "title": "苏帕酱噗",
     "url": "https://space.bilibili.com/25787773",
-    "description": "",
-    "category": "社区与创作",
+    "description": "玩家创作、资讯或直播入口",
+    "category": "社区与创作 / 创作者与直播",
     "tags": [
       "视频UP主"
     ],
@@ -944,8 +898,8 @@
     "id": "catalog.import.6bef5c3b5616d5471d94",
     "title": "MMW",
     "url": "https://space.bilibili.com/1578887",
-    "description": "",
-    "category": "社区与创作",
+    "description": "玩家创作、资讯或直播入口",
+    "category": "社区与创作 / 创作者与直播",
     "tags": [
       "视频UP主"
     ],
@@ -967,8 +921,8 @@
     "id": "catalog.import.68c41b17815677eca57d",
     "title": "子言姐姐",
     "url": "https://space.bilibili.com/293917",
-    "description": "",
-    "category": "社区与创作",
+    "description": "玩家创作、资讯或直播入口",
+    "category": "社区与创作 / 创作者与直播",
     "tags": [
       "视频UP主"
     ],
@@ -996,8 +950,8 @@
     "id": "catalog.import.6228c3947f513457928b",
     "title": "苦茶子",
     "url": "https://space.bilibili.com/359741675",
-    "description": "",
-    "category": "社区与创作",
+    "description": "玩家创作、资讯或直播入口",
+    "category": "社区与创作 / 创作者与直播",
     "tags": [
       "视频UP主"
     ],
@@ -1019,8 +973,8 @@
     "id": "catalog.import.5c3df4f7fed3cca24392",
     "title": "顾跑跑",
     "url": "https://space.bilibili.com/1783244",
-    "description": "",
-    "category": "社区与创作",
+    "description": "玩家创作、资讯或直播入口",
+    "category": "社区与创作 / 创作者与直播",
     "tags": [
       "视频UP主"
     ],
@@ -1048,8 +1002,8 @@
     "id": "catalog.import.0373f6d3347c1e65a28f",
     "title": "Zafir的职业攻略",
     "url": "https://space.bilibili.com/23105654/lists/3736677?type=season",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "职业技能、装备搭配与战斗准备",
+    "category": "职业与副本 / 职业与配装",
     "tags": [
       "视频UP主"
     ],
@@ -1071,8 +1025,8 @@
     "id": "catalog.import.be35f5fb4f2961eaa63e",
     "title": "叫我m酱",
     "url": "https://space.bilibili.com/143567",
-    "description": "",
-    "category": "社区与创作",
+    "description": "玩家创作、资讯或直播入口",
+    "category": "社区与创作 / 创作者与直播",
     "tags": [
       "视频UP主"
     ],
@@ -1094,8 +1048,8 @@
     "id": "catalog.import.0c764420247e84f381e5",
     "title": "洒金笺",
     "url": "https://b23.tv/WA0Osni",
-    "description": "",
-    "category": "社区与创作",
+    "description": "玩家创作、资讯或直播入口",
+    "category": "社区与创作 / 创作者与直播",
     "tags": [
       "视频UP主"
     ],
@@ -1117,8 +1071,8 @@
     "id": "catalog.import.3926e250ad5708868a24",
     "title": "XivStrat攻略站",
     "url": "https://xivstrat.cn/",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "副本机制与通关资料",
+    "category": "职业与副本 / 副本攻略",
     "tags": [
       "常规副本"
     ],
@@ -1140,8 +1094,8 @@
     "id": "catalog.import.7d208201ac2ecf45d987",
     "title": "配装计算器",
     "url": "https://gearing.ffsusu.com/",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "职业技能、装备搭配与战斗准备",
+    "category": "职业与副本 / 职业与配装",
     "tags": [
       "常规副本"
     ],
@@ -1171,8 +1125,8 @@
     "id": "catalog.import.4ccc4c178b1f4c6d7026",
     "title": "豆芽站-副本文字攻略",
     "url": "https://ff14.org/duty/",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "副本机制与通关资料",
+    "category": "职业与副本 / 副本攻略",
     "tags": [
       "常规副本"
     ],
@@ -1195,7 +1149,7 @@
     "title": "CN FFLogs",
     "url": "https://cn.fflogs.com/",
     "description": "国服战斗记录、统计与团队表现查询。",
-    "category": "副本与战斗",
+    "category": "职业与副本 / 战斗日志",
     "tags": [
       "常规副本"
     ],
@@ -1233,7 +1187,7 @@
     "title": "警察网",
     "url": "https://xivanalysis.com/",
     "description": "根据战斗日志查找循环与技能使用问题。",
-    "category": "副本与战斗",
+    "category": "职业与副本 / 战斗日志",
     "tags": [
       "常规副本"
     ],
@@ -1270,8 +1224,8 @@
     "id": "catalog.import.bf83cfd4740520835522",
     "title": "导随记录",
     "url": "https://dlog.luyulight.cn/",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "战斗记录、统计与复盘工具",
+    "category": "职业与副本 / 战斗日志",
     "tags": [
       "常规副本"
     ],
@@ -1293,8 +1247,8 @@
     "id": "catalog.import.a8630f2f8f34cd1577b6",
     "title": "招募查询",
     "url": "https://xivpf.ff14.xin/",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "战术规划或队伍招募相关工具",
+    "category": "职业与副本 / 战术与招募",
     "tags": [
       "常规副本"
     ],
@@ -1324,8 +1278,8 @@
     "id": "catalog.import.6181607e0d7156fc6549",
     "title": "NGA幻想书库",
     "url": "https://bbs.nga.cn/thread.php?fid=698",
-    "description": "",
-    "category": "社区与创作",
+    "description": "游戏资料检索与百科查询",
+    "category": "入门与资料 / 百科与数据库",
     "tags": [
       "常规副本"
     ],
@@ -1347,8 +1301,8 @@
     "id": "catalog.import.d56198ad189c1a5bac69",
     "title": "Faloop!国际服狩猎工具",
     "url": "https://faloop.app/",
-    "description": "",
-    "category": "狩猎与探索",
+    "description": "狩猎、FATE 与野外目标资料",
+    "category": "狩猎与探索 / 狩猎与FATE",
     "tags": [
       "战斗综合"
     ],
@@ -1370,8 +1324,8 @@
     "id": "catalog.import.37657b101d714de1132a",
     "title": "OtterBot狩猎时钟",
     "url": "https://xn--v9x.net/hunt/sonar/",
-    "description": "",
-    "category": "狩猎与探索",
+    "description": "狩猎、FATE 与野外目标资料",
+    "category": "狩猎与探索 / 狩猎与FATE",
     "tags": [
       "战斗综合"
     ],
@@ -1393,8 +1347,8 @@
     "id": "catalog.import.252f671d16738540ad4d",
     "title": "常见野外大型怪物&Fate解明",
     "url": "https://ffxiv.annangela.cn/introduction.html",
-    "description": "",
-    "category": "狩猎与探索",
+    "description": "狩猎、FATE 与野外目标资料",
+    "category": "狩猎与探索 / 狩猎与FATE",
     "tags": [
       "战斗综合"
     ],
@@ -1416,8 +1370,8 @@
     "id": "catalog.import.dd00a6245e487d74f91e",
     "title": "ACT狩猎平台银山雀儿",
     "url": "https://bbs.nga.cn/read.php?tid=31936161",
-    "description": "",
-    "category": "狩猎与探索",
+    "description": "狩猎、FATE 与野外目标资料",
+    "category": "狩猎与探索 / 狩猎与FATE",
     "tags": [
       "战斗综合"
     ],
@@ -1439,8 +1393,8 @@
     "id": "catalog.import.20ea366db49586469078",
     "title": "PVP入门指南",
     "url": "https://bbs.nga.cn/read.php?tid=15134226",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "PVP 玩法与入门资料",
+    "category": "PVP / 入门与攻略",
     "tags": [
       "战斗综合"
     ],
@@ -1462,8 +1416,8 @@
     "id": "catalog.import.ac70f6a267d24be70382",
     "title": "青魔法师技能学习攻略",
     "url": "https://thewakingsands.github.io/blue-mage/",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "职业技能、装备搭配与战斗准备",
+    "category": "职业与副本 / 职业与配装",
     "tags": [
       "战斗综合"
     ],
@@ -1485,8 +1439,8 @@
     "id": "catalog.import.2e522043c809e61cee0c",
     "title": "死灵术士心得攻略",
     "url": "https://bbs.nga.cn/read.php?tid=22630278",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "副本机制与通关资料",
+    "category": "职业与副本 / 副本攻略",
     "tags": [
       "战斗综合"
     ],
@@ -1508,8 +1462,8 @@
     "id": "catalog.import.6445336ed464b320a1e8",
     "title": "5v5水晶冲突PVP指北",
     "url": "https://bbs.nga.cn/read.php?tid=32454519",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "PVP 玩法与入门资料",
+    "category": "PVP / 入门与攻略",
     "tags": [
       "战斗综合"
     ],
@@ -1531,8 +1485,8 @@
     "id": "catalog.import.922ec3fe20878aa04ef6",
     "title": "灭本限时奖励",
     "url": "https://uptime.ff14.xin/",
-    "description": "",
-    "category": "社区与创作",
+    "description": "成就、奖励与收藏查询",
+    "category": "日常与收藏 / 成就与收藏",
     "tags": [
       "战斗综合"
     ],
@@ -1554,8 +1508,8 @@
     "id": "catalog.import.6b44bc35f581e71711ec",
     "title": "特殊场景探索群号汇总",
     "url": "https://docs.qq.com/sheet/DVnZ1UXpRVnhyenVt?nlc=1&tab=BB08J2",
-    "description": "",
-    "category": "社区与创作",
+    "description": "探索目标与相关资料",
+    "category": "狩猎与探索 / 探索笔记",
     "tags": [
       "特殊场景探索"
     ],
@@ -1577,8 +1531,8 @@
     "id": "catalog.import.94ec7fc50af49d254e91",
     "title": "古武&魂武流程攻略",
     "url": "https://bbs.nga.cn/read.php?tid=13014248",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "特殊武器制作与收集流程",
+    "category": "日常与收藏 / 特殊武器",
     "tags": [
       "特殊场景探索"
     ],
@@ -1608,8 +1562,8 @@
     "id": "catalog.import.573969c96e9b2e38edfb",
     "title": "Eureka Tracker",
     "url": "https://ffxiv-eureka.com/",
-    "description": "",
-    "category": "狩猎与探索",
+    "description": "特殊探索区域的进度或攻略",
+    "category": "狩猎与探索 / 特殊区域",
     "tags": [
       "特殊场景探索"
     ],
@@ -1631,8 +1585,8 @@
     "id": "catalog.import.d9a75fb4df4e342dc49c",
     "title": "博兹雅监控板",
     "url": "https://bzy.mocca-works.site/",
-    "description": "",
-    "category": "狩猎与探索",
+    "description": "特殊探索区域的进度或攻略",
+    "category": "狩猎与探索 / 特殊区域",
     "tags": [
       "特殊场景探索"
     ],
@@ -1654,8 +1608,8 @@
     "id": "catalog.import.43a267cfc30e1c48d643",
     "title": "义军武器攻略",
     "url": "https://bbs.nga.cn/read.php?tid=21672716",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "特殊武器制作与收集流程",
+    "category": "日常与收藏 / 特殊武器",
     "tags": [
       "特殊场景探索"
     ],
@@ -1685,8 +1639,8 @@
     "id": "catalog.import.09e61641f7ae13ac1a48",
     "title": "扎杜诺尔高原攻略",
     "url": "https://bbs.nga.cn/read.php?tid=26953760",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "特殊探索区域的进度或攻略",
+    "category": "狩猎与探索 / 特殊区域",
     "tags": [
       "特殊场景探索"
     ],
@@ -1708,8 +1662,8 @@
     "id": "catalog.import.9d26c677ad9ee5010b1a",
     "title": "贡希尔德神庙攻略",
     "url": "https://bbs.nga.cn/read.php?tid=26397957",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "特殊探索区域的进度或攻略",
+    "category": "狩猎与探索 / 特殊区域",
     "tags": [
       "特殊场景探索"
     ],
@@ -1731,8 +1685,8 @@
     "id": "catalog.import.54ca33d34a6b47c6cfa7",
     "title": "幻境武器·新月岛攻略",
     "url": "https://bbs.nga.cn/read.php?tid=44642200",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "特殊武器制作与收集流程",
+    "category": "日常与收藏 / 特殊武器",
     "tags": [
       "特殊场景探索"
     ],
@@ -1754,8 +1708,8 @@
     "id": "catalog.import.94f9da74b20b719c5a2b",
     "title": "新月岛追踪器",
     "url": "https://tracker.xivstats.com/",
-    "description": "",
-    "category": "狩猎与探索",
+    "description": "特殊探索区域的进度或攻略",
+    "category": "狩猎与探索 / 特殊区域",
     "tags": [
       "特殊场景探索"
     ],
@@ -1777,8 +1731,8 @@
     "id": "catalog.import.d06629995b8ad3851649",
     "title": "新月岛魔法罐助手",
     "url": "https://bbs.nga.cn/read.php?tid=47249856",
-    "description": "",
-    "category": "狩猎与探索",
+    "description": "特殊探索区域的进度或攻略",
+    "category": "狩猎与探索 / 特殊区域",
     "tags": [
       "特殊场景探索"
     ],
@@ -1800,8 +1754,8 @@
     "id": "catalog.import.3f373807521f7289a3b4",
     "title": "新月岛萌新指南",
     "url": "https://docs.qq.com/doc/DVk5jZnNoTGFBREpC",
-    "description": "",
-    "category": "新手与百科",
+    "description": "特殊探索区域的进度或攻略",
+    "category": "狩猎与探索 / 特殊区域",
     "tags": [
       "特殊场景探索"
     ],
@@ -1823,8 +1777,8 @@
     "id": "catalog.import.2b76eba88d35b240ed74",
     "title": "配方计算器",
     "url": "https://5p.nbbjack.com/#/cal",
-    "description": "",
-    "category": "生产采集与钓鱼",
+    "description": "生产制作、配方或材料规划资料",
+    "category": "生产与采集 / 制作与配方",
     "tags": [
       "生产采集"
     ],
@@ -1852,8 +1806,8 @@
     "id": "catalog.import.dcdef63fe5ce55153ca8",
     "title": "赐福计算器",
     "url": "https://5p.nbbjack.com/#/blessed",
-    "description": "",
-    "category": "生产采集与钓鱼",
+    "description": "生产制作、配方或材料规划资料",
+    "category": "生产与采集 / 制作与配方",
     "tags": [
       "生产采集"
     ],
@@ -1875,8 +1829,8 @@
     "id": "catalog.import.2657b82e875095cc43c5",
     "title": "工坊计算器",
     "url": "https://5p.nbbjack.com/#/workshop",
-    "description": "",
-    "category": "生产采集与钓鱼",
+    "description": "部队工坊与潜水艇相关资料",
+    "category": "住房与经营 / 潜水艇与工坊",
     "tags": [
       "生产采集"
     ],
@@ -1898,8 +1852,8 @@
     "id": "catalog.import.2ddf67f01c769160a236",
     "title": "无人岛工坊模拟器",
     "url": "https://island.ffxiv.cyou/",
-    "description": "",
-    "category": "生产采集与钓鱼",
+    "description": "无人岛建设与经营资料",
+    "category": "住房与经营 / 无人岛",
     "tags": [
       "生产采集"
     ],
@@ -1921,8 +1875,8 @@
     "id": "catalog.import.9d5950229ac4ae4586ee",
     "title": "潜水艇攻略",
     "url": "https://bbs.nga.cn/read.php?tid=23490578",
-    "description": "",
-    "category": "生产采集与钓鱼",
+    "description": "部队工坊与潜水艇相关资料",
+    "category": "住房与经营 / 潜水艇与工坊",
     "tags": [
       "生产采集"
     ],
@@ -1945,7 +1899,7 @@
     "title": "Teamcraft工具箱",
     "url": "https://ffxivteamcraft.com/",
     "description": "生产配方规划、材料清单与制作协作工具。",
-    "category": "生产采集与钓鱼",
+    "category": "生产与采集 / 制作与配方",
     "tags": [
       "生产采集"
     ],
@@ -1968,7 +1922,7 @@
     "title": "Universalis",
     "url": "https://universalis.app/",
     "description": "国际服市场板价格与交易记录查询。",
-    "category": "市场与经济",
+    "category": "生产与采集 / 市场与物价",
     "tags": [
       "生产采集"
     ],
@@ -1998,8 +1952,8 @@
     "id": "catalog.import.5311488da94e34ee0226",
     "title": "晓月之捕鱼人攻略",
     "url": "https://bbs.nga.cn/read.php?tid=31057563",
-    "description": "",
-    "category": "生产采集与钓鱼",
+    "description": "鱼类、钓鱼条件与相关资料",
+    "category": "钓鱼与海钓 / 鱼窗与资料",
     "tags": [
       "生产采集"
     ],
@@ -2022,7 +1976,7 @@
     "title": "鱼糕",
     "url": "https://fish.ffmomola.com/",
     "description": "钓鱼条件、鱼饵、鱼识与鱼王窗口查询。",
-    "category": "生产采集与钓鱼",
+    "category": "钓鱼与海钓 / 鱼窗与资料",
     "tags": [
       "生产采集"
     ],
@@ -2056,8 +2010,8 @@
     "id": "catalog.import.ad6fc7e0137bcfbcd013",
     "title": "饥饿的猫",
     "url": "https://cn.ff14angler.com/",
-    "description": "",
-    "category": "社区与创作",
+    "description": "鱼类、钓鱼条件与相关资料",
+    "category": "钓鱼与海钓 / 鱼窗与资料",
     "tags": [
       "生产采集"
     ],
@@ -2085,8 +2039,8 @@
     "id": "catalog.import.7877e44dde2dc1f8303a",
     "title": "6.0海钓冲分攻略",
     "url": "https://bbs.nga.cn/read.php?tid=32005314",
-    "description": "",
-    "category": "生产采集与钓鱼",
+    "description": "海钓路线与得分攻略",
+    "category": "钓鱼与海钓 / 海钓攻略",
     "tags": [
       "生产采集"
     ],
@@ -2108,8 +2062,8 @@
     "id": "catalog.import.151f45745e759855aed0",
     "title": "susu采集时钟",
     "url": "https://caiji.ffxiv.cn/",
-    "description": "",
-    "category": "生产采集与钓鱼",
+    "description": "采集或天气相关查询",
+    "category": "生产与采集 / 采集与天气",
     "tags": [
       "生产采集"
     ],
@@ -2139,8 +2093,8 @@
     "id": "catalog.import.ca982beabebf7555bc2d",
     "title": "无人岛攻略",
     "url": "https://bbs.nga.cn/read.php?tid=33192114",
-    "description": "",
-    "category": "生产采集与钓鱼",
+    "description": "无人岛建设与经营资料",
+    "category": "住房与经营 / 无人岛",
     "tags": [
       "生产采集"
     ],
@@ -2162,8 +2116,8 @@
     "id": "catalog.import.5ecc2b3273d24351155c",
     "title": "无人岛每周作业",
     "url": "https://bbs.nga.cn/thread.php?authorid=25868132",
-    "description": "",
-    "category": "生产采集与钓鱼",
+    "description": "无人岛建设与经营资料",
+    "category": "住房与经营 / 无人岛",
     "tags": [
       "生产采集"
     ],
@@ -2185,8 +2139,8 @@
     "id": "catalog.import.bb40b8876f7c99c478c2",
     "title": "素素无人岛",
     "url": "https://wrd.ffxiv.cn/",
-    "description": "",
-    "category": "生产采集与钓鱼",
+    "description": "无人岛建设与经营资料",
+    "category": "住房与经营 / 无人岛",
     "tags": [
       "生产采集"
     ],
@@ -2208,8 +2162,8 @@
     "id": "catalog.import.b46a6a67beb43ed0fc2e",
     "title": "宇宙探索攻略",
     "url": "https://bbs.nga.cn/read.php?tid=43895399",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "生产制作、配方或材料规划资料",
+    "category": "生产与采集 / 制作与配方",
     "tags": [
       "生产采集"
     ],
@@ -2231,8 +2185,8 @@
     "id": "catalog.import.3dc985b965828ab80277",
     "title": "宇宙天气预报",
     "url": "https://wks.ff14.xin/",
-    "description": "",
-    "category": "生产采集与钓鱼",
+    "description": "采集或天气相关查询",
+    "category": "生产与采集 / 采集与天气",
     "tags": [
       "生产采集"
     ],
@@ -2254,8 +2208,8 @@
     "id": "catalog.import.58e7baaeff330b34bd30",
     "title": "罗薇娜的手抄本",
     "url": "https://www.ff14pvp.top/",
-    "description": "",
-    "category": "市场与经济",
+    "description": "交易与物价相关查询",
+    "category": "生产与采集 / 市场与物价",
     "tags": [
       "生产采集"
     ],
@@ -2285,8 +2239,8 @@
     "id": "catalog.import.257a90141da57d92d21b",
     "title": "时尚品鉴攻略",
     "url": "https://docs.qq.com/sheet/DY2lCeEpwemZESm5q?tab=dewveu",
-    "description": "",
-    "category": "休闲与成就",
+    "description": "休闲玩法与金碟相关攻略",
+    "category": "日常与收藏 / 金碟与休闲",
     "tags": [
       "金碟游乐场"
     ],
@@ -2308,8 +2262,8 @@
     "id": "catalog.import.ac0299e53284cfe2e2d4",
     "title": "九宫幻卡一览",
     "url": "https://arrtripletriad.com/cn/huan-ka-yi-lan",
-    "description": "",
-    "category": "休闲与成就",
+    "description": "休闲玩法与金碟相关攻略",
+    "category": "日常与收藏 / 金碟与休闲",
     "tags": [
       "金碟游乐场"
     ],
@@ -2331,8 +2285,8 @@
     "id": "catalog.import.772da3a67452f01b6cb0",
     "title": "萌宠之王攻略",
     "url": "https://bbs.nga.cn/read.php?tid=21729311",
-    "description": "",
-    "category": "休闲与成就",
+    "description": "休闲玩法与金碟相关攻略",
+    "category": "日常与收藏 / 金碟与休闲",
     "tags": [
       "金碟游乐场"
     ],
@@ -2354,8 +2308,8 @@
     "id": "catalog.import.686408d4212c6e7f17c6",
     "title": "陆行鸟赛跑攻略",
     "url": "https://bbs.nga.cn/read.php?tid=9798047",
-    "description": "",
-    "category": "休闲与成就",
+    "description": "休闲玩法与金碟相关攻略",
+    "category": "日常与收藏 / 金碟与休闲",
     "tags": [
       "金碟游乐场"
     ],
@@ -2377,8 +2331,8 @@
     "id": "catalog.import.4b3134b7d5a6f4d2c5b2",
     "title": "艾欧泽亚装修办",
     "url": "https://weibo.com/Eorzkea",
-    "description": "",
-    "category": "住房装修",
+    "description": "房屋信息、位置或装修作品",
+    "category": "住房与经营 / 买房与装修",
     "tags": [
       "房屋装修"
     ],
@@ -2406,8 +2360,8 @@
     "id": "catalog.import.8550494bed7e8bd7526a",
     "title": "住宅区数据库",
     "url": "https://cn.ff14housing.com/",
-    "description": "",
-    "category": "住房装修",
+    "description": "房屋信息、位置或装修作品",
+    "category": "住房与经营 / 买房与装修",
     "tags": [
       "房屋装修"
     ],
@@ -2437,8 +2391,8 @@
     "id": "catalog.import.d1f4059eba09f02a22f0",
     "title": "栽培手册",
     "url": "https://www.ffxivgardening.com/index.php?lang=zh_CN.UTF-8",
-    "description": "",
-    "category": "生产采集与钓鱼",
+    "description": "栽培相关资料",
+    "category": "住房与经营 / 栽培",
     "tags": [
       "房屋装修"
     ],
@@ -2468,8 +2422,8 @@
     "id": "catalog.import.2323f67b9234f68a73fe",
     "title": "暖暖房产位置攻略",
     "url": "https://bbs.nga.cn/read.php?tid=14342924",
-    "description": "",
-    "category": "住房装修",
+    "description": "房屋信息、位置或装修作品",
+    "category": "住房与经营 / 买房与装修",
     "tags": [
       "房屋装修"
     ],
@@ -2498,7 +2452,7 @@
     "title": "Housing Snap",
     "url": "https://housingsnap.com/",
     "description": "浏览玩家分享的房屋装修与布置作品。",
-    "category": "住房装修",
+    "category": "住房与经营 / 买房与装修",
     "tags": [
       "房屋装修"
     ],
@@ -2529,7 +2483,7 @@
     "title": "艾欧泽亚售楼中心",
     "url": "https://house.ffxiv.cyou/",
     "description": "查询国服住房地块与在售房屋信息。",
-    "category": "住房装修",
+    "category": "住房与经营 / 买房与装修",
     "tags": [
       "房屋装修"
     ],
@@ -2565,8 +2519,8 @@
     "id": "catalog.import.f1900d277fd8d4976b1f",
     "title": "光之收藏家",
     "url": "https://ff14risingstones.web.sdo.com/pc/index.html#/glamour",
-    "description": "",
-    "category": "社区与创作",
+    "description": "成就、奖励与收藏查询",
+    "category": "日常与收藏 / 成就与收藏",
     "tags": [
       "摄影幻化"
     ],
@@ -2589,7 +2543,7 @@
     "title": "Eorzea Collection",
     "url": "https://ffxiv.eorzeacollection.com/",
     "description": "浏览国际服玩家的幻化搭配与装备外观。",
-    "category": "社区与创作",
+    "category": "幻化与摄影 / 幻化与染色",
     "tags": [
       "摄影幻化"
     ],
@@ -2619,8 +2573,8 @@
     "id": "catalog.import.911f3d110bbfb19f295c",
     "title": "mirapi snap",
     "url": "https://mirapri.com/",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "装备外观、幻化或染色资料",
+    "category": "幻化与摄影 / 幻化与染色",
     "tags": [
       "摄影幻化"
     ],
@@ -2650,8 +2604,8 @@
     "id": "catalog.import.73ee7e475a002da011c5",
     "title": "艾欧泽亚地理频道",
     "url": "https://weibo.com/ffxivnge",
-    "description": "",
-    "category": "社区与创作",
+    "description": "游戏资料检索与百科查询",
+    "category": "入门与资料 / 百科与数据库",
     "tags": [
       "摄影幻化"
     ],
@@ -2679,8 +2633,8 @@
     "id": "catalog.import.be5656c0ae76de7a7687",
     "title": "外观装备检索 FFXIV Collection",
     "url": "https://www.ffxivcollection.com/",
-    "description": "",
-    "category": "幻化与外观",
+    "description": "装备外观、幻化或染色资料",
+    "category": "幻化与摄影 / 幻化与染色",
     "tags": [
       "摄影幻化"
     ],
@@ -2710,8 +2664,8 @@
     "id": "catalog.import.fb4216d552eb2a4c37b3",
     "title": "兵装图鉴",
     "url": "https://bbs.nga.cn/read.php?tid=20459393",
-    "description": "",
-    "category": "社区与创作",
+    "description": "装备外观、幻化或染色资料",
+    "category": "幻化与摄影 / 幻化与染色",
     "tags": [
       "摄影幻化"
     ],
@@ -2733,8 +2687,8 @@
     "id": "catalog.import.ab980ca86d46d1cb5669",
     "title": "TexTools",
     "url": "https://www.ffxiv-textools.net/",
-    "description": "",
-    "category": "社区与创作",
+    "description": "客户端插件或相关工具资料",
+    "category": "插件与开发 / 插件与启动器",
     "tags": [
       "摄影幻化"
     ],
@@ -2756,8 +2710,8 @@
     "id": "catalog.import.aabe9c6248234bc34fbd",
     "title": "摄影工具 Anamnesis",
     "url": "https://github.com/imchillin/Anamnesis",
-    "description": "",
-    "category": "社区与创作",
+    "description": "角色模型、画面与摄影相关工具",
+    "category": "幻化与摄影 / 模型与摄影",
     "tags": [
       "摄影幻化"
     ],
@@ -2779,8 +2733,8 @@
     "id": "catalog.import.388a8e442f46e4015f2c",
     "title": "XIV Mod Archive",
     "url": "https://www.xivmodarchive.com/",
-    "description": "",
-    "category": "社区与创作",
+    "description": "客户端插件或相关工具资料",
+    "category": "插件与开发 / 插件与启动器",
     "tags": [
       "摄影幻化"
     ],
@@ -2811,7 +2765,7 @@
     "title": "素素辣鸡排",
     "url": "https://tools.ffxiv.cn/lajipai/index.html",
     "description": "风脉、藏宝图、坐骑与宠物等日常查询工具。",
-    "category": "开发与辅助工具",
+    "category": "入门与资料 / 综合工具",
     "tags": [
       "实用小工具"
     ],
@@ -2839,8 +2793,8 @@
     "id": "catalog.import.700ef43f2690ab335755",
     "title": "むーむーのネタ帳",
     "url": "https://ff14moomoo.com/",
-    "description": "",
-    "category": "社区与创作",
+    "description": "成就、奖励与收藏查询",
+    "category": "日常与收藏 / 成就与收藏",
     "tags": [
       "实用小工具"
     ],
@@ -2862,8 +2816,8 @@
     "id": "catalog.import.76fae545def2fa8038b1",
     "title": "天气查询",
     "url": "https://asvel.github.io/ffxiv-weather/",
-    "description": "",
-    "category": "生产采集与钓鱼",
+    "description": "采集或天气相关查询",
+    "category": "生产与采集 / 采集与天气",
     "tags": [
       "实用小工具"
     ],
@@ -2893,8 +2847,8 @@
     "id": "catalog.import.d5d9f9acf291c83ce81d",
     "title": "光之演奏家",
     "url": "https://fffff.games/",
-    "description": "",
-    "category": "休闲与成就",
+    "description": "玩家音乐与作品展示",
+    "category": "社区与创作 / 音乐与作品",
     "tags": [
       "实用小工具"
     ],
@@ -2924,8 +2878,8 @@
     "id": "catalog.import.c876eebfc849630383bb",
     "title": "网页战术板",
     "url": "https://plan.xivstrat.cn/",
-    "description": "",
-    "category": "社区与创作",
+    "description": "战术规划或队伍招募相关工具",
+    "category": "职业与副本 / 战术与招募",
     "tags": [
       "实用小工具"
     ],
@@ -2947,8 +2901,8 @@
     "id": "catalog.import.2ca05f2af2a1a94d9229",
     "title": "呆萌ACT",
     "url": "https://act.diemoe.net/",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "客户端插件或相关工具资料",
+    "category": "插件与开发 / 插件与启动器",
     "tags": [
       "科技"
     ],
@@ -2978,8 +2932,8 @@
     "id": "catalog.import.3ce91445819fd48c7e54",
     "title": "咖啡ACT",
     "url": "https://www.ffcafe.cn/act/",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "客户端插件或相关工具资料",
+    "category": "插件与开发 / 插件与启动器",
     "tags": [
       "科技"
     ],
@@ -3001,8 +2955,8 @@
     "id": "catalog.import.d432ef4cc05e69956e52",
     "title": "NGA幻想科技",
     "url": "https://bbs.nga.cn/thread.php?stid=20425950",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "客户端插件或相关工具资料",
+    "category": "插件与开发 / 插件与启动器",
     "tags": [
       "科技"
     ],
@@ -3024,8 +2978,8 @@
     "id": "catalog.import.faf732f6a6222d56db4a",
     "title": "XIVLauncher",
     "url": "https://ottercorp.github.io/",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "客户端插件或相关工具资料",
+    "category": "插件与开发 / 插件与启动器",
     "tags": [
       "科技"
     ],
@@ -3047,8 +3001,8 @@
     "id": "catalog.import.21076af1ccc24983994b",
     "title": "零的库链",
     "url": "https://wiki.ask0.cc/",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "多种游戏查询与实用工具入口",
+    "category": "入门与资料 / 综合工具",
     "tags": [
       "科技"
     ],
@@ -3070,8 +3024,8 @@
     "id": "catalog.import.db1ed185f2561dd71486",
     "title": "ACT日志解析",
     "url": "https://parser.ffxiv.cyou/",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "战斗记录、统计与复盘工具",
+    "category": "职业与副本 / 战斗日志",
     "tags": [
       "科技"
     ],
@@ -3093,8 +3047,8 @@
     "id": "catalog.import.7da65213eac2cc2de68a",
     "title": "探索笔记时钟",
     "url": "https://annangela.github.io/FFXIVSightseeingGuide/",
-    "description": "",
-    "category": "狩猎与探索",
+    "description": "探索目标与相关资料",
+    "category": "狩猎与探索 / 探索笔记",
     "tags": [
       "科技"
     ],
@@ -3122,8 +3076,8 @@
     "id": "catalog.import.f439845383ade39938c3",
     "title": "PostNamazu",
     "url": "https://github.com/Natsukage/PostNamazu",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "客户端插件或相关工具资料",
+    "category": "插件与开发 / 插件与启动器",
     "tags": [
       "科技"
     ],
@@ -3145,8 +3099,8 @@
     "id": "catalog.import.ab8c6cec14e46a67ab3b",
     "title": "獭爹の工具箱",
     "url": "https://file.bluefissure.com/FFXIV/",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "多种游戏查询与实用工具入口",
+    "category": "入门与资料 / 综合工具",
     "tags": [
       "科技"
     ],
@@ -3168,8 +3122,8 @@
     "id": "catalog.import.c6578981401d305a6009",
     "title": "塔塔露国际服翻译插件",
     "url": "https://bbs.nga.cn/read.php?tid=30399830",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "客户端插件或相关工具资料",
+    "category": "插件与开发 / 插件与启动器",
     "tags": [
       "科技"
     ],
@@ -3191,8 +3145,8 @@
     "id": "catalog.import.da8d06dd7fb93e70a274",
     "title": "Heliosphere",
     "url": "https://heliosphere.app/",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "客户端插件或相关工具资料",
+    "category": "插件与开发 / 插件与启动器",
     "tags": [
       "科技"
     ],
@@ -3214,8 +3168,8 @@
     "id": "catalog.import.2d619f212f946753f63f",
     "title": "宝宝椅",
     "url": "https://www.123865.com/s/1xRXjv-n9qBH",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "客户端插件或相关工具资料",
+    "category": "插件与开发 / 插件与启动器",
     "tags": [
       "科技"
     ],
@@ -3237,11 +3191,9 @@
     "id": "catalog.import.51a208fe7fa96739d94f",
     "title": "国服-道具商城",
     "url": "https://qu.sdo.com/tools-shop?merchantId=1",
-    "description": "",
-    "category": "社区与创作",
-    "tags": [
-      "官方网站"
-    ],
+    "description": "充值、商品或奖励兑换入口",
+    "category": "官方与账号 / 充值与商城",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -3260,11 +3212,9 @@
     "id": "catalog.import.934cc6c8bbf4261b8700",
     "title": "积分兑换平台",
     "url": "https://actff1.web.sdo.com/20180707jifen/index.html#/home",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "官方网站"
-    ],
+    "description": "充值、商品或奖励兑换入口",
+    "category": "官方与账号 / 充值与商城",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -3283,11 +3233,9 @@
     "id": "catalog.import.2daa18fd33d7d738e0f9",
     "title": "艾欧泽亚活动中心",
     "url": "https://actff1.web.sdo.com/Project/20181018ffactive/index.html",
-    "description": "",
-    "category": "社区与创作",
-    "tags": [
-      "官方网站"
-    ],
+    "description": "游戏资讯与公告入口",
+    "category": "官方与账号 / 官网与公告",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -3306,11 +3254,9 @@
     "id": "catalog.import.2c5ea38018e3a62b358e",
     "title": "违规账号处罚公告",
     "url": "https://actff1.web.sdo.com/project/20210621ffviolation/index.html#/release",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "官方网站"
-    ],
+    "description": "游戏账号及官方服务入口",
+    "category": "官方与账号 / 账号与服务",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -3329,11 +3275,9 @@
     "id": "catalog.import.844deb171b0d6421e89c",
     "title": "国际服-日服官网",
     "url": "https://jp.finalfantasyxiv.com/lodestone",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "官方网站"
-    ],
+    "description": "游戏资讯与公告入口",
+    "category": "官方与账号 / 官网与公告",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -3352,8 +3296,8 @@
     "id": "catalog.import.691bddb6cb7e96954eac",
     "title": "FF14百度贴吧",
     "url": "https://tieba.baidu.com/f?kw=ff14",
-    "description": "",
-    "category": "社区与创作",
+    "description": "玩家交流与社区内容",
+    "category": "社区与创作 / 论坛与社区",
     "tags": [
       "玩家社区"
     ],
@@ -3375,8 +3319,8 @@
     "id": "catalog.import.cb190ca98a8183126efc",
     "title": "官方叨鱼圈子",
     "url": "https://www.daoyu8.com/#/circle?circleId=854696",
-    "description": "",
-    "category": "官方服务",
+    "description": "游戏资讯与公告入口",
+    "category": "官方与账号 / 官网与公告",
     "tags": [
       "玩家社区"
     ],
@@ -3398,8 +3342,8 @@
     "id": "catalog.import.bc8bef241bd384835788",
     "title": "FF14橘猫GingerCat",
     "url": "https://gcmmo.com/",
-    "description": "",
-    "category": "社区与创作",
+    "description": "玩家创作、资讯或直播入口",
+    "category": "社区与创作 / 创作者与直播",
     "tags": [
       "玩家社区"
     ],
@@ -3421,8 +3365,8 @@
     "id": "catalog.import.3c38e8a2b5fb1c0412b0",
     "title": "萨雷安の迦巴勒幻想大图书馆",
     "url": "https://bbs.tggfl.com/",
-    "description": "",
-    "category": "社区与创作",
+    "description": "游戏资料检索与百科查询",
+    "category": "入门与资料 / 百科与数据库",
     "tags": [
       "玩家社区"
     ],
@@ -3444,8 +3388,8 @@
     "id": "catalog.import.096c15ab0e575b486df2",
     "title": "国际服招募板共享",
     "url": "https://xivpf.com/",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "战术规划或队伍招募相关工具",
+    "category": "职业与副本 / 战术与招募",
     "tags": [
       "玩家社区"
     ],
@@ -3467,8 +3411,8 @@
     "id": "catalog.import.2365fc9fc4e07fad9adb",
     "title": "黑猫BlackCat",
     "url": "https://mmo.ink/",
-    "description": "",
-    "category": "社区与创作",
+    "description": "鱼类、钓鱼条件与相关资料",
+    "category": "钓鱼与海钓 / 鱼窗与资料",
     "tags": [
       "玩家社区"
     ],
@@ -3490,8 +3434,8 @@
     "id": "catalog.import.14503d6ff7b560825725",
     "title": "萌神神攻略库",
     "url": "https://moeshen.cn/ffxiv/home/",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "副本机制与通关资料",
+    "category": "职业与副本 / 副本攻略",
     "tags": [
       "攻略数据"
     ],
@@ -3513,8 +3457,8 @@
     "id": "catalog.import.7d141c95c56f0e387bdf",
     "title": "Raid从入门到入土",
     "url": "https://ff14.link/",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "副本机制与通关资料",
+    "category": "职业与副本 / 副本攻略",
     "tags": [
       "攻略数据"
     ],
@@ -3536,8 +3480,8 @@
     "id": "catalog.import.1f6cbbaa3502061a6d14",
     "title": "eriones国际服数据库",
     "url": "https://cn.eriones.com/",
-    "description": "",
-    "category": "新手与百科",
+    "description": "游戏资料检索与百科查询",
+    "category": "入门与资料 / 百科与数据库",
     "tags": [
       "攻略数据"
     ],
@@ -3559,8 +3503,8 @@
     "id": "catalog.import.6d7d0eb10ffb2a4c60dd",
     "title": "艾欧泽亚萌新手册",
     "url": "https://bbs.nga.cn/read.php?tid=15174128",
-    "description": "",
-    "category": "新手与百科",
+    "description": "入门流程与基础玩法指南",
+    "category": "入门与资料 / 新人指南",
     "tags": [
       "攻略数据"
     ],
@@ -3582,8 +3526,8 @@
     "id": "catalog.import.c347ea789266a0371d99",
     "title": "四人副本迷宫从开门到打完",
     "url": "https://bbs.nga.cn/read.php?tid=12767222",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "副本机制与通关资料",
+    "category": "职业与副本 / 副本攻略",
     "tags": [
       "攻略数据"
     ],
@@ -3605,8 +3549,8 @@
     "id": "catalog.import.8d21300e016c33330f21",
     "title": "8人讨伐歼灭战&24人大型任务攻略",
     "url": "https://bbs.nga.cn/read.php?tid=13669493",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "副本机制与通关资料",
+    "category": "职业与副本 / 副本攻略",
     "tags": [
       "攻略数据"
     ],
@@ -3628,8 +3572,8 @@
     "id": "catalog.import.9ee97975a62809ee67f1",
     "title": "XIV API",
     "url": "https://xivapi.com/",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "游戏数据接口与开发资料",
+    "category": "插件与开发 / 开发与数据",
     "tags": [
       "攻略数据"
     ],
@@ -3651,8 +3595,8 @@
     "id": "catalog.import.fed126b89038718b305e",
     "title": "ACT.呆萌版",
     "url": "https://bbs.nga.cn/read.php?tid=19019884",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "客户端插件或相关工具资料",
+    "category": "插件与开发 / 插件与启动器",
     "tags": [
       "工具插件"
     ],
@@ -3674,8 +3618,8 @@
     "id": "catalog.import.61002995932b4c0d2cb6",
     "title": "ACT.Cafe版",
     "url": "https://ffcafe.org/act/",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "客户端插件或相关工具资料",
+    "category": "插件与开发 / 插件与启动器",
     "tags": [
       "工具插件"
     ],
@@ -3697,8 +3641,8 @@
     "id": "catalog.import.9f9386641203579f90c9",
     "title": "FF14文本检索数据",
     "url": "https://strings.wakingsands.com/",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "游戏资料检索与百科查询",
+    "category": "入门与资料 / 百科与数据库",
     "tags": [
       "工具插件"
     ],
@@ -3720,8 +3664,8 @@
     "id": "catalog.import.2a40994ee14885f22744",
     "title": "库啵世界",
     "url": "https://kupo.world/",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "多种游戏查询与实用工具入口",
+    "category": "入门与资料 / 综合工具",
     "tags": [
       "工具插件"
     ],
@@ -3743,8 +3687,8 @@
     "id": "catalog.import.64a8225dbbbdf067530b",
     "title": "FFXIV Web Model Viewer",
     "url": "https://ffxiv.dlunch.net/model",
-    "description": "",
-    "category": "幻化与外观",
+    "description": "角色模型、画面与摄影相关工具",
+    "category": "幻化与摄影 / 模型与摄影",
     "tags": [
       "工具插件"
     ],
@@ -3766,8 +3710,8 @@
     "id": "catalog.import.07d7d0a7760f2421757e",
     "title": "游玩C哩酱-时尚品鉴",
     "url": "https://www.youwanc.com/",
-    "description": "",
-    "category": "休闲与成就",
+    "description": "休闲玩法与金碟相关攻略",
+    "category": "日常与收藏 / 金碟与休闲",
     "tags": [
       "工具插件"
     ],
@@ -3789,8 +3733,8 @@
     "id": "catalog.import.4426fc5edaac57d72dbf",
     "title": "任务检索器",
     "url": "https://ff14.huijiwiki.com/wiki/QuestSearch",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "游戏资料检索与百科查询",
+    "category": "入门与资料 / 百科与数据库",
     "tags": [
       "工具插件"
     ],
@@ -3812,8 +3756,8 @@
     "id": "catalog.import.f33d762d522de460a187",
     "title": "GShade画质补丁",
     "url": "https://bbs.nga.cn/read.php?tid=19900148",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "角色模型、画面与摄影相关工具",
+    "category": "幻化与摄影 / 模型与摄影",
     "tags": [
       "工具插件"
     ],
@@ -3835,8 +3779,8 @@
     "id": "catalog.import.5d4356118e2abdc062a6",
     "title": "FFXIV3Areal画质补丁",
     "url": "https://bbs.nga.cn/read.php?tid=13624110",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "角色模型、画面与摄影相关工具",
+    "category": "幻化与摄影 / 模型与摄影",
     "tags": [
       "工具插件"
     ],
@@ -3858,8 +3802,8 @@
     "id": "catalog.import.6483ded3ef685009cd00",
     "title": "仙人仙彩计算器",
     "url": "https://super-aardvark.github.io/yuryu/",
-    "description": "",
-    "category": "休闲与成就",
+    "description": "休闲玩法与金碟相关攻略",
+    "category": "日常与收藏 / 金碟与休闲",
     "tags": [
       "工具插件"
     ],
@@ -3881,8 +3825,8 @@
     "id": "catalog.import.10d57dc72b8fe356cdd2",
     "title": "幻巧拼图计算器",
     "url": "https://nephren_ruq.gitee.io/fauxhollowsprobabilisticsolver/",
-    "description": "",
-    "category": "休闲与成就",
+    "description": "休闲玩法与金碟相关攻略",
+    "category": "日常与收藏 / 金碟与休闲",
     "tags": [
       "工具插件"
     ],
@@ -3904,8 +3848,8 @@
     "id": "catalog.import.77d42262c9fbe396bca1",
     "title": "陆行鸟染色计算器",
     "url": "https://mo_n.gitee.io/ffxivchocobo/",
-    "description": "",
-    "category": "幻化与外观",
+    "description": "装备外观、幻化或染色资料",
+    "category": "幻化与摄影 / 幻化与染色",
     "tags": [
       "工具插件"
     ],
@@ -3927,8 +3871,8 @@
     "id": "catalog.import.13e016d5c24112bbcdf9",
     "title": "陆行鸟染色计算器",
     "url": "https://ffxivchocobo.com/",
-    "description": "",
-    "category": "幻化与外观",
+    "description": "装备外观、幻化或染色资料",
+    "category": "幻化与摄影 / 幻化与染色",
     "tags": [
       "工具插件"
     ],
@@ -3950,8 +3894,8 @@
     "id": "catalog.import.97c835f8b4e5b46c50bc",
     "title": "部队潜水艇小工具",
     "url": "https://ff14.huijiwiki.com/wiki/%E9%83%A8%E9%98%9F%E6%BD%9C%E6%B0%B4%E8%89%87%E5%B0%8F%E5%B7%A5%E5%85%B7",
-    "description": "",
-    "category": "生产采集与钓鱼",
+    "description": "部队工坊与潜水艇相关资料",
+    "category": "住房与经营 / 潜水艇与工坊",
     "tags": [
       "工具插件"
     ],
@@ -3973,8 +3917,8 @@
     "id": "catalog.import.84a805b72f55b45c3e04",
     "title": "理符列表",
     "url": "https://ff14.huijiwiki.com/wiki/LeveList",
-    "description": "",
-    "category": "开发与辅助工具",
+    "description": "生产制作、配方或材料规划资料",
+    "category": "生产与采集 / 制作与配方",
     "tags": [
       "工具插件"
     ],
@@ -3996,8 +3940,8 @@
     "id": "catalog.import.15a9e49fbb6bab02c1f7",
     "title": "成就检索器",
     "url": "https://ff14.huijiwiki.com/wiki/AchievementSearch",
-    "description": "",
-    "category": "休闲与成就",
+    "description": "成就、奖励与收藏查询",
+    "category": "日常与收藏 / 成就与收藏",
     "tags": [
       "工具插件"
     ],
@@ -4019,8 +3963,8 @@
     "id": "catalog.import.2de1ea344c86ef64e0d6",
     "title": "筹备补给品列表",
     "url": "https://ff14.huijiwiki.com/wiki/%E7%AD%B9%E5%A4%87%E8%A1%A5%E7%BB%99%E5%93%81%E5%88%97%E8%A1%A8",
-    "description": "",
-    "category": "生产采集与钓鱼",
+    "description": "采集或天气相关查询",
+    "category": "生产与采集 / 采集与天气",
     "tags": [
       "工具插件"
     ],
@@ -4042,8 +3986,8 @@
     "id": "catalog.import.a7c999e712753642305a",
     "title": "筹备军需品列表",
     "url": "https://ff14.huijiwiki.com/wiki/%E7%AD%B9%E5%A4%87%E5%86%9B%E9%9C%80%E5%93%81%E5%88%97%E8%A1%A8",
-    "description": "",
-    "category": "生产采集与钓鱼",
+    "description": "生产制作、配方或材料规划资料",
+    "category": "生产与采集 / 制作与配方",
     "tags": [
       "工具插件"
     ],
@@ -4065,8 +4009,8 @@
     "id": "catalog.import.9277372def5f8ad6cc33",
     "title": "九宫幻卡卡牌列表",
     "url": "https://ff14.huijiwiki.com/wiki/%E4%B9%9D%E5%AE%AB%E5%B9%BB%E5%8D%A1%E5%8D%A1%E7%89%8C",
-    "description": "",
-    "category": "休闲与成就",
+    "description": "休闲玩法与金碟相关攻略",
+    "category": "日常与收藏 / 金碟与休闲",
     "tags": [
       "工具插件"
     ],
@@ -4088,8 +4032,8 @@
     "id": "catalog.import.bfb64dd66240dd4e3847",
     "title": "最终幻想14配装器",
     "url": "https://asvel.github.io/ffxiv-gearing/",
-    "description": "",
-    "category": "副本与战斗",
+    "description": "职业技能、装备搭配与战斗准备",
+    "category": "职业与副本 / 职业与配装",
     "tags": [
       "工具插件"
     ],
@@ -4111,8 +4055,8 @@
     "id": "catalog.import.19b726b83e324b0fa15f",
     "title": "光之演奏家",
     "url": "https://ff14-3gaz7i4cedb8328b-1304999371.tcloudbaseapp.com/",
-    "description": "",
-    "category": "休闲与成就",
+    "description": "玩家音乐与作品展示",
+    "category": "社区与创作 / 音乐与作品",
     "tags": [
       "工具插件"
     ],
@@ -4134,8 +4078,8 @@
     "id": "catalog.import.972b6ebf1876f8b52ed2",
     "title": "大合奏",
     "url": "https://blog.ffxiv.cat/download/",
-    "description": "",
-    "category": "休闲与成就",
+    "description": "玩家音乐与作品展示",
+    "category": "社区与创作 / 音乐与作品",
     "tags": [
       "工具插件"
     ],
@@ -4157,8 +4101,8 @@
     "id": "catalog.import.47d86f925090701f4042",
     "title": "FF14头像生成器",
     "url": "https://www.neka.cc/composer/11403",
-    "description": "",
-    "category": "幻化与外观",
+    "description": "角色模型、画面与摄影相关工具",
+    "category": "幻化与摄影 / 模型与摄影",
     "tags": [
       "工具插件"
     ],
@@ -4180,8 +4124,8 @@
     "id": "catalog.import.31d9ea239daec8c88aef",
     "title": "宅爷自制弹琴达人",
     "url": "https://zhaijifu67.gitee.io/ffxivplay/",
-    "description": "",
-    "category": "休闲与成就",
+    "description": "玩家音乐与作品展示",
+    "category": "社区与创作 / 音乐与作品",
     "tags": [
       "工具插件"
     ],
@@ -4203,8 +4147,8 @@
     "id": "catalog.import.3fe918a96c44c6d3292e",
     "title": "无人岛动物时钟",
     "url": "https://next.ffmomola.com/",
-    "description": "",
-    "category": "生产采集与钓鱼",
+    "description": "无人岛建设与经营资料",
+    "category": "住房与经营 / 无人岛",
     "tags": [
       "生产采集"
     ],
@@ -4226,8 +4170,8 @@
     "id": "catalog.import.2bfd2d564901dad589ae",
     "title": "狩猎入门",
     "url": "https://www.kancloud.cn/cola13624651/hunt/1384166",
-    "description": "",
-    "category": "狩猎与探索",
+    "description": "狩猎、FATE 与野外目标资料",
+    "category": "狩猎与探索 / 狩猎与FATE",
     "tags": [
       "怪物狩猎"
     ],
@@ -4249,8 +4193,8 @@
     "id": "catalog.import.20abfd69394805f2b2a6",
     "title": "狩猎规划",
     "url": "https://www.xivdaily.com/cn/hunts/ew",
-    "description": "",
-    "category": "狩猎与探索",
+    "description": "狩猎、FATE 与野外目标资料",
+    "category": "狩猎与探索 / 狩猎与FATE",
     "tags": [
       "怪物狩猎"
     ],
@@ -4272,8 +4216,8 @@
     "id": "catalog.import.1b9fb51a8508a16cc016",
     "title": "神意非酋的狩猎手册",
     "url": "https://www.sythehunt.xyz/",
-    "description": "",
-    "category": "狩猎与探索",
+    "description": "狩猎、FATE 与野外目标资料",
+    "category": "狩猎与探索 / 狩猎与FATE",
     "tags": [
       "怪物狩猎"
     ],
@@ -4295,8 +4239,8 @@
     "id": "catalog.import.d1f0573eaab22318c5ae",
     "title": "WanaHome",
     "url": "https://wanahome.ffxiv.bingyin.org/",
-    "description": "",
-    "category": "社区与创作",
+    "description": "房屋信息、位置或装修作品",
+    "category": "住房与经营 / 买房与装修",
     "tags": [
       "房产装修"
     ],
@@ -4318,8 +4262,8 @@
     "id": "catalog.import.c2f47a756b6097356fdf",
     "title": "国际服房区数据共享",
     "url": "https://zhu.codes/paissa",
-    "description": "",
-    "category": "住房装修",
+    "description": "房屋信息、位置或装修作品",
+    "category": "住房与经营 / 买房与装修",
     "tags": [
       "房产装修"
     ],
@@ -4341,8 +4285,8 @@
     "id": "catalog.import.2a19387f27f0283ca705",
     "title": "光之收藏家",
     "url": "https://www.ffxivsc.cn/",
-    "description": "",
-    "category": "社区与创作",
+    "description": "成就、奖励与收藏查询",
+    "category": "日常与收藏 / 成就与收藏",
     "tags": [
       "幻化相关"
     ],
@@ -4370,8 +4314,8 @@
     "id": "catalog.import.15518a8b43830a4a4c86",
     "title": "姗姗来迟的商城套装(女)测评",
     "url": "https://bbs.nga.cn/read.php?tid=20163980",
-    "description": "",
-    "category": "社区与创作",
+    "description": "装备外观、幻化或染色资料",
+    "category": "幻化与摄影 / 幻化与染色",
     "tags": [
       "幻化相关"
     ],
@@ -4393,11 +4337,9 @@
     "id": "catalog.import.58db3af3972498332acc",
     "title": "最终幻想14陌迪翁中心",
     "url": "https://weibo.com/u/7316752765",
-    "description": "",
-    "category": "社区与创作",
-    "tags": [
-      "相关微博"
-    ],
+    "description": "玩家交流与社区内容",
+    "category": "社区与创作 / 论坛与社区",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4416,11 +4358,9 @@
     "id": "catalog.import.3928cc663eb6685c83fa",
     "title": "艾欧泽亚吐槽站",
     "url": "https://weibo.com/u/2596417332",
-    "description": "",
-    "category": "社区与创作",
-    "tags": [
-      "相关微博"
-    ],
+    "description": "玩家交流与社区内容",
+    "category": "社区与创作 / 论坛与社区",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4439,11 +4379,9 @@
     "id": "catalog.import.a66cc0e1c9a0567f15ca",
     "title": "最终幻想14_秘银之眼杂志社",
     "url": "https://weibo.com/u/2448465132",
-    "description": "",
-    "category": "社区与创作",
-    "tags": [
-      "相关微博"
-    ],
+    "description": "玩家创作、资讯或直播入口",
+    "category": "社区与创作 / 创作者与直播",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4462,11 +4400,9 @@
     "id": "catalog.import.f4839ee5f7df7048ad25",
     "title": "光之收藏幻化站",
     "url": "https://weibo.com/ffxivcollector",
-    "description": "",
-    "category": "幻化与外观",
-    "tags": [
-      "相关微博"
-    ],
+    "description": "装备外观、幻化或染色资料",
+    "category": "幻化与摄影 / 幻化与染色",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4485,11 +4421,9 @@
     "id": "catalog.import.000d99319430e7ad86f6",
     "title": "艾欧泽亚RP情报站",
     "url": "https://weibo.com/u/6212462969",
-    "description": "",
-    "category": "社区与创作",
-    "tags": [
-      "相关微博"
-    ],
+    "description": "玩家交流与社区内容",
+    "category": "社区与创作 / 论坛与社区",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4508,11 +4442,9 @@
     "id": "catalog.import.ade2a4cf8154dab62bca",
     "title": "NGA艾欧泽亚",
     "url": "https://weibo.com/u/6969245713",
-    "description": "",
-    "category": "社区与创作",
-    "tags": [
-      "相关微博"
-    ],
+    "description": "玩家交流与社区内容",
+    "category": "社区与创作 / 论坛与社区",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4531,11 +4463,9 @@
     "id": "catalog.import.2a19069e5f7d6f3511b3",
     "title": "游玩C哩酱",
     "url": "https://space.bilibili.com/15503317",
-    "description": "",
-    "category": "社区与创作",
-    "tags": [
-      "B站UP主"
-    ],
+    "description": "玩家创作、资讯或直播入口",
+    "category": "社区与创作 / 创作者与直播",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4554,11 +4484,9 @@
     "id": "catalog.import.57f038f0e7f2e6855867",
     "title": "素素です",
     "url": "https://space.bilibili.com/899736",
-    "description": "",
-    "category": "社区与创作",
-    "tags": [
-      "B站UP主"
-    ],
+    "description": "玩家创作、资讯或直播入口",
+    "category": "社区与创作 / 创作者与直播",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4577,11 +4505,9 @@
     "id": "catalog.import.3fab7c3cc3f3c5769d45",
     "title": "被窝国际",
     "url": "https://space.bilibili.com/8162667",
-    "description": "",
-    "category": "社区与创作",
-    "tags": [
-      "B站UP主"
-    ],
+    "description": "玩家创作、资讯或直播入口",
+    "category": "社区与创作 / 创作者与直播",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4600,11 +4526,9 @@
     "id": "catalog.import.7d1839d144fd5a3b0857",
     "title": "红红Aka",
     "url": "https://space.bilibili.com/8162492",
-    "description": "",
-    "category": "社区与创作",
-    "tags": [
-      "B站UP主"
-    ],
+    "description": "玩家创作、资讯或直播入口",
+    "category": "社区与创作 / 创作者与直播",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4623,11 +4547,9 @@
     "id": "catalog.import.01091aad2010fd6b4ae9",
     "title": "Consolegameswiki",
     "url": "https://ffxiv.consolegameswiki.com/wiki/Final_Fantasy_XIV",
-    "description": "",
-    "category": "新手与百科",
-    "tags": [
-      "维基站 / Wiki Site"
-    ],
+    "description": "游戏资料检索与百科查询",
+    "category": "入门与资料 / 百科与数据库",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4646,11 +4568,9 @@
     "id": "catalog.import.3dea6248ffbc318f1221",
     "title": "Game8",
     "url": "https://game8.co/games/Final-Fantasy-XIV",
-    "description": "",
-    "category": "新手与百科",
-    "tags": [
-      "维基站 / Wiki Site"
-    ],
+    "description": "游戏资料检索与百科查询",
+    "category": "入门与资料 / 百科与数据库",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4669,11 +4589,9 @@
     "id": "catalog.import.89d70b46c1376ff63cdb",
     "title": "Game8",
     "url": "https://game8.jp/ff14",
-    "description": "",
-    "category": "新手与百科",
-    "tags": [
-      "维基站 / Wiki Site"
-    ],
+    "description": "游戏资料检索与百科查询",
+    "category": "入门与资料 / 百科与数据库",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4692,11 +4610,9 @@
     "id": "catalog.import.01bc52ca24bb95306642",
     "title": "FF14 Online Wiki",
     "url": "https://ff14wiki.info/",
-    "description": "",
-    "category": "新手与百科",
-    "tags": [
-      "维基站 / Wiki Site"
-    ],
+    "description": "游戏资料检索与百科查询",
+    "category": "入门与资料 / 百科与数据库",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4715,11 +4631,9 @@
     "id": "catalog.import.733dfca9348c9715353c",
     "title": "石之家",
     "url": "https://ff14risingstones.web.sdo.com/pc/index.html",
-    "description": "",
-    "category": "官方服务",
-    "tags": [
-      "官方网站 / Official Site"
-    ],
+    "description": "游戏资讯与公告入口",
+    "category": "官方与账号 / 官网与公告",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4738,11 +4652,9 @@
     "id": "catalog.import.1b79577f844ac9383bdc",
     "title": "FFCafe 肥肥咖啡",
     "url": "https://www.ffcafe.cn/",
-    "description": "",
-    "category": "开发与辅助工具",
-    "tags": [
-      "小开不算开 / waigua"
-    ],
+    "description": "客户端插件或相关工具资料",
+    "category": "插件与开发 / 插件与启动器",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4761,11 +4673,9 @@
     "id": "catalog.import.35e0e34da5592fe812fe",
     "title": "XIVLauncher / 卫月",
     "url": "https://goatcorp.github.io/",
-    "description": "",
-    "category": "开发与辅助工具",
-    "tags": [
-      "小开不算开 / waigua"
-    ],
+    "description": "客户端插件或相关工具资料",
+    "category": "插件与开发 / 插件与启动器",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4784,11 +4694,9 @@
     "id": "catalog.import.b208de208a99eab7a221",
     "title": "XivStrat",
     "url": "https://xivstrat.com/",
-    "description": "",
-    "category": "副本与战斗",
-    "tags": [
-      "实用工具 / Simplified Chines"
-    ],
+    "description": "战术规划或队伍招募相关工具",
+    "category": "职业与副本 / 战术与招募",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4807,11 +4715,9 @@
     "id": "catalog.import.f220abfc16a77a8a1170",
     "title": "FFReplay",
     "url": "https://ffreplay.vjoi.cn/",
-    "description": "",
-    "category": "副本与战斗",
-    "tags": [
-      "实用工具 / Simplified Chines"
-    ],
+    "description": "战斗记录、统计与复盘工具",
+    "category": "职业与副本 / 战斗日志",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4831,10 +4737,8 @@
     "title": "素素辣鸡排",
     "url": "https://tools.ffsusu.com/lajipai/",
     "description": "风脉、藏宝图、坐骑与宠物等日常查询工具。",
-    "category": "开发与辅助工具",
-    "tags": [
-      "实用工具 / Simplified Chines"
-    ],
+    "category": "入门与资料 / 综合工具",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4853,11 +4757,9 @@
     "id": "catalog.import.678ba05e7d0e8cd94cbb",
     "title": "Bilibili直播 FF14分区",
     "url": "https://live.bilibili.com/p/eden/area-tags?areaId=102&parentAreaId=2",
-    "description": "",
-    "category": "社区与创作",
-    "tags": [
-      "直播站 / Live Streaming"
-    ],
+    "description": "玩家创作、资讯或直播入口",
+    "category": "社区与创作 / 创作者与直播",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4876,11 +4778,9 @@
     "id": "catalog.import.4877b2bbfef8eef1a0ba",
     "title": "Twitch FF14 tag",
     "url": "https://www.twitch.tv/directory/all/tags/ff14",
-    "description": "",
-    "category": "社区与创作",
-    "tags": [
-      "直播站 / Live Streaming"
-    ],
+    "description": "玩家创作、资讯或直播入口",
+    "category": "社区与创作 / 创作者与直播",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -4899,11 +4799,9 @@
     "id": "catalog.import.12fd1592e83eab55f439",
     "title": "本站画廊",
     "url": "https://www.ff14.wiki/",
-    "description": "",
-    "category": "社区与创作",
-    "tags": [
-      "直播站 / Live Streaming"
-    ],
+    "description": "玩家音乐与作品展示",
+    "category": "社区与创作 / 音乐与作品",
+    "tags": [],
     "aliases": [],
     "icon": "🔗",
     "openMode": "new_tab",

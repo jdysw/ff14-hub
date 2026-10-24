@@ -28,3 +28,5 @@ export * from './local-notifications';
 
 export * from './pvp-rotation';
 export * from './mobile-widgets-v1';
+export * from './site-management';
+export * from './site-data';

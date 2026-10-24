@@ -2,10 +2,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { calendarAdminSession } from '../events/calendar-admin-session';
 import { DEFAULT_SITE_SETTINGS, SITE_SETTINGS_CHANGED, type SiteSettings, type SiteSettingsDocument } from './site-settings';
+import {PresentationEditor} from './PresentationEditor';
+import {managedPresentationSchema,DEFAULT_CATEGORIES,DEFAULT_HOME} from '@ff14-hub/shared';
+import {usePrivateDraft} from '../pwa/draft-registry';
 
 export function SiteSettingsPanel() {
   const [revision,setRevision]=useState(0);
   const [draft,setDraft]=useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
+  const [saved,setSaved]=useState(()=>JSON.stringify(DEFAULT_SITE_SETTINGS));
+  usePrivateDraft(JSON.stringify(draft)!==saved);
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
   const [message,setMessage]=useState('');
@@ -22,6 +27,7 @@ export function SiteSettingsPanel() {
     if(!signal?.aborted) {
       setRevision(data.revision);
       setDraft(data.settings);
+      setSaved(JSON.stringify(data.settings));
     }
   },[]);
   useEffect(()=>{
@@ -37,6 +43,7 @@ export function SiteSettingsPanel() {
     if(!token){setMessage('管理员会话已失效');return;}
     setSaving(true);setMessage('');
     try {
+      managedPresentationSchema.parse(draft.presentation??{categories:DEFAULT_CATEGORIES,home:DEFAULT_HOME,categoryAliases:{}});
       const r=await fetch('/api/v1/admin/settings',{
         method:'PUT',credentials:'omit',cache:'no-store',redirect:'error',
         headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
@@ -47,6 +54,7 @@ export function SiteSettingsPanel() {
       if(!r.ok)throw new Error('保存失败，请检查输入长度与服务状态');
       const updated=await r.json() as SiteSettingsDocument;
       setDraft(updated.settings);setRevision(updated.revision);
+      setSaved(JSON.stringify(updated.settings));
       window.dispatchEvent(new Event(SITE_SETTINGS_CHANGED));
       setMessage('设置已保存到 Cloudflare D1，公开页面无需重新部署即可生效');
     }catch(e){setMessage(e instanceof Error?e.message:'保存失败');}
@@ -68,6 +76,7 @@ export function SiteSettingsPanel() {
       <label className="site-admin__check"><input type="checkbox" checked={draft.homeCalendarEnabled}
         onChange={e=>patch('homeCalendarEnabled',e.target.checked)}/> 在网站首页允许显示国服活动模块</label>
       <p className="panel__muted">首页活动模块受全站开关与访客个人偏好共同控制；关闭全站开关不会清除用户偏好和活动数据。</p>
+      <PresentationEditor value={draft.presentation} onChange={presentation=>patch('presentation',presentation)}/>
       <div className="site-admin__actions">
         <button type="button" className="button" disabled={saving||draft.siteName.trim().length<2} onClick={()=>void save()}>{saving?'保存中…':'保存并立即生效'}</button>
         <button type="button" className="button button--secondary" onClick={()=>void load().catch(e=>setMessage(String(e)))}>重新读取</button>

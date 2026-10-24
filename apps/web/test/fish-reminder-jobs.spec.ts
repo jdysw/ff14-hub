@@ -11,7 +11,7 @@ it('creates honest community-window reminders, preserves a stable identity and h
   const now=Date.UTC(2026,9,23),start=now+8*60000,etHour=175000,startHour=(start%4200000)/etHour;
   const fish={...original,id:1,method:'rod' as const,rule:{...original.rule!,fishId:1,startHour,endHour:(startHour+1)%24,weatherRates:[{weather:'晴',chance:100}],currentWeather:[],previousWeather:[],validationStatus:'unverified' as const,conditions:[{kind:'bait' as const,description:'测试鱼饵'}]}};
   vi.mocked(loadFishingCatalog).mockResolvedValue({...source,fish:[fish]});
-  const data={fish:{cn:[{fishId:1,field:'alarm',value:true}],global:[]}} as unknown as Parameters<typeof buildNotificationJobs>[0];
+  const data={notes:[],fish:{cn:[{fishId:1,field:'alarm',value:true}],global:[]}} as unknown as Parameters<typeof buildNotificationJobs>[0];
   const settings={...defaultNotificationSettings,events:false,fishLeadMinutes:{'cn:1':5}};
   const jobs=await buildNotificationJobs(data,settings,now);expect(jobs[0]?.dueAt).toBe(start-5*60000);expect(jobs[0]?.body).toContain('候选鱼窗');expect(fishLinkFromJob(jobs[0]!.key)).toEqual({region:'cn',fishId:1,windowStartsAt:start});
   const first=(await buildNotificationJobs(data,{...settings,fishLeadMinutes:{}},now))[0]!,second=(await buildNotificationJobs(data,{...settings,fishLeadMinutes:{}},now+1000))[0]!;
