@@ -108,6 +108,13 @@
 - [x] 此批改动在独立 DevSpace 工作区通过 ESLint、TypeScript、605 项项目单测、59 项运维测试、Web/Worker 构建；与并行提交的整体验证仍须以最新 PR 的 CI/SonarCloud 为准。
 - [ ] 继续按照主线 648 项基线核验历史遗留问题，PR 最新分析单独核对新增问题。
 
+## 第十二批：跨工作区集成验收与生成物同步
+
+- [x] 基于 `PR #84@fc5230b` 的独立全新 Git Worktree 执行完整 `pnpm run verify`，先发现鱼糕适配器修改后生成物未更新：`check:fishcake-script` 失败，属于真实构建一致性回归。
+- [x] 执行项目自身 `pnpm run generate:fishcake-script` 重新生成 `apps/web/public/fishcake-sync.user.js`；没有更改检查程序或跳过断言。
+- [x] 重新执行 `pnpm run verify`，鱼糕脚本、Android 规则、D1 基线、ESLint、TypeScript、项目单测 607 项、运维测试 59 项及 Web/Worker 构建均通过。
+- [ ] 后续并行提交仍需以新的 PR HEAD 复扫与验证，尤其不能将 `Quality Gate OK` 误解为历史 648 项清零。
+
 ## 后续批次（同一个 PR）
 
 1. **P0 安全与可靠性**：清理未完成的 High/Blocker、消息来源、路径边界及正则复杂度问题。
