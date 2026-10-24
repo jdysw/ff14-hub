@@ -12,9 +12,11 @@ export function digestSettings(data:LocalData,settings:NotificationSettings){
   return fishDigestSchema.parse({enabled:settings.fish||(settings.events&&settings.eventEndDays.length>0),time:settings.digestTime,eventEndDays:settings.events?settings.eventEndDays:[],targets:settings.fish?targets:[]});
 }
 export const NOTIFICATION_SETTINGS_CHANGED='ff14:local-notifications-changed';
+export function buildTodoNotificationJobs(data:LocalData,now=Date.now()):LocalNotificationJob[]{return data.notes.filter(note=>!note.completed&&note.remindAt!==undefined&&note.remindAt>now&&note.remindAt<=now+365*86400000).map(note=>({key:`todo:${note.id}:${note.remindAt!}`,title:note.title.slice(0,80),body:(note.text||'你设置的待办提醒已到时间').slice(0,200),dueAt:note.remindAt!,expiresAt:note.remindAt!+15*60000})).sort((a,b)=>a.dueAt-b.dueAt).slice(0,30);}
 let eventCache:{at:number;data:ReturnType<typeof eventCalendarResponseSchema.parse>}|null=null;
 export async function buildNotificationJobs(data:LocalData,settings:NotificationSettings,now=Date.now()):Promise<LocalNotificationJob[]>{
   const jobs:LocalNotificationJob[]=[],lead=settings.leadMinutes*60_000;
+  jobs.push(...buildTodoNotificationJobs(data,now));
   const add=(key:string,title:string,body:string,time:number,advance=lead)=>{if(time<=now)return;const originalDue=time-advance,dueAt=Math.max(now,originalDue);if(dueAt<=now+72*3600_000)jobs.push({key:key+':'+originalDue,title:title.slice(0,80),body:body.slice(0,200),dueAt,expiresAt:Math.min(time+15*60_000,dueAt+15*60_000)});};
   if(settings.events){
     try{if(!eventCache||now-eventCache.at>=6*3600_000){const response=await fetch('/api/v1/events/calendar',{credentials:'omit',cache:'no-store',redirect:'error'});if(!response.ok)throw new Error('官方活动读取失败');eventCache={at:now,data:eventCalendarResponseSchema.parse(await response.json())};}}catch{/* An unavailable event feed must not suppress independently computable fish reminders. */}
@@ -39,7 +41,7 @@ export async function notificationRequest(path:string,token:string,method='GET',
 }
 export async function registerNotifications(channel:LocalNotificationChannel,settings:NotificationSettings,store:LocalStore){
   const data=await store.read(),digest=digestSettings(data,settings),jobs=await buildNotificationJobs(data,settings);
-  const response=await fetch('/api/v1/local-notifications/register',{method:'POST',credentials:'omit',cache:'no-store',redirect:'error',headers:{'Content-Type':'application/json'},body:JSON.stringify({channel,jobs:[],digest,dailyLimit:settings.dailyLimit})});
+  const response=await fetch('/api/v1/local-notifications/register',{method:'POST',credentials:'omit',cache:'no-store',redirect:'error',headers:{'Content-Type':'application/json'},body:JSON.stringify({channel,jobs:buildTodoNotificationJobs(data),digest,dailyLimit:settings.dailyLimit})});
   if(!response.ok)throw new Error(response.status===429?'启用过于频繁，请稍后再试':'通知配置未保存，请检查输入与服务状态');
   const value=await response.json() as {token:string};
   if(!/^ffh_push_[a-f0-9]{64}$/.test(value.token))throw new Error('通知配置响应异常');
@@ -55,7 +57,7 @@ export function startLocalNotifications(store:LocalStore){
       const latest=await readDeviceRecord<NotificationSettings>('notifications');
       if(stopped||!latest||latest.token!==settings.token||latest.browser!==settings.browser||latest.digestTime!==settings.digestTime||(await store.read()).revision!==data.revision)return;
       let error='';
-      if(settings.token&&!localOnly)try{await notificationRequest('/plan',settings.token,'PUT',{jobs:[],digest:digestSettings(data,settings),targetsOnly:true});}catch(cause){error=cause instanceof Error?cause.message:'后台提醒登记失败，请检查通知设置';}
+      if(settings.token&&!localOnly)try{await notificationRequest('/plan',settings.token,'PUT',{jobs:buildTodoNotificationJobs(data),digest:digestSettings(data,settings),targetsOnly:true});}catch(cause){error=cause instanceof Error?cause.message:'后台提醒登记失败，请检查通知设置';}
       await updateDeviceRecord<NotificationSettings>('notifications',current=>{
         if(stopped||!current||current.token!==settings.token||current.browser!==settings.browser)return undefined;
         return {...current,jobs,lastPlan:localOnly||error?current.lastPlan:Date.now(),error:localOnly?current.error:error};

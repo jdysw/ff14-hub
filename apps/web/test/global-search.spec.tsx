@@ -24,7 +24,7 @@ it('keeps feature navigation usable if fish and event data both fail',async()=>{
 });
 it('offers keyboard-accessible quick actions without loading catalogs for an empty query',()=>{
   const close=vi.fn();render(<GlobalSearch query="" links={[]} initialRegion="cn" onFish={()=>{}} onEvent={()=>{}} onFeature={()=>{}} onClose={close}/>);
-  const first=screen.getByRole('button',{name:/今日计划/}),second=screen.getByRole('button',{name:/活动日历/});
+  const first=screen.getByRole('button',{name:/我的待办/}),second=screen.getByRole('button',{name:/活动日历/});
   first.focus();fireEvent.keyDown(first,{key:'ArrowDown'});expect(document.activeElement).toBe(second);
   fireEvent.keyDown(second,{key:'ArrowUp'});expect(document.activeElement).toBe(first);
   fireEvent.keyDown(first,{key:'Escape'});expect(close).toHaveBeenCalledOnce();

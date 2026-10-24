@@ -50,4 +50,5 @@ export function usePrivateDraft(dirty:boolean):void{
   const current=useRef(dirty);
   useEffect(()=>{current.current=dirty;},[dirty]);
   useEffect(()=>registerPrivateDraftSource(()=>current.current),[]);
+  useEffect(()=>{const guard=(event:BeforeUnloadEvent)=>{if(current.current)event.preventDefault();};window.addEventListener('beforeunload',guard);return()=>window.removeEventListener('beforeunload',guard);},[]);
 }

@@ -6,6 +6,7 @@ import {createHash} from 'node:crypto';
 import ts from 'typescript';
 
 const input=process.argv[2]??'.wrangler/navigation-sources';
+const reviewedCategories=new Map(JSON.parse(await readFile('data/navigation/classification.json','utf8')).map(entry=>[entry.id,entry.category]));
 const sources=[
   {file:'cafe.js',url:'https://www.ff14.cafe/',name:'背水咖啡厅'},
   {file:'light.html',url:'https://ff14nav.tianbianyu.com/',name:'光之导航站'},
@@ -61,6 +62,12 @@ function normalize(raw){
   return equivalents.get(url.href)??url.href;
 }
 function category(row){
+  const reviewed=reviewedCategories.get('catalog.import.'+createHash('sha256').update(normalize(row.url)).digest('hex').slice(0,20));
+  if(reviewed)return reviewed;
+  throw new Error('新入口需要先核对分类：'+row.title);
+}
+/* Historical keyword rules retained for audit only. */
+function legacyCategory(row){
   const text=row.title;
   if(/素素攻略站|加兰德数据库|Game8|Consolegameswiki|FF14 Online Wiki/i.test(text))return '新手与百科';
   if(/艾欧泽亚售楼中心/i.test(text))return '住房装修';
@@ -79,6 +86,7 @@ function category(row){
   if(/科技|小开|工具插件/i.test(row.section))return '开发与辅助工具';
   return '社区与创作';
 }
+void legacyCategory;
 function region(row){
   if(/国际服|日服|英文|外文|Reddit|Twitch|GamerEscape|Consolegameswiki|Game8|FF14 Online Wiki|mirapri|eorzeaCollection|ERIONES|Etro|Ariyala/i.test(row.title+' '+row.section))return 'global';
   if(/国服|简中|CN |NGA|百度|B站|微博|石之家|新大陆|鱼糕|素素|灰机|中文/i.test(row.title+' '+row.section)||new URL(row.url).hostname.endsWith('sdo.com'))return 'cn';

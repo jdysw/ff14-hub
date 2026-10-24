@@ -6,6 +6,7 @@ export const localLinkSchema=z.object({
   id:z.uuid(),title:z.string().min(1).max(100),
   url:z.string().refine(url=>validateNavUrl(url).ok,'请使用有效的 HTTPS 地址'),
   category:z.string().max(60),favorite:z.boolean(),
+  categoryCustomized:z.boolean().optional(),
   // optional 保留旧版浏览器数据和备份的兼容性；介绍由用户自行编辑或主动获取。
   description:z.string().max(240).optional(),
   faviconUrl:z.string().url().startsWith('https://').max(700).optional(),
@@ -36,8 +37,9 @@ const configurationSchema=z.preprocess(value=>{
   order:z.array(sectionSchema).length(4).refine(v=>new Set(v).size===4),
   visible:z.object({events:z.boolean(),fishing:z.boolean(),pvp:z.boolean(),notes:z.boolean()}).strict(),
   region:z.enum(['cn','global']),
+  orderCustomized:z.boolean().optional(),
 }).strict());
-export const localDataSchema=z.object({version:z.literal(1),revision:z.number().int().nonnegative(),fish:z.object({cn:z.array(fishProgressSchema).max(15000),global:z.array(fishProgressSchema).max(15000)}).strict(),configuration:configurationSchema,links:z.array(localLinkSchema).max(2000),notes:z.array(z.object({id:z.uuid(),title:z.string().min(1).max(100),text:z.string().max(10000),completed:z.boolean().optional()}).strict()).max(100)}).strict()
+export const localDataSchema=z.object({version:z.literal(1),revision:z.number().int().nonnegative(),fish:z.object({cn:z.array(fishProgressSchema).max(15000),global:z.array(fishProgressSchema).max(15000)}).strict(),configuration:configurationSchema,links:z.array(localLinkSchema).max(2000),notes:z.array(z.object({id:z.uuid(),title:z.string().trim().min(1).max(100),text:z.string().max(10000),completed:z.boolean().optional(),startsAt:z.number().int().nonnegative().optional(),endsAt:z.number().int().nonnegative().optional(),remindAt:z.number().int().nonnegative().optional()}).strict().refine(note=>note.startsAt===undefined||note.endsAt===undefined||note.endsAt>note.startsAt,'截止时间必须晚于开始时间')).max(100)}).strict()
   .refine(data=>['cn','global'].every(region=>{const fields=data.fish[region as FishRegion];return fields.every(f=>f.region===region)&&new Set(fields.map(f=>`${f.fishId}:${f.field}`)).size===fields.length;})&&new Set(data.links.map(link=>link.id)).size===data.links.length,'备份含重复或区服不一致的数据');
 export type LocalData=z.infer<typeof localDataSchema>;
 export const localBackupSchema=z.object({format:z.literal('ff14-hub-local'),version:z.literal(1),exportedAt:z.string(),data:localDataSchema}).strict();

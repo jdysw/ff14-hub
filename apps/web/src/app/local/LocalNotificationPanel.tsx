@@ -2,7 +2,7 @@ import {useEffect,useState} from 'react';
 import {usePrivateDraft} from '../pwa/draft-registry';
 import type {LocalStore} from './store';
 import {readDeviceRecord,writeDeviceRecord} from './secure-storage';
-import {defaultNotificationSettings,digestSettings,notificationRequest,registerNotifications,NOTIFICATION_SETTINGS_CHANGED,type NotificationSettings} from './local-notifications';
+import {defaultNotificationSettings,digestSettings,buildTodoNotificationJobs,notificationRequest,registerNotifications,NOTIFICATION_SETTINGS_CHANGED,type NotificationSettings} from './local-notifications';
 export function LocalNotificationPanel({store}:{store:LocalStore}){
   const [settings,setSettings]=useState<NotificationSettings>(defaultNotificationSettings);
   const [sendKey,setSendKey]=useState(''),[apiKey,setApiKey]=useState(''),[from,setFrom]=useState(''),[to,setTo]=useState('');
@@ -39,7 +39,7 @@ export function LocalNotificationPanel({store}:{store:LocalStore}){
     </form>
     <p className="local-settings__caution">渠道凭证会通过 HTTPS 发送到本站，并加密保存在服务器，以便网页关闭后投递；不会进入 WebDAV/S3 备份。邮件需自行配置 Resend 的已验证发件域名。渠道额度由各服务决定。</p>
     <div className="personal-feature__toolbar">
-      <button disabled={busy||!settings.token} onClick={()=>void run(async()=>{const digest=digestSettings(await store.read(),settings);await notificationRequest('/plan',settings.token!,'PUT',{jobs:[],digest,dailyLimit:settings.dailyLimit});const next={...settings,lastPlan:Date.now()};await writeDeviceRecord('notifications',next);setSettings(next);window.dispatchEvent(new Event(NOTIFICATION_SETTINGS_CHANGED));setMessage('提醒规则已保存，无需重新填写渠道凭证');})}>保存提醒规则</button>
+      <button disabled={busy||!settings.token} onClick={()=>void run(async()=>{const data=await store.read(),digest=digestSettings(data,settings);await notificationRequest('/plan',settings.token!,'PUT',{jobs:buildTodoNotificationJobs(data),digest,dailyLimit:settings.dailyLimit});const next={...settings,lastPlan:Date.now()};await writeDeviceRecord('notifications',next);setSettings(next);window.dispatchEvent(new Event(NOTIFICATION_SETTINGS_CHANGED));setMessage('提醒规则已保存，无需重新填写渠道凭证');})}>保存提醒规则</button>
       <button disabled={busy||!settings.token} onClick={()=>void run(async()=>{const result=await notificationRequest('/test',settings.token!,'POST') as {accepted:boolean};if(!result.accepted)throw new Error('渠道未接受测试消息，请检查凭证与额度');setMessage('通知服务已接受测试消息，请在接收端确认收件');})}>发送测试消息</button>
       <button disabled={busy||!settings.token} onClick={()=>void run(async()=>{setStatus(await notificationRequest('/status',settings.token!) as NonNullable<typeof status>);setMessage('已更新通知状态');})}>查看投递状态</button>
       <button disabled={busy||!settings.token} onClick={()=>void run(async()=>{await notificationRequest('/subscription',settings.token!,'DELETE');const next={...settings,token:null,jobs:[],lastPlan:0};await writeDeviceRecord('notifications',next);setSettings(next);setStatus(null);window.dispatchEvent(new Event(NOTIFICATION_SETTINGS_CHANGED));setMessage('后台通知已停用，服务器中的渠道凭证和待发任务已删除');})}>停用后台通知</button>

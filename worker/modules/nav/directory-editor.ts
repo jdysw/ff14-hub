@@ -1,4 +1,7 @@
 import { ApiError, canonicalNavUrl, directoryItemSchema, navCatalogEntrySchema, type DirectoryItem, type DirectoryRecord, type NavCatalogEntry } from '@ff14-hub/shared';
+import {excludedContent} from '../admin/content-state';
+import {readSiteSettings} from '../admin/site-settings';
+import {resolveDirectoryCategory} from '@ff14-hub/shared';
 
 interface EditRow { id: string; payload: string; hidden: number; revision: number }
 
@@ -10,7 +13,9 @@ export async function readDirectoryRecords(db: D1Database, base: readonly NavCat
     if (entry.id !== row.id) throw new Error('目录编辑记录不完整');
     records.set(row.id, { entry, revision: row.revision, hidden: row.hidden === 1 });
   }
-  return [...records.values()].sort((a,b) => a.entry.sortOrder-b.entry.sortOrder || a.entry.id.localeCompare(b.entry.id));
+  const excluded=await excludedContent(db,'navigation');
+  const aliases=(await readSiteSettings(db)).settings.presentation.categoryAliases;
+  return [...records.values()].filter(record=>!excluded.has(record.entry.id)).map(record=>({...record,entry:{...record.entry,category:resolveDirectoryCategory(record.entry.category,aliases)}})).sort((a,b) => a.entry.sortOrder-b.entry.sortOrder || a.entry.id.localeCompare(b.entry.id));
 }
 
 export async function saveDirectoryRecord(db: D1Database, records: readonly DirectoryRecord[], input: {

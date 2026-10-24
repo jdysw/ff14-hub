@@ -4,6 +4,7 @@ import type {DataPort} from '../../lib/data-port';
 import {fishingCatalogSchema,type CatalogFish,type FishingCatalog} from './catalog';
 import {windowState,type FishForecast} from './forecast';
 import {nextFishingWindowRefresh,subscribeFishingForecast} from './forecast-session';
+import {GAME_DATA_CHANGED} from '../admin/game-data';
 import './fishing-board.css';
 import {registerPrivateDraftSource} from '../pwa/draft-registry';
 import {fishCountdown as duration} from './countdown';
@@ -95,13 +96,14 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
 
   useEffect(()=>{
     let alive=true;
-    void data.call('fish.catalog',{region}).then(value=>{
+    const load=()=>{void data.call('fish.catalog',{region}).then(value=>{
       const parsed=fishingCatalogSchema.parse(value);
       if(alive){setCatalog(parsed);callbacks.current.onReady?.();}
     }).catch((cause:unknown)=>{
       if(alive){setError('鱼类目录加载失败，请重试。');callbacks.current.onError?.(cause);}
-    });
-    return()=>{alive=false;};
+    });};
+    load();window.addEventListener(GAME_DATA_CHANGED,load);
+    return()=>{alive=false;window.removeEventListener(GAME_DATA_CHANGED,load);};
   },[data,region]);
 
   useEffect(()=>{

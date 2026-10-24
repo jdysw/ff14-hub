@@ -3,6 +3,8 @@ import { eventCalendarItemSchema, type EventCalendarItem } from '@ff14-hub/share
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { chinaDateTime } from './public-calendar-utils';
 import './calendar-admin.css';
+import {useContentState} from '../admin/ContentLifecycle';
+import {usePrivateDraft} from '../pwa/draft-registry';
 
 type Mode = 'upsert' | 'hide' | 'restore';
 interface EditRow {
@@ -51,7 +53,6 @@ function parseChinaInput(value: string): number | null {
 function parseDraft(draft: Draft) {
   const startsAt = parseChinaInput(draft.starts);
   const endsAt = parseChinaInput(draft.ends);
-  if ((startsAt === null) !== (endsAt === null)) throw new Error('起止时间必须同时填写，或同时留空');
   if (startsAt !== null && endsAt !== null && endsAt <= startsAt) throw new Error('结束时间必须晚于开始时间');
   const item = {
     title: draft.title.trim(), description: draft.description.trim(),
@@ -81,6 +82,7 @@ export function CalendarAdminPanel({ getToken, onClose, onSaved }: {
   readonly onSaved: () => void;
 }) {
   const [records, setRecords] = useState<AdminRecord[]>([]);
+  const content=useContentState();
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
@@ -111,11 +113,12 @@ export function CalendarAdminPanel({ getToken, onClose, onSaved }: {
   }, [fetchList]);
 
   const selected = records.find(row => row.id === selectedId);
+  usePrivateDraft(saving||JSON.stringify(draft)!==JSON.stringify(selected?inputFromEvent(selected.item):EMPTY));
   const [now] = useState(Date.now);
-  const visible = useMemo(() => records.filter(row =>
+  const visible = useMemo(() => records.filter(row => !content.excluded('calendar',row.id)&&
     (showHistory || row.item.endsAt === null || row.item.endsAt >= now || row.mode === 'hide') &&
     (row.item.title + ' ' + row.item.category).toLowerCase().includes(search.trim().toLowerCase())
-  ), [records, search, showHistory, now]);
+  ), [records, search, showHistory, now,content]);
 
   function select(row: AdminRecord) {
     setSelectedId(row.id);
@@ -218,11 +221,12 @@ export function CalendarAdminPanel({ getToken, onClose, onSaved }: {
           <label>开始时间（北京时间）<input type="datetime-local" value={draft.starts} onChange={e=>patch('starts',e.target.value)}/></label>
           <label>结束时间（北京时间）<input type="datetime-local" value={draft.ends} onChange={e=>patch('ends',e.target.value)}/></label>
         </div>
-        <p className="panel__muted">两个时间都填才进入日历和 ICS；如果未核实，请保持两个时间均为空。</p>
+        <p className="panel__muted">时间可分别留空；有完整起止时间才进入日历和 ICS。结束条件可填写在简介中。</p>
         <label>简介 <textarea rows={3} maxLength={600} value={draft.description} onChange={e=>patch('description',e.target.value)} placeholder="活动奖励、参与方式、注意事项"/></label>
         <label>地点（可选）<input maxLength={120} value={draft.location} onChange={e=>patch('location',e.target.value)} placeholder="游戏内地点或活动入口"/></label>
         <label>原始公告链接（HTTPS，可选）<input type="url" value={draft.sourceUrl} onChange={e=>patch('sourceUrl',e.target.value)} placeholder="https://..."/></label>
         <div className="calendar-admin__actions">
+          {selected&&<button type="button" disabled={saving} onClick={()=>{setSaving(true);void content.change('calendar',selected.id,'trash').then(()=>{createNew();onSaved();setMessage('活动已移入回收站，可恢复；官方同步不会重新收录');}).catch((error:unknown)=>setMessage(error instanceof Error?error.message:'删除失败')).finally(()=>setSaving(false));}}>删除活动</button>}
           <button className="button" type="submit" disabled={saving}>{saving ? '保存中…' : '保存到后端'}</button>
           {selected && selected.mode !== 'hide' && <button className="button button--secondary" type="button" disabled={saving} onClick={()=>void submit('hide')}>隐藏活动</button>}
           {selected && (selected.mode === 'hide' || (selected.mode === 'upsert' && !selected.id.startsWith('manual:'))) && <button className="button button--secondary" type="button" disabled={saving} onClick={()=>void submit('restore')}>{selected.mode === 'hide' ? '恢复显示' : '恢复官方原文'}</button>}
