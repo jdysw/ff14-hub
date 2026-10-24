@@ -22,6 +22,20 @@ describe('盛趣官方公告活动时间提取', () => {
     expect(extractOfficialActivityTiming('活动时间：2026年2月30日16:00～8.0版本更新维护前')).toBeNull();
     expect(extractOfficialActivityTiming('<script>'+text+'</script>')).toBeNull();
   });
+  it('维护前结束的时间标签逐段解析，并在线性时间内处理大量未闭合标签', () => {
+    const startsAt = Date.UTC(2026, 9, 28, 8);
+    expect(extractOfficialActivityTiming('活动期间 : 2026年10月28日16:00 - 8.0版本维护前'))
+      .toEqual({ startsAt, endsAt: null, endCondition: '8.0版本维护前' });
+    expect(extractOfficialActivityTiming('活动时间：2026年10月28日16:00～8.0版本更新维护开始前'))
+      .toEqual({ startsAt, endsAt: null, endCondition: '8.0版本更新维护开始前' });
+    expect(extractOfficialActivityTiming('活动时间：2026年10月28日16:00～未知结束时间'))
+      .toBeNull();
+    const malformed = '<'.repeat(12_000);
+    expect(extractOfficialActivityTiming(malformed + '活动时间：2026年10月28日16:00～8.0版本更新维护前'))
+      .toEqual({ startsAt, endsAt: null, endCondition: '8.0版本更新维护前' });
+    expect(extractOfficialActivityTiming(malformed + '<script>活动时间：2026年10月28日16:00～8.0版本更新维护前</script>'))
+      .toBeNull();
+  });
   it('从明确的北京时间完整区间提取', () => {
     const result = extractOfficialActivityRange(
       '<p>活动时间：2026年10月19日 10:00 ～ 2026年11月2日 23:59</p>',
