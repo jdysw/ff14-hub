@@ -155,6 +155,12 @@ it('labels community and intuition windows as candidates and never sends unrestr
   const unrestricted=render({...rule,startHour:0,endHour:24});expect(unrestricted.actionable).toBe(false);expect(unrestricted.body).not.toContain('00:00–24:00');
   const unknown=renderFishDigest(target,now,{cn:{fish:[{id:1,name:'未知',location:'测试钓场',rule:{...rule,conditions:[{kind:'unknown',description:'未建模'}]}}]}});expect(unknown.actionable).toBe(false);expect(unknown.body).toContain('未知机制');
 });
+it('keeps the no-subscription digest inert without adding unrelated day sections',()=>{
+  const now=Date.parse('2026-10-21T00:00:00Z');
+  const result=renderFishDigest({...digest,targets:[],eventEndDays:[]},now,{});
+  expect(result.actionable).toBe(false);
+  expect(result.body).toBe('FF14 每日汇总（北京时间）\n');
+});
 it('includes optional 3-day and 1-day deadlines without turning undated announcements into reminders',()=>{
   const now=Date.parse('2026-10-21T00:00:00Z');
   const event=(id:string,days:number|null)=>({id,title:id,region:'cn' as const,category:'活动',description:'',location:'',startsAt:now-86400_000,endsAt:days===null?null:now+days*86400_000,sourceUrl:null,allDay:false});

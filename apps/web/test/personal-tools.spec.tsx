@@ -51,6 +51,15 @@ it('keeps old notes valid and derives overdue status independently of reminder t
   const data=initial();data.notes.push({id:crypto.randomUUID(),title:'旧备忘',text:'原文'});expect(localDataSchema.parse(data).notes[0]?.text).toBe('原文');
   expect(todoStatus({...data.notes[0]!,remindAt:1000},2000)).not.toContain('逾期');expect(todoStatus({...data.notes[0]!,endsAt:1000},2000)).toContain('逾期');
 });
+it('待办倒计时保留天、小时、分钟与开始/逾期的原有边界',()=>{
+  const note={id:'one',title:'测试',text:''};
+  const now=1_000_000_000;
+  expect(todoStatus({...note,startsAt:now+2*86400000},now)).toBe('距开始 2 天');
+  expect(todoStatus({...note,endsAt:now+2*3600000},now)).toBe('剩余 2 小时');
+  expect(todoStatus({...note,endsAt:now+59000},now)).toBe('剩余 1 分钟');
+  expect(todoStatus({...note,endsAt:now-60000},now)).toBe('已逾期 1 分钟');
+  expect(todoStatus({...note,startsAt:now+2000,endsAt:now+3600000},now)).toBe('距开始 1 分钟');
+});
 it('quick-add saves immediately and enables the module without requiring time fields',async()=>{
   const data=initial(),change=vi.fn((fn:(doc:{data:typeof data})=>void)=>{fn({data});return Promise.resolve();});
   render(<TodoBoard data={data} store={{change} as unknown as LocalStore}/>);

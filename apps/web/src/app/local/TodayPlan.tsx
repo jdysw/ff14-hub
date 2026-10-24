@@ -8,7 +8,7 @@ import type {LocalData,LocalStore} from './store';
 import type {FeatureTarget,FishSearchTarget} from './site-search';
 import {BackupStatusLine} from './BackupStatusLine';
 const clock=(time:number)=>new Date(time).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
-export function TodayPlan({data,store,onFish,onEvent,onFeature}:{data:LocalData;store:LocalStore;onFish:(target:FishSearchTarget)=>void;onEvent:(id:string)=>void;onFeature:(target:FeatureTarget)=>void}){
+export function TodayPlan({data,store,onFish,onEvent,onFeature}:Readonly<{data:LocalData;store:LocalStore;onFish:(target:FishSearchTarget)=>void;onEvent:(id:string)=>void;onFeature:(target:FeatureTarget)=>void}>){
   const [now,setNow]=useState(Date.now),[region,setRegion]=useState<FishRegion>(data.configuration.region),[events,setEvents]=useState<EventCalendarItem[]|null>(null),[eventError,setEventError]=useState('');
   const [report,setReport]=useState<{value:ReturnType<typeof planFish>;region:FishRegion;now:number;fields:LocalData['fish']['cn']}|null>(null),[fishError,setFishError]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[limit,setLimit]=useState(20);
   const result=report?.region===region&&report.now===now&&report.fields===data.fish[region]?report.value:null;
@@ -26,13 +26,15 @@ export function TodayPlan({data,store,onFish,onEvent,onFeature}:{data:LocalData;
   return <section className="site-discovery today-plan" aria-label="今日计划">
     <p>{new Date(now).toLocaleDateString('zh-CN',{timeZone:'Asia/Shanghai',month:'long',day:'numeric',weekday:'long'})} · 北京时间 · 关注鱼窗、活动与个人待办</p>
     <section aria-label="今日关注鱼窗"><header><h3>今日关注鱼窗</h3><label>区服<select aria-label="计划区服" value={region} onChange={e=>{setRegion(e.target.value as FishRegion);setLimit(20);}}><option value="cn">国服</option><option value="global">国际服</option></select></label></header>
-      {fishError?<p role="alert">{fishError}</p>:!result?<output style={{display:'block'}}>正在计算今天的关注鱼窗…</output>:<>
+      {fishError?<p role="alert">{fishError}</p>:null}
+      {!fishError&&!result?<output style={{display:'block'}}>正在计算今天的关注鱼窗…</output>:null}
+      {!fishError&&result?<>
         <p>未钓获关注鱼 {result.watched} 条 · 今日有限窗口 {result.rows.length} 个。候选时间仍需满足鱼饵及鱼识等条件。</p>
         {result.limited?<p>当前计算前 50 条关注鱼，其余请在完整鱼窗中查看。</p>:null}
         {result.rows.length?<ul>{result.rows.slice(0,limit).map(row=><li key={`${row.fishId}:${row.startsAt}`}><button onClick={()=>onFish({fishId:row.fishId,region})}>{row.name}<small>{row.startsAt<=now?'正在开放':clock(row.startsAt)+' 开始'} · {clock(row.endsAt)} 结束 · {row.location}{row.candidate?' · 候选':''}</small></button></li>)}</ul>:<p>{result.watched?'今天没有预测到有限窗口。':'收藏鱼或设置提醒后，会自动列入这里。'}</p>}
         {result.rows.length>limit?<button onClick={()=>setLimit(n=>n+20)}>显示更多今日窗口</button>:null}
         {result.unrestricted>0||result.unavailable>0?<p>另有 {result.unrestricted} 条时间天气不限、{result.unavailable} 条规则待补或不适用普通鱼窗。</p>:null}
-      </>}
+      </>:null}
     </section>
     <section aria-label="今日活动节点"><h3>今日活动节点</h3>{eventError?<output style={{display:'block'}}>{eventError}</output>:events===null?<output style={{display:'block'}}>正在加载活动节点…</output>:activities.length?<ul>{activities.map(e=><li key={e.id}><button onClick={()=>onEvent(e.id)}>{e.title}<small>{e.startsAt!>=now?clock(e.startsAt!)+' 开始':clock(e.endsAt!)+' 截止'}</small></button></li>)}</ul>:<p>今天没有已确认时间的开始或截止节点。</p>}<button onClick={()=>onFeature('events')}>查看完整活动日历</button></section>
     <section aria-label="今日PVP轮换"><h3>PVP 当前轮换</h3><p>纷争前线：{frontline.current} · {clock(frontline.changesAt)} 换图</p><p>水晶冲突：{crystal.current} · {clock(crystal.changesAt)} 换图</p><button onClick={()=>onFeature('pvp')}>查看后续轮换</button></section>

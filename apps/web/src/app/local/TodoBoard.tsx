@@ -8,23 +8,40 @@ import {NOTIFICATION_SETTINGS_CHANGED,type NotificationSettings} from './local-n
 type Todo=LocalData['notes'][number];
 const inputTime=(time?:number)=>time===undefined?'':new Date(time-new Date(time).getTimezoneOffset()*60000).toISOString().slice(0,16);
 const actual=(time:number)=>new Intl.DateTimeFormat('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(time);
+/** 时长显示按天、小时、分钟的原有优先级选择，避免嵌套条件/模板字符串。 */
+function relativeDuration(seconds:number):string{
+  const days=Math.floor(seconds/86400);
+  if(days)return `${days} 天`;
+  const hours=Math.floor(seconds/3600);
+  if(hours)return `${hours} 小时`;
+  return `${Math.max(1,Math.ceil(seconds/60))} 分钟`;
+}
+function notificationDescription(settings:NotificationSettings|null):string{
+  if(settings?.error)return `通知登记异常：${settings.error}`;
+  if(settings?.token)return '后台通知已连接；最近 30 项待办会登记，投递可能有约 5 分钟延迟。';
+  if(settings?.browser)return '仅网页打开且浏览器允许通知时提醒。';
+  return '通知尚未启用，设置时间后仍需在通知设置中连接渠道。';
+}
 export function todoStatus(note:Todo,now:number){
   const end=note.endsAt,start=note.startsAt;
   const target=start!==undefined&&start>now?start:end;
   if(target===undefined)return note.remindAt===undefined?'':`${actual(note.remindAt)} 提醒`;
-  const seconds=Math.ceil(Math.abs(target-now)/1000),days=Math.floor(seconds/86400),hours=Math.floor(seconds/3600),minutes=Math.max(1,Math.ceil(seconds/60));
-  return `${target<now?'已逾期':target===start?'距开始':'剩余'} ${days?`${days} 天`:hours?`${hours} 小时`:`${minutes} 分钟`}`;
+  const seconds=Math.ceil(Math.abs(target-now)/1000);
+  let prefix='剩余';
+  if(target<now)prefix='已逾期';
+  else if(target===start)prefix='距开始';
+  return `${prefix} ${relativeDuration(seconds)}`;
 }
-export function TodoBoard({data,store,expanded=false,onExpand}:{data:LocalData;store:LocalStore;expanded?:boolean;onExpand?:()=>void}){
+export function TodoBoard({data,store,expanded=false,onExpand}:Readonly<{data:LocalData;store:LocalStore;expanded?:boolean;onExpand?:()=>void}>){
   const [title,setTitle]=useState(''),[text,setText]=useState(''),[times,setTimes]=useState(false),[editing,setEditing]=useState<string|null>(null);
   const [starts,setStarts]=useState(''),[ends,setEnds]=useState(''),[reminder,setReminder]=useState('');
   const [completed,setCompleted]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false),[now,setNow]=useState(Date.now);
   const [undo,setUndo]=useState<Todo|null>(null);
   const [notificationInfo,setNotificationInfo]=useState('通知尚未启用，设置时间后仍需在通知设置中连接渠道。');
-  useEffect(()=>{let alive=true;const refresh=()=>{void readDeviceRecord<NotificationSettings>('notifications').then(settings=>{if(alive)setNotificationInfo(settings?.error?`通知登记异常：${settings.error}`:settings?.token?'后台通知已连接；最近 30 项待办会登记，投递可能有约 5 分钟延迟。':settings?.browser?'仅网页打开且浏览器允许通知时提醒。':'通知尚未启用，设置时间后仍需在通知设置中连接渠道。');}).catch(()=>undefined);};refresh();window.addEventListener(NOTIFICATION_SETTINGS_CHANGED,refresh);return()=>{alive=false;window.removeEventListener(NOTIFICATION_SETTINGS_CHANGED,refresh);};},[]);
+  useEffect(()=>{let alive=true;const refresh=()=>{void readDeviceRecord<NotificationSettings>('notifications').then(settings=>{if(alive)setNotificationInfo(notificationDescription(settings));}).catch(()=>undefined);};refresh();window.addEventListener(NOTIFICATION_SETTINGS_CHANGED,refresh);return()=>{alive=false;window.removeEventListener(NOTIFICATION_SETTINGS_CHANGED,refresh);};},[]);
   usePrivateDraft(Boolean(title||text||busy||editing));
   useEffect(()=>{const timer=window.setInterval(()=>setNow(Date.now()),30000);return()=>window.clearInterval(timer);},[]);
-  const run=async(action:()=>Promise<unknown>)=>{if(busy)return;setBusy(true);setError('');try{await action();}catch(cause){setError(cause instanceof Error?cause.message:'保存失败，输入仍保留');}finally{setBusy(false);}};
+  const run=async(action:()=>Promise<unknown>)=>{if(busy){return;}setBusy(true);setError('');try{await action();}catch(cause){setError(cause instanceof Error?cause.message:'保存失败，输入仍保留');}finally{setBusy(false);}};
   const reset=()=>{setTitle('');setText('');setStarts('');setEnds('');setReminder('');setEditing(null);setTimes(false);};
   const edit=(note:Todo)=>{setTitle(note.title);setText(note.text);setStarts(inputTime(note.startsAt));setEnds(inputTime(note.endsAt));setReminder(inputTime(note.remindAt));setEditing(note.id);setTimes(true);};
   // Minute updates change labels only. Sorting is recalculated when data changes.
@@ -32,9 +49,9 @@ export function TodoBoard({data,store,expanded=false,onExpand}:{data:LocalData;s
   return <section className="todo-board" aria-label="我的待办"><header className="local-notes__heading"><h3>我的待办</h3>{!expanded&&<button type="button" onClick={onExpand}>全部待办 ↗</button>}</header>
     <form onSubmit={event=>{event.preventDefault();void run(async()=>{
       const startsAt=starts?Date.parse(starts):undefined,endsAt=ends?Date.parse(ends):undefined,remindAt=reminder?Date.parse(reminder):undefined;
-      if([startsAt,endsAt,remindAt].some(time=>time!==undefined&&!Number.isFinite(time)))throw new Error('请填写有效时间');
-      if(startsAt!==undefined&&endsAt!==undefined&&endsAt<=startsAt)throw new Error('截止时间必须晚于开始时间');
-      if(remindAt!==undefined&&remindAt<=Date.now())throw new Error('提醒时间应晚于当前时间');
+      if([startsAt,endsAt,remindAt].some(time=>time!==undefined&&!Number.isFinite(time))){throw new Error('请填写有效时间');}
+      if(startsAt!==undefined&&endsAt!==undefined&&endsAt<=startsAt){throw new Error('截止时间必须晚于开始时间');}
+      if(remindAt!==undefined&&remindAt<=Date.now()){throw new Error('提醒时间应晚于当前时间');}
       await store.change(document=>{const old=document.data.notes.find(note=>note.id===editing);if(editing&&!old)throw new Error('此待办已在其他页面删除，请重新添加');
         const note={id:old?.id??crypto.randomUUID(),title:title.trim(),text,completed:old?.completed??false,...(startsAt!==undefined?{startsAt}:{}),...(endsAt!==undefined?{endsAt}:{}),...(remindAt!==undefined?{remindAt}:{})};
         if(old)document.data.notes[document.data.notes.indexOf(old)]=note;else document.data.notes.push(note);document.data.configuration.visible.notes=true;});reset();
