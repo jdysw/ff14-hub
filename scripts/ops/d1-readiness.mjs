@@ -48,7 +48,8 @@ export function runReadOnlyQuery(environment,mode,sql,{runner=spawnSync}={}){
  return readResults(response.stdout);
 }
 export function inspectD1(environment,mode,options={}){
- if(!['development','preview','production'].includes(environment)||!['--local','--remote'].includes(mode)||\n    (environment==='development'&&mode!=='--local'))throw new Error('必须显式选择 development--local 或 preview/production 的 --local/--remote');
+ if(!['development','preview','production'].includes(environment)||!['--local','--remote'].includes(mode)||
+    (environment==='development'&&mode!=='--local'))throw new Error('必须显式选择 development--local 或 preview/production 的 --local/--remote');
  const query=(sql)=>runReadOnlyQuery(environment,mode,sql,options);
  const tables=query(READ_ONLY_QUERIES.tables);
  const known=new Set(tables.map(row=>row.name));
