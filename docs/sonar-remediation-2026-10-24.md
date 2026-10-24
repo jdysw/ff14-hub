@@ -132,6 +132,14 @@
 - [x] 验证 `pnpm run verify`（项目单测 607、运维专项 59、ESLint、类型检查、鱼糕脚本/Android/D1 守卫以及 Web/Worker 构建）。
 - [ ] 需要 SonarCloud 对对应 PR 最新 SHA 重新分析，确认历史告警实际减少；主线仍未合并，因此其旧扫描不会即时减少。
 
+## 第十五批：导航排序稳定性与目录修改分支（2026-10-24）
+
+- [x] `nav-projection.ts` 的导航 ID、标题和收藏优先级排序去除多层三元：保留 UTF-16 既有排序及稳定的 ID 兜底，不改用 localeCompare 造成跨设备排序差异。
+- [x] `nav-catalog-decisions.ts` 明确目录 ID 比较器的三态返回；保持目录升级计划稳定顺序。
+- [x] `directory-editor.ts` 将目录新增和乐观并发更新的条件 SQL 拆分，保留 `expectedRevision===0` 时仅 INSERT 的原有保证，数据库操作依旧串行。
+- [x] ESLint、TypeScript、项目单元测试 607、运维专项 59、Web/Worker 构建及项目生成物检查全量通过。
+- [ ] 新增代码质量门和历史问题总量需等待本 PR 最新扫描；禁止将主线旧扫描仍显示 648 解释为当前改动无效。
+
 ## 后续批次（同一个 PR）
 
 1. **P0 安全与可靠性**：清理未完成的 High/Blocker、消息来源、路径边界及正则复杂度问题。

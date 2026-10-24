@@ -62,11 +62,18 @@ export function filterNavLinks(links: readonly NavLink[], filter: NavFilter): Na
  * 返回新数组，绝不修改入参。
  */
 export function sortNavLinks(links: readonly NavLink[], mode: NavSortMode): NavLink[] {
-  const byId = (a: NavLink, b: NavLink): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const byId = (a: NavLink, b: NavLink): number => {
+    // 稳定排序必须保留原始 UTF-16 字典序，不能改用受 locale 影响的比较。
+    if (a.id < b.id) return -1;
+    if (a.id > b.id) return 1;
+    return 0;
+  };
   const byName = (a: NavLink, b: NavLink): number => {
     const left = normalizeNavText(a.title);
     const right = normalizeNavText(b.title);
-    return left < right ? -1 : left > right ? 1 : byId(a, b);
+    if (left < right) return -1;
+    if (left > right) return 1;
+    return byId(a, b);
   };
   const byManual = (a: NavLink, b: NavLink): number =>
     a.sortOrder !== b.sortOrder ? a.sortOrder - b.sortOrder : byName(a, b);
@@ -79,7 +86,10 @@ export function sortNavLinks(links: readonly NavLink[], mode: NavSortMode): NavL
       sorted.sort((a, b) => (b.updatedAt !== a.updatedAt ? b.updatedAt - a.updatedAt : byId(a, b)));
       break;
     case 'favorite':
-      sorted.sort((a, b) => (a.isFavorite === b.isFavorite ? byManual(a, b) : a.isFavorite ? -1 : 1));
+      sorted.sort((a, b) => {
+        if (a.isFavorite === b.isFavorite) return byManual(a, b);
+        return a.isFavorite ? -1 : 1;
+      });
       break;
     case 'manual':
       sorted.sort(byManual);
