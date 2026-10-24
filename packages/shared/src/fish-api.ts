@@ -1,8 +1,6 @@
 import { z } from 'zod';
 import { fishRuleSchema, regionSchema, utcSchema, verificationSchema, fishRecordSchema } from '@ff14-hub/fish-engine';
 import { operationIdSchema } from './operation-id';
-import type { ModuleManifest } from './module-manifest';
-import type { WidgetConfigContract } from './builtin-modules';
 export { fishWindows, eorzeaTime, forecastTarget, WEATHER_PERIOD_MS, ET_DAY_MS, ET_HOUR_MS } from '@ff14-hub/fish-engine';
 export { fishRuleSchema, regionSchema as fishRegionSchema };
 export type { FishRule, FishWindow, FishRegion, FishRecord } from '@ff14-hub/fish-engine';
@@ -35,8 +33,3 @@ export const fishProgressWriteSchema = z.object({ region: regionSchema, fishId: 
 export type FishProgressWrite = z.infer<typeof fishProgressWriteSchema>;
 export const fishWidgetConfigSchema = z.object({ region: regionSchema.default('cn'), hours: z.number().int().min(1).max(168).default(72) }).strict();
 export const fishSnapshotQuerySchema = fishWidgetConfigSchema.extend({category:fishCategorySchema.default('all'),offset:z.number().int().min(0).max(100000).default(0),text:z.string().max(100).default('')});
-export const FISH_WIDGET_CONFIG_CONTRACTS: readonly WidgetConfigContract[] = [{widgetId: FISH_WIDGET_ID,configSchemaVersion:1,
-  schema:fishWidgetConfigSchema, defaultConfig:{region:'cn',hours:72}, migrations:{}}];
-export const FISH_MODULE_MANIFEST: ModuleManifest = { id:FISH_MODULE_ID,version:'1.0.0',displayName:'钓鱼手账',
-  capabilities:['storage:own'], settingsSchemaVersion:1,lifecycle:{},widgets:[{id:FISH_WIDGET_ID,moduleId:FISH_MODULE_ID,
-    displayName:'鱼类窗口与进度',allowMultiple:true,defaultSize:{w:6,h:5},minSize:{w:3,h:3},configSchemaVersion:1}] };
