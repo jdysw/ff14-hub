@@ -40,7 +40,7 @@
 ## 技术边界
 
 - 当前入口是 `App.tsx` → `LocalApp`，而不是旧版 `AppShell`。
-- 主样式：`modern-ui.css`，最终视觉与滚动规则由其后的 `field-guide.css` 覆盖。
+- 样式按固定顺序引入：`modern-ui.css`（基础与旧布局）→ `modern-content.css`（新版页面与展开层）→ `modern-components.css`（鱼窗、导航和表单模块）→ `pvp-panel.css`（PVP）→ `field-guide.css`（最终视觉与滚动规则）。拆分保留了原 CSS 的完整文本及顺序，不得调整入口导入顺序而不做视觉回归。
 - 数据源、鱼窗算法、个人收藏和后台隐藏入口不得因改版而改变。
 
 ## 回归检查

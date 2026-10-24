@@ -1,67 +1,45 @@
-# 06D 维护手册：发布预检与本地整库恢复演练
+# FF14 Hub 运维手册：单用户本机优先架构
 
-适用于当前框架版本。本文没有宣称已完成云端部署、真实 DAV 联调或生产回滚。
+> 适用现行站点：公开 FF14 导航/活动/鱼类服务、Android Widget、唯一 owner 后台、浏览器本地个人资料与独立后台提醒。旧设备工作空间与 Widget 工作台 API 已下线，不再以其登录/配对/同步链路作为发布或恢复验收条件。
 
-## 可直接运行的入口
+## 手动发布门禁（不依赖付费 CI）
 
-| 命令 | 实际作用 | 成功/阻塞语义 |
-| --- | --- | --- |
-| `pnpm run ops:preflight` | 读取仓库 JSONC，检查 preview/production 独立资源、公开 vars、Origin、测试路由与 Cron 边界 | 0 = 静态配置通过；2 = 配置阻塞；1 = 无法检查 |
-| `pnpm run validate:config` | 两个环境分别用 Wrangler 打包 dry-run | 只证明配置可打包，不证明资源存在或 Secrets 已配置 |
-| `pnpm run test:ops` | 预检及备份损坏/版本/迁移漂移的负例测试 | 任一断言失败即非零 |
-| `pnpm run ops:rehearse` | 从空的独立本地 D1 开始，创建测试数据、停写、导出、校验、导入另一个空库、比较并访问恢复后的 API | 0 = 此次本地演练通过；失败保留现场且不返回成功报告 |
+| 命令 | 用途 |
+| --- | --- |
+| `pnpm run verify` | ESLint、类型检查、Web/Worker/Vitest、运维测试、Android PVP 规则文件一致性及构建 |
+| `pnpm run verify:release` | 在 verify 基础上，追加 preview/production Wrangler dry-run 配置验证 |
+| `pnpm run ops:preflight` | 检查环境分离、绑定与公开配置；不读取 Secrets |
+| `pnpm run test:ops` | 发布脚本、迁移清单/备份格式、配置负例与运维脚本测试 |
+| `pnpm run smoke:local` | 同源静态首页、健康检查、旧 /me 路径 404 和未知 API JSON 404 |
+| `pnpm run e2e:navigation` | 真实浏览器下的导航与 owner 管理交互 |
+| `pnpm run e2e:local-personal` | 真实浏览器下的本机个人资料与鱼糕导入等数据操作 |
+| `pnpm run audit:prod` | 检索生产依赖公开漏洞报告；离线视作未执行 |
 
-06G 已配置实际且独立的预览/生产 D1 ID，静态预检已通过；云端迁移、Secrets 与发布结果仍需分别验证。占位值导致的退出 2 仍是必须处理的发布阻塞，不应关闭预检。两环境显式声明 `ENABLE_TEST_ROUTES=0` 和 `ALLOWED_ORIGINS`；`vars` 与 bindings 不继承，main/assets/兼容日期沿用顶层。
+原 `smoke:identity` 和 `ops:rehearse` 对应已移除的服务端账号、配对、工作台与三副本同步协议，已从脚本入口和仓库移除。**不能拿旧演练流程成功作为当前发布验收的条件。**
 
-## 演练输出与数据边界
+Android 原生组件的 JDK17/SDK35 Gradle 测试、lint、构建和真实设备验收独立进行。完整步骤详见 [手动发布清单](manual-release-verification.md)。
 
-每次建立新的 `.wrangler/ops/rehearsal-<UUID>/`，不接受用户指定的恢复目标，不覆盖既有数据库，不读取默认开发数据，不执行目录删除，也不注册 Cron。所有 D1 命令都显式 `--local`。生成配置和工作目录都位于该独立目录，避免装载项目的真实 `.dev.vars`。
+## 当前持久数据与备份
 
-- `source/`：生成配置、应用全部迁移后，通过真实 API 初始化测试设备、模块、工作台页面、导航墓碑、活动、钓鱼状态和同步操作记录。
-- `backup/database.sql`：Wrangler 整库 SQL；源服务先停止，再比较导出前后的整库指纹，防止把活动写入中的数据当成一致备份。
-- `backup/manifest.json`：格式版本、SQL 字节数/SHA-256、每份迁移的 SHA-256、数据库指纹。恢复前先验证，拒绝文件损坏、迁移内容漂移、未知格式和更换 SQL 路径。
-- `restored/`：只在确认目标为空后导入；比较全部应用表、索引/触发器定义、迁移记账和 `sqlite_sequence`。Cloudflare 内部 `_cf_*` 元数据不作为业务相等条件。
-- `report.json`：只在全套检查通过后生成，包括表行数/摘要、完成的验收项和静态发布阻塞项。
-- `fingerprint-*.json`：摘要对比证据。失败诊断保留在目录内，不转发原始 CLI 输出到 CI 控制台。
+- **浏览器 IndexedDB**：个人网址、备忘、钓鱼标记、模块布局与配置。这是个人数据的本地主副本；常规可恢复备份通过设置中的数据管理导出，需定期验证导入恢复。
+- **浏览器保险箱**：WebDAV/S3、通知设备等凭证配置独立加密，不在普通备份 JSON 中。换设备需手动重新授权与配置。
+- **WebDAV/S3**：用户自行配置远端备份，采用强 ETag、条件写和冲突预览。还原前先确认远端历史版本与本机待同步修改，不可自动覆盖冲突。
+- **Cloudflare D1**：公共目录、活动快照、站点管理员状态与独立通知设备和队列；需在变更前备份，并验证可在隔离库恢复。
+- **Worker Secrets**：包括用于管理员认证及通知密文处理的 `BOOTSTRAP_SECRET`；不在 D1 SQL 备份中。更换它可能使旧加密通知配置无法解密，不能作为正常回滚步骤。
 
-恢复后验证 `foreign_key_check` 与 D1 支持的 `quick_check`，再实际启动恢复库验证：有效/撤销/匿名设备、工作台页面、导航墓碑、三字段及区服、原操作幂等回执、陈旧预览拒绝、后续写入修订与水位继续增长。HTTP 验证可能更新 last_seen 等运行数据，所以整库相等比较发生在恢复服务启动前。
+D1 SQL 备份可能含通知投递地址密文、Token 摘要、管理员哈希和历史表中的个人信息，属于敏感文件。不要提交仓库、公开分享或上传第三方日志。现行活动迁移文件已压缩为唯一的 `0001_core.sql`，仍沿用原文件名以尊重现有 D1 `d1_migrations` 已应用记录；过去的 0002–0021 不再位于迁移目录，新库不会生成旧工作空间表。**旧生产 D1 不会因压缩历史 SQL 自动删表或重建现行结构**，未来新增迁移统一从 `0022_*.sql` 开始，具体执行前置条件见 [D1 单文件基线说明](d1-single-baseline.md)。如需清理废弃表，应另建增量迁移并在确认备份与引用后执行。
 
-SQL 是明文私有备份，可能包含身份摘要、个人数据和通知订阅。它不是用户可分享的导出，也不是加密备份。目录被 Git 忽略，CI 不上传 SQL/诊断附件；实际敏感备份应放在受控或加密存储。Unix 创建时使用私有权限，Windows 使用父目录继承的 ACL。校验和防损坏，不能证明备份来自可信操作者；不导入来历不明的 SQL。
+## 部署与故障恢复
 
-## 不同备份的用途
+1. 固定待发布提交，运行 `verify:release`、相关 Web E2E、Android 专项和 `ops:preflight`，保留退出码；禁用付费 GitHub Actions 的策略不变。
+2. 对 preview 和 production 分别核对 D1 绑定、域名、Secret 是否存在、Origin 允许列表与 `ENABLE_TEST_ROUTES=0`。不把生产密钥打印到日志。
+3. 如涉及 D1 迁移，先备份并在独立的预览/恢复数据库应用和检查外键完整性；不可直接把备份 SQL 覆盖到正在运行的生产数据库。
+4. 先部署 preview，验证健康、导航、活动、Android Widget、隐藏的站点管理员入口、普通个人资料和通知订阅。在真实浏览器核查 IndexedDB → WebDAV/S3 的同步和冲突预览。
+5. 只有审核通过后才运行 `pnpm run release:production`。使用 `node scripts/ops/verify-live.mjs production` 核对线上静态资源与健康状态。
+6. 出现故障先停止受影响的新增写入或提醒发送，回退 Worker 到已知稳定版本；若牵涉 D1 内容损坏，先在隔离库恢复验证，再按受控计划切换绑定。不要恢复已退役的 `/identity` 或 `/me` 路由来绕过问题。
 
-| 备份 | 覆盖范围 | 不覆盖的内容 |
-| --- | --- | --- |
-| 工作台 JSON | 页面、组件、布局等工作台配置，可预览导入 | 完整身份、导航/钓鱼数据库与部署 Secrets |
-| 鱼糕 JSON | 三集合与客户端扩展字段 | 完整工作空间、设备与服务端任务 |
-| 整库 D1 SQL | 数据库内业务数据、修订、审计、墓碑、幂等与任务记录 | Cloudflare Secrets、浏览器保险箱及不可导出 CryptoKey |
+## 后台通知专项
 
-浏览器保险箱需要保留其浏览器存储与密钥；仅复制密文记录不能恢复凭证。D1 恢复之后先核对客户端检查点与三副本，不自动丢弃待处理意图。SDK 发现 Hub 水位低于已保存基线时停止同步；这只是倒退检测，不替代生产恢复 epoch/客户端再接入方案。
+每五分钟 Cron 只规划并处理 `local_push_devices` / `local_push_jobs` 的现行独立通知任务，不再运行旧 `notification_jobs` 与工作空间 outbox。外部渠道返回 2xx 仅表示其接受请求，不代表设备最终显示；0/429/5xx 及超时要遵循有限重试，处理好每日额度的预留和返还。首次修复与 D1 回归见 PR #78 的 `worker/test/local-notifications.spec.ts`。
 
-## 真正发布前的顺序
-
-1. 运行完整 verify、全部浏览器链与恢复演练，审查结果及安全问题。Sonar 延期不等于完整安全审计完成。
-2. 在确认目标账号/资源后，为 preview 与 production 分别配置实际 D1、域名和 Secrets。使用独立初始化密钥与 VAPID 配置，私钥不写 `vars` 或代码；逐个环境配置，不能借用另一环境的资源。
-3. 静态预检应返回 0；另行核对云端资源和秘密清单。当前预检的 `cloudResourcesVerified`、`secretsVerified` 始终为 false。
-4. 先在预览环境记录构建提交、迁移清单、部署版本和备份；执行身份/权限/模块/同步/提醒及恢复验证，再安排生产发布。
-5. 生产发布前保留一致备份并暂停外发调度；记录旧 Worker 版本和数据库兼容范围。迁移按向后兼容方式推进，不能假设回退 Worker 会回退数据库。
-6. 出现问题时先停止新写入/外发，决定是回退应用版本还是恢复到新隔离数据库。恢复数据会回退水位及幂等/投递记录，必须核对客户端基线与可能重复投递；不能直接把旧 SQL 覆盖到活动生产库。
-7. 新数据库的整库和 API 验证通过后，才切换绑定并恢复流量/调度，记录实际恢复点、丢失数据窗口及版本。云端 Time Travel、生产版本回退和客户端重连仍须单独实测。
-
-本地演练没有确认云端资源、Secrets、生产数据规模、云端 Time Travel、外发通知恢复或真实鱼糕/DAV 行为，因而不把 HUB-037～041 的完整发布验收标记为完成。
-
-依据：[D1 导入导出与 CLI](https://developers.cloudflare.com/d1/wrangler-commands/)、[D1 支持的检查语句](https://developers.cloudflare.com/d1/sql-api/sql-statements/)、[Wrangler 环境配置](https://developers.cloudflare.com/workers/wrangler/configuration/#environments)。本地导出不支持 `--persist-to`，脚本使用独立配置文件目录对应的默认本地状态；已用锁定版本 Wrangler 4.151.1 验证。
-
-## 06E 私有诊断
-
-使用当前设备凭证的 Authorization 头请求 `GET /api/v1/me/operations?region=cn` 或 global，不能把 Token 放进 URL。返回当前空间的任务/投递聚合、模块待完成状态、当前区服来源摘要、最后 Hub 导入和调度观测；不返回推送端点、订阅、任意异常正文或其他空间内容。响应禁止缓存，停用模块后仍能检查门禁。
-
-先看 alerts 代码，再区分：调度函数失败、队列等待/租约失效、渠道未配置、来源未验证、模块待完成。`succeeded` 不表示设备已收件；没有 Cron 周期、抓取器或 DAV 新鲜度观测时，相关字段明确为 false，不能当成“运行正常”。代码含义、阈值和保留策略见 [ADR 0011](adr/0011-operations-observability.md)。
-
-恢复演练现在用隔离 Wrangler 的 `--test-scheduled` 调用一次真实本地调度入口，并在恢复后核对观测与私有诊断。不会创建云端定时任务或重新发送旧通知；实际恢复生产 outbox 仍必须按上面的暂停/核对流程进行。
-
-## 06F 手工通知与安全复核
-
-手工 reconcile 每工作空间每分钟最多 5 次，多个设备共享预算；订阅注册每设备 10 次/10分钟、每空间 20 次/10分钟。达到限额时响应 429 和 Retry-After，等待窗口后重试；退订仍可立即执行。接口限流不改变后台任务的租约和去重语义。
-
-发布前运行 `pnpm run audit:prod` 检查官方 npm 的已知生产依赖漏洞；无法访问审计接口不算通过。当前通用 5xx 不回显或记录任意诊断正文，按 requestId、错误代码及运维状态定位问题，不应通过打印请求体来补日志。边界、证据与未完成审计项见 [06F 安全复核](security-review-06f.md)。
+线上事故使用 requestId、脱敏错误日志、D1 工作状态与供应商接受结果定位，不打印原始渠道密钥、通知正文和个人身份信息。

@@ -43,6 +43,78 @@ it('limits retries without leaking provider content',async()=>{
   for(let tick=0;tick<4;tick++)await runLocalNotifications(env.DB,now+tick*300_000,send);
   expect(send).toHaveBeenCalledTimes(3);
 });
+it('refunds rejected provider attempts without exhausting the daily delivery quota',async()=>{
+  await register();
+  const {id}= (await env.DB.prepare('SELECT id FROM local_push_devices').first<{id:string}>())!;
+  // 使用执行当天的 UTC 正午，避免跨午夜随机失败，也防止固定日期过期使测试失效。
+  const now=Date.parse(new Date().toISOString().slice(0,10)+'T12:00:00Z');
+  const job=(key:string):LocalNotificationJob=>({key,title:key,body:'正文',dueAt:now,expiresAt:now+600_000});
+  await replaceLocalJobs(env.DB,id,[job('retry')],now);
+  const failing=vi.fn(()=>Promise.resolve(503));
+  expect(await runLocalNotifications(env.DB,now,failing)).toBe(0);
+  expect((await env.DB.prepare('SELECT sent_count FROM local_push_devices WHERE id=?').bind(id).first<{sent_count:number}>())?.sent_count).toBe(0);
+  // Retrying the same job doesn't consume successful-delivery capacity.
+  expect(await runLocalNotifications(env.DB,now+300_001,failing)).toBe(0);
+  expect((await env.DB.prepare('SELECT sent_count FROM local_push_devices WHERE id=?').bind(id).first<{sent_count:number}>())?.sent_count).toBe(0);
+  await replaceLocalJobs(env.DB,id,[job('delivered')],now+300_002);
+  const success=vi.fn(()=>Promise.resolve(200));
+  expect(await runLocalNotifications(env.DB,now+300_002,success)).toBe(1);
+  expect(success).toHaveBeenCalledOnce();
+  expect((await env.DB.prepare('SELECT sent_count FROM local_push_devices WHERE id=?').bind(id).first<{sent_count:number}>())?.sent_count).toBe(1);
+  // Once a delivery is accepted, a second one cannot exceed the daily cap.
+  await replaceLocalJobs(env.DB,id,[job('extra')],now+300_003);
+  expect(await runLocalNotifications(env.DB,now+300_003,success)).toBe(0);
+  expect(success).toHaveBeenCalledOnce();
+});
+it('releases capacity for both throttled and permanently rejected provider responses',async()=>{
+  await register();
+  const {id}=(await env.DB.prepare('SELECT id FROM local_push_devices').first<{id:string}>())!;
+  const now=Date.parse(new Date().toISOString().slice(0,10)+'T12:00:00Z');
+  for(const [index,status] of [429,400].entries()){
+    const key='status-'+status;
+    await replaceLocalJobs(env.DB,id,[{key,title:key,body:'正文',dueAt:now,expiresAt:now+600_000}],now+index*10);
+    expect(await runLocalNotifications(env.DB,now+index*10,()=>Promise.resolve(status))).toBe(0);
+    expect((await env.DB.prepare('SELECT sent_count FROM local_push_devices WHERE id=?').bind(id)
+      .first<{sent_count:number}>())?.sent_count).toBe(0);
+    const row=await env.DB.prepare('SELECT status FROM local_push_jobs WHERE device_id=? AND job_key=?')
+      .bind(id,key).first<{status:string}>();
+    expect(row?.status).toBe(status===429?'queued':'failed');
+  }
+});
+it('holds capacity for an in-flight provider call and releases it on a thrown error',async()=>{
+  await register();
+  const {id}= (await env.DB.prepare('SELECT id FROM local_push_devices').first<{id:string}>())!;
+  const now=Date.now();
+  const job=(key:string):LocalNotificationJob=>({key,title:key,body:'正文',dueAt:now,expiresAt:now+600_000});
+  await replaceLocalJobs(env.DB,id,[job('first'),job('second')],now);
+  const gate:{reject?:(cause:Error)=>void}={};
+  let started:()=>void=()=>{};
+  const startedPromise=new Promise<void>(resolve=>{started=resolve;});
+  const sender=vi.fn(()=>new Promise<number>((_,reject)=>{gate.reject=reject;started();}));
+  const first=runLocalNotifications(env.DB,now,sender);
+  await startedPromise;
+  expect(await runLocalNotifications(env.DB,now+1,sender)).toBe(0);
+  expect(sender).toHaveBeenCalledOnce();
+  gate.reject?.(new Error('provider timeout'));
+  expect(await first).toBe(0);
+  expect((await env.DB.prepare('SELECT sent_count FROM local_push_devices WHERE id=?').bind(id).first<{sent_count:number}>())?.sent_count).toBe(0);
+});
+it('does not refund another lease when a delayed worker loses ownership',async()=>{
+  await register();
+  const {id}=(await env.DB.prepare('SELECT id FROM local_push_devices').first<{id:string}>())!;
+  const now=Date.now();
+  await replaceLocalJobs(env.DB,id,[{key:'claimed',title:'测试',body:'正文',dueAt:now,expiresAt:now+600_000}],now);
+  const gate:{reject?:(error:Error)=>void}={};
+  let started:()=>void=()=>{};
+  const pending=new Promise<void>(resolve=>{started=resolve;});
+  const inFlight=runLocalNotifications(env.DB,now,()=>new Promise<number>((_,reject)=>{gate.reject=reject;started();}));
+  await pending;
+  // Simulate lease takeover after the original worker's call stalls.
+  await env.DB.prepare("UPDATE local_push_jobs SET claim_token='newer-claim' WHERE device_id=? AND job_key='claimed'").bind(id).run();
+  gate.reject?.(new Error('delayed transport error'));
+  expect(await inFlight).toBe(0);
+  expect((await env.DB.prepare('SELECT sent_count FROM local_push_devices WHERE id=?').bind(id).first<{sent_count:number}>())?.sent_count).toBe(1);
+});
 it('keeps saved delivery time and deadline options when a delayed client only updates watched fish',async()=>{
   const token=await register();
   const put=(value:unknown)=>SELF.fetch(root+'/plan',{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(value)});

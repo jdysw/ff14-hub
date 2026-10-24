@@ -46,13 +46,7 @@ catalog:
   zod: 4.6.7
 
   # --- Web ----------------------------------------------------------------
-  # react-grid-layout 锁定 2.3.0（HUB-045 布局编辑器）：
-  # - 官方当前版本 2.3.0（npm time.modified 2026-10-05），peer 为 react >= 16.3.0，
-  #   因此在 React 19.3.1 上可用；2.x 自带 `dist/index.d.ts` 类型，**不需要**
-  #   @types/react-grid-layout（该包只到 2.1.0，属于旧 API 的形状）。
-  # - 2.x 是 ESM（`dist/index.mjs`）并提供 exports 映射（含 `./css/styles.css`），
-  #   与 Vite 8 的 ESM 解析一致。
-  # - 2.x 起推荐通过 nodeRef 驱动拖拽，不再依赖 React 19 已移除的 ReactDOM.findDOMNode。
+  # 当前站点已移除旧 react-grid-layout 工作台；仅保留本机模式所需 React/Vite 依赖。
   react: 19.3.1
   react-dom: 19.3.1
   '@types/react': 19.3.0

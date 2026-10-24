@@ -28,7 +28,7 @@ it('keeps unexpected database error bodies and arbitrary private paths out of lo
   const db=new Proxy(env.DB,{get(target,key,receiver):unknown{if(key==='prepare')return ()=>{throw new Error(secret);};return Reflect.get(target,key,receiver);}});
   const response=await createApp().request('/api/v1/health',{},partialEnv({DB:db,ENVIRONMENT:'test'}));
   expect(await response.text()).not.toContain(secret);expect(JSON.stringify(errorLog.mock.calls)).not.toContain(secret);
-  expect((await SELF.fetch(`https://hub.test/api/v1/me/${encodeURIComponent(secret)}`)).status).toBe(401);
+  expect((await SELF.fetch(`https://hub.test/api/v1/me/${encodeURIComponent(secret)}`)).status).toBe(404);
   expect(JSON.stringify(warnLog.mock.calls)).not.toContain(encodeURIComponent(secret));
   expect(JSON.stringify(warnLog.mock.calls)).not.toContain(secret);
 });

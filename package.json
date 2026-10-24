@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "FF14 Hub — FF14 工具导航 + 个人游戏信息中心 + 可自定义模块化工作台（阶段 04：自由导航、内置导航/活动模块、PWA 与跨设备同步）",
+  "description": "FF14 Hub — FF14 导航、国服活动、钓鱼预测与本机优先的个人资料工具站",
   "license": "UNLICENSED",
   "packageManager": "pnpm@11.22.0",
   "engines": {
@@ -29,18 +29,18 @@
     "build:web": "pnpm --filter @ff14-hub/web build",
     "build:worker": "wrangler deploy --dry-run --outdir .wrangler/dry-run --env=",
     "validate:config": "wrangler deploy --dry-run --outdir .wrangler/dry-run-preview --env preview && wrangler deploy --dry-run --outdir .wrangler/dry-run-production --env production",
+    "verify:release": "pnpm run verify && pnpm run validate:config",
     "dev": "pnpm --filter @ff14-hub/web dev",
     "dev:api": "wrangler dev",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrations:list:local": "wrangler d1 migrations list DB --local",
     "smoke:local": "node scripts/smoke-local.mjs",
-    "smoke:identity": "node scripts/e2e-identity.mjs",
     "e2e:local-personal": "node scripts/e2e-local-personal.mjs",
     "ops:preflight": "node scripts/ops/preflight.mjs",
-    "ops:rehearse": "node scripts/ops/rehearse.mjs",
     "test:ops": "node --test scripts/ops/ops.test.mjs scripts/ops/verify-live.test.mjs scripts/ops/snapshot-official-calendar.test.mjs scripts/ops/fish-import.test.mjs scripts/ops/fish-cn-import.test.mjs scripts/ops/fish-accuracy.test.mjs scripts/ops/fishcake-adapter.test.mjs scripts/ops/fish-intuition.test.mjs scripts/ops/fishing-crosscheck.test.mjs scripts/ops/release-worker.test.mjs",
     "audit:prod": "pnpm audit --prod --registry=https://registry.npmjs.org",
-    "verify": "pnpm run check:fishcake-script && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run test:ops && pnpm run build"
+    "verify": "pnpm run check:fishcake-script && pnpm run check:android-pvp && pnpm run test:db-baseline && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run test:ops && pnpm run build",
+    "test:db-baseline": "node scripts/ops/check-d1-baseline.mjs"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "catalog:",

@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "前后端共用契约：API 错误结构、身份 Token 契约、Module/Widget 清单 Schema、工作台（页面 / 实例 / 布局 / 模板 / 备份）契约",
+  "description": "FF14 Hub 前后端共享 Zod/API 契约、导航与活动规则、个人数据同步以及移动端数据协议",
   "exports": {
     ".": "./src/index.ts",
     "./*": "./src/*.ts"

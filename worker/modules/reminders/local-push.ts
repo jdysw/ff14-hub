@@ -39,9 +39,23 @@ export async function runLocalNotifications(db:D1Database,now:number,send:Sender
     const tag=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(id+jobs.results.map(j=>j.job_key).sort().join('|')))),b=>b.toString(16).padStart(2,'0')).join('');
     let status=0;try{status=await send(id,owner.channel_ciphertext,tag,{title,body});}catch{/* Never log credentials, recipient addresses or notification content. */}
     const accepted=status>=200&&status<300,retry=status===0||status===429||status>=500;
-    await db.prepare(`UPDATE local_push_jobs SET status=?,due_at=CASE WHEN ?=1 THEN ? ELSE due_at END,lease_until=0 WHERE device_id=? AND claim_token=? AND status='leased'`)
-      .bind(accepted?'sent':retry?'queued':'failed',retry?1:0,now+300_000,id,claim).run();
-    if(accepted)count++;
+    // Reserve quota before sending to keep concurrent ticks below the daily cap.
+    // A provider rejection must release that reservation, but only if this tick
+    // still owns the leased jobs. Both updates are in one D1 transaction.
+    const complete=db.prepare(`UPDATE local_push_jobs
+      SET status=?,due_at=CASE WHEN ?=1 THEN ? ELSE due_at END,lease_until=0
+      WHERE device_id=? AND claim_token=? AND status='leased'`)
+      .bind(accepted?'sent':retry?'queued':'failed',retry?1:0,now+300_000,id,claim);
+    if(accepted){
+      const result=await complete.run();
+      if(result.meta.changes>0)count++;
+    }else{
+      await db.batch([
+        complete,
+        db.prepare(`UPDATE local_push_devices SET sent_count=sent_count-1
+          WHERE id=? AND sent_day=? AND sent_count>0 AND changes()>0`).bind(id,day),
+      ]);
+    }
   }
   if(Math.floor(now/60_000)%1440<5){
     await db.prepare('DELETE FROM local_push_devices WHERE id IN(SELECT id FROM local_push_devices WHERE expires_at<=? LIMIT 10)').bind(now).run();

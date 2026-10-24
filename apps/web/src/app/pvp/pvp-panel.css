@@ -1,0 +1,59 @@
+/* PVP：遵循首页统一的轻量概览与原位展开详情，无独立模块滚动条。 */
+.pvp-board{min-width:0;color:#273849;}
+.pvp-board__heading{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  min-height:39px;margin-bottom:9px;
+}
+.pvp-board__heading h2{margin:0;font-size:17px;line-height:1.4;font-weight:650;}
+.pvp-board__expand{
+  border:0;border-radius:7px;background:transparent;color:#315f93;cursor:pointer;
+  font:inherit;font-size:12px;min-height:40px;padding:6px 9px;white-space:nowrap;
+}
+.pvp-board__expand:hover{background:#edf3f9;}
+.pvp-board__current{display:grid;grid-template-columns:minmax(0,1fr);gap:0;}
+.pvp-board__mode{min-width:0;padding:12px 2px;border-top:1px solid #e8edf2;}
+.pvp-board__mode:last-child{border-bottom:1px solid #e8edf2;}
+.pvp-board__mode-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;}
+.pvp-board__mode-head h3{margin:0;color:#3a536f;font-size:12px;font-weight:650;}
+.pvp-board__mode-head span{color:#71839a;font-size:11px;white-space:nowrap;}
+.pvp-board__map{
+  display:block;margin:7px 0;color:#263b55;font-size:17px;line-height:1.4;
+  font-weight:650;overflow-wrap:anywhere;
+}
+.pvp-board__meta{
+  display:flex;align-items:baseline;justify-content:space-between;
+  flex-wrap:wrap;gap:5px 12px;font-size:12px;line-height:1.6;color:#61768f;
+}
+.pvp-board__countdown{
+  font-size:14px;font-weight:650;color:#315f91;white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+.pvp-board__detail-heading h3{margin:0 0 5px;font-size:17px;color:#273849;}
+.pvp-board__detail-heading p,
+.pvp-board__schedule>p{margin:0 0 12px;font-size:12px;color:#71849a;line-height:1.65;}
+.pvp-board--expanded .pvp-board__current{
+  grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;
+}
+.pvp-board--expanded .pvp-board__mode{border-bottom:1px solid #e8edf2;}
+.pvp-board__schedules{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;margin-top:25px;
+}
+.pvp-board__schedule{min-width:0;}
+.pvp-board__schedule h3{margin:0 0 6px;font-size:15px;color:#2c435c;}
+.pvp-board__schedule ol{list-style:none;margin:0;padding:0;}
+.pvp-board__schedule li{
+  display:flex;align-items:baseline;justify-content:space-between;
+  gap:10px;padding:11px 6px;border-bottom:1px solid #edf1f5;font-size:12px;
+  line-height:1.5;
+}
+.pvp-board__schedule li[aria-current=time]{background:#eef5fc;}
+.pvp-board__schedule-time{color:#6a7e95;white-space:nowrap;}
+.pvp-board__schedule-map{color:#2e4966;font-weight:600;text-align:right;overflow-wrap:anywhere;}
+.pvp-board__footnote{margin:24px 0 0;font-size:12px;line-height:1.6;color:#718398;}
+.pvp-board :is(button,a):focus-visible{outline:2px solid #507fab;outline-offset:3px;}
+@media(max-width:650px){
+  .pvp-board--expanded .pvp-board__current,
+  .pvp-board__schedules{grid-template-columns:minmax(0,1fr);gap:15px;}
+  .pvp-board__schedule li{padding:10px 3px;}
+  .pvp-board__schedule-time{white-space:normal;}
+}

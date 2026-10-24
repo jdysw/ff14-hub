@@ -1,7 +1,7 @@
 # 安全边界说明
 
-本文件描述**当前代码里真实生效**的边界，以及每条边界的落点与对应测试。
-未实现的项会明确标注为未实现，避免把计划读成现状。
+本文件按早期开发阶段记录已经实现的安全边界，部分章节（尤其第 9 节关于旧前端工作台、是否存在服务端外部抓取、公共活动状态及第 10 节计划事项）属于**历史阶段快照**，不应整体当作当前上线行为。当前实际前端路径见 `README.md`，全站 owner 权限见 `docs/site-admin-operations.md`；具体规则以现行源码与测试为准。
+下述第 5 节 CSP 示例已与当前 `worker/middleware/security-headers.ts` 对齐。
 
 ## 1. 统一错误结构
 
@@ -123,7 +123,7 @@ Zod 的若干默认文案会把「收到的值」拼进 message（例如非法�
 
 ```
 Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
-  img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self';
+  img-src 'self' data: https:; font-src 'self'; connect-src 'self' https:; manifest-src 'self';
   worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
@@ -134,7 +134,7 @@ Permissions-Policy: accelerometer=(), camera=(), geolocation=(), microphone=(), 
 Strict-Transport-Security: max-age=31536000; includeSubDomains   ← 仅在请求为 HTTPS 时
 ```
 
-- 不包含 `unsafe-eval`；`script-src` 不含 `unsafe-inline`。
+- 不包含 `unsafe-eval`；`script-src` 不含 `unsafe-inline`。`connect-src` 允许 HTTPS 是为了浏览器直接连接用户配置的 WebDAV/S3；这不是对其他脚本来源的放行。
 - 预览/生产额外加 `upgrade-insecure-requests`；本地开发不加，避免破坏 http 调试。
 - API 响应一律 `Cache-Control: no-store`。
 - 尚未启用 `require-trusted-types-for 'script'`（React 与后续第三方组件的兼容性需要单独验证）。
