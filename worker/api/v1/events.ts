@@ -1,16 +1,4 @@
-/**
- * `/api/v1/events` —— 公开活动列表（阶段 04：HUB-011）。
- *
- * 安全前提：
- * - **只读**、匿名可读，且只返回公共来源表 `events` 的行。
- *   个人活动在 `workspace_events`，永远不进入本响应（有测试覆盖）。
- * - 响应形状由共享的 `publicEventListResponseSchema` 约束（**严格**：只有
- *   `events` / `serverTimeMs` 两个键），因此不可能顺手把个人活动字段或内部元数据
- *   塞进公共响应。
- * - 本阶段公共表为空表（不捆绑未经核实的活动数据），因此正常返回空列表；
- *   界面据此诚实显示 `EVENTS_MESSAGES.publicEmpty`，而不是编造数据。
- * - 阶段 04 不做抓取器 / 提醒调度，也不注册 Cron（ADR-0004 D9 / D12）。
- */
+/** 公开活动 API：/events 读取公共 events 表，/calendar 读取国服官方快照与 owner 编辑。 */
 import {
   EVENT_SORT_ORDERS,
   eventPhaseSchema,
