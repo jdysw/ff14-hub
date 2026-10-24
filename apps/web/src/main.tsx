@@ -9,6 +9,7 @@ import './app/local/modern-content.css';
 import './app/local/modern-components.css';
 import './app/pvp/pvp-panel.css';
 import './app/local/field-guide.css';
+import './app/local/home-cards.css';
 
 const container = document.getElementById('root');
 if (container === null) {

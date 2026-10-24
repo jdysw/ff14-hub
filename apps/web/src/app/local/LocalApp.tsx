@@ -145,8 +145,8 @@ export function LocalApp(){
         <h1 className="brand__title">{siteSettings.siteName}</h1>
       </button>
       <div className="home-global-search">
-        <button className="home-global-search__label" type="button" aria-label="全站搜索" aria-expanded={searchOpen} aria-controls="global-search-results" onClick={showSearch}><UiIcon name="search"/><span>全站搜索</span></button>
         <form role="search" aria-label="全站搜索" onSubmit={event=>{event.preventDefault();setSearchOpen(true);focusSearchResult();}}>
+          <button className="home-global-search__label" type="button" aria-label="全站搜索" aria-expanded={searchOpen} aria-controls="global-search-results" onClick={showSearch}><UiIcon name="search"/></button>
           <label className="visually-hidden" htmlFor="global-search-input">全站搜索关键词</label>
           <input id="global-search-input" ref={searchRef} type="search" value={search} maxLength={100} autoComplete="off" placeholder="网站、鱼名、活动或功能" aria-controls="global-search-results" onFocus={showSearch} onClick={()=>setSearchOpen(true)} onChange={event=>{setSearch(event.target.value);setSearchOpen(true);}} onKeyDown={event=>{
             if(event.nativeEvent.isComposing)return;

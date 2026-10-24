@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import {cleanup,render,screen,fireEvent,waitFor} from '@testing-library/react';
 import {afterEach,beforeEach,it,expect,vi} from 'vitest';
-import {FishingBoard,type FishDetailSelection} from '../src/app/fish/FishingBoard';
+import {FishingBoard,HOME_FISH_PREVIEW_LIMIT,type FishDetailSelection} from '../src/app/fish/FishingBoard';
 import {forecastCatalog} from '../src/app/fish/forecast';
 import type {CatalogFish,FishingCatalog} from '../src/app/fish/catalog';
 import type {FishRegion} from '@ff14-hub/shared';
@@ -142,7 +142,7 @@ it('undo refuses to overwrite a record changed by another tab or synchronization
 });
 it('shows home filters and opens the full catalog without hidden caught or rarity filters',()=>{
   const open=vi.fn();render(<FishingBoard data={publicPort()} embedded onOpenDetail={open}/>);
-  expect(screen.queryByRole('checkbox',{name:'只看未钓获'})).toBeNull();expect(screen.getByRole('combobox',{name:'首页鱼种'})).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:'查看全部鱼类'}));expect(open).toHaveBeenCalledWith(expect.objectContaining({view:'all',kind:'all',hideCaught:false}));
+  expect(screen.queryByRole('combobox',{name:'首页鱼种'})).toBeNull();fireEvent.click(screen.getByRole('button',{name:'筛选'}));expect(screen.queryByRole('checkbox',{name:'只看未钓获'})).toBeNull();expect(screen.getByRole('combobox',{name:'首页鱼种'})).toBeTruthy();fireEvent.click(screen.getByRole('button',{name:'查看全部鱼类'}));expect(open).toHaveBeenCalledWith(expect.objectContaining({view:'all',kind:'all',hideCaught:false}));
 });
 it('saves an individual alarm and lead time without pretending browser permission is enabled',async()=>{
   const f=editablePort();render(<FishingBoard data={f.data}/>);fireEvent.click(screen.getByRole('button',{name:'时间天气不限'}));const button=await screen.findByRole('button',{name:'提醒 测试鱼0'});await waitFor(()=>expect(button.hasAttribute('disabled')).toBe(false));fireEvent.click(button);
@@ -182,7 +182,7 @@ it('keeps failed mutation intent and retries the identical operation',async()=>{
   expect(intents[1]).toEqual(intents[0]);
 });
 
-it('home uses 24 hours and retains every matched fish in its scrollable list',async()=>{
+it('home uses 24 hours and shows a compact preview while the full page keeps all matched fish',async()=>{
   class ScheduledWorker {
     onmessage:((event:MessageEvent)=>void)|null=null;
     postMessage(input:{fish:CatalogFish[];region:FishRegion;from:number;hours:number}){
@@ -204,13 +204,14 @@ it('home uses 24 hours and retains every matched fish in its scrollable list',as
   render(<FishingBoard data={publicPort()} embedded onOpenDetail={onOpenDetail}/>);
   fireEvent.click(screen.getByRole('button',{name:'未来鱼窗'}));
   await screen.findByText('测试鱼0');
-  await waitFor(()=>expect(document.querySelectorAll('.fish-glance__item')).toHaveLength(34));
+  await waitFor(()=>expect(document.querySelectorAll('.fish-glance__item')).toHaveLength(HOME_FISH_PREVIEW_LIMIT));
   expect(document.querySelectorAll('.fish-board__row')).toHaveLength(0);
   expect(screen.queryByRole('searchbox',{name:'搜索鱼类'})).toBeNull();
-  expect(screen.getByRole('list',{name:'鱼窗列表'}).tabIndex).toBe(0);
-  expect(screen.getByText('测试鱼16')).toBeDefined();
-  expect(document.querySelector('.fish-glance__more')).toBeNull();
-  fireEvent.click(screen.getByRole('button',{name:'全部鱼窗 ↗'}));
+  expect(screen.getByRole('list',{name:'鱼窗列表'}).tabIndex).toBe(-1);
+  expect(screen.queryByText('测试鱼16')).toBeNull();
+  expect(screen.getByText('展示前 5 条，另有 29 条')).toBeDefined();
+  expect(document.querySelector('.fish-glance__list')?.scrollHeight).toBe(0);
+  fireEvent.click(screen.getByRole('button',{name:/查看全部鱼窗/}));
   expect(onOpenDetail).toHaveBeenCalledWith(expect.objectContaining({region:'cn',view:'windows',kind:'rare',windowHours:24}));
   const selection=onOpenDetail.mock.calls[0]?.[0];
   expect(selection).toBeDefined();
@@ -244,7 +245,8 @@ it('clicking an individual home fish opens detail prefiltered to that fish',asyn
   render(<FishingBoard data={publicPort()} embedded onOpenDetail={onOpenDetail}/>);
   await screen.findByText('测试鱼0');
   const preview=screen.getByRole('region',{name:'钓鱼鱼窗概览'});
-  expect(preview.querySelectorAll('.fish-glance__time')).toHaveLength(34);
+  expect(preview.querySelectorAll('.fish-glance__time')).toHaveLength(HOME_FISH_PREVIEW_LIMIT);
+  expect(screen.getByText('展示前 5 条，另有 29 条')).toBeDefined();
   expect(preview.querySelector('.fish-glance__time')?.textContent).toMatch(/\d{2}:\d{2}:\d{2} 后结束/);
   expect(preview.querySelector('.fish-glance__time strong')).toBeNull();
   expect(preview.querySelector('progress')).toBeNull();

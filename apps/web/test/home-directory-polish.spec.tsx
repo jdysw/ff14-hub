@@ -26,6 +26,19 @@ beforeEach(()=>{
 afterEach(()=>{cleanup();vi.unstubAllGlobals();vi.clearAllMocks();});
 const directory=()=>within(screen.getByRole('region',{name:'导航站'}));
 
+it('shows the search icon inside the centered field without a redundant visible title',async()=>{
+  render(<LocalApp/>);
+  await screen.findByText('市场工具');
+  const form=screen.getByRole('search',{name:'全站搜索'});
+  const icon=within(form).getByRole('button',{name:'全站搜索'});
+  expect(icon.textContent).toBe('');
+  expect(form.firstElementChild).toBe(icon);
+  expect(form.contains(screen.getByRole('searchbox',{name:'全站搜索关键词'}))).toBe(true);
+  fireEvent.click(icon);
+  expect(icon.getAttribute('aria-expanded')).toBe('true');
+  expect(await screen.findByRole('region',{name:'全站搜索结果'})).toBeDefined();
+});
+
 it('does not show an empty result while the first public catalog is still loading',async()=>{
   vi.stubGlobal('fetch',vi.fn(()=>new Promise(()=>{})));
   render(<LocalApp/>);

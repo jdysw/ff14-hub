@@ -8,6 +8,7 @@ import {LocalLinkEditor} from './LocalLinkEditor';
 import {DataManagementPanel,type DataSection} from './DataManagementPanel';
 import {LocalNotificationPanel} from './LocalNotificationPanel';
 import {TodoBoard} from './TodoBoard';
+import {clearSavedHomeLayout} from './ModuleGrid';
 
 const labels:Record<HomeSection,string>={events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的待办'};
 export type SettingsTab='home'|'links'|'notes'|'data'|'notifications';
@@ -48,6 +49,10 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
         <label><input type="checkbox" checked={data.configuration.visible[section]} disabled={busy} onChange={event=>{const checked=event.target.checked;void run(async()=>{await store.change(document=>{document.data.configuration.visible[section]=checked;});});}}/>{labels[section]}</label>
         <div><button type="button" disabled={busy||index===0} aria-label={`上移${labels[section]}`} onClick={()=>move(section,-1)}>上移</button><button type="button" disabled={busy||index===data.configuration.order.length-1} aria-label={`下移${labels[section]}`} onClick={()=>move(section,1)}>下移</button></div>
       </div>)}
+      <div className="local-settings__field">
+        <p>布局会在本机记住上次的列位置；刷新或更新倒计时不会重新交换模块。调整模块顺序、显示项或屏幕宽度后自动适配。</p>
+        <button type="button" disabled={busy} onClick={()=>{clearSavedHomeLayout();setNotice('已清除本机布局记忆，下次打开首页将重新计算排布。');}}>重新计算首页布局</button>
+      </div>
       <label className="local-settings__field">默认钓鱼区服<select value={data.configuration.region} disabled={busy} onChange={event=>{const next=event.target.value as FishRegion;void run(async()=>{await store.change(document=>{document.data.configuration.region=next;});});}}><option value="cn">国服</option><option value="global">国际服</option></select></label>
     </section>
     <section hidden={activeTab!=='links'}><h3>个人导航</h3>

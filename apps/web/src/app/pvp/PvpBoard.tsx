@@ -46,6 +46,7 @@ export function PvpBoard({expanded=false,onOpenDetail}:PvpBoardProps){
       <p>自动按北京时间计算，无需刷新页面。</p>
     </header>}
     <div className="pvp-board__current">
+      {!expanded?<>{([{name:'纷争前线',status:frontline,countdown:countdownFrontline},{name:'水晶冲突',status:crystal,countdown:countdownCrystal}]).map(item=><article className="pvp-home-row" key={item.name}><div className="pvp-home-row__main"><h3>{item.name}</h3><strong>{item.status.current}</strong><p>下{item.name==='纷争前线'?'轮':'张'}：{item.status.next}</p></div><div className="pvp-home-row__timer"><span>距换图</span><strong>{item.countdown}</strong><small>北京时间 {beijingHour(item.status.changesAt)}</small></div></article>)}</>:<>
       <article className="pvp-board__mode">
         <div className="pvp-board__mode-head"><h3>纷争前线</h3><span>北京时间 {beijingHour(frontline.changesAt)} 轮换</span></div>
         <strong className="pvp-board__map">{frontline.current}</strong>
@@ -62,6 +63,7 @@ export function PvpBoard({expanded=false,onOpenDetail}:PvpBoardProps){
           <span className="pvp-board__countdown" title="距下一张地图">{countdownCrystal}</span>
         </div>
       </article>
+      </>}
     </div>
     {expanded?<div className="pvp-board__schedules">
       <section className="pvp-board__schedule" aria-label="纷争前线未来八天">

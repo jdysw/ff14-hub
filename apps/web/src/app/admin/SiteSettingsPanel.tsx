@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { calendarAdminSession } from '../events/calendar-admin-session';
 import { DEFAULT_SITE_SETTINGS, SITE_SETTINGS_CHANGED, type SiteSettings, type SiteSettingsDocument } from './site-settings';
 import {PresentationEditor} from './PresentationEditor';
+import {clearSavedHomeLayout} from '../local/ModuleGrid';
 import {managedPresentationSchema,DEFAULT_CATEGORIES,DEFAULT_HOME} from '@ff14-hub/shared';
 import {usePrivateDraft} from '../pwa/draft-registry';
 
@@ -53,6 +54,9 @@ export function SiteSettingsPanel() {
       if(r.status===401)throw new Error('管理员会话已失效，请退出后登录');
       if(!r.ok)throw new Error('保存失败，请检查输入长度与服务状态');
       const updated=await r.json() as SiteSettingsDocument;
+      // 仅全站首页的模式、顺序或可见性发生变化时，清除本机旧列布局。
+      const previousHome=JSON.parse(saved) as SiteSettings;
+      if(JSON.stringify(previousHome.presentation?.home)!==JSON.stringify(updated.settings.presentation?.home))clearSavedHomeLayout();
       setDraft(updated.settings);setRevision(updated.revision);
       setSaved(JSON.stringify(updated.settings));
       window.dispatchEvent(new Event(SITE_SETTINGS_CHANGED));

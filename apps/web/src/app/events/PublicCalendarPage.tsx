@@ -1,6 +1,7 @@
 /** 独立公开活动中心：日历和列表双视图，匿名访问，和个人工作台数据完全隔离。 */
 import { eventCalendarResponseSchema, type EventCalendarItem, type EventCalendarResponse } from '@ff14-hub/shared';
 import { useEffect, useMemo, useState } from 'react';
+import {readCachedPublicCalendar,saveCachedPublicCalendar} from '../local/public-calendar-cache';
 import './public-calendar.css';
 import {
   calendarOverview, chinaDateTime, chinaMonthDays, chinaToday,
@@ -74,11 +75,15 @@ export function PublicCalendarPage({ onBack, overlay = false,initialEventId }: {
         if (!response.ok) throw new Error('official_calendar_unavailable');
         const parsed = eventCalendarResponseSchema.safeParse(await response.json());
         if (!parsed.success) throw new Error('invalid_calendar_contract');
-        if (!controller.signal.aborted) setState({
-          status: 'loaded', data: parsed.data, offset: parsed.data.serverTimeMs - Date.now(),
-        });
+        if (!controller.signal.aborted) {
+          saveCachedPublicCalendar(parsed.data);
+          setState({status:'loaded',data:parsed.data,offset:parsed.data.source.stale?0:parsed.data.serverTimeMs-Date.now()});
+        }
       } catch {
-        if (!controller.signal.aborted) setState({ status: 'failed' });
+        if (!controller.signal.aborted) {
+          const cached=readCachedPublicCalendar();
+          setState(cached?{status:'loaded',data:cached,offset:0}:{status:'failed'});
+        }
       }
     })();
     return () => controller.abort();
