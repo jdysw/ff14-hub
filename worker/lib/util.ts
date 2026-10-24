@@ -78,7 +78,12 @@ export function stableStringify(value: unknown): string {
     }
     const source = input as Record<string, unknown>;
     const result: Record<string, unknown> = {};
-    for (const key of Object.keys(source).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))) {
+    for (const key of Object.keys(source).sort((a,b)=>{
+      // 稳定 JSON 的键顺序须与现有 UTF-16 比较保持一致，而非使用 localeCompare。
+      if(a<b)return -1;
+      if(a>b)return 1;
+      return 0;
+    })) {
       result[key] = normalize(source[key]);
     }
     return result;

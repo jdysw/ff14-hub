@@ -4,7 +4,10 @@ export interface ContentState{domain:'navigation'|'calendar';contentId:string;st
 export async function adminRequest(path:string,method='GET',body?:unknown):Promise<unknown>{
   const token=calendarAdminSession.get();if(!token)throw new Error('管理员会话已失效');
   const response=await fetch('/api/v1/admin/'+path,{method,credentials:'omit',cache:'no-store',headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
-  if(!response.ok)throw new Error(response.status===409?'内容已更新，请重新读取后重试':response.status===401?'管理员会话已失效':'操作失败，请重试');
+  if(!response.ok){
+    const messages:Record<number,string>={409:'内容已更新，请重新读取后重试',401:'管理员会话已失效'};
+    throw new Error(messages[response.status]??'操作失败，请重试');
+  }
   return response.json();
 }
 export function useContentState(){

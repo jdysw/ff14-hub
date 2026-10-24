@@ -14,7 +14,7 @@ const normalize=(text:string)=>text.normalize('NFKC').toLocaleLowerCase().trim()
 function matched<T>(items:readonly T[],query:string,title:(item:T)=>string,content:(item:T)=>string):T[]{
   const term=normalize(query),parts=term.split(/\s+/).filter(Boolean);
   if(!term)return [];
-  const score=(item:T)=>{const name=normalize(title(item));return name===term?0:name.startsWith(term)?1:2;};
+  const score=(item:T)=>{const name=normalize(title(item));if(name===term)return 0;if(name.startsWith(term))return 1;return 2;};
   return items.filter(item=>parts.every(part=>normalize(content(item)).includes(part)))
     .sort((a,b)=>score(a)-score(b)||title(a).localeCompare(title(b),'zh-CN'));
 }
