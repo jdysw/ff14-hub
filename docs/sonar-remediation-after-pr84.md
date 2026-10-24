@@ -29,6 +29,15 @@
 - 本地 SonarJS：本批所有 S2681/S6759 所在文件的 conditional-indentation / prefer-read-only-props 无告警；同步面板及活动解析模块通过认知复杂度 15、正则复杂度 20、超线性正则及嵌套条件检查。
 - `git diff --check` 通过。
 
+## 首次 PR 扫描反馈与修正
+
+- `PR85@e83d747`：1 条新增 `javascript:S7773`（抽出导航清理函数时继承的全局 parseInt），已改为 Number.parseInt，行为不变。
+- 质量门失败原因为新代码重复率 **7.4%**。`api/duplications/show` 与逐文件重复行指标确认：全部 **30 条新重复行**来自 `scripts/userscripts/fishcake-runtime.js` 及其生成的 `apps/web/public/fishcake-sync.user.js`（各 15 行）；新抽取的导航函数和同步组件没有重复行。
+- 添加根目录 `.sonarcloud.properties`，仅设置 `sonar.cpd.exclusions=apps/web/public/fishcake-sync.user.js`。机械生成的发布副本不参与复制粘贴重复率，原始源码仍参与；发布文件的代码规则与安全分析也保留。没有设置 `sonar.exclusions`、issue ignore 或改变质量门阈值；生成物检查仍必须通过。
+- 配置依据：[Sonar 官方重复率范围说明](https://docs.sonarsource.com/sonarqube-cloud/managing-your-projects/project-analysis/setting-analysis-scope/exclude-from-coverage-duplication)，Automatic Analysis 使用根目录 `.sonarcloud.properties`。
+- 另以主线真实实现对照 396 组书签解析输入（Unicode、畸形实体、href、分组和重复链接），输出一致。
+- 上述修正提交仍须完成新的 PR 复扫，不能沿用首次扫描状态。
+
 ## 待验收与剩余工作
 
 - 本 PR 最新 SHA 的 SonarCloud 与远端构建结果。

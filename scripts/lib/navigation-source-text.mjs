@@ -11,6 +11,6 @@ export function cleanNavigationSourceText(text){
     cursor=close+1;
   }
   parts.push(text.slice(cursor));
-  return parts.join('').replace(/&#(x[\da-f]+|\d+);/gi,(_,n)=>String.fromCodePoint(n[0]==='x'?parseInt(n.slice(1),16):Number(n)))
+  return parts.join('').replace(/&#(x[\da-f]+|\d+);/gi,(_,n)=>String.fromCodePoint(n[0]==='x'?Number.parseInt(n.slice(1),16):Number(n)))
     .replaceAll('&amp;','&').replaceAll('&nbsp;',' ').replaceAll('&quot;','"').replace(/\s+/g,' ').trim();
 }
