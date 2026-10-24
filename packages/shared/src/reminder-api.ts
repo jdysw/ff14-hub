@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { fishRegionSchema } from './fish-api';
-import { operationIdSchema } from './workbench-api';
+import { operationIdSchema } from './operation-id';
 import type { ModuleManifest } from './module-manifest';
 import type { WidgetConfigContract } from './builtin-modules';
 export const REMINDER_MODULE_ID='ff14.reminders';
