@@ -39,7 +39,8 @@ export async function s3Headers(config:RemoteConfig,method:string,body:string,he
   let key=await hmac(encoder.encode('AWS4'+config.secretKey),day);
   for(const part of [config.region,'s3','aws4_request'])key=await hmac(key,part);
   const signature=hex((await hmac(key,`AWS4-HMAC-SHA256\n${date}\n${scope}\n${await digest(canonical)}`)).buffer);
-  const {host:_,...result}=signed;void _;
+  const result={...signed};
+  delete result['host'];
   return {...result,Authorization:`AWS4-HMAC-SHA256 Credential=${config.accessKey}/${scope}, SignedHeaders=${names.join(';')}, Signature=${signature}`};
 }
 export function createRemoteClient(input:RemoteConfig,fetcher:typeof fetch=fetch){

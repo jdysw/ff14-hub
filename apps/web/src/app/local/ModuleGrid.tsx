@@ -12,18 +12,29 @@ const HOME_MODULE_LAYOUT_KEY='ff14-hub:home-module-columns:v3';
 const HOME_MODULE_LAYOUT_VERSION=3;
 const MODULE_GAP=18;
 
+/** 保留原有 48px 稳定阈值：微小高度差优先复用上次的列位置。 */
+function chooseModuleColumn(totals:readonly number[],previous:number|undefined):number{
+  if(Math.abs(totals[0]!-totals[1]!)>48)return totals[0]!<totals[1]!?0:1;
+  return previous??(totals[0]!<=totals[1]!?0:1);
+}
+
+/** 只有跨栏能显著缩小奇数模块造成的高度差时，才使用通栏布局。 */
+function shouldSpanLastModule(heights:readonly number[],columns:readonly number[],totals:readonly number[]):boolean{
+  const last=heights.length-1;
+  if(last<=0||heights.length%2===0)return false;
+  const before=[0,0];
+  for(let i=0;i<last;i++)before[columns[i]!]!+=heights[i]!+MODULE_GAP;
+  return Math.abs(totals[0]!-totals[1]!)>96&&Math.abs(before[0]!-before[1]!)<=48;
+}
+
 export function planModules(heights:readonly number[],previous:readonly number[]=[],allowSpan=true){
   if(allowSpan&&heights.length===1)return [2];
   const totals=[0,0],columns:number[]=[];
   for(let i=0;i<heights.length;i++){
-    const column=Math.abs(totals[0]!-totals[1]!)<=48?(previous[i]??(totals[0]!<=totals[1]!?0:1)):(totals[0]!<totals[1]!?0:1);
+    const column=chooseModuleColumn(totals,previous[i]);
     columns.push(column);totals[column]!+=(heights[i]??0)+MODULE_GAP;
   }
-  const last=heights.length-1;
-  if(allowSpan&&last>0&&heights.length%2===1){
-    const before=[0,0];for(let i=0;i<last;i++)before[columns[i]!]!+=heights[i]!+MODULE_GAP;
-    if(Math.abs(totals[0]!-totals[1]!)>96&&Math.abs(before[0]!-before[1]!)<=48)columns[last]=2;
-  }
+  if(allowSpan&&shouldSpanLastModule(heights,columns,totals))columns[heights.length-1]=2;
   return columns;
 }
 

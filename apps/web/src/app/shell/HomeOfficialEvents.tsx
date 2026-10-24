@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {readCachedPublicCalendar,saveCachedPublicCalendar} from '../local/public-calendar-cache';
 import {
   calendarOverview, calendarTimeLabel, calendarEndCondition,chinaDateTime,displayCalendarTitle, eventStatus, isScheduled, SOON_MS,calendarCountdown,
+  type CalendarPhase,
 } from '../events/public-calendar-utils';
 
 export const HOME_EVENT_LIMIT = 4;
@@ -37,12 +38,22 @@ type ViewState =
   | { readonly kind: 'error' }
   | { readonly kind: 'ready'; readonly value: EventCalendarResponse; readonly offset: number };
 
+const EVENT_PHASE_LABELS:Record<CalendarPhase,string>={
+  ending:'即将结束',active:'进行中',upcoming:'即将开始',ended:'已结束',unscheduled:'待核实公告',
+};
+function eventCountdownTarget(status:CalendarPhase,item:EventCalendarItem):number|null{
+  if(status==='upcoming')return item.startsAt;
+  if(status==='active'||status==='ending')return item.endsAt;
+  return null;
+}
+function OfficialEventEndTime({item}:{readonly item:EventCalendarItem}){
+  if(item.endsAt===null)return <>结束：{calendarEndCondition(item)??'时间待确认'}</>;
+  return <><span>结束：</span><time dateTime={new Date(item.endsAt).toISOString()}>{chinaDateTime(item.endsAt)}</time></>;
+}
 function OfficialEventSummary({ item, now }: { readonly item: EventCalendarItem; readonly now: number }) {
   const status = eventStatus(item, now);
-  const target = status === 'upcoming' ? item.startsAt : status === 'active' || status === 'ending' ? item.endsAt : null;
-  const label = status === 'ending' ? '即将结束' :
-    status === 'active' ? '进行中' : status === 'upcoming' ? '即将开始' :
-      status === 'ended' ? '已结束' : '待核实公告';
+  const target = eventCountdownTarget(status,item);
+  const label = EVENT_PHASE_LABELS[status];
   return <li className="home-official-event">
     <div className="home-official-event__main">
       <span className="home-official-event__category">{item.category || '官方公告'}</span>
@@ -53,10 +64,10 @@ function OfficialEventSummary({ item, now }: { readonly item: EventCalendarItem;
       <p>{calendarTimeLabel(item)}</p>
     </div>
     <div className="home-official-event__timer" aria-label={target === null ? label : label + calendarCountdown(target, now)}>
-      <span>{target === null ? '时间待确认' : (status === 'upcoming' ? '距开始' : '距结束')}</span>
+      <span>{target === null ? '时间待确认' : status === 'upcoming' ? '距开始' : '距结束'}</span>
       <strong>{target === null ? '—' : calendarCountdown(target, now)}</strong>
       <small className="home-official-event__end" title="北京时间">
-        {item.endsAt!==null?<><span>结束：</span><time dateTime={new Date(item.endsAt).toISOString()}>{chinaDateTime(item.endsAt)}</time></>:<>结束：{calendarEndCondition(item)??'时间待确认'}</>}
+        <OfficialEventEndTime item={item}/>
       </small>
     </div>
   </li>;

@@ -12,6 +12,12 @@ it('balances odd modules and spans the last item only when that removes a substa
   expect(planModules([400,150,200])).toEqual([0,1,1]);expect(planModules([200,190,250])).toEqual([0,1,2]);
   expect(planModules([200,190,250],[],false)).toEqual([0,1,1]);expect(planModules([200,190,100,100])).toEqual([0,1,1,0]);
 });
+it('列高接近时保留既有布局，差距较大时仍优先填充较短列',()=>{
+  expect(planModules([100,130,90],[1,0,1],false)).toEqual([1,0,1]);
+  expect(planModules([100,130,90],[],false)).toEqual([0,1,0]);
+  expect(planModules([100],[],true)).toEqual([2]);
+  expect(planModules([100],[],false)).toEqual([0]);
+});
 it('首页默认活动位于左栏、钓鱼与 PVP 依次位于右栏，用户自定义布局仍有效',()=>{
   expect(planHomeModules([540,415,271],'events,fishing,pvp','auto')).toEqual([0,1,2]);
   expect(planHomeModules([540,415,271],'events,pvp,fishing','auto')).toEqual(planModules([540,415,271]));
