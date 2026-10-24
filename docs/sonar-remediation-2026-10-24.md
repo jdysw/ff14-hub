@@ -159,6 +159,14 @@
 - [x] 再次执行完整 `pnpm run verify`：项目测试 607、运维专项 60、ESLint、TypeScript、Web/Worker 构建与生成物检查全部通过。
 - [ ] 最新 PR 的 SonarCloud 扫描尚需复核；旧 `main@599d0d4` 仍记录 648 项历史问题，不代表已提交至 PR 的改动没有效果。
 
+## 第十八批：旧版个人数据界面与运维脚本控制流（2026-10-24）
+
+- [x] `DataManagementPanel.tsx`、`LocalNotificationPanel.tsx` 的异步重复操作保护、文件不存在提前返回与测试消息回执条件显式分组，维持原有导入/恢复副作用顺序。
+- [x] `scripts/import-navigation.mjs` 将重复网站证据合并中的来源去重、别名追加分离，保留先入源顺序和已存在站点直接跳过的路径。
+- [x] `scripts/e2e-local-personal.mjs` 明确弹窗存在时不重复打开鱼窗，后续检索原样执行；原端到端脚本未放宽断言。
+- [x] 再次运行 `pnpm run verify`：项目测试 607 项、运维测试 60 项、ESLint、TypeScript、Web/Worker 构建与生成物一致性检查均通过。
+- [ ] PR 最新 SonarCloud 复扫及基于当前完整工作树的历史问题对照未完成；本批改动不得宣称 648 项已清零。
+
 ## 后续批次（同一个 PR）
 
 1. **P0 安全与可靠性**：清理未完成的 High/Blocker、消息来源、路径边界及正则复杂度问题。

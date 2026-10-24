@@ -111,7 +111,11 @@ for(const row of raw){
   let url;try{url=normalize(row.url);}catch{skipped.push({...row,reason:'非 HTTPS 或无效地址，需人工核对'});continue;}
   const key=url;const old=items.get(key);
   const origin={url:row.source,name:row.sourceName,title:row.title,section:row.section};
-  if(old){if(!old.sources.some(source=>source.url===origin.url&&source.title===origin.title))old.sources.push(origin);if(old.title!==row.title&&!old.aliases.includes(row.title))old.aliases.push(row.title.slice(0,60));continue;}
+  if(old){
+    if(!old.sources.some(source=>source.url===origin.url&&source.title===origin.title)){old.sources.push(origin);}
+    if(old.title!==row.title&&!old.aliases.includes(row.title)){old.aliases.push(row.title.slice(0,60));}
+    continue;
+  }
   const group=category(row);
   items.set(key,{id:'catalog.import.'+createHash('sha256').update(key).digest('hex').slice(0,20),title:row.title.slice(0,80),url,
     description:descriptions[row.title]??'',category:group,tags:[row.section.slice(0,24)],aliases:[],icon:'🔗',openMode:'new_tab',region:region(row),sources:[origin]});

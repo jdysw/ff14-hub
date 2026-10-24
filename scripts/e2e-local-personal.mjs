@@ -10,7 +10,7 @@ try{
  const page=await context.newPage();const requests=[];const errors=[];
  context.on('request',request=>requests.push({url:request.url(),method:request.method(),authorized:Boolean(request.headers().authorization)}));
  page.on('pageerror',error=>errors.push(error.message));
- const search=async(p)=>{if(await p.getByRole('dialog').count()===0)await p.getByRole('button',{name:'全部鱼窗 ↗',exact:true}).click();const b=p.getByRole('dialog').getByTestId('fishing-board');await b.getByRole('button',{name:'全部鱼类',exact:true}).click();await b.getByRole('searchbox',{name:'搜索鱼类'}).fill('扎尔艾拉');return b;};
+ const search=async(p)=>{if(await p.getByRole('dialog').count()===0){await p.getByRole('button',{name:'全部鱼窗 ↗',exact:true}).click();}const b=p.getByRole('dialog').getByTestId('fishing-board');await b.getByRole('button',{name:'全部鱼类',exact:true}).click();await b.getByRole('searchbox',{name:'搜索鱼类'}).fill('扎尔艾拉');return b;};
  await page.goto('http://127.0.0.1:8897/',{waitUntil:'domcontentloaded'});
  await page.getByRole('button',{name:'全部鱼窗 ↗',exact:true}).waitFor({timeout:60000});
  assert.equal((await page.locator('body').innerText()).includes('工作空间'),false);
