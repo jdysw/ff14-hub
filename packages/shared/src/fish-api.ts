@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { fishRuleSchema, regionSchema, utcSchema, verificationSchema, fishRecordSchema } from '@ff14-hub/fish-engine';
-import { operationIdSchema } from './workbench-api';
+import { operationIdSchema } from './operation-id';
 import type { ModuleManifest } from './module-manifest';
 import type { WidgetConfigContract } from './builtin-modules';
 export { fishWindows, eorzeaTime, forecastTarget, WEATHER_PERIOD_MS, ET_DAY_MS, ET_HOUR_MS } from '@ff14-hub/fish-engine';
