@@ -301,7 +301,7 @@ const HTTPS_SCHEME_PATTERN = /^https:\/\//i;
  */
 function hasControlOrSpace(raw: string): boolean {
   for (let index = 0; index < raw.length; index += 1) {
-    const code = raw.charCodeAt(index);
+    const code = (raw.codePointAt(index) ?? Number.NaN);
     if (code <= 0x20 || code === 0x7f) {
       return true;
     }

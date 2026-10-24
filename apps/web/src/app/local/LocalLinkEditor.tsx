@@ -6,7 +6,7 @@ import {SiteIcon} from './SiteIcon';
 type SavedLink=LocalData['links'][number];
 
 /** 个人网站可直接调整简介，自动识别只是草稿，只有用户按保存才更新本机。 */
-export function LocalLinkEditor({link,store}: {link:SavedLink;store:LocalStore}){
+export function LocalLinkEditor({link,store}: Readonly<{link:SavedLink;store:LocalStore}>){
   const [title,setTitle]=useState(link.title);
   const [category,setCategory]=useState(link.category);
   const [description,setDescription]=useState(link.description??'');

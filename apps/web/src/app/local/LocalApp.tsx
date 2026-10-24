@@ -65,8 +65,8 @@ export function LocalApp(){
   },[]);
   const dataReady=data!==null;
   useEffect(()=>{
-    if(!dataReady||!fishEntry)return;
-    const key=JSON.stringify(fishEntry);if(handledFishEntry.current===key)return;handledFishEntry.current=key;
+    if(!dataReady||!fishEntry){return;}
+    const key=JSON.stringify(fishEntry);if(handledFishEntry.current===key){return;}handledFishEntry.current=key;
     setView('home');openModule('fishing',{...fishEntry,view:'all',kind:'all',text:'',hideCaught:false,windowHours:24});
   },[dataReady,fishEntry,openModule]);
   const [settingsTab,setSettingsTab]=useState<SettingsTab>(notificationEntry?'notifications':'home');
@@ -79,8 +79,8 @@ export function LocalApp(){
   const openFeature=(target:FeatureTarget)=>{
     if(target==='notes'||target==='plan'){openModule('notes');return;}
     if(target==='sync'||target==='backup'||target==='notifications'){
-      setSearchOpen(false);setExpanded(null);setSettingsTab(target==='notifications'?'notifications':'data');if(target==='sync'||target==='backup')setDataSection(target);setView('settings');
-    }else openModule(target);
+      setSearchOpen(false);setExpanded(null);setSettingsTab(target==='notifications'?'notifications':'data');if(target==='sync'||target==='backup'){setDataSection(target);}setView('settings');
+    }else {openModule(target);}
   };
   useEffect(()=>startLocalNotifications(store),[store]);
   useEffect(()=>startFishcakeSync(store),[store]);
@@ -99,20 +99,20 @@ export function LocalApp(){
   const [visibleLimit,setVisibleLimit]=useState(36);
   const showSearch=useCallback(()=>{
     setSearchOpen(true);
-    requestAnimationFrame(()=>{const input=searchRef.current;if(!input?.isConnected||document.querySelector('dialog[open]')||document.activeElement?.closest('#global-search-results'))return;input.focus({preventScroll:true});window.scrollTo({top:0,behavior:'auto'});});
+    requestAnimationFrame(()=>{const input=searchRef.current;if(!input?.isConnected||document.querySelector('dialog[open]')||document.activeElement?.closest('#global-search-results')){return;}input.focus({preventScroll:true});window.scrollTo({top:0,behavior:'auto'});});
   },[]);
   const closeSearch=()=>{searchRef.current?.focus({preventScroll:true});setSearchOpen(false);};
-  const focusSearchResult=()=>{const first=document.querySelector<HTMLElement>('#global-search-results [data-search-result]');if(first)first.focus();else requestAnimationFrame(()=>document.querySelector<HTMLElement>('#global-search-results [data-search-result]')?.focus());};
+  const focusSearchResult=()=>{const first=document.querySelector<HTMLElement>('#global-search-results [data-search-result]');if(first){first.focus();}else {requestAnimationFrame(()=>document.querySelector<HTMLElement>('#global-search-results [data-search-result]')?.focus());}};
   useEffect(()=>{
     let alive=true;let revision=-1;
-    const refresh=()=>{void store.read().then(next=>{if(alive&&next.revision>=revision){revision=next.revision;setData(next);setError(null);}}).catch((cause:unknown)=>{if(alive)setError(cause instanceof Error?cause.message:'读取本机数据失败');});};
+    const refresh=()=>{void store.read().then(next=>{if(alive&&next.revision>=revision){revision=next.revision;setData(next);setError(null);}}).catch((cause:unknown)=>{if(alive){setError(cause instanceof Error?cause.message:'读取本机数据失败');}});};
     refresh();const unsubscribe=store.subscribe(refresh);
     return()=>{alive=false;unsubscribe();};
   },[store]);
 
   useEffect(()=>{
     const shortcut=(event:KeyboardEvent)=>{
-      if(event.isComposing||event.defaultPrevented||document.querySelector('dialog[open]'))return;
+      if(event.isComposing||event.defaultPrevented||document.querySelector('dialog[open]')){return;}
       const editing=event.target instanceof HTMLElement&&(event.target.isContentEditable||Boolean(event.target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])')));
       if((event.ctrlKey||event.metaKey)&&!event.altKey&&event.key.toLowerCase()==='k'||event.key==='/'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!editing){event.preventDefault();showSearch();}
     };
@@ -132,8 +132,8 @@ export function LocalApp(){
   const saveFavorite=(link:typeof links[number])=>{
     void store.change(document=>{
       const old=document.data.links.find(item=>canonicalNavUrl(item.url)===canonicalNavUrl(link.url));
-      if(old)old.favorite=!old.favorite;
-      else document.data.links.push({id:crypto.randomUUID(),title:link.title,url:link.url,category:link.category,categoryCustomized:link.personal,description:link.description??'',...(link.faviconUrl?{faviconUrl:link.faviconUrl}:{}),favorite:true});
+      if(old){old.favorite=!old.favorite;}
+      else {document.data.links.push({id:crypto.randomUUID(),title:link.title,url:link.url,category:link.category,categoryCustomized:link.personal,description:link.description??'',...(link.faviconUrl?{faviconUrl:link.faviconUrl}:{}),favorite:true});}
     }).catch((cause:unknown)=>setError(cause instanceof Error?cause.message:'本机保存失败'));
   };
 
@@ -149,7 +149,7 @@ export function LocalApp(){
           <button className="home-global-search__label" type="button" aria-label="全站搜索" aria-expanded={searchOpen} aria-controls="global-search-results" onClick={showSearch}><UiIcon name="search"/></button>
           <label className="visually-hidden" htmlFor="global-search-input">全站搜索关键词</label>
           <input id="global-search-input" ref={searchRef} type="search" value={search} maxLength={100} autoComplete="off" placeholder="网站、鱼名、活动或功能" aria-controls="global-search-results" onFocus={showSearch} onClick={()=>setSearchOpen(true)} onChange={event=>{setSearch(event.target.value);setSearchOpen(true);}} onKeyDown={event=>{
-            if(event.nativeEvent.isComposing)return;
+            if(event.nativeEvent.isComposing){return;}
             if(event.key==='Escape'){event.preventDefault();closeSearch();}
             if(event.key==='ArrowDown'){event.preventDefault();setSearchOpen(true);focusSearchResult();}
           }}/>

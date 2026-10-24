@@ -107,9 +107,9 @@ export function extractOfficialActivityRange(html: string): { startsAt: number; 
   const plain = stripOfficialTags(stripOfficialExecutableBlocks(html))
     .replace(/&nbsp;|&#160;/gi, ' ')
     .replace(/&(?:mdash|ndash);/gi, '-').replace(/[\u3000\s]+/g, ' ').slice(0, 100_000);
-  const date = '(\\d{4}年\\d{1,2}月\\d{1,2}日\\s*\\d{1,2}:\\d{2}(?::\\d{2})?)';
-  const pattern = new RegExp('(?:活动时间|活动期间|举办时间|起止时间)\\s*[：:]?\\s*' + date +
-    '\\s*(?:至|到|~|～|—|－|-|–)\\s*' + date);
+  const date = String.raw`(\d{4}年\d{1,2}月\d{1,2}日\s*\d{1,2}:\d{2}(?::\d{2})?)`;
+  const pattern = new RegExp(String.raw`(?:活动时间|活动期间|举办时间|起止时间)\s*(?:[：:]\s*)?` + date +
+    String.raw`\s*(?:至|到|~|～|—|－|-|–)\s*` + date);
   const m = pattern.exec(plain);
   if (!m) return null;
   const startsAt = chinaTimestamp(m[1] ?? '');

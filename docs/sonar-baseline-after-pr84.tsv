@@ -1,0 +1,354 @@
+# main@7c7103d, 2026-10-24, OPEN/CONFIRMED, 352 unique issues
+issue_key	rule	severity	path	line	targeted_in_batch	message
+AaFtGQ9w5WNdnY_XE17c	typescript:S1121	MAJOR	apps/web/src/app/admin/game-data.ts	27	false	Extract the assignment of "cached" from this expression.
+AaFtGQ_W5WNdnY_XE1-9	typescript:S3776	CRITICAL	apps/web/src/app/fish/FishingBoard.tsx	131	false	Refactor this function to reduce its Cognitive Complexity from 156 to the 15 allowed.
+AaFtGQ_W5WNdnY_XE1_Q	typescript:S3358	MAJOR	apps/web/src/app/fish/FishingBoard.tsx	323	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ-a5WNdnY_XE18p	typescript:S6759	MINOR	apps/web/src/app/local/ModuleGrid.tsx	99	true	Mark the props of the component as read-only.
+AaFtGQ4C5WNdnY_XE15g	typescript:S5906	MINOR	worker/test/unit.spec.ts	191	false	Prefer "expect(token).toHaveLength('ffh_test_'.length + TOKEN_BODY_LENGTH)" over this generic assertion for better reporting; it works on any object with a numeric length property.
+AaFtGRAn5WNdnY_XE2A7	javascript:S6353	MINOR	scripts/ops/d1-readiness.mjs	32	false	Use concise character class syntax '\d' instead of '[0-9]'.
+AaFtGRAn5WNdnY_XE2A9	jssecurity:S8705	MAJOR	scripts/ops/d1-readiness.mjs	55	false	Command Argument Injection via faulty LLM-supplied CLI arguments
+AaFtGRAs5WNdnY_XE2A_	javascript:S4036	MINOR	scripts/ops/release-worker.mjs	8	false	Make sure the "PATH" variable only contains fixed, unwriteable directories.
+AaFtGQ9s5WNdnY_XE17Y	typescript:S6479	MAJOR	apps/web/src/app/admin/ContentLifecycle.tsx	34	false	Use a stable ID as key, because the index changes when the list changes.
+AaFtGQ915WNdnY_XE17i	typescript:S7722	MINOR	apps/web/src/app/admin/GameDataPanel.tsx	16	false	Pass a message to the `Error` constructor.
+AaFtGQ9n5WNdnY_XE17J	typescript:S3358	MAJOR	apps/web/src/app/admin/OperationsPanel.tsx	4	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ9i5WNdnY_XE167	typescript:S6759	MINOR	apps/web/src/app/admin/PresentationEditor.tsx	6	true	Mark the props of the component as read-only.
+AaFtGQ9i5WNdnY_XE169	typescript:S3358	MAJOR	apps/web/src/app/admin/PresentationEditor.tsx	10	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ9i5WNdnY_XE17F	typescript:S2681	MAJOR	apps/web/src/app/admin/PresentationEditor.tsx	27	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ9k5WNdnY_XE17G	typescript:S2681	MAJOR	apps/web/src/app/admin/SiteAdminPage.tsx	21	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ9k5WNdnY_XE17H	typescript:S2681	MAJOR	apps/web/src/app/admin/SiteAdminPage.tsx	21	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ9p5WNdnY_XE17K	typescript:S9382	MINOR	apps/web/src/app/admin/SiteDirectoryPanel.tsx	71	false	Unexpected `await` inside a loop.
+AaFtGQ9p5WNdnY_XE17L	typescript:S9382	MINOR	apps/web/src/app/admin/SiteDirectoryPanel.tsx	72	false	Unexpected `await` inside a loop.
+AaFtGQ9p5WNdnY_XE17N	typescript:S9382	MINOR	apps/web/src/app/admin/SiteDirectoryPanel.tsx	80	false	Unexpected `await` inside a loop.
+AaFtGQ9p5WNdnY_XE17O	typescript:S9382	MINOR	apps/web/src/app/admin/SiteDirectoryPanel.tsx	81	false	Unexpected `await` inside a loop.
+AaFtGQ9p5WNdnY_XE17P	typescript:S2681	MAJOR	apps/web/src/app/admin/SiteDirectoryPanel.tsx	83	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ9p5WNdnY_XE17Q	typescript:S2681	MAJOR	apps/web/src/app/admin/SiteDirectoryPanel.tsx	83	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ9p5WNdnY_XE17R	typescript:S2681	MAJOR	apps/web/src/app/admin/SiteDirectoryPanel.tsx	83	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ9p5WNdnY_XE17S	typescript:S9382	MINOR	apps/web/src/app/admin/SiteDirectoryPanel.tsx	83	false	Unexpected `await` inside a loop.
+AaFtGQ9p5WNdnY_XE17T	typescript:S9382	MINOR	apps/web/src/app/admin/SiteDirectoryPanel.tsx	83	false	Unexpected `await` inside a loop.
+AaFtGQ9p5WNdnY_XE17U	typescript:S2681	MAJOR	apps/web/src/app/admin/SiteDirectoryPanel.tsx	83	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ-S5WNdnY_XE18V	typescript:S3776	CRITICAL	apps/web/src/app/local/GlobalSearch.tsx	11	false	Refactor this function to reduce its Cognitive Complexity from 28 to the 15 allowed.
+AaFtGQ-e5WNdnY_XE18q	typescript:S3776	CRITICAL	apps/web/src/app/local/LocalApp.tsx	37	false	Refactor this function to reduce its Cognitive Complexity from 93 to the 15 allowed.
+AaFtGQ-e5WNdnY_XE18t	typescript:S2681	MAJOR	apps/web/src/app/local/LocalApp.tsx	82	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ-e5WNdnY_XE18w	typescript:S3358	MAJOR	apps/web/src/app/local/LocalApp.tsx	175	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ-e5WNdnY_XE18z	typescript:S3358	MAJOR	apps/web/src/app/local/LocalApp.tsx	176	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ-e5WNdnY_XE180	typescript:S3358	MAJOR	apps/web/src/app/local/LocalApp.tsx	189	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ-e5WNdnY_XE181	typescript:S3358	MAJOR	apps/web/src/app/local/LocalApp.tsx	190	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ-e5WNdnY_XE185	typescript:S3358	MAJOR	apps/web/src/app/local/LocalApp.tsx	236	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ-e5WNdnY_XE187	typescript:S3358	MAJOR	apps/web/src/app/local/LocalApp.tsx	237	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ-e5WNdnY_XE188	typescript:S3358	MAJOR	apps/web/src/app/local/LocalApp.tsx	241	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ_D5WNdnY_XE1-g	typescript:S2681	MAJOR	apps/web/src/app/local/TodoBoard.tsx	57	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ_D5WNdnY_XE1-h	typescript:S2004	CRITICAL	apps/web/src/app/local/TodoBoard.tsx	63	false	Refactor this code to not nest functions more than 5 levels deep.
+AaFtGQ_D5WNdnY_XE1-i	typescript:S2004	CRITICAL	apps/web/src/app/local/TodoBoard.tsx	63	false	Refactor this code to not nest functions more than 5 levels deep.
+AaFtGRAL5WNdnY_XE2Ak	typescript:S3358	MAJOR	packages/shared/src/site-management.ts	25	false	Extract this nested ternary operation into an independent statement.
+AaFtGRBG5WNdnY_XE2B8	javascript:S3735	CRITICAL	scripts/import-navigation.mjs	89	false	Remove this use of the "void" operator.
+AaFtGQ8y5WNdnY_XE16b	typescript:S7749	MINOR	worker/modules/reminders/local-push.ts	6	false	Invalid group length in numeric value.
+AaFtGQ_W5WNdnY_XE1_A	typescript:S3776	CRITICAL	apps/web/src/app/fish/FishingBoard.tsx	237	false	Refactor this function to reduce its Cognitive Complexity from 25 to the 15 allowed.
+AaFtGQ-X5WNdnY_XE18i	css:S7924	MAJOR	apps/web/src/app/local/modern-content.css	170	false	Text does not meet the minimal contrast requirement with its background.
+AaFtGRBa5WNdnY_XE2Cv	plsql:S1192	CRITICAL	migrations/0001_core.sql	33	false	Define a constant instead of duplicating this literal 3 times.
+AaFtGRBa5WNdnY_XE2Ct	plsql:S1192	CRITICAL	migrations/0001_core.sql	94	false	Define a constant instead of duplicating this literal 3 times.
+AaFtGRBa5WNdnY_XE2Cu	plsql:S1192	CRITICAL	migrations/0001_core.sql	122	false	Define a constant instead of duplicating this literal 3 times.
+AaFtGRBa5WNdnY_XE2Cw	plsql:S1192	CRITICAL	migrations/0001_core.sql	122	false	Define a constant instead of duplicating this literal 3 times.
+AaFtGRAC5WNdnY_XE2AU	typescript:S7758	MINOR	packages/shared/src/nav-bookmark-parser.ts	53	true	Prefer `String#codePointAt()` over `String#charCodeAt()`.
+AaFtGRAC5WNdnY_XE2AV	typescript:S7758	MINOR	packages/shared/src/nav-bookmark-parser.ts	55	true	Prefer `String#codePointAt()` over `String#charCodeAt()`.
+AaFtGRAC5WNdnY_XE2AW	typescript:S7758	MINOR	packages/shared/src/nav-bookmark-parser.ts	83	true	Prefer `String#codePointAt()` over `String#charCodeAt()`.
+AaFtGRAC5WNdnY_XE2AX	typescript:S7758	MINOR	packages/shared/src/nav-bookmark-parser.ts	86	true	Prefer `String#codePointAt()` over `String#charCodeAt()`.
+AaFtGRAC5WNdnY_XE2AY	typescript:S7758	MINOR	packages/shared/src/nav-bookmark-parser.ts	99	true	Prefer `String#codePointAt()` over `String#charCodeAt()`.
+AaFtGRAC5WNdnY_XE2AZ	typescript:S7758	MINOR	packages/shared/src/nav-bookmark-parser.ts	102	true	Prefer `String#codePointAt()` over `String#charCodeAt()`.
+AaFtGRAC5WNdnY_XE2Aa	typescript:S7758	MINOR	packages/shared/src/nav-bookmark-parser.ts	123	true	Prefer `String#codePointAt()` over `String#charCodeAt()`.
+AaFtGRAC5WNdnY_XE2Ab	typescript:S7758	MINOR	packages/shared/src/nav-bookmark-parser.ts	124	true	Prefer `String#codePointAt()` over `String#charCodeAt()`.
+AaFtGRAC5WNdnY_XE2Ad	typescript:S7758	MINOR	packages/shared/src/nav-bookmark-parser.ts	206	true	Prefer `String#codePointAt()` over `String#charCodeAt()`.
+AaFtGRAC5WNdnY_XE2Ae	typescript:S7758	MINOR	packages/shared/src/nav-bookmark-parser.ts	213	true	Prefer `String#codePointAt()` over `String#charCodeAt()`.
+AaFtGRAC5WNdnY_XE2Af	typescript:S7758	MINOR	packages/shared/src/nav-bookmark-parser.ts	244	true	Prefer `String#codePointAt()` over `String#charCodeAt()`.
+AaFtGRAC5WNdnY_XE2Ag	typescript:S7758	MINOR	packages/shared/src/nav-bookmark-parser.ts	247	true	Prefer `String#codePointAt()` over `String#charCodeAt()`.
+AaFtGRAC5WNdnY_XE2Ah	typescript:S7758	MINOR	packages/shared/src/nav-bookmark-parser.ts	251	true	Prefer `String#codePointAt()` over `String#charCodeAt()`.
+AaFtGRAC5WNdnY_XE2Ai	typescript:S3776	CRITICAL	packages/shared/src/nav-bookmark-parser.ts	290	false	Refactor this function to reduce its Cognitive Complexity from 47 to the 15 allowed.
+AaFtGQ8y5WNdnY_XE16d	typescript:S3776	CRITICAL	worker/modules/reminders/local-push.ts	18	false	Refactor this function to reduce its Cognitive Complexity from 22 to the 15 allowed.
+AaFtGQ8y5WNdnY_XE16j	typescript:S9382	MINOR	worker/modules/reminders/local-push.ts	53	false	Unexpected `await` inside a loop.
+AaFtGQ8y5WNdnY_XE16k	typescript:S9382	MINOR	worker/modules/reminders/local-push.ts	56	false	Unexpected `await` inside a loop.
+AaFtGQ-S5WNdnY_XE18W	typescript:S6759	MINOR	apps/web/src/app/local/GlobalSearch.tsx	11	true	Mark the props of the component as read-only.
+AaFtGQ-S5WNdnY_XE18X	typescript:S6847	MAJOR	apps/web/src/app/local/GlobalSearch.tsx	32	false	Non-interactive elements should not be assigned mouse or keyboard event listeners.
+AaFtGQ-S5WNdnY_XE18Y	typescript:S7753	MINOR	apps/web/src/app/local/GlobalSearch.tsx	36	false	Use `.indexOf()` instead of `.findIndex()` when looking for the index of an item.
+AaFtGQ-S5WNdnY_XE18Z	typescript:S6819	MAJOR	apps/web/src/app/local/GlobalSearch.tsx	40	false	Use <details>, <fieldset>, <optgroup>, or <address> instead of the "group" role to ensure accessibility across all devices.
+AaFtGQ-e5WNdnY_XE18u	typescript:S2681	MAJOR	apps/web/src/app/local/LocalApp.tsx	102	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ-e5WNdnY_XE184	typescript:S3358	MAJOR	apps/web/src/app/local/LocalApp.tsx	214	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ-95WNdnY_XE1-L	css:S9423	MAJOR	apps/web/src/app/local/unified-search.css	56	false	Remove this "!important" and resolve the specificity conflict instead.
+AaFtGQ-95WNdnY_XE1-M	css:S9423	MAJOR	apps/web/src/app/local/unified-search.css	56	false	Remove this "!important" and resolve the specificity conflict instead.
+AaFtGQ8X5WNdnY_XE15t	typescript:S9382	MINOR	worker/modules/events/calendar-feed.ts	328	false	Unexpected `await` inside a loop.
+AaFtGQ-I5WNdnY_XE18I	typescript:S6847	MAJOR	apps/web/src/app/local/LocalModuleOverlay.tsx	121	false	Non-interactive elements should not be assigned mouse or keyboard event listeners.
+AaFtGQ-I5WNdnY_XE18J	typescript:S1082	MINOR	apps/web/src/app/local/LocalModuleOverlay.tsx	121	false	Visible, non-interactive elements with click handlers must have at least one keyboard listener.
+AaFtGQ_W5WNdnY_XE1_N	typescript:S6443	MAJOR	apps/web/src/app/fish/FishingBoard.tsx	307	false	Change the argument of this setter to not use its matching state variable
+AaFtGQ_W5WNdnY_XE1_b	typescript:S6819	MAJOR	apps/web/src/app/fish/FishingBoard.tsx	371	false	Use <details>, <fieldset>, <optgroup>, or <address> instead of the "group" role to ensure accessibility across all devices.
+AaFtGQ_W5WNdnY_XE1_c	typescript:S6819	MAJOR	apps/web/src/app/fish/FishingBoard.tsx	375	false	Use <details>, <fieldset>, <optgroup>, or <address> instead of the "group" role to ensure accessibility across all devices.
+AaFtGQ_W5WNdnY_XE1_d	typescript:S6819	MAJOR	apps/web/src/app/fish/FishingBoard.tsx	378	false	Use <details>, <fieldset>, <optgroup>, or <address> instead of the "group" role to ensure accessibility across all devices.
+AaFtGQ_W5WNdnY_XE1_-	typescript:S3358	MAJOR	apps/web/src/app/fish/FishingBoard.tsx	426	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ_W5WNdnY_XE1_8	typescript:S3358	MAJOR	apps/web/src/app/fish/FishingBoard.tsx	426	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ_W5WNdnY_XE1_9	typescript:S3358	MAJOR	apps/web/src/app/fish/FishingBoard.tsx	426	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ_W5WNdnY_XE1__	typescript:S3358	MAJOR	apps/web/src/app/fish/FishingBoard.tsx	426	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ_W5WNdnY_XE2AA	typescript:S3358	MAJOR	apps/web/src/app/fish/FishingBoard.tsx	426	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ_W5WNdnY_XE1_q	typescript:S3776	CRITICAL	apps/web/src/app/fish/FishingBoard.tsx	399	false	Refactor this function to reduce its Cognitive Complexity from 25 to the 15 allowed.
+AaFtGQ_W5WNdnY_XE1_r	typescript:S3358	MAJOR	apps/web/src/app/fish/FishingBoard.tsx	402	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ_W5WNdnY_XE1_7	typescript:S3358	MAJOR	apps/web/src/app/fish/FishingBoard.tsx	418	false	Extract this nested ternary operation into an independent statement.
+AaFtGRBM5WNdnY_XE2CQ	javascript:S2681	MAJOR	scripts/audit-fishing-cross-sources.mjs	48	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGRBM5WNdnY_XE2CV	javascript:S878	MAJOR	scripts/audit-fishing-cross-sources.mjs	65	false	Unexpected use of comma operator.
+AaFtGRBB5WNdnY_XE2By	javascript:S3776	CRITICAL	scripts/lib/fishing-audit-summary.mjs	3	false	Refactor this function to reduce its Cognitive Complexity from 23 to the 15 allowed.
+AaFtGRAy5WNdnY_XE2BE	javascript:S3776	CRITICAL	scripts/lib/fishing-corrections.mjs	6	false	Refactor this function to reduce its Cognitive Complexity from 140 to the 15 allowed.
+AaFtGRAy5WNdnY_XE2BF	javascript:S7723	MINOR	scripts/lib/fishing-corrections.mjs	63	false	Use `new Error()` instead of `Error()`.
+AaFtGRAy5WNdnY_XE2BG	javascript:S7723	MINOR	scripts/lib/fishing-corrections.mjs	69	false	Use `new Error()` instead of `Error()`.
+AaFtGRA-5WNdnY_XE2Ba	javascript:S7723	MINOR	scripts/lib/fishing-crosscheck.mjs	120	false	Use `new Error()` instead of `Error()`.
+AaFtGRA-5WNdnY_XE2Bc	javascript:S3776	CRITICAL	scripts/lib/fishing-crosscheck.mjs	123	false	Refactor this function to reduce its Cognitive Complexity from 211 to the 15 allowed.
+AaFtGRA-5WNdnY_XE2Bd	javascript:S7778	MINOR	scripts/lib/fishing-crosscheck.mjs	134	false	Merge these Array#push() calls into a single call with multiple arguments.
+AaFtGRA-5WNdnY_XE2Bl	javascript:S7750	MINOR	scripts/lib/fishing-crosscheck.mjs	147	false	Prefer `.find(…)` over `.filter(…)`.
+AaFtGRA-5WNdnY_XE2Bm	javascript:S2681	MAJOR	scripts/lib/fishing-crosscheck.mjs	154	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGRA-5WNdnY_XE2Bn	javascript:S2681	MAJOR	scripts/lib/fishing-crosscheck.mjs	154	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGRA25WNdnY_XE2BI	javascript:S3776	CRITICAL	scripts/lib/fishing-special-content.mjs	12	false	Refactor this function to reduce its Cognitive Complexity from 51 to the 15 allowed.
+AaFtGRA55WNdnY_XE2BP	javascript:S3776	CRITICAL	scripts/lib/fish-intuition-audit.mjs	19	false	Refactor this function to reduce its Cognitive Complexity from 22 to the 15 allowed.
+AaFtGRA55WNdnY_XE2BT	javascript:S7776	MINOR	scripts/lib/fish-intuition-audit.mjs	46	false	`previous` should be a `Set`, and use `previous.has()` to check existence or non-existence.
+AaFtGRA55WNdnY_XE2BU	javascript:S6557	MAJOR	scripts/lib/fish-intuition-audit.mjs	47	false	Use 'String#startsWith' method instead.
+AaFtGQ-e5WNdnY_XE18r	typescript:S3358	MAJOR	apps/web/src/app/local/LocalApp.tsx	61	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ-e5WNdnY_XE186	typescript:S3358	MAJOR	apps/web/src/app/local/LocalApp.tsx	236	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ-p5WNdnY_XE19i	typescript:S3776	CRITICAL	apps/web/src/app/local/RemoteSyncPanel.tsx	9	true	Refactor this function to reduce its Cognitive Complexity from 27 to the 15 allowed.
+AaFtGQ-p5WNdnY_XE19l	typescript:S3358	MAJOR	apps/web/src/app/local/RemoteSyncPanel.tsx	19	true	Extract this nested ternary operation into an independent statement.
+AaFtGQ-p5WNdnY_XE19m	typescript:S3358	MAJOR	apps/web/src/app/local/RemoteSyncPanel.tsx	19	true	Extract this nested ternary operation into an independent statement.
+AaFtGQ-p5WNdnY_XE19n	typescript:S3358	MAJOR	apps/web/src/app/local/RemoteSyncPanel.tsx	24	true	Extract this nested ternary operation into an independent statement.
+AaFtGQ-p5WNdnY_XE19o	typescript:S3358	MAJOR	apps/web/src/app/local/RemoteSyncPanel.tsx	24	true	Extract this nested ternary operation into an independent statement.
+AaFtGQ-m5WNdnY_XE19f	typescript:S1121	MAJOR	apps/web/src/app/local/public-resources.ts	8	false	Extract the assignment of "pending" from this expression.
+AaFtGQ-P5WNdnY_XE18U	typescript:S4043	MAJOR	apps/web/src/app/local/today-plan.ts	18	false	Move this array "sort" operation to a separate statement or replace it with "toSorted".
+AaFtGRBO5WNdnY_XE2CW	javascript:S9382	MINOR	scripts/audit-fish-intuition.mjs	22	false	Unexpected `await` inside a loop.
+AaFtGRBO5WNdnY_XE2CZ	javascript:S9382	MINOR	scripts/audit-fish-intuition.mjs	35	false	Unexpected `await` inside a loop.
+AaFtGRAs5WNdnY_XE2BC	jssecurity:S8705	MAJOR	scripts/ops/release-worker.mjs	22	false	Command Argument Injection via faulty LLM-supplied CLI arguments
+AaFtGRAs5WNdnY_XE2BA	javascript:S9382	MINOR	scripts/ops/release-worker.mjs	37	false	Unexpected `await` inside a loop.
+AaFtGRAs5WNdnY_XE2BB	javascript:S9382	MINOR	scripts/ops/release-worker.mjs	37	false	Unexpected `await` inside a loop.
+AaFtGQ_W5WNdnY_XE1_P	typescript:S6819	MAJOR	apps/web/src/app/fish/FishingBoard.tsx	320	false	Use <details>, <fieldset>, <optgroup>, or <address> instead of the "group" role to ensure accessibility across all devices.
+AaFtGQ_g5WNdnY_XE2AH	typescript:S6819	MAJOR	apps/web/src/app/shell/HomeOfficialEvents.tsx	150	false	Use <details>, <fieldset>, <optgroup>, or <address> instead of the "group" role to ensure accessibility across all devices.
+AaFtGQ_g5WNdnY_XE2AK	typescript:S6845	MAJOR	apps/web/src/app/shell/HomeOfficialEvents.tsx	167	false	`tabIndex` should only be declared on interactive elements.
+AaFtGQ_Q5WNdnY_XE1-2	typescript:S6759	MINOR	apps/web/src/app/fish/FishReminderPanel.tsx	8	true	Mark the props of the component as read-only.
+AaFtGQ_Q5WNdnY_XE1-3	typescript:S2681	MAJOR	apps/web/src/app/fish/FishReminderPanel.tsx	14	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ_Q5WNdnY_XE1-4	typescript:S6582	MINOR	apps/web/src/app/fish/FishReminderPanel.tsx	31	false	Prefer using an optional chain expression instead, as it's more concise and easier to read.
+AaFtGQ_W5WNdnY_XE1_F	typescript:S3776	CRITICAL	apps/web/src/app/fish/FishingBoard.tsx	269	false	Refactor this function to reduce its Cognitive Complexity from 32 to the 15 allowed.
+AaFtGQ_W5WNdnY_XE1_G	typescript:S3358	MAJOR	apps/web/src/app/fish/FishingBoard.tsx	283	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ_W5WNdnY_XE1_H	typescript:S3358	MAJOR	apps/web/src/app/fish/FishingBoard.tsx	283	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ_W5WNdnY_XE1_I	typescript:S3358	MAJOR	apps/web/src/app/fish/FishingBoard.tsx	283	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ_W5WNdnY_XE1_J	typescript:S3358	MAJOR	apps/web/src/app/fish/FishingBoard.tsx	283	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ_W5WNdnY_XE1_K	typescript:S2681	MAJOR	apps/web/src/app/fish/FishingBoard.tsx	286	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ_W5WNdnY_XE1_M	typescript:S2681	MAJOR	apps/web/src/app/fish/FishingBoard.tsx	299	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ_W5WNdnY_XE1_a	typescript:S3358	MAJOR	apps/web/src/app/fish/FishingBoard.tsx	369	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ-e5WNdnY_XE18s	typescript:S2681	MAJOR	apps/web/src/app/local/LocalApp.tsx	69	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ-F5WNdnY_XE176	typescript:S3776	CRITICAL	apps/web/src/app/local/local-notifications.ts	17	false	Refactor this function to reduce its Cognitive Complexity from 51 to the 15 allowed.
+AaFtGQ-F5WNdnY_XE178	typescript:S7749	MINOR	apps/web/src/app/local/local-notifications.ts	20	false	Invalid group length in numeric value.
+AaFtGQ-F5WNdnY_XE179	typescript:S7749	MINOR	apps/web/src/app/local/local-notifications.ts	22	false	Invalid group length in numeric value.
+AaFtGQ-F5WNdnY_XE18H	typescript:S9382	MINOR	apps/web/src/app/local/local-notifications.ts	78	false	Unexpected `await` inside a loop.
+AaFtGQ_W5WNdnY_XE1-7	typescript:S6759	MINOR	apps/web/src/app/fish/FishingBoard.tsx	17	true	Mark the props of the component as read-only.
+AaFtGQ_y5WNdnY_XE2AM	javascript:S1481	MINOR	apps/web/public/fishcake-sync.user.js	74	false	Remove unused function 'loadFishcakeAdapter'.
+AaFtGQ_y5WNdnY_XE2AN	javascript:S7776	MINOR	apps/web/public/fishcake-sync.user.js	93	false	`allowedHub` should be a `Set`, and use `allowedHub.has()` to check existence or non-existence.
+AaFtGQ_y5WNdnY_XE2AO	javascript:S3776	CRITICAL	apps/web/public/fishcake-sync.user.js	104	false	Refactor this function to reduce its Cognitive Complexity from 20 to the 15 allowed.
+AaFtGQ_y5WNdnY_XE2AP	javascript:S2681	MAJOR	apps/web/public/fishcake-sync.user.js	126	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ-U5WNdnY_XE18c	typescript:S3776	CRITICAL	apps/web/src/app/local/FishcakeSyncPanel.tsx	6	true	Refactor this function to reduce its Cognitive Complexity from 18 to the 15 allowed.
+AaFtGQ-U5WNdnY_XE18d	typescript:S6759	MINOR	apps/web/src/app/local/FishcakeSyncPanel.tsx	6	true	Mark the props of the component as read-only.
+AaFtGQ-U5WNdnY_XE18h	typescript:S2681	MAJOR	apps/web/src/app/local/FishcakeSyncPanel.tsx	31	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ-z5WNdnY_XE193	typescript:S6582	MINOR	apps/web/src/app/local/fishcake-sync.ts	18	false	Prefer using an optional chain expression instead, as it's more concise and easier to read.
+AaFtGQ-z5WNdnY_XE194	typescript:S3358	MAJOR	apps/web/src/app/local/fishcake-sync.ts	44	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ-z5WNdnY_XE195	typescript:S3358	MAJOR	apps/web/src/app/local/fishcake-sync.ts	44	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ-z5WNdnY_XE196	typescript:S9382	MINOR	apps/web/src/app/local/fishcake-sync.ts	49	false	Unexpected `await` inside a loop.
+AaFtGQ-z5WNdnY_XE197	typescript:S9382	MINOR	apps/web/src/app/local/fishcake-sync.ts	49	false	Unexpected `await` inside a loop.
+AaFtGQ-z5WNdnY_XE198	typescript:S2681	MAJOR	apps/web/src/app/local/fishcake-sync.ts	111	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGRAU5WNdnY_XE2Ao	typescript:S2681	MAJOR	packages/fish-engine/src/index.ts	150	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGRBJ5WNdnY_XE2CA	javascript:S9382	MINOR	scripts/build-fishing-catalog.mjs	50	false	Unexpected `await` inside a loop.
+AaFtGRBJ5WNdnY_XE2CE	javascript:S6582	MINOR	scripts/build-fishing-catalog.mjs	99	false	Prefer using an optional chain expression instead, as it's more concise and easier to read.
+AaFtGRAe5WNdnY_XE2Aq	javascript:S7776	MINOR	scripts/userscripts/fishcake-runtime.js	2	false	`allowedHub` should be a `Set`, and use `allowedHub.has()` to check existence or non-existence.
+AaFtGRAe5WNdnY_XE2Ar	javascript:S3776	CRITICAL	scripts/userscripts/fishcake-runtime.js	13	false	Refactor this function to reduce its Cognitive Complexity from 20 to the 15 allowed.
+AaFtGRAe5WNdnY_XE2Au	javascript:S2681	MAJOR	scripts/userscripts/fishcake-runtime.js	35	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGRAe5WNdnY_XE2Av	javascript:S7785	MAJOR	scripts/userscripts/fishcake-runtime.js	77	false	Prefer top-level await over using a promise chain.
+AaFtGQ9M5WNdnY_XE16s	kotlin:S3776	CRITICAL	apps/android/app/src/main/java/uk/zhixia/ff14hub/widgets/widgets/PvpWidgetRenderer.kt	64	false	Refactor this method to reduce its Cognitive Complexity from 19 to the 15 allowed.
+AaFtGQ9a5WNdnY_XE162	kotlin:S3776	CRITICAL	apps/android/app/src/test/java/uk/zhixia/ff14hub/widgets/widgets/PvpWidgetLayoutTest.kt	63	false	Refactor this method to reduce its Cognitive Complexity from 46 to the 15 allowed.
+AaFtGQ9X5WNdnY_XE16w	xml:S5322	CRITICAL	apps/android/app/src/main/AndroidManifest.xml	12	false	Make sure that intents are received safely here.
+AaFtGQ9X5WNdnY_XE16x	xml:S5322	CRITICAL	apps/android/app/src/main/AndroidManifest.xml	16	false	Make sure that intents are received safely here.
+AaFtGQ9X5WNdnY_XE16y	xml:S5322	CRITICAL	apps/android/app/src/main/AndroidManifest.xml	20	false	Make sure that intents are received safely here.
+AaFtGQ9d5WNdnY_XE163	kotlin:S6624	MAJOR	apps/android/app/build.gradle.kts	32	false	Do not hardcode version numbers.
+AaFtGQ9d5WNdnY_XE164	kotlin:S6624	MAJOR	apps/android/app/build.gradle.kts	33	false	Do not hardcode version numbers.
+AaFtGQ9d5WNdnY_XE165	kotlin:S6624	MAJOR	apps/android/app/build.gradle.kts	34	false	Do not hardcode version numbers.
+AaFtGQ9X5WNdnY_XE16z	xml:S5322	CRITICAL	apps/android/app/src/main/AndroidManifest.xml	24	false	Make sure that intents are received safely here.
+AaFtGQ9X5WNdnY_XE160	xml:S5322	CRITICAL	apps/android/app/src/main/AndroidManifest.xml	28	false	Make sure that intents are received safely here.
+AaFtGQ9X5WNdnY_XE161	xml:S5322	CRITICAL	apps/android/app/src/main/AndroidManifest.xml	40	false	Make sure that intents are received safely here.
+AaFtGQ9P5WNdnY_XE16t	kotlin:S1874	MINOR	apps/android/app/src/main/java/uk/zhixia/ff14hub/widgets/FishCatalogSearch.kt	17	false	Deprecated code should not be used.
+AaFtGQ9S5WNdnY_XE16u	kotlin:S3776	CRITICAL	apps/android/app/src/main/java/uk/zhixia/ff14hub/widgets/MainActivity.kt	28	false	Refactor this method to reduce its Cognitive Complexity from 45 to the 15 allowed.
+AaFtGQ9U5WNdnY_XE16v	kotlin:S1874	MINOR	apps/android/app/src/main/java/uk/zhixia/ff14hub/widgets/WidgetData.kt	109	false	Deprecated code should not be used.
+AaFtGQ9g5WNdnY_XE166	text:S8569	MAJOR	apps/android/build.gradle.kts		false	Dependency versions are not predictable if the lock file (gradle.lockfile or gradle/verification-metadata.xml) is missing.
+AaFtGQ-15WNdnY_XE199	typescript:S6759	MINOR	apps/web/src/app/local/DataManagementPanel.tsx	16	true	Mark the props of the component as read-only.
+AaFtGQ-15WNdnY_XE19_	typescript:S3358	MAJOR	apps/web/src/app/local/DataManagementPanel.tsx	27	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ-15WNdnY_XE1-B	typescript:S2681	MAJOR	apps/web/src/app/local/DataManagementPanel.tsx	42	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ-15WNdnY_XE1-C	typescript:S2681	MAJOR	apps/web/src/app/local/DataManagementPanel.tsx	56	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ_A5WNdnY_XE1-N	typescript:S6759	MINOR	apps/web/src/app/local/LocalSettings.tsx	15	true	Mark the props of the component as read-only.
+AaFtGQ-F5WNdnY_XE17_	typescript:S9382	MINOR	apps/web/src/app/local/local-notifications.ts	29	false	Unexpected `await` inside a loop.
+AaFtGQ-F5WNdnY_XE18E	typescript:S6582	MINOR	apps/web/src/app/local/local-notifications.ts	62	false	Prefer using an optional chain expression instead, as it's more concise and easier to read.
+AaFtGRBV5WNdnY_XE2Cp	javascript:S9382	MINOR	scripts/e2e-local-personal.mjs	57	false	Unexpected `await` inside a loop.
+AaFtGRBV5WNdnY_XE2Cs	javascript:S9382	MINOR	scripts/e2e-local-personal.mjs	86	false	Unexpected `await` inside a loop.
+AaFtGRBR5WNdnY_XE2Cb	javascript:S9382	MINOR	scripts/e2e-navigation.mjs	50	false	Unexpected `await` inside a loop.
+AaFtGQ-r5WNdnY_XE19q	typescript:S6759	MINOR	apps/web/src/app/local/LocalNotificationPanel.tsx	6	true	Mark the props of the component as read-only.
+AaFtGQ-r5WNdnY_XE19r	typescript:S2681	MAJOR	apps/web/src/app/local/LocalNotificationPanel.tsx	13	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ-r5WNdnY_XE19t	typescript:S3358	MAJOR	apps/web/src/app/local/LocalNotificationPanel.tsx	25	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ-r5WNdnY_XE19v	typescript:S2681	MAJOR	apps/web/src/app/local/LocalNotificationPanel.tsx	48	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ-r5WNdnY_XE19w	typescript:S2681	MAJOR	apps/web/src/app/local/LocalNotificationPanel.tsx	48	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ-p5WNdnY_XE19j	typescript:S6759	MINOR	apps/web/src/app/local/RemoteSyncPanel.tsx	9	true	Mark the props of the component as read-only.
+AaFtGQ-F5WNdnY_XE18A	typescript:S4043	MAJOR	apps/web/src/app/local/local-notifications.ts	34	false	Move this array "sort" operation to a separate statement or replace it with "toSorted".
+AaFtGQ-F5WNdnY_XE18B	typescript:S3358	MAJOR	apps/web/src/app/local/local-notifications.ts	39	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ-F5WNdnY_XE18D	typescript:S6582	MINOR	apps/web/src/app/local/local-notifications.ts	58	false	Prefer using an optional chain expression instead, as it's more concise and easier to read.
+AaFtGQ-F5WNdnY_XE18F	typescript:S7749	MINOR	apps/web/src/app/local/local-notifications.ts	70	false	Invalid group length in numeric value.
+AaFtGQ-F5WNdnY_XE18G	typescript:S9382	MINOR	apps/web/src/app/local/local-notifications.ts	77	false	Unexpected `await` inside a loop.
+AaFtGQ-L5WNdnY_XE18L	typescript:S9382	MINOR	apps/web/src/app/local/remote-sync.ts	40	false	Unexpected `await` inside a loop.
+AaFtGQ-L5WNdnY_XE18N	typescript:S7758	MINOR	apps/web/src/app/local/remote-sync.ts	53	true	Prefer `String.fromCodePoint()` over `String.fromCharCode()`.
+AaFtGQ-L5WNdnY_XE18O	typescript:S2681	MAJOR	apps/web/src/app/local/remote-sync.ts	66	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ-L5WNdnY_XE18P	typescript:S9382	MINOR	apps/web/src/app/local/remote-sync.ts	66	false	Unexpected `await` inside a loop.
+AaFtGQ-L5WNdnY_XE18Q	typescript:S3776	CRITICAL	apps/web/src/app/local/remote-sync.ts	94	false	Refactor this function to reduce its Cognitive Complexity from 30 to the 15 allowed.
+AaFtGQ-L5WNdnY_XE18R	typescript:S2681	MAJOR	apps/web/src/app/local/remote-sync.ts	119	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ-45WNdnY_XE1-D	typescript:S1121	MAJOR	apps/web/src/app/local/secure-storage.ts	4	false	Extract the assignment of "opening" from this expression.
+AaFtGRAO5WNdnY_XE2Am	typescript:S6353	MINOR	packages/shared/src/local-notifications.ts	9	false	Use concise character class syntax '\d' instead of '[0-9]'.
+AaFtGRAO5WNdnY_XE2An	typescript:S6353	MINOR	packages/shared/src/local-notifications.ts	9	false	Use concise character class syntax '\d' instead of '[0-9]'.
+AaFtGQ885WNdnY_XE16n	typescript:S7749	MINOR	worker/api/v1/local-notifications.ts	37	false	Invalid group length in numeric value.
+AaFtGQ8w5WNdnY_XE16P	typescript:S3776	CRITICAL	worker/modules/reminders/fish-digest.ts	60	false	Refactor this function to reduce its Cognitive Complexity from 27 to the 15 allowed.
+AaFtGQ8w5WNdnY_XE16Q	typescript:S9382	MINOR	worker/modules/reminders/fish-digest.ts	70	false	Unexpected `await` inside a loop.
+AaFtGQ8w5WNdnY_XE16R	typescript:S9382	MINOR	worker/modules/reminders/fish-digest.ts	72	false	Unexpected `await` inside a loop.
+AaFtGQ8w5WNdnY_XE16T	typescript:S9382	MINOR	worker/modules/reminders/fish-digest.ts	79	false	Unexpected `await` inside a loop.
+AaFtGQ8w5WNdnY_XE16U	typescript:S9382	MINOR	worker/modules/reminders/fish-digest.ts	80	false	Unexpected `await` inside a loop.
+AaFtGQ8w5WNdnY_XE16V	typescript:S9382	MINOR	worker/modules/reminders/fish-digest.ts	80	false	Unexpected `await` inside a loop.
+AaFtGQ8w5WNdnY_XE16W	typescript:S9382	MINOR	worker/modules/reminders/fish-digest.ts	81	false	Unexpected `await` inside a loop.
+AaFtGQ8w5WNdnY_XE16X	typescript:S9382	MINOR	worker/modules/reminders/fish-digest.ts	84	false	Unexpected `await` inside a loop.
+AaFtGQ8w5WNdnY_XE16Y	typescript:S9382	MINOR	worker/modules/reminders/fish-digest.ts	86	false	Unexpected `await` inside a loop.
+AaFtGQ8y5WNdnY_XE16c	typescript:S7749	MINOR	worker/modules/reminders/local-push.ts	13	false	Invalid group length in numeric value.
+AaFtGQ8y5WNdnY_XE16e	typescript:S9382	MINOR	worker/modules/reminders/local-push.ts	28	false	Unexpected `await` inside a loop.
+AaFtGQ8y5WNdnY_XE16f	typescript:S9382	MINOR	worker/modules/reminders/local-push.ts	32	false	Unexpected `await` inside a loop.
+AaFtGQ8y5WNdnY_XE16g	typescript:S9382	MINOR	worker/modules/reminders/local-push.ts	39	false	Unexpected `await` inside a loop.
+AaFtGQ8y5WNdnY_XE16h	typescript:S9382	MINOR	worker/modules/reminders/local-push.ts	40	false	Unexpected `await` inside a loop.
+AaFtGQ8y5WNdnY_XE16l	typescript:S7749	MINOR	worker/modules/reminders/local-push.ts	65	false	Invalid group length in numeric value.
+AaFtGQ8t5WNdnY_XE16F	typescript:S7758	MINOR	worker/modules/reminders/notification-channel.ts	6	true	Prefer `String.fromCodePoint()` over `String.fromCharCode()`.
+AaFtGQ8t5WNdnY_XE16G	typescript:S7758	MINOR	worker/modules/reminders/notification-channel.ts	14	true	Prefer `String#codePointAt()` over `String#charCodeAt()`.
+AaFtGQ8t5WNdnY_XE16H	typescript:S3776	CRITICAL	worker/modules/reminders/notification-channel.ts	18	false	Refactor this function to reduce its Cognitive Complexity from 21 to the 15 allowed.
+AaFtGQ-u5WNdnY_XE191	css:S9423	MAJOR	apps/web/src/app/local/field-guide.css	232	false	Remove this "!important" and resolve the specificity conflict instead.
+AaFtGRAF5WNdnY_XE2Aj	typescript:S7747	MINOR	packages/shared/src/nav-directory.ts	8	false	`for…of` can iterate over iterable, it's unnecessary to convert to an array.
+AaFtGRBR5WNdnY_XE2Ca	javascript:S9382	MINOR	scripts/e2e-navigation.mjs	30	false	Unexpected `await` inside a loop.
+AaFtGRBR5WNdnY_XE2Cc	javascript:S9382	MINOR	scripts/e2e-navigation.mjs	93	false	Unexpected `await` inside a loop.
+AaFtGRBR5WNdnY_XE2Cd	javascript:S9382	MINOR	scripts/e2e-navigation.mjs	93	false	Unexpected `await` inside a loop.
+AaFtGRBR5WNdnY_XE2Ce	javascript:S9382	MINOR	scripts/e2e-navigation.mjs	94	false	Unexpected `await` inside a loop.
+AaFtGRBR5WNdnY_XE2Cf	javascript:S9382	MINOR	scripts/e2e-navigation.mjs	94	false	Unexpected `await` inside a loop.
+AaFtGRBR5WNdnY_XE2Cg	javascript:S9382	MINOR	scripts/e2e-navigation.mjs	95	false	Unexpected `await` inside a loop.
+AaFtGRBR5WNdnY_XE2Ch	javascript:S9382	MINOR	scripts/e2e-navigation.mjs	95	false	Unexpected `await` inside a loop.
+AaFtGRBR5WNdnY_XE2Ci	javascript:S9382	MINOR	scripts/e2e-navigation.mjs	96	false	Unexpected `await` inside a loop.
+AaFtGRBR5WNdnY_XE2Cj	javascript:S4036	MINOR	scripts/e2e-navigation.mjs	110	false	Make sure the "PATH" variable only contains fixed, unwriteable directories.
+AaFtGRBG5WNdnY_XE2B1	javascript:S8786	MAJOR	scripts/import-navigation.mjs	15	true	Simplify this regular expression to reduce its runtime, as it has super-linear performance due to backtracking.
+AaFtGRBG5WNdnY_XE2B2	javascript:S7773	MINOR	scripts/import-navigation.mjs	15	false	Prefer `Number.parseInt` over `parseInt`.
+AaFtGRBG5WNdnY_XE2B3	javascript:S7781	MINOR	scripts/import-navigation.mjs	15	false	Use `replaceAll()` with a string literal instead of this global regex.
+AaFtGRBG5WNdnY_XE2B4	javascript:S7781	MINOR	scripts/import-navigation.mjs	15	false	Use `replaceAll()` with a string literal instead of this global regex.
+AaFtGRBG5WNdnY_XE2B5	javascript:S7781	MINOR	scripts/import-navigation.mjs	15	false	Use `replaceAll()` with a string literal instead of this global regex.
+AaFtGRBG5WNdnY_XE2B6	javascript:S9382	MINOR	scripts/import-navigation.mjs	18	false	Unexpected `await` inside a loop.
+AaFtGRBG5WNdnY_XE2B7	javascript:S7747	MINOR	scripts/import-navigation.mjs	59	false	`for…of` can iterate over iterable, it's unnecessary to convert to an array.
+AaFtGRBG5WNdnY_XE2B_	javascript:S9382	MINOR	scripts/import-navigation.mjs	125	false	Unexpected `await` inside a loop.
+AaFtGQ_I5WNdnY_XE1-n	typescript:S6759	MINOR	apps/web/src/app/local/LocalLinkEditor.tsx	9	true	Mark the props of the component as read-only.
+AaFtGQ_I5WNdnY_XE1-o	typescript:S6772	MAJOR	apps/web/src/app/local/LocalLinkEditor.tsx	58	false	Ambiguous spacing before next element input
+AaFtGQ_I5WNdnY_XE1-p	typescript:S6772	MAJOR	apps/web/src/app/local/LocalLinkEditor.tsx	61	false	Ambiguous spacing before next element input
+AaFtGQ_I5WNdnY_XE1-q	typescript:S6772	MAJOR	apps/web/src/app/local/LocalLinkEditor.tsx	64	false	Ambiguous spacing before next element textarea
+AaFtGQ_A5WNdnY_XE1-R	typescript:S6772	MAJOR	apps/web/src/app/local/LocalSettings.tsx	76	false	Ambiguous spacing before next element input
+AaFtGQ_A5WNdnY_XE1-S	typescript:S6772	MAJOR	apps/web/src/app/local/LocalSettings.tsx	79	false	Ambiguous spacing before next element input
+AaFtGQ_A5WNdnY_XE1-T	typescript:S6772	MAJOR	apps/web/src/app/local/LocalSettings.tsx	84	false	Ambiguous spacing before next element input
+AaFtGQ_A5WNdnY_XE1-U	typescript:S6772	MAJOR	apps/web/src/app/local/LocalSettings.tsx	87	false	Ambiguous spacing before next element textarea
+AaFtGQ_A5WNdnY_XE1-V	typescript:S9382	MINOR	apps/web/src/app/local/LocalSettings.tsx	112	false	Unexpected `await` inside a loop.
+AaFtGQ_A5WNdnY_XE1-W	typescript:S9382	MINOR	apps/web/src/app/local/LocalSettings.tsx	114	false	Unexpected `await` inside a loop.
+AaFtGQ9D5WNdnY_XE16r	typescript:S3863	MINOR	worker/api/v1/navigation.ts	15	false	'../../lib/response' imported multiple times.
+AaFtGQ8q5WNdnY_XE157	typescript:S7773	MINOR	worker/modules/nav/metadata.ts	40	false	Prefer `Number.parseInt` over `parseInt`.
+AaFtGQ8q5WNdnY_XE158	typescript:S7773	MINOR	worker/modules/nav/metadata.ts	40	false	Prefer `Number.parseInt` over `parseInt`.
+AaFtGQ8q5WNdnY_XE16B	typescript:S6594	MINOR	worker/modules/nav/metadata.ts	98	false	Use the "RegExp.exec()" method instead.
+AaFtGQ8q5WNdnY_XE16D	typescript:S9382	MINOR	worker/modules/nav/metadata.ts	167	false	Unexpected `await` inside a loop.
+AaFtGQ-75WNdnY_XE1-J	css:S9423	MAJOR	apps/web/src/app/local/modern-ui.css	146	false	Remove this "!important" and resolve the specificity conflict instead.
+AaFtGQ-75WNdnY_XE1-F	css:S7924	MAJOR	apps/web/src/app/local/modern-ui.css	172	false	Text does not meet the minimal contrast requirement with its background.
+AaFtGQ-75WNdnY_XE1-G	css:S7924	MAJOR	apps/web/src/app/local/modern-ui.css	177	false	Text does not meet the minimal contrast requirement with its background.
+AaFtGQ-75WNdnY_XE1-H	css:S7924	MAJOR	apps/web/src/app/local/modern-ui.css	204	false	Text does not meet the minimal contrast requirement with its background.
+AaFtGQ-75WNdnY_XE1-I	css:S7924	MAJOR	apps/web/src/app/local/modern-ui.css	212	false	Text does not meet the minimal contrast requirement with its background.
+AaFtGQ-75WNdnY_XE1-K	css:S9423	MAJOR	apps/web/src/app/local/modern-ui.css	254	false	Remove this "!important" and resolve the specificity conflict instead.
+AaFtGQ-e5WNdnY_XE18x	typescript:S3358	MAJOR	apps/web/src/app/local/LocalApp.tsx	175	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ_W5WNdnY_XE1-8	typescript:S6759	MINOR	apps/web/src/app/fish/FishingBoard.tsx	125	true	Mark the props of the component as read-only.
+AaFtGQ_L5WNdnY_XE1-0	css:S9423	MAJOR	apps/web/src/app/fish/fishing-board.css	18	false	Remove this "!important" and resolve the specificity conflict instead.
+AaFtGQ_L5WNdnY_XE1-z	css:S9423	MAJOR	apps/web/src/app/fish/fishing-board.css	18	false	Remove this "!important" and resolve the specificity conflict instead.
+AaFtGQ_A5WNdnY_XE1-O	typescript:S2681	MAJOR	apps/web/src/app/local/LocalSettings.tsx	26	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGQ_A5WNdnY_XE1-P	typescript:S3358	MAJOR	apps/web/src/app/local/LocalSettings.tsx	27	false	Extract this nested ternary operation into an independent statement.
+AaFtGQ_G5WNdnY_XE1-l	typescript:S2681	MAJOR	apps/web/src/app/local/store.ts	94	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFtGRBJ5WNdnY_XE2CB	javascript:S9382	MINOR	scripts/build-fishing-catalog.mjs	53	false	Unexpected `await` inside a loop.
+AaFtGRBJ5WNdnY_XE2CG	javascript:S9382	MINOR	scripts/build-fishing-catalog.mjs	115	false	Unexpected `await` inside a loop.
+AaFtGRBV5WNdnY_XE2Cl	javascript:S9382	MINOR	scripts/e2e-local-personal.mjs	51	false	Unexpected `await` inside a loop.
+AaFtGRBV5WNdnY_XE2Cm	javascript:S9382	MINOR	scripts/e2e-local-personal.mjs	51	false	Unexpected `await` inside a loop.
+AaFtGRBV5WNdnY_XE2Cn	javascript:S9382	MINOR	scripts/e2e-local-personal.mjs	51	false	Unexpected `await` inside a loop.
+AaFtGRBV5WNdnY_XE2Co	javascript:S9382	MINOR	scripts/e2e-local-personal.mjs	51	false	Unexpected `await` inside a loop.
+AaFtGRBV5WNdnY_XE2Cq	javascript:S9382	MINOR	scripts/e2e-local-personal.mjs	58	false	Unexpected `await` inside a loop.
+AaFtGRBV5WNdnY_XE2Cr	javascript:S9382	MINOR	scripts/e2e-local-personal.mjs	58	false	Unexpected `await` inside a loop.
+AaFtGRA05WNdnY_XE2BH	javascript:S3776	CRITICAL	scripts/lib/fish-csv.mjs	2	false	Refactor this function to reduce its Cognitive Complexity from 16 to the 15 allowed.
+AaFtGQ9z5WNdnY_XE17e	typescript:S6772	MAJOR	apps/web/src/app/admin/SiteSettingsPanel.tsx	71	false	Ambiguous spacing before next element input
+AaFtGQ9z5WNdnY_XE17f	typescript:S6772	MAJOR	apps/web/src/app/admin/SiteSettingsPanel.tsx	75	false	Ambiguous spacing before next element textarea
+AaFtGQ-A5WNdnY_XE170	typescript:S6772	MAJOR	apps/web/src/app/events/CalendarAdminAccess.tsx	47	false	Ambiguous spacing before next element input
+AaFtGQ-A5WNdnY_XE171	typescript:S6772	MAJOR	apps/web/src/app/events/CalendarAdminAccess.tsx	50	false	Ambiguous spacing before next element input
+AaFtGQ-A5WNdnY_XE172	typescript:S6772	MAJOR	apps/web/src/app/events/CalendarAdminAccess.tsx	53	false	Ambiguous spacing before next element input
+AaFtGQ9-5WNdnY_XE17v	typescript:S3776	CRITICAL	apps/web/src/app/events/CalendarAdminPanel.tsx	143	false	Refactor this function to reduce its Cognitive Complexity from 16 to the 15 allowed.
+AaFtGQ8T5WNdnY_XE15h	typescript:S2068	MAJOR	worker/modules/events/calendar-admin-auth.ts	13	false	Review this potentially hard-coded password.
+AaFtGQ8T5WNdnY_XE15i	typescript:S7773	MINOR	worker/modules/events/calendar-admin-auth.ts	29	false	Prefer `Number.parseInt` over `parseInt`.
+AaFtGQ8T5WNdnY_XE15j	typescript:S7758	MINOR	worker/modules/events/calendar-admin-auth.ts	32	true	Prefer `String.fromCodePoint()` over `String.fromCharCode()`.
+AaFtGQ8T5WNdnY_XE15k	typescript:S7758	MINOR	worker/modules/events/calendar-admin-auth.ts	35	true	Prefer `String#codePointAt()` over `String#charCodeAt()`.
+AaFtGQ8T5WNdnY_XE15l	typescript:S1121	MAJOR	worker/modules/events/calendar-admin-auth.ts	41	false	Extract the assignment of "bits" from this expression.
+AaFtGQ8T5WNdnY_XE15m	typescript:S7755	MINOR	worker/modules/events/calendar-admin-auth.ts	91	false	Prefer `.at(…)` over `[….length - index]`.
+AaFtGQ8T5WNdnY_XE15n	typescript:S7503	MINOR	worker/modules/events/calendar-admin-auth.ts	103	false	Async function 'accountRow' has no 'await' expression.
+AaFtGQ8T5WNdnY_XE15o	typescript:S6582	MINOR	worker/modules/events/calendar-admin-auth.ts	147	false	Prefer using an optional chain expression instead, as it's more concise and easier to read.
+AaFtGRAh5WNdnY_XE2Aw	shell:S6506	MAJOR	scripts/ops/refresh-fish-catalog.sh	25	false	Not enforcing HTTPS here might allow for redirections to insecure websites. Make sure it is safe here.
+AaFtGRAh5WNdnY_XE2Ax	shelldre:S7679	MAJOR	scripts/ops/refresh-fish-catalog.sh	26	false	Assign this positional parameter to a local variable.
+AaFtGRAh5WNdnY_XE2Ay	shelldre:S7679	MAJOR	scripts/ops/refresh-fish-catalog.sh	26	false	Assign this positional parameter to a local variable.
+AaFtGRAh5WNdnY_XE2Az	shelldre:S7679	MAJOR	scripts/ops/refresh-fish-catalog.sh	26	false	Assign this positional parameter to a local variable.
+AaFtGRAh5WNdnY_XE2A1	shelldre:S7679	MAJOR	scripts/ops/refresh-fish-catalog.sh	27	false	Assign this positional parameter to a local variable.
+AaFtGRBD5WNdnY_XE2Bz	javascript:S3776	CRITICAL	scripts/prepare-fish-cn-import.mjs	16	false	Refactor this function to reduce its Cognitive Complexity from 17 to the 15 allowed.
+AaFtGRBD5WNdnY_XE2B0	javascript:S7758	MINOR	scripts/prepare-fish-cn-import.mjs	31	true	Prefer `String#codePointAt()` over `String#charCodeAt()`.
+AaFtGQ965WNdnY_XE17p	typescript:S6772	MAJOR	apps/web/src/app/events/PublicCalendarPage.tsx	142	false	Ambiguous spacing before next element button
+AaFtGQ965WNdnY_XE17r	typescript:S6819	MAJOR	apps/web/src/app/events/PublicCalendarPage.tsx	153	false	Use <details>, <fieldset>, <optgroup>, or <address> instead of the "group" role to ensure accessibility across all devices.
+AaFtGQ965WNdnY_XE17s	typescript:S6772	MAJOR	apps/web/src/app/events/PublicCalendarPage.tsx	158	false	Ambiguous spacing before next element select
+AaFtGQ965WNdnY_XE17t	typescript:S6772	MAJOR	apps/web/src/app/events/PublicCalendarPage.tsx	164	false	Ambiguous spacing before next element input
+AaFtGQ965WNdnY_XE17u	typescript:S6819	MAJOR	apps/web/src/app/events/PublicCalendarPage.tsx	196	false	Use <details>, <fieldset>, <optgroup>, or <address> instead of the "group" role to ensure accessibility across all devices.
+AaFtGQ8k5WNdnY_XE15u	typescript:S7781	MINOR	worker/modules/events/calendar-ics.ts	8	false	Use `replaceAll()` with a string literal instead of this global regex.
+AaFtGQ8k5WNdnY_XE15v	typescript:S7780	MINOR	worker/modules/events/calendar-ics.ts	8	false	`String.raw` should be used to avoid escaping `\`.
+AaFtGQ8k5WNdnY_XE15w	typescript:S7781	MINOR	worker/modules/events/calendar-ics.ts	9	false	Use `replaceAll()` with a string literal instead of this global regex.
+AaFtGQ8k5WNdnY_XE15x	typescript:S7780	MINOR	worker/modules/events/calendar-ics.ts	9	false	`String.raw` should be used to avoid escaping `\`.
+AaFtGQ8k5WNdnY_XE15y	typescript:S7781	MINOR	worker/modules/events/calendar-ics.ts	9	false	Use `replaceAll()` with a string literal instead of this global regex.
+AaFtGQ8k5WNdnY_XE15z	typescript:S7780	MINOR	worker/modules/events/calendar-ics.ts	9	false	`String.raw` should be used to avoid escaping `\`.
+AaFtGQ8k5WNdnY_XE150	typescript:S7778	MINOR	worker/modules/events/calendar-ics.ts	69	false	Merge these Array#push() calls into a single call with multiple arguments.
+AaFtGQ8k5WNdnY_XE151	typescript:S7778	MINOR	worker/modules/events/calendar-ics.ts	70	false	Merge these Array#push() calls into a single call with multiple arguments.
+AaFtGQ8k5WNdnY_XE152	typescript:S7778	MINOR	worker/modules/events/calendar-ics.ts	71	false	Merge these Array#push() calls into a single call with multiple arguments.
+AaFtGQ8k5WNdnY_XE153	typescript:S7778	MINOR	worker/modules/events/calendar-ics.ts	73	false	Merge these Array#push() calls into a single call with multiple arguments.
+AaFtGQ8k5WNdnY_XE154	typescript:S7778	MINOR	worker/modules/events/calendar-ics.ts	74	false	Merge these Array#push() calls into a single call with multiple arguments.
+AaFS3qvkngdPIRfT-cJH	javascript:S9382	MINOR	scripts/ops/verify-live.mjs	31	false	Unexpected `await` inside a loop.
+AaFS3qvkngdPIRfT-cJI	javascript:S9382	MINOR	scripts/ops/verify-live.mjs	56	false	Unexpected `await` inside a loop.
+AaFSoe7CEya8iWldUtK6	typescript:S7780	MINOR	worker/modules/events/calendar-feed.ts	110	true	`String.raw` should be used to avoid escaping `\`.
+AaFSoe7CEya8iWldUtK7	typescript:S6035	MAJOR	worker/modules/events/calendar-feed.ts	111	false	Replace this alternation with a character class.
+AaFSoe7CEya8iWldUtK8	typescript:S8786	MAJOR	worker/modules/events/calendar-feed.ts	111	true	Simplify this regular expression to reduce its runtime, as it has super-linear performance due to backtracking.
+AaFSoe7CEya8iWldUtK9	typescript:S7780	MINOR	worker/modules/events/calendar-feed.ts	111	true	`String.raw` should be used to avoid escaping `\`.
+AaFSoe7CEya8iWldUtK-	typescript:S7780	MINOR	worker/modules/events/calendar-feed.ts	112	true	`String.raw` should be used to avoid escaping `\`.
+AaFSoe7CEya8iWldUtLA	typescript:S7780	MINOR	worker/modules/events/calendar-feed.ts	165	false	`String.raw` should be used to avoid escaping `\`.
+AaFSoe7CEya8iWldUtLB	typescript:S7780	MINOR	worker/modules/events/calendar-feed.ts	166	false	`String.raw` should be used to avoid escaping `\`.
+AaFSoe7CEya8iWldUtLC	typescript:S6035	MAJOR	worker/modules/events/calendar-feed.ts	167	false	Replace this alternation with a character class.
+AaFSoe7CEya8iWldUtLD	typescript:S7780	MINOR	worker/modules/events/calendar-feed.ts	167	false	`String.raw` should be used to avoid escaping `\`.
+AaFSoe7CEya8iWldUtLE	typescript:S6594	MINOR	worker/modules/events/calendar-feed.ts	174	false	Use the "RegExp.exec()" method instead.
+AaFSoME7Kb2a573BQxiG	css:S9423	MAJOR	apps/web/src/app/shell/home.css	58	false	Remove this "!important" and resolve the specificity conflict instead.
+AaFO7OZNEw3kXaeJKxOl	typescript:S2681	MAJOR	packages/fish-sync/src/index.ts	55	true	This statement will not be executed conditionally; only the first statement will be. The rest will execute unconditionally.
+AaFOnYKFvVeOeStU51b-	typescript:S7749	MINOR	worker/modules/reminders/push.ts	20	false	Invalid group length in numeric value.
+AaFOaB12K8wdZAVl8YUH	typescript:S3776	CRITICAL	packages/fish-engine/src/index.ts	80	false	Refactor this function to reduce its Cognitive Complexity from 57 to the 15 allowed.
+AaFOaBLiK8wdZAVl8YUF	typescript:S9382	MINOR	worker/test/fixtures/fish.ts	8	false	Unexpected `await` inside a loop.
+AaFOV-1767GBU-uG1F7N	javascript:S7765	MINOR	apps/web/public/sw.js	102	false	Use `.includes()`, rather than `.indexOf()`, when checking for existence.
+AaFOV-1767GBU-uG1F7O	javascript:S7765	MINOR	apps/web/public/sw.js	108	false	Use `.includes()`, rather than `.indexOf()`, when checking for existence.
+AaFOV-1767GBU-uG1F7P	javascript:S7765	MINOR	apps/web/public/sw.js	121	false	Use `.includes()`, rather than `.indexOf()`, when checking for existence.
+AaFOV-1767GBU-uG1F7Q	javascript:S7765	MINOR	apps/web/public/sw.js	154	false	Use `.includes()`, rather than `.indexOf()`, when checking for existence.
+AaFOV-1767GBU-uG1F7R	javascript:S2819	CRITICAL	apps/web/public/sw.js	310	false	Verify the origin of the received message.
+AaFOV-1767GBU-uG1F7S	javascript:S9382	MINOR	apps/web/public/sw.js	367	false	Unexpected `await` inside a loop.
+AaFOV-1767GBU-uG1F7T	javascript:S9382	MINOR	apps/web/public/sw.js	368	false	Unexpected `await` inside a loop.
+AaFOV-ia67GBU-uG1F7B	typescript:S6582	MINOR	apps/web/src/app/pwa/register-service-worker.ts	86	false	Prefer using an optional chain expression instead, as it's more concise and easier to read.
+AaFOV-Wm67GBU-uG1F6b	typescript:S4144	MAJOR	packages/shared/src/events-api.ts	258	false	Update this function so that its implementation is not identical to the one on line 250.
+AaFOV-Wm67GBU-uG1F6c	typescript:S7758	MINOR	packages/shared/src/events-api.ts	304	true	Prefer `String#codePointAt()` over `String#charCodeAt()`.
+AaFOV-WV67GBU-uG1F6E	typescript:S7758	MINOR	packages/shared/src/nav-api.ts	126	true	Prefer `String#codePointAt()` over `String#charCodeAt()`.
+AaFOV-WV67GBU-uG1F6Y	typescript:S3776	CRITICAL	packages/shared/src/nav-api.ts	713	false	Refactor this function to reduce its Cognitive Complexity from 43 to the 15 allowed.
+AaFOV-WV67GBU-uG1F6a	typescript:S3776	CRITICAL	packages/shared/src/nav-api.ts	851	false	Refactor this function to reduce its Cognitive Complexity from 17 to the 15 allowed.
+AaFtGQ9D5WNdnY_XE16q	typescript:S3863	MINOR	worker/api/v1/navigation.ts	10	false	'../../lib/response' imported multiple times.
+AaFMz2zhdzrnai1EBF76	css:S9423	MAJOR	apps/web/src/styles.css	224	false	Remove this "!important" and resolve the specificity conflict instead.
+AaFL0WJI67GBU-uGZbcq	typescript:S7770	MINOR	worker/lib/zod-issues.ts	35	false	arrow function is equivalent to `String`. Use `String` directly.
+AaFL0WJP67GBU-uGZbcr	typescript:S9382	MINOR	worker/lib/rate-limit.ts	134	false	Unexpected `await` inside a loop.
+AaFL0WJd67GBU-uGZbct	typescript:S5869	MAJOR	worker/lib/redact.ts	17	false	Remove duplicates in this character class.
+AaFL0WJd67GBU-uGZbcu	typescript:S5869	MAJOR	worker/lib/redact.ts	17	false	Remove duplicates in this character class.
+AaFL0WIn67GBU-uGZbce	typescript:S7758	MINOR	worker/modules/identity/credentials.ts	17	true	Prefer `String.fromCodePoint()` over `String.fromCharCode()`.

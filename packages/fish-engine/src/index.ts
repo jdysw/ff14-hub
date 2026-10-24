@@ -36,7 +36,7 @@ export function weatherAt(utcMs: number, rates: WeatherRates): string {
   let threshold = 0;
   for (const rate of weatherRatesSchema.parse(rates)) {
     threshold += rate.chance;
-    if (target < threshold) return rate.weather;
+    if (target < threshold) {return rate.weather;}
   }
   throw new RangeError('invalid weather table');
 }
@@ -80,31 +80,31 @@ export interface FishWindow {
 export function fishWindows(input: { region: FishRegion; rules: readonly FishRule[]; from: number; to: number }): FishWindow[] {
   const { region, from, to } = input;
   regionSchema.parse(region); utcSchema.parse(from); utcSchema.parse(to);
-  if (to <= from || to - from > 168 * 3_600_000 || input.rules.length > 50) throw new RangeError('窗口查询超出计算上限');
+  if (to <= from || to - from > 168 * 3_600_000 || input.rules.length > 50) {throw new RangeError('窗口查询超出计算上限');}
   const result: FishWindow[] = [];
   for (const raw of input.rules) {
     const rule = fishRuleSchema.parse(raw);
-    if (rule.region !== region) throw new RangeError('规则区服不匹配');
+    if (rule.region !== region) {throw new RangeError('规则区服不匹配');}
     const cache = new Map<number,string>();
     const weather = (period:number):string => {
       let value=cache.get(period);
-      if(value!==undefined)return value;
+      if(value!==undefined){return value;}
       const target=forecastTarget(period);let threshold=0;
       for(const entry of rule.weatherRates){threshold+=entry.chance;if(target<threshold){value=entry.weather;break;}}
-      if(value===undefined)throw new RangeError('天气概率无效');
+      if(value===undefined){throw new RangeError('天气概率无效');}
       cache.set(period,value);return value;
     };
     const chain=(period:number)=>({previous:period===0?'unknown':weather(period-WEATHER_PERIOD_MS),current:weather(period)});
     const matches=(period:number):boolean=>{
-      if(period===0&&rule.previousWeather.length>0)return false;
+      if(period===0&&rule.previousWeather.length>0){return false;}
       const state=chain(period);
       return (!rule.currentWeather.length||rule.currentWeather.includes(state.current))&&
         (!rule.previousWeather.length||rule.previousWeather.includes(state.previous));
     };
     const append=(segments:NonNullable<FishWindow['weatherSegments']>,unrestricted=false)=>{
       const start=segments[0]?.startsAtUtcMs??(unrestricted&&rule.previousWeather.length>0?WEATHER_PERIOD_MS:0),end=segments.at(-1)?.endsAtUtcMs??MAX_UTC;
-      if(start>=to||end<=from)return;
-      if(end>MAX_UTC||segments.length>1000)throw new RangeError('完整窗口超过可确认范围');
+      if(start>=to||end<=from){return;}
+      if(end>MAX_UTC||segments.length>1000){throw new RangeError('完整窗口超过可确认范围');}
       const incomplete=rule.validationStatus==='incomplete'||rule.conditions.some(c=>['intuition','predators','unknown'].includes(c.kind));
       result.push({occurrenceKey:`${region}:${String(rule.fishId)}:${rule.version}:${String(start)}`,
         region,fishId:rule.fishId,ruleVersion:rule.version,startsAtUtcMs:start,endsAtUtcMs:end,
@@ -112,7 +112,7 @@ export function fishWindows(input: { region: FishRegion; rules: readonly FishRul
         validationStatus:incomplete?'incomplete':rule.validationStatus,
         candidateOnly:rule.conditions.length>0||rule.validationStatus!=='verified',conditions:rule.conditions,
         ...(unrestricted?{unrestricted:true}:{weatherSegments:segments})});
-      if(result.length>5000)throw new RangeError('窗口结果超出上限，请缩小范围');
+      if(result.length>5000){throw new RangeError('窗口结果超出上限，请缩小范围');}
     };
     const allDay=rule.startHour===0&&rule.endHour===24;
     const allWeather=(!rule.currentWeather.length||rule.weatherRates.every(r=>rule.currentWeather.includes(r.weather)))&&
@@ -127,12 +127,12 @@ export function fishWindows(input: { region: FishRegion; rules: readonly FishRul
         let start=period;
         while(start>=WEATHER_PERIOD_MS&&matches(start-WEATHER_PERIOD_MS)){
           start-=WEATHER_PERIOD_MS;
-          if(period-start>limit)throw new RangeError('天气连续窗口起点尚不能确认');
+          if(period-start>limit){throw new RangeError('天气连续窗口起点尚不能确认');}
         }
         const segments:NonNullable<FishWindow['weatherSegments']>=[];
         let end=start;
         while(matches(end)){
-          if(end+WEATHER_PERIOD_MS>MAX_UTC||end-period>limit+to-from)throw new RangeError('天气连续窗口终点尚不能确认');
+          if(end+WEATHER_PERIOD_MS>MAX_UTC||end-period>limit+to-from){throw new RangeError('天气连续窗口终点尚不能确认');}
           segments.push({startsAtUtcMs:end,endsAtUtcMs:end+WEATHER_PERIOD_MS,...chain(end)});
           end+=WEATHER_PERIOD_MS;
         }
@@ -147,10 +147,10 @@ export function fishWindows(input: { region: FishRegion; rules: readonly FishRul
       const end=Math.round(day*ET_DAY_MS+(rule.endHour<=rule.startHour?rule.endHour+24:rule.endHour)*ET_HOUR_MS);
       let segments:NonNullable<FishWindow['weatherSegments']>=[];
       for(let period=Math.floor(start/WEATHER_PERIOD_MS)*WEATHER_PERIOD_MS;period<end;period+=WEATHER_PERIOD_MS){
-        if(!matches(period)){if(segments.length)append(segments);segments=[];continue;}
+        if(!matches(period)){if(segments.length){append(segments);}segments=[];continue;}
         segments.push({startsAtUtcMs:Math.max(start,period),endsAtUtcMs:Math.min(end,period+WEATHER_PERIOD_MS),...chain(period)});
       }
-      if(segments.length)append(segments);
+      if(segments.length){append(segments);}
     }
   }
   return result.sort((a,b) => a.startsAtUtcMs - b.startsAtUtcMs || a.fishId - b.fishId);

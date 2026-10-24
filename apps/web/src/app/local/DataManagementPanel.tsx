@@ -13,7 +13,7 @@ function downloadJson(text:string,filename:string){
   const url=URL.createObjectURL(new Blob([text],{type:'application/json'}));
   const link=document.createElement('a');link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-export function DataManagementPanel({store,data,initialSection='sync'}:{store:LocalStore;data:LocalData;initialSection?:DataSection}){
+export function DataManagementPanel({store,data,initialSection='sync'}:Readonly<{store:LocalStore;data:LocalData;initialSection?:DataSection}>){
   const [section,setSection]=useState<DataSection>(initialSection);
   const [region,setRegion]=useState<FishRegion>(data.configuration.region);
   const [fishFile,setFishFile]=useState<{text:string;document:FishDocument}|null>(null);
@@ -39,7 +39,7 @@ export function DataManagementPanel({store,data,initialSection='sync'}:{store:Lo
       <p className="local-settings__caution">鱼糕文件不包含区服信息，请确认所选区服。</p>
       <label className="local-settings__field">鱼糕导出文件<input type="file" aria-label="鱼糕导出文件" accept=".json,application/json" disabled={busy} onChange={event=>{
         const file=event.target.files?.[0];setFishFile(null);setConfirmed(false);if(!file){return;}
-        void run(async()=>{if(file.size>1048576)throw new Error('鱼糕文件超过 1 MiB 上限');const text=await file.text();const document=parseFishDocument(text.replace(/^\uFEFF/,''));setFishFile({text,document});});
+        void run(async()=>{if(file.size>1048576){throw new Error('鱼糕文件超过 1 MiB 上限');}const text=await file.text();const document=parseFishDocument(text.replace(/^\uFEFF/,''));setFishFile({text,document});});
       }}/></label>
       {fishFile?<div className="local-settings__preview"><p>已识别 {new Set(fishFile.document.completed).size} 条已钓获、{new Set(fishFile.document.pinned).size} 条收藏、{new Set(fishFile.document.alarmFish).size} 条提醒。</p>
         <label><input type="checkbox" checked={preferences} disabled={busy} onChange={event=>{setPreferences(event.target.checked);setConfirmed(false);}}/>同时合并收藏和提醒（空数组保留现有标记）</label>
@@ -53,7 +53,7 @@ export function DataManagementPanel({store,data,initialSection='sync'}:{store:Lo
       <button type="button" disabled={busy} onClick={()=>{void run(async()=>{downloadJson(JSON.stringify(await store.exportBackup(),null,2),'ff14-hub-personal-backup.json');try{await recordBackupEvent('exportedAt');setNotice('已发起备份下载，请确认文件已保存。');}catch{setNotice('已发起备份下载，但本机导出时间未能记录，请确认文件已保存。');}});}}>导出全部个人数据</button>
       <label className="local-settings__field">选择个人备份<input type="file" aria-label="个人备份文件" accept=".json,application/json" disabled={busy} onChange={event=>{
         const file=event.target.files?.[0];setBackup(null);setRestoreConfirmed(false);if(!file){return;}
-        void run(async()=>{if(file.size>8*1024*1024)throw new Error('备份超过 8 MiB 上限');const parsed:unknown=JSON.parse((await file.text()).replace(/^\uFEFF/,''));setBackup(localBackupSchema.parse(parsed));});
+        void run(async()=>{if(file.size>8*1024*1024){throw new Error('备份超过 8 MiB 上限');}const parsed:unknown=JSON.parse((await file.text()).replace(/^\uFEFF/,''));setBackup(localBackupSchema.parse(parsed));});
       }}/></label>
       {backup?<div className="local-settings__preview"><p>备份包含 {backup.data.links.length} 个个人网站、{backup.data.notes.length} 条备忘。恢复会替换本浏览器的个人数据，请先导出当前备份。</p>
         <label><input type="checkbox" checked={restoreConfirmed} onChange={event=>setRestoreConfirmed(event.target.checked)} disabled={busy}/>我已导出当前备份，确认恢复所选个人备份</label>

@@ -11,13 +11,13 @@ const knownSets=z.object({completed:ids,pinned:ids,alarmFish:ids});
 export const fishDocumentSchema=z.custom<FishDocument>((raw)=>{
   let nodes=0;
   const json=(value:unknown,depth:number):boolean=>{
-    if(depth>30||++nodes>100000)return false;
-    if(value===null||typeof value==='string'||typeof value==='boolean')return true;
-    if(typeof value==='number')return Number.isFinite(value)&&(!Number.isInteger(value)||Number.isSafeInteger(value));
-    if(typeof value!=='object')return false;
+    if(depth>30||++nodes>100000){return false;}
+    if(value===null||typeof value==='string'||typeof value==='boolean'){return true;}
+    if(typeof value==='number'){return Number.isFinite(value)&&(!Number.isInteger(value)||Number.isSafeInteger(value));}
+    if(typeof value!=='object'){return false;}
     const proto:unknown=Object.getPrototypeOf(value);
-    if(!Array.isArray(value)&&proto!==Object.prototype&&proto!==null)return false;
-    if(Reflect.ownKeys(value).some((key)=>typeof key!=='string'))return false;
+    if(!Array.isArray(value)&&proto!==Object.prototype&&proto!==null){return false;}
+    if(Reflect.ownKeys(value).some((key)=>typeof key!=='string')){return false;}
     return Object.values(Object.getOwnPropertyDescriptors(value)).every((d)=>!d.get&&!d.set&&json(d.value,depth+1));
   };
   return raw!==null&&typeof raw==='object'&&!Array.isArray(raw)&&json(raw,0)&&knownSets.safeParse(raw).success;
@@ -26,19 +26,19 @@ export const MAX_FISH_DOCUMENT_BYTES=1_048_576;
 
 /** Bounded, data-only parse. Unknown extension fields and unknown numeric IDs survive. */
 export function parseBoundedJson(text:string,maxBytes=MAX_FISH_DOCUMENT_BYTES):unknown{
-  if(new TextEncoder().encode(text).byteLength>maxBytes)throw new RangeError('JSON文件超过大小上限');
+  if(new TextEncoder().encode(text).byteLength>maxBytes){throw new RangeError('JSON文件超过大小上限');}
   const raw:unknown=JSON.parse(text);let nodes=0;
   const check=(value:unknown,depth:number):void=>{
-    if(depth>30||++nodes>100000)throw new RangeError('JSON结构过深或过大');
-    if(Array.isArray(value))for(const item of value)check(item,depth+1);
-    else if(value!==null&&typeof value==='object')for(const item of Object.values(value))check(item,depth+1);
+    if(depth>30||++nodes>100000){throw new RangeError('JSON结构过深或过大');}
+    if(Array.isArray(value)){for(const item of value)check(item,depth+1);}
+    else if(value!==null&&typeof value==='object'){for(const item of Object.values(value))check(item,depth+1);}
   };
   check(raw,0);return raw;
 }
 export function parseFishDocument(text:string):FishDocument{return fishDocumentSchema.parse(parseBoundedJson(text));}
 export function canonicalJson(value:Json|undefined):string{
-  if(value===undefined)return 'undefined';
-  if(Array.isArray(value))return `[${value.map(canonicalJson).join(',')}]`;
+  if(value===undefined){return 'undefined';}
+  if(Array.isArray(value)){return `[${value.map(canonicalJson).join(',')}]`;}
   if(value!==null&&typeof value==='object'){
     const keys=Object.keys(value).sort((a,b)=>{
       if(a<b){return -1;}
@@ -52,7 +52,7 @@ export function canonicalJson(value:Json|undefined):string{
 }
 export function serializeFishDocument(document:FishDocument):string{
   const checked=fishDocumentSchema.parse(document);const text=canonicalJson(checked);
-  if(new TextEncoder().encode(text).byteLength>MAX_FISH_DOCUMENT_BYTES)throw new RangeError('鱼糕文件超过1MiB上限');return text;
+  if(new TextEncoder().encode(text).byteLength>MAX_FISH_DOCUMENT_BYTES){throw new RangeError('鱼糕文件超过1MiB上限');}return text;
 }
 export type Replica='local'|'webdav'|'hub';
 export interface MergeConflict{key:string;baseline:Json|undefined;values:Partial<Record<Replica,Json|undefined>>}
@@ -68,10 +68,10 @@ export function mergeFishDocuments(input:MergeInput):{document:FishDocument;conf
     const entries=Object.entries(values) as [Replica,Json|undefined][];
     const edits=input.baseline===null?entries:entries.filter(([replica,value])=>canonicalJson(value)!==canonicalJson(baseline)||input.touched?.[replica]?.has(key));
     const unique=new Set(edits.map(([,value])=>canonicalJson(value)));
-    if(unique.size<=1)return edits.length===0?baseline:edits[0]?.[1];
+    if(unique.size<=1){return edits.length===0?baseline:edits[0]?.[1];}
     const resolution=input.resolutions?.get(key);
-    if(resolution==='baseline'&&input.baseline!==null)return baseline;
-    if(resolution!==undefined&&resolution!=='baseline'&&Object.hasOwn(values,resolution))return values[resolution];
+    if(resolution==='baseline'&&input.baseline!==null){return baseline;}
+    if(resolution!==undefined&&resolution!=='baseline'&&Object.hasOwn(values,resolution)){return values[resolution];}
     conflicts.push({key,baseline,values});return baseline;
   };
   const entries:[string,Json][]=[];
@@ -82,16 +82,16 @@ export function mergeFishDocuments(input:MergeInput):{document:FishDocument;conf
     const baseSet=new Set(input.baseline?.[field]??[]);
     for(const fishId of [...pool].sort((a,b)=>a-b)){
       if(choose(`${field}:${String(fishId)}`,input.baseline===null?undefined:baseSet.has(fishId),
-        {local:sourceSets.local.has(fishId),webdav:sourceSets.webdav.has(fishId),hub:sourceSets.hub.has(fishId)})===true)selected.push(fishId);
+        {local:sourceSets.local.has(fishId),webdav:sourceSets.webdav.has(fishId),hub:sourceSets.hub.has(fishId)})===true){selected.push(fishId);}
     }
     entries.push([field,selected]);
   }
   // Hub has no authority over extension fields: they never enter its API.
   const keys=new Set([...Object.keys(input.baseline??{}),...Object.keys(input.local),...Object.keys(input.webdav)]);
   for(const key of keys){
-    if((FISH_SETS as readonly string[]).includes(key))continue;
+    if((FISH_SETS as readonly string[]).includes(key)){continue;}
     const value=choose(`extra:${key}`,input.baseline?.[key],{local:input.local[key],webdav:input.webdav[key]});
-    if(value!==undefined)entries.push([key,value]);
+    if(value!==undefined){entries.push([key,value]);}
   }
   return {document:fishDocumentSchema.parse(Object.fromEntries(entries)),conflicts};
 }
@@ -99,9 +99,9 @@ export interface SyncField{fishId:number;field:'caught'|'pinned'|'alarm';value:b
 export function changedDocumentKeys(before:FishDocument|null,after:FishDocument):Set<string>{
   const keys=new Set<string>();
   for(const field of FISH_SETS){const old=new Set(before?.[field]??[]);const next=new Set(after[field]);
-    for(const fishId of new Set([...old,...next]))if(old.has(fishId)!==next.has(fishId))keys.add(`${field}:${String(fishId)}`);}
+    for(const fishId of new Set([...old,...next]))if(old.has(fishId)!==next.has(fishId)){keys.add(`${field}:${String(fishId)}`);}}
   for(const key of new Set([...Object.keys(before??{}),...Object.keys(after)]))if(!(FISH_SETS as readonly string[]).includes(key)&&
-    canonicalJson(before?.[key])!==canonicalJson(after[key]))keys.add(`extra:${key}`);
+    canonicalJson(before?.[key])!==canonicalJson(after[key])){keys.add(`extra:${key}`);}
   return keys;
 }
 export function touchedSince(before:Readonly<Record<string,number>>,after:Readonly<Record<string,number>>):Set<string>{
@@ -118,7 +118,7 @@ export function documentChanges(document:FishDocument,fields:readonly SyncField[
     const existing=new Map(fields.filter((f)=>f.field===SET_FIELDS[set]).map((f)=>[f.fishId,f]));const wanted=new Set(document[set]);
     for(const fishId of new Set([...wanted,...existing.keys()])){
       const old=existing.get(fishId);const value=wanted.has(fishId);
-      if((old?.value??false)!==value)changes.push({fishId,field:SET_FIELDS[set],value,expectedRevision:old?.revision??0});
+      if((old?.value??false)!==value){changes.push({fishId,field:SET_FIELDS[set],value,expectedRevision:old?.revision??0});}
     }
   }
   return changes;

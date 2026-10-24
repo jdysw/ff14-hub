@@ -123,7 +123,7 @@ export type NavUrlValidation =
 /** 控制字符与空白检测：逐码元判断，避免 `no-control-regex` 与正则回退歧义。 */
 function hasControlOrSpace(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
+    const code = (value.codePointAt(index) ?? Number.NaN);
     if (code <= 0x20 || code === 0x7f) {
       return true;
     }

@@ -29,10 +29,10 @@ function hexBytes(input: string): Uint8Array {
   return Uint8Array.from(input.match(/.{2}/g)!, v => parseInt(v,16));
 }
 function encode64(input: Uint8Array): string {
-  return btoa(Array.from(input, v => String.fromCharCode(v)).join(''));
+  return btoa(Array.from(input, v => String.fromCodePoint(v)).join(''));
 }
 function decode64(value: string): Uint8Array {
-  return Uint8Array.from(atob(value), c => c.charCodeAt(0));
+  return Uint8Array.from(atob(value), c => (c.codePointAt(0) ?? Number.NaN));
 }
 function base32(input: Uint8Array): string {
   let bits = 0, buffer = 0, out = '';

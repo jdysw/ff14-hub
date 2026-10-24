@@ -4,6 +4,7 @@
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import ts from 'typescript';
+import {cleanNavigationSourceText as clean} from './lib/navigation-source-text.mjs';
 
 const input=process.argv[2]??'.wrangler/navigation-sources';
 const reviewedCategories=new Map(JSON.parse(await readFile('data/navigation/classification.json','utf8')).map(entry=>[entry.id,entry.category]));
@@ -12,7 +13,6 @@ const sources=[
   {file:'light.html',url:'https://ff14nav.tianbianyu.com/',name:'光之导航站'},
   {file:'wiki.html',url:'https://ff14.wiki/',name:'FF14.wiki'},
 ];
-const clean=text=>text.replace(/<[^>]*>/g,' ').replace(/&#(x[\da-f]+|\d+);/gi,(_,n)=>String.fromCodePoint(n[0]==='x'?parseInt(n.slice(1),16):Number(n))).replace(/&amp;/g,'&').replace(/&nbsp;/g,' ').replace(/&quot;/g,'"').replace(/\s+/g,' ').trim();
 const raw=[];
 for(const source of sources){
   const text=await readFile(`${input}/${source.file}`,'utf8');

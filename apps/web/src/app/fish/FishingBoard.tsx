@@ -14,8 +14,8 @@ const localTime=(ms:number)=>new Date(ms).toLocaleString('zh-CN',{month:'2-digit
 const windowDate=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 const windowClock=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 const windowDay=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'});
-function WindowPeriod({window}:{window:{startsAtUtcMs:number;endsAtUtcMs:number;unrestricted?:boolean}|null}){
-  if(!window||window.unrestricted)return null;
+function WindowPeriod({window}:Readonly<{window:{startsAtUtcMs:number;endsAtUtcMs:number;unrestricted?:boolean}|null}>){
+  if(!window||window.unrestricted){return null;}
   const start=windowDate.format(window.startsAtUtcMs),end=(windowDay.format(window.startsAtUtcMs)===windowDay.format(window.endsAtUtcMs)?windowClock:windowDate).format(window.endsAtUtcMs);
   return <span className="fish-window-period" title="北京时间" aria-label={`北京时间 ${start} 至 ${end}`}>
     <time dateTime={new Date(window.startsAtUtcMs).toISOString()}>{start}</time><span aria-hidden="true">–</span><time dateTime={new Date(window.endsAtUtcMs).toISOString()}>{end}</time>
@@ -35,70 +35,70 @@ type WindowHours=6|24|72|168;
 /** 鱼窗筛选提示不依赖界面渲染层，避免 JSX 内嵌套条件判断。 */
 function fishScopeDescription(view:View,phase:WindowPhase,hours:WindowHours):string{
   if(view==='windows'){
-    if(phase==='open')return '只显示此刻有时限的竿钓窗口，按剩余时间排序。';
-    if(phase==='upcoming')return `显示未来 ${hours} 小时内开始的竿钓窗口，按开始时间排序；已开放的鱼可查看下一次窗口。`;
+    if(phase==='open'){return '只显示此刻有时限的竿钓窗口，按剩余时间排序。';}
+    if(phase==='upcoming'){return `显示未来 ${hours} 小时内开始的竿钓窗口，按开始时间排序；已开放的鱼可查看下一次窗口。`;}
     return '这些鱼没有已知时间或天气限制，仍需满足鱼饵、鱼识及任务条件。';
   }
-  if(view==='all')return '查看完整目录与获取资料，包含海钓、刺鱼、任务条目和暂无预测规则的鱼。';
-  if(view==='pinned')return '仅显示已收藏的鱼；下方筛选仍然生效。';
+  if(view==='all'){return '查看完整目录与获取资料，包含海钓、刺鱼、任务条目和暂无预测规则的鱼。';}
+  if(view==='pinned'){return '仅显示已收藏的鱼；下方筛选仍然生效。';}
   return '已收藏或设置提醒的鱼都会显示，包含已钓获；下方筛选仍然生效。';
 }
 
 function homeEmptyDescription(homeView:HomeView,windowHours:number):string{
-  if(homeView==='open')return '可以看看下一场，或调整筛选条件。';
-  if(homeView==='upcoming')return `未来 ${windowHours} 小时内暂无结果，可以调整筛选条件。`;
+  if(homeView==='open'){return '可以看看下一场，或调整筛选条件。';}
+  if(homeView==='upcoming'){return `未来 ${windowHours} 小时内暂无结果，可以调整筛选条件。`;}
   return '在完整鱼窗中收藏鱼类或设置提醒，即可集中查看。';
 }
 function homeWindowCountdown(homeView:HomeView,state:ReturnType<typeof windowState>,window:ReturnType<typeof windowState>['open'],now:number):string{
-  if(!window)return state.always?'时间天气不限':'查看完整信息';
+  if(!window){return state.always?'时间天气不限':'查看完整信息';}
   const upcoming=homeView==='upcoming'||!state.open;
   const timestamp=upcoming?window.startsAtUtcMs:window.endsAtUtcMs;
   return `${duration(timestamp-now)} ${upcoming?'后开始':'后结束'}`;
 }
 function windowCountdown(state:ReturnType<typeof windowState>,now:number):string{
-  if(state.open)return `${duration(state.open.endsAtUtcMs-now)}后关闭`;
-  if(state.next)return `${duration(state.next.startsAtUtcMs-now)}后开放`;
-  if(state.always)return '无已知时间 / 天气限制';
+  if(state.open){return `${duration(state.open.endsAtUtcMs-now)}后关闭`;}
+  if(state.next){return `${duration(state.next.startsAtUtcMs-now)}后开放`;}
+  if(state.always){return '无已知时间 / 天气限制';}
   return '可展开查看已有资料';
 }
 function evidenceDescription(fish:CatalogFish):string{
   const locations=fish.acquisitionContext?.locations??[];
-  if(locations.some(s=>s.evidence==='community-record'))return '部分地点来自 Teamcraft 获取记录。';
-  if(locations.every(s=>s.evidence==='corroborated'))return '地点已对照游戏表与 Teamcraft。';
+  if(locations.some(s=>s.evidence==='community-record')){return '部分地点来自 Teamcraft 获取记录。';}
+  if(locations.every(s=>s.evidence==='corroborated')){return '地点已对照游戏表与 Teamcraft。';}
   return '地点见游戏表；部分地点尚缺社区记录佐证。';
 }
 function fishFallbackAdvice(fish:CatalogFish,state:ReturnType<typeof windowState>):string{
-  if(fish.acquisitionContext)return '请按对应任务或专项内容的获取条件查看。';
-  if(fish.method==='ocean')return '海钓请结合本页条件与航次查看。';
-  if(fish.method==='spear')return '刺鱼请结合本页鱼影触发和鱼识条件查看。';
-  if(state.always)return '资料未标注时间和天气限制，仍需满足鱼饵、任务等要求。';
+  if(fish.acquisitionContext){return '请按对应任务或专项内容的获取条件查看。';}
+  if(fish.method==='ocean'){return '海钓请结合本页条件与航次查看。';}
+  if(fish.method==='spear'){return '刺鱼请结合本页鱼影触发和鱼识条件查看。';}
+  if(state.always){return '资料未标注时间和天气限制，仍需满足鱼饵、任务等要求。';}
   return '尚无可靠预测规则；不会把资料缺失显示为全天可钓。';
 }
 function fishSearchPlaceholder(field:SearchField):string{
-  if(field==='name')return '输入鱼名或别名';
-  if(field==='location')return '输入钓场或地区';
-  if(field==='bait')return '输入鱼饵名称';
+  if(field==='name'){return '输入鱼名或别名';}
+  if(field==='location'){return '输入钓场或地区';}
+  if(field==='bait'){return '输入鱼饵名称';}
   return '输入鱼名、地点或鱼饵';
 }
 function fishWindowStatus(fish:CatalogFish,state:ReturnType<typeof windowState>,ready:boolean,hours:number):string{
-  if(fish.acquisitionContext&&!fish.rule)return '专项获取 · 查看资料';
-  if(fish.method==='ocean')return '海钓 · 查看航次条件';
-  if(fish.method==='spear')return '刺鱼 · 查看鱼影条件';
-  if(fish.rule&&!ready)return '正在计算';
-  if(state.open)return state.open.candidateOnly?'候选窗口中':'时间天气匹配';
-  if(state.always)return '时间天气不限';
-  if(state.next)return state.next.candidateOnly?'后续候选':'即将匹配';
-  if(state.unknown)return '窗口资料待补';
+  if(fish.acquisitionContext&&!fish.rule){return '专项获取 · 查看资料';}
+  if(fish.method==='ocean'){return '海钓 · 查看航次条件';}
+  if(fish.method==='spear'){return '刺鱼 · 查看鱼影条件';}
+  if(fish.rule&&!ready){return '正在计算';}
+  if(state.open){return state.open.candidateOnly?'候选窗口中':'时间天气匹配';}
+  if(state.always){return '时间天气不限';}
+  if(state.next){return state.next.candidateOnly?'后续候选':'即将匹配';}
+  if(state.unknown){return '窗口资料待补';}
   return `${hours} 小时内暂无窗口`;
 }
 
 /** 完整目录的状态文案不依赖 JSX 条件树，避免显示顺序或数量变化。 */
 export function fishBoardSummary(ready:boolean,view:View,phase:WindowPhase,hours:WindowHours,count:number):string{
-  if(!ready)return '正在计算完整目录的鱼窗…';
-  if(view!=='windows')return `找到 ${count} 条记录`;
+  if(!ready){return '正在计算完整目录的鱼窗…';}
+  if(view!=='windows'){return `找到 ${count} 条记录`;}
   let label='时间天气不限';
-  if(phase==='open')label='开放中';
-  else if(phase==='upcoming')label=`未来 ${hours} 小时内开放`;
+  if(phase==='open'){label='开放中';}
+  else if(phase==='upcoming'){label=`未来 ${hours} 小时内开放`;}
   return `${label} · ${count} 种鱼`;
 }
 
@@ -122,7 +122,7 @@ interface FishingBoardProps {
   subscribeProgress?:(listener:()=>void)=>()=>void;onNotificationSettings?:()=>void;
   data:DataPort;initialRegion?:FishRegion;hours?:number;compact?:boolean;embedded?:boolean;expanded?:boolean;initialFilters?:FishDetailSelection|undefined;onOpenDetail?:(selection:FishDetailSelection)=>void;onReady?:()=>void;onError?:((error:unknown)=>void)|undefined;onConnect?:()=>void;onImport?:()=>void;
 }
-export function FishingBoard(props:FishingBoardProps){
+export function FishingBoard(props:Readonly<FishingBoardProps>){
   const [region,setRegion]=useState(props.initialFilters?.region??props.initialRegion??'cn');
   const [reload,setReload]=useState(0);
   return <FishingBoardSession key={`${region}:${reload}:${props.data.operations.join(',')}`} {...props} region={region}
@@ -183,17 +183,17 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
   },[data,region]);
 
   useEffect(()=>{
-    if(!catalog)return;
+    if(!catalog){return;}
     let active=true;
     const stop=subscribeFishingForecast(catalog,region,hours,message=>{
-      if(!active)return;
+      if(!active){return;}
       if(message.forecasts){setForecasts(message.forecasts);setWindowAsOf(Date.now());setError(null);}
-      if(message.error)setError(message.error);
+      if(message.error){setError(message.error);}
     });
     return()=>{active=false;stop();};
   },[catalog,region,hours]);
   useEffect(()=>{
-    if(!forecasts)return;
+    if(!forecasts){return;}
     let timer:number;
     const schedule=()=>{
       const current=Date.now();
@@ -203,7 +203,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
       },Math.max(1,nextFishingWindowRefresh(current,forecasts)-current+1));
     };
     const resume=()=>{
-      if(document.visibilityState==='hidden')return;
+      if(document.visibilityState==='hidden'){return;}
       window.clearTimeout(timer);
       setWindowAsOf(Date.now());
       schedule();
@@ -216,12 +216,12 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
 
   useEffect(()=>{
     const current=++generation.current;let alive=true;progressWatermark.current=-1;
-    if(!data.operations.includes('fish.progress.read'))return()=>{alive=false;};
+    if(!data.operations.includes('fish.progress.read')){return()=>{alive=false;};}
     const load=async()=>{
       try{
         const result=fishProgressResponseSchema.parse(await data.call('fish.progress.read',{region}));
-        if(alive&&current===generation.current&&result.watermark>=progressWatermark.current){progressWatermark.current=result.watermark;setFields(result.fields);setProgressReady(true);if(pendingIntent.current===null)setProgressError(null);}
-      }catch{if(alive)setProgressError('个人进度未能读取；暂时禁止修改，请刷新重试。');}
+        if(alive&&current===generation.current&&result.watermark>=progressWatermark.current){progressWatermark.current=result.watermark;setFields(result.fields);setProgressReady(true);if(pendingIntent.current===null){setProgressError(null);}}
+      }catch{if(alive){setProgressError('个人进度未能读取；暂时禁止修改，请刷新重试。');}}
     };
     void load();const timer=window.setInterval(()=>{void load();},30000),unsubscribe=subscribeProgress?.(()=>{void load();});
     return()=>{alive=false;window.clearInterval(timer);unsubscribe?.();};
@@ -267,24 +267,24 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
   },[catalog,forecastsById,windowAsOf,kind,method,query,searchField,view,flags,hideCaught,embedded,windowHours,targetId,following,selectedPhase]);
   const changeFilter=(action:()=>void)=>{action();setLimit(compact?6:30);};
   const write=async(fish:CatalogFish,field:FishProgressField,forced?:{value:boolean;expectedRevision:number;operationId?:string;undo?:boolean}):Promise<boolean>=>{
-    if(!canEdit||!progressReady||busy||mutationInFlight.current||(undoChecking.current&&!forced?.undo)||(progressError&&!pending))return false;
+    if(!canEdit||!progressReady||busy||mutationInFlight.current||(undoChecking.current&&!forced?.undo)||(progressError&&!pending)){return false;}
     mutationInFlight.current=true;
     const intent=pending??{fishId:fish.id,field,value:forced?.value??!(flags.get(`${fish.id}:${field}`)?.value??false),
       expectedRevision:forced?.expectedRevision??flags.get(`${fish.id}:${field}`)?.revision??0,operationId:forced?.operationId??crypto.randomUUID()};
-    if(!pending)offerUndo.current=field==='caught'&&!forced?.undo;
+    if(!pending){offerUndo.current=field==='caught'&&!forced?.undo;}
     const current=generation.current;setBusy(true);setPending(intent);pendingIntent.current=intent;
     try{
       await data.call('fish.progress',{...intent,region});
       const fresh=fishProgressResponseSchema.parse(await data.call('fish.progress.read',{region}));
       if(current===generation.current&&fresh.watermark>=progressWatermark.current){progressWatermark.current=fresh.watermark;setFields(fresh.fields);setPending(null);pendingIntent.current=null;setProgressError(null);
         const saved=fresh.fields.find(f=>f.fishId===intent.fishId&&f.field===intent.field);
-        if(offerUndo.current&&saved?.value===intent.value&&saved.revision===intent.expectedRevision+1)setUndo({fish,value:!intent.value,revision:saved.revision,operationId:crypto.randomUUID(),expiresAt:Date.now()+15000});
-        else if(field==='caught')setUndo(null);
+        if(offerUndo.current&&saved?.value===intent.value&&saved.revision===intent.expectedRevision+1){setUndo({fish,value:!intent.value,revision:saved.revision,operationId:crypto.randomUUID(),expiresAt:Date.now()+15000});}
+        else if(field==='caught'){setUndo(null);}
         setFeedback(field==='alarm'?(intent.value?'已保存这条鱼的提醒标记':'已取消这条鱼的提醒'):field==='caught'&&!offerUndo.current?'已撤销本次钓获修改':`已${intent.value?'标记':'取消'}${field==='caught'?'钓获':'收藏'}：${fish.name}`);return true;
       }
       return false;
-    }catch{if(current===generation.current)setProgressError('标记未保存。你的选择已保留，可重试或重新读取最新进度。');return false;}
-    finally{mutationInFlight.current=false;if(current===generation.current)setBusy(false);}
+    }catch{if(current===generation.current){setProgressError('标记未保存。你的选择已保留，可重试或重新读取最新进度。');}return false;}
+    finally{mutationInFlight.current=false;if(current===generation.current){setBusy(false);}}
   };
   const openDetail=(overrides:Partial<FishDetailSelection>={})=>{
     onOpenDetail?.({region,view:embedded&&following?'followed':view,kind:embedded&&following?'all':kind,method,searchField,text,hideCaught:embedded&&following?false:hideCaught,windowHours,
@@ -296,7 +296,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
   const homePreview=visible.slice(0,HOME_FISH_PREVIEW_LIMIT);
   const et=eorzeaTime(now);
   const undoNotice=<output className="fish-board__feedback" style={{display:'block'}}>{feedback}{undo&&undo.expiresAt>now?<button type="button" disabled={busy||pending!==null} onClick={()=>{
-    if(undoChecking.current||mutationInFlight.current)return;undoChecking.current=true;
+    if(undoChecking.current||mutationInFlight.current){return;}undoChecking.current=true;
     void (async()=>{try{
       const fresh=fishProgressResponseSchema.parse(await data.call('fish.progress.read',{region})),saved=fresh.fields.find(f=>f.fishId===undo.fish.id&&f.field==='caught');
       if(saved?.revision!==undo.revision||saved.value===undo.value){setUndo(null);setFeedback('这条鱼已被其他页面或同步更新，未覆盖新记录。');return;}

@@ -12,7 +12,7 @@ import {clearSavedHomeLayout} from './ModuleGrid';
 
 const labels:Record<HomeSection,string>={events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的待办'};
 export type SettingsTab='home'|'links'|'notes'|'data'|'notifications';
-export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=false,initialTab='home',initialDataSection='sync'}:{store:LocalStore;data:LocalData;onSaved:()=>void;onAdmin?:()=>void;adminAuthenticated?:boolean;initialTab?:SettingsTab;initialDataSection?:DataSection}){
+export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=false,initialTab='home',initialDataSection='sync'}:Readonly<{store:LocalStore;data:LocalData;onSaved:()=>void;onAdmin?:()=>void;adminAuthenticated?:boolean;initialTab?:SettingsTab;initialDataSection?:DataSection}>){
   const [activeTab,setActiveTab]=useState<SettingsTab>(initialTab);
   const [busy,setBusy]=useState(false);
   const [notice,setNotice]=useState<string|null>(null);
@@ -23,7 +23,7 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
   const [recognizing,setRecognizing]=useState(false);
   usePrivateDraft(Boolean(title||url||description||busy||recognizing));
   const run=async(action:()=>Promise<void>)=>{
-    if(busy)return;setBusy(true);setError(null);setNotice(null);
+    if(busy){return;}setBusy(true);setError(null);setNotice(null);
     try{await action();onSaved();}catch(cause){setError(cause instanceof ZodError?'文件或输入格式不正确，请检查后重试；原有数据仍保留。':cause instanceof Error?cause.message:'操作失败，原有数据仍保留。');}
     finally{setBusy(false);}
   };
@@ -70,7 +70,7 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
         });
         await store.change(document=>{document.data.links.push(link);});
         setTitle('');setUrl('');setDescription('');setFaviconUrl(undefined);
-        if(!link.description)setNotice('已添加网站。自动识别暂未取得简介，可在下方手动补充。');
+        if(!link.description){setNotice('已添加网站。自动识别暂未取得简介，可在下方手动补充。');}
       });}}>
         <label className="local-settings__field">网站名称
           <input required value={title} onChange={event=>setTitle(event.target.value)} maxLength={100}/>
@@ -91,9 +91,9 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
           <button type="button" disabled={busy||recognizing||!url.trim()} onClick={()=>{
             setRecognizing(true);setError(null);
             void fetchNavigationMetadata(url.trim()).then(metadata=>{
-              if(metadata.title&&!title.trim())setTitle(metadata.title);
-              if(metadata.description)setDescription(metadata.description);
-              if(metadata.iconUrl)setFaviconUrl(metadata.iconUrl);
+              if(metadata.title&&!title.trim()){setTitle(metadata.title);}
+              if(metadata.description){setDescription(metadata.description);}
+              if(metadata.iconUrl){setFaviconUrl(metadata.iconUrl);}
               setNotice(metadata.description?'已提取网站简介，可进一步修改后保存。':'网页没有提供可识别的简介，可自行填写。');
             }).catch(cause=>setError(cause instanceof Error?cause.message:'自动识别失败'))
               .finally(()=>setRecognizing(false));
@@ -110,12 +110,12 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
             let updated=0;
             for(const link of pending){
               const metadata=await fetchNavigationMetadata(link.url).catch(()=>null);
-              if(!metadata?.description)continue;
+              if(!metadata?.description){continue;}
               await store.change(document=>{
                 const current=document.data.links.find(item=>item.id===link.id);
                 if(current&&!current.description?.trim()&&current.url===link.url){
                   current.description=metadata.description;
-                  if(metadata.iconUrl)current.faviconUrl=metadata.iconUrl;
+                  if(metadata.iconUrl){current.faviconUrl=metadata.iconUrl;}
                   updated++;
                 }
               });

@@ -14,7 +14,7 @@ export const localLinkSchema=z.object({
   if(link.faviconUrl){
     try{
       if(new URL(link.faviconUrl).origin!==new URL(link.url).origin)
-        ctx.addIssue({code:'custom',message:'图标必须来自网站自身域名',path:['faviconUrl']});
+        {ctx.addIssue({code:'custom',message:'图标必须来自网站自身域名',path:['faviconUrl']});}
     }catch{ctx.addIssue({code:'custom',message:'图标地址无效',path:['faviconUrl']});}
   }
 });
@@ -24,14 +24,14 @@ export const localLinkSchema=z.object({
  * 已经拥有 PVP 配置时原样校验，避免覆盖用户的隐藏设置。
  */
 const configurationSchema=z.preprocess(value=>{
-  if(!value||typeof value!=='object'||Array.isArray(value))return value;
+  if(!value||typeof value!=='object'||Array.isArray(value)){return value;}
   const record=value as Record<string,unknown>;
-  if(!Array.isArray(record['order'])||record['order'].length!==3)return value;
+  if(!Array.isArray(record['order'])||record['order'].length!==3){return value;}
   const order:readonly unknown[]=record['order'];
   const old=new Set(order);
-  if(old.size!==3||!['events','fishing','notes'].every(x=>old.has(x)))return value;
+  if(old.size!==3||!['events','fishing','notes'].every(x=>old.has(x))){return value;}
   const visible=record['visible'];
-  if(!visible||typeof visible!=='object'||Array.isArray(visible))return value;
+  if(!visible||typeof visible!=='object'||Array.isArray(visible)){return value;}
   return {...record,order:[...order,'pvp'],visible:{...visible,pvp:true}};
 },z.object({
   order:z.array(sectionSchema).length(4).refine(v=>new Set(v).size===4),
@@ -56,7 +56,7 @@ export function createLocalStore(factory:()=>IDBFactory=()=>indexedDB,name='ff14
   const open=()=>database??=new Promise<IDBDatabase>((resolve,reject)=>{
     try{
       const request=factory().open(name,1);
-      request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains('documents'))request.result.createObjectStore('documents');};
+      request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains('documents')){request.result.createObjectStore('documents');}};
       request.onsuccess=()=>{request.result.onversionchange=()=>request.result.close();resolve(request.result);};
       request.onerror=()=>reject(new Error('浏览器本地存储无法打开，请检查站点存储权限。'));
       request.onblocked=()=>reject(new Error('其他页面正在升级数据，请关闭其他标签页后重试。'));
@@ -91,7 +91,7 @@ export function createLocalStore(factory:()=>IDBFactory=()=>indexedDB,name='ff14
         for(const fishId of new Set(imported[set])){const existing=fields.find(f=>f.fishId===fishId&&f.field===field);
           if(existing?.value){continue;}
           if(existing){existing.value=true;existing.revision++;existing.updatedAt=Date.now();}
-          else fields.push({region,fishId,field,value:true,revision:1,updatedAt:Date.now()});added++;
+          else {fields.push({region,fishId,field,value:true,revision:1,updatedAt:Date.now()});}added++;
         }
       }return added;
     });
@@ -107,7 +107,7 @@ export function createLocalStore(factory:()=>IDBFactory=()=>indexedDB,name='ff14
       for(const region of ['cn','global'] as const)for(const previous of document.data.fish[region]){
         const restored=backup.data.fish[region].find(field=>field.fishId===previous.fishId&&field.field===previous.field);
         if(restored){restored.revision=Math.max(restored.revision,previous.revision)+1;restored.updatedAt=Date.now();}
-        else backup.data.fish[region].push({...previous,value:false,revision:previous.revision+1,updatedAt:Date.now()});
+        else {backup.data.fish[region].push({...previous,value:false,revision:previous.revision+1,updatedAt:Date.now()});}
       }
       document.data=backup.data;document.operations=[];
     });},
@@ -115,7 +115,7 @@ export function createLocalStore(factory:()=>IDBFactory=()=>indexedDB,name='ff14
       const fingerprint=JSON.stringify(input),old=document.operations.find(op=>op.id===input.operationId);
       if(old){if(old.fingerprint!==fingerprint){throw new Error('重复操作内容不一致');}return old.result;}
       const fields=document.data.fish[input.region];let field=fields.find(f=>f.fishId===input.fishId&&f.field===input.field);
-      if((field?.revision??0)!==input.expectedRevision)throw new Error('另一个标签页已更新此标记，请重新读取后再试。');
+      if((field?.revision??0)!==input.expectedRevision){throw new Error('另一个标签页已更新此标记，请重新读取后再试。');}
       if(field){field.value=input.value;field.revision++;field.updatedAt=Date.now();}
       else{field={region:input.region,fishId:input.fishId,field:input.field,value:input.value,revision:1,updatedAt:Date.now()};fields.push(field);}
       document.operations.push({id:input.operationId,fingerprint,result:{...field}});document.operations=document.operations.slice(-200);return {...field};

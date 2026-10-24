@@ -3,7 +3,7 @@ import type {managedPresentationSchema} from '@ff14-hub/shared';
 import {DEFAULT_CATEGORIES,DEFAULT_HOME} from '@ff14-hub/shared';
 import type {SiteSettings} from './site-settings';
 type Presentation=ReturnType<typeof managedPresentationSchema.parse>;
-export function PresentationEditor({value,onChange}:{value:SiteSettings['presentation'];onChange:(next:Presentation)=>void}){
+export function PresentationEditor({value,onChange}:Readonly<{value:SiteSettings['presentation'];onChange:(next:Presentation)=>void}>){
   const current=value??{categories:DEFAULT_CATEGORIES,home:DEFAULT_HOME,categoryAliases:{}};
   const [name,setName]=useState(''),[children,setChildren]=useState(''),[message,setMessage]=useState('');
   const [childDraft,setChildDraft]=useState<Record<string,string>>({});
@@ -24,7 +24,7 @@ export function PresentationEditor({value,onChange}:{value:SiteSettings['present
     <ol>{current.categories.map((group,index)=><li key={group.name}><div className="site-admin__actions"><strong>{group.name}</strong><button type="button" disabled={index===0} onClick={()=>{const categories=[...current.categories];[categories[index-1],categories[index]]=[categories[index]!,categories[index-1]!];onChange({...current,categories});}}>上移</button><button type="button" disabled={index===current.categories.length-1} onClick={()=>{const categories=[...current.categories];[categories[index+1],categories[index]]=[categories[index]!,categories[index+1]!];onChange({...current,categories});}}>下移</button></div>
       <label>改名<input defaultValue={group.name} maxLength={18} onBlur={e=>rename(group.name,e.target.value.trim())}/></label>
       <SubcategoryEditor group={group} current={current} onChange={onChange} renamedAliases={renamedAliases} childDraft={childDraft} setChildDraft={setChildDraft} setMessage={setMessage}/>
-      <label>删除并迁移到<select value="" onChange={e=>{const target=e.target.value;if(!target)return;onChange({...current,categories:current.categories.filter(g=>g.name!==group.name),categoryAliases:{...current.categoryAliases,[group.name]:target,...Object.fromEntries(group.children.map(sub=>[`${group.name} / ${sub}`,target]))}});}}><option value="">选择目标分类…</option>{current.categories.filter(g=>g.name!==group.name).map(g=><option key={g.name}>{g.name}</option>)}</select></label>
+      <label>删除并迁移到<select value="" onChange={e=>{const target=e.target.value;if(!target){return;}onChange({...current,categories:current.categories.filter(g=>g.name!==group.name),categoryAliases:{...current.categoryAliases,[group.name]:target,...Object.fromEntries(group.children.map(sub=>[`${group.name} / ${sub}`,target]))}});}}><option value="">选择目标分类…</option>{current.categories.filter(g=>g.name!==group.name).map(g=><option key={g.name}>{g.name}</option>)}</select></label>
     </li>)}</ol>
     <fieldset><legend>新增分类</legend><label>主分类名称<input value={name} maxLength={18} onChange={e=>setName(e.target.value)}/></label><label>子分类（可选，逗号分隔）<input value={children} onChange={e=>setChildren(e.target.value)}/></label><button type="button" disabled={!name.trim()} onClick={()=>{if(current.categories.some(g=>g.name===name.trim())){setMessage('分类名称重复');return;}onChange({...current,categories:[...current.categories,{name:name.trim(),children:[...new Set(children.split(/[,，]/).map(v=>v.trim()).filter(Boolean))]}]});setName('');setChildren('');}}>添加分类到草稿</button></fieldset>
   </section>;

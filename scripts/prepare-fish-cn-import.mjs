@@ -28,7 +28,7 @@ function parseCsv(text){
   }
   if(quoted)throw new Error('不完整的 CSV 引号');
   if(row.length||field){row.push(field);rows.push(row);}
-  if(rows[0]?.[0]?.charCodeAt(0)===0xfeff)rows[0][0]=rows[0][0].slice(1);
+  if((rows[0]?.[0]?.codePointAt(0) ?? Number.NaN)===0xfeff)rows[0][0]=rows[0][0].slice(1);
   return rows;
 }
 function indexOfHeader(table,header,name){

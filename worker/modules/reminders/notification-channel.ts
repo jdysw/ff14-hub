@@ -3,7 +3,7 @@ import type {Env} from '../../env';
 import {createPushTransport} from './push';
 const enc=new TextEncoder();
 async function key(secret:string){if(secret.length<32){throw new Error('notification_encryption_unavailable');}return crypto.subtle.importKey('raw',await crypto.subtle.digest('SHA-256',enc.encode('ff14.notification-channel.v1:'+secret)),{name:'AES-GCM'},false,['encrypt','decrypt']);}
-const b64=(value:Uint8Array)=>btoa(Array.from(value,b=>String.fromCharCode(b)).join(''));
+const b64=(value:Uint8Array)=>btoa(Array.from(value,b=>String.fromCodePoint(b)).join(''));
 export async function encryptChannel(channel:LocalNotificationChannel,secret:string,id:string){
   const iv=crypto.getRandomValues(new Uint8Array(12));
   const encrypted=await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:enc.encode(id)},await key(secret),enc.encode(JSON.stringify(channel)));
@@ -11,7 +11,7 @@ export async function encryptChannel(channel:LocalNotificationChannel,secret:str
 }
 export async function decryptChannel(ciphertext:string,secret:string,id:string){
   const [iv,body]=ciphertext.split('.');if(!iv||!body)throw new Error('notification_channel_unavailable');
-  const bytes=(raw:string)=>Uint8Array.from(atob(raw),char=>char.charCodeAt(0));
+  const bytes=(raw:string)=>Uint8Array.from(atob(raw),char=>(char.codePointAt(0) ?? Number.NaN));
   const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:bytes(iv),additionalData:enc.encode(id)},await key(secret),bytes(body));
   return localNotificationChannelSchema.parse(JSON.parse(new TextDecoder().decode(plain)) as unknown);
 }

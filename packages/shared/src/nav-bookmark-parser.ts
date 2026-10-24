@@ -50,9 +50,9 @@ function isSpaceCode(code: number): boolean {
 /** ASCII 大小写不敏感比较：等价于原正则的 `i` 标志（此处只涉及 ASCII 字母）。 */
 function matchesAsciiIgnoreCase(value: string, start: number, expected: string): boolean {
   for (let offset = 0; offset < expected.length; offset += 1) {
-    const code = value.charCodeAt(start + offset);
+    const code = (value.codePointAt(start + offset) ?? Number.NaN);
     const folded = code >= 0x41 && code <= 0x5a ? code + 0x20 : code;
-    if (folded !== expected.charCodeAt(offset)) {
+    if (folded !== (expected.codePointAt(offset) ?? Number.NaN)) {
       return false;
     }
   }
@@ -80,10 +80,10 @@ function isDigitCodeFor(code: number, radix: 10 | 16): boolean {
  */
 function decodeNumericEntityAt(value: string, digitStart: number, radix: 10 | 16): DecodedEntity | null {
   let end = digitStart;
-  while (end < value.length && isDigitCodeFor(value.charCodeAt(end), radix)) {
+  while (end < value.length && isDigitCodeFor((value.codePointAt(end) ?? Number.NaN), radix)) {
     end += 1;
   }
-  if (end === digitStart || value.charCodeAt(end) !== 0x3b /* ; */) {
+  if (end === digitStart || (value.codePointAt(end) ?? Number.NaN) !== 0x3b /* ; */) {
     return null;
   }
   const code = Number.parseInt(value.slice(digitStart, end), radix);
@@ -96,10 +96,10 @@ function decodeNumericEntityAt(value: string, digitStart: number, radix: 10 | 16
 /** 取 `<alpha>` 形态的命名实体；查不到就返回 `null`（原样保留 `&…;`）。 */
 function decodeNamedEntityAt(value: string, amp: number): DecodedEntity | null {
   let end = amp + 1;
-  while (end < value.length && isAsciiLetterCode(value.charCodeAt(end))) {
+  while (end < value.length && isAsciiLetterCode((value.codePointAt(end) ?? Number.NaN))) {
     end += 1;
   }
-  if (end === amp + 1 || value.charCodeAt(end) !== 0x3b /* ; */) {
+  if (end === amp + 1 || (value.codePointAt(end) ?? Number.NaN) !== 0x3b /* ; */) {
     return null;
   }
   // 与原实现逐字相同的查表（名称大小写不敏感）。
@@ -120,8 +120,8 @@ function decodeNamedEntityAt(value: string, amp: number): DecodedEntity | null {
  * - `<alpha>`：不要求单词边界、不做长度截断（超长名字必然查表失败，结果与原样保留相同）。
  */
 function decodeEntityAt(value: string, amp: number): DecodedEntity | null {
-  if (value.charCodeAt(amp + 1) === 0x23 /* # */) {
-    if (value.charCodeAt(amp + 2) === 0x78 /* x */) {
+  if ((value.codePointAt(amp + 1) ?? Number.NaN) === 0x23 /* # */) {
+    if ((value.codePointAt(amp + 2) ?? Number.NaN) === 0x78 /* x */) {
       return decodeNumericEntityAt(value, amp + 3, 16);
     }
     return decodeNumericEntityAt(value, amp + 2, 10);
@@ -203,14 +203,14 @@ function stripNonDataBlocks(html: string): string {
  * 因此这里同样返回 `null` 而不是把剩余文本当成值。裸值分支要求至少一个字符（原 `+`）。
  */
 function readHrefOperand(rawAttributes: string, start: number): string | null {
-  const opener = rawAttributes.charCodeAt(start);
+  const opener = (rawAttributes.codePointAt(start) ?? Number.NaN);
   if (opener === 0x22 /* " */ || opener === 0x27 /* ' */) {
     const closer = rawAttributes.indexOf(opener === 0x22 ? '"' : "'", start + 1);
     return closer < 0 ? null : rawAttributes.slice(start + 1, closer);
   }
   let end = start;
   while (end < rawAttributes.length) {
-    const code = rawAttributes.charCodeAt(end);
+    const code = (rawAttributes.codePointAt(end) ?? Number.NaN);
     if (isSpaceCode(code) || code === 0x22 /* " */ || code === 0x27 /* ' */ || code === 0x3e /* > */) {
       break;
     }
@@ -241,14 +241,14 @@ function readHrefValue(rawAttributes: string): string | null {
       continue;
     }
     let cursor = start + name.length;
-    while (cursor < rawAttributes.length && isSpaceCode(rawAttributes.charCodeAt(cursor))) {
+    while (cursor < rawAttributes.length && isSpaceCode((rawAttributes.codePointAt(cursor) ?? Number.NaN))) {
       cursor += 1;
     }
-    if (rawAttributes.charCodeAt(cursor) !== 0x3d /* = */) {
+    if ((rawAttributes.codePointAt(cursor) ?? Number.NaN) !== 0x3d /* = */) {
       continue;
     }
     cursor += 1;
-    while (cursor < rawAttributes.length && isSpaceCode(rawAttributes.charCodeAt(cursor))) {
+    while (cursor < rawAttributes.length && isSpaceCode((rawAttributes.codePointAt(cursor) ?? Number.NaN))) {
       cursor += 1;
     }
     const value = readHrefOperand(rawAttributes, cursor);
