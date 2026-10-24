@@ -58,7 +58,7 @@ export function normalizedOceanTimes(ids,mapping){
   if(!Array.isArray(ids))return null;
   const values=[...new Set(ids.map(id=>mapping[id]))];
   if(values.some(v=>!v))throw Error('Unknown ocean time enum');
-  return values.includes('any')||values.length===3?[]:values.sort();
+  return values.includes('any')||values.length===3?[]:values.sort((a,b)=>a.localeCompare(b));
 }
 export function auditCatalog({catalog,tracker,fishcake,teamcraft,game,items,spotNames,weatherAudit,shadowEvidence=new Map(),oceanStages=new Map(),conventions,additionalEvidence=[]}){
   const records=[];

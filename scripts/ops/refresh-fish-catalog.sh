@@ -24,7 +24,7 @@ fi
 download() {
   curl --fail --silent --show-error --location --retry 3 --max-time 120 \
     --output "$1" "https://raw.githubusercontent.com/$2/$3"
-  test -s "$1"
+  [[ -s "$1" ]]
 }
 download "$tmp/data.js" "icykoneko/ff14-fish-tracker-app" "$sha_global/js/app/data.js"
 for sheet in Item FishParameter Weather FishingSpot PlaceName; do

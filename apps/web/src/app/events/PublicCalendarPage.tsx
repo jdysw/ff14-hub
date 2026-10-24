@@ -92,7 +92,7 @@ export function PublicCalendarPage({ onBack, overlay = false,initialEventId }: {
   const now = state.status === 'loaded' ? clock + state.offset : clock;
   const events = useMemo(() => state.status === 'loaded' ? state.data.events : [], [state]);
   const overview = useMemo(() => calendarOverview(events, now), [events, now]);
-  const categories = useMemo(() => [...new Set(events.map(x => x.category || '官方公告'))].sort(), [events]);
+  const categories = useMemo(() => [...new Set(events.map(x => x.category || '官方公告'))].sort((a,b)=>a.localeCompare(b,'zh-CN')), [events]);
   const selectedYear = Number(selectedDay.slice(0, 4));
   const selectedMonth = Number(selectedDay.slice(5, 7));
   const days = useMemo(() => chinaMonthDays(selectedYear, selectedMonth), [selectedYear, selectedMonth]);

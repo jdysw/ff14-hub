@@ -206,6 +206,8 @@ describe('sw.js：CACHE_URLS 消息路径也受同一份策略约束', () => {
 
     const waits: Promise<unknown>[] = [];
     handler?.({
+      origin: SW_ORIGIN,
+      source: { type: 'window', url: `${SW_ORIGIN}/` },
       data: {
         type: CACHE_URLS_MESSAGE,
         urls: [
@@ -227,5 +229,20 @@ describe('sw.js：CACHE_URLS 消息路径也受同一份策略约束', () => {
     expect(sandbox.fetchedUrls.some((url) => url.includes('cdn.example.com'))).toBe(false);
     expect(sandbox.fetchedUrls.some((url) => url.startsWith('javascript:'))).toBe(false);
     expect(sandbox.cachedUrls).toEqual([`${SW_ORIGIN}/assets/index-abc123.js`]);
+  });
+
+  it('拒绝跨域窗口发送的缓存指令', async () => {
+    const sandbox = await loadServiceWorker();
+    const handler = sandbox.handlers.get('message')?.[0];
+    const waitUntil = vi.fn();
+    handler?.({
+      origin: 'https://untrusted.example',
+      source: { type: 'window', url: 'https://untrusted.example/' },
+      data: { type: CACHE_URLS_MESSAGE, urls: [`${SW_ORIGIN}/assets/untrusted.js`] },
+      waitUntil,
+    });
+    expect(waitUntil).not.toHaveBeenCalled();
+    expect(sandbox.fetchedUrls).toEqual([]);
+    expect(sandbox.cachedUrls).toEqual([]);
   });
 });
