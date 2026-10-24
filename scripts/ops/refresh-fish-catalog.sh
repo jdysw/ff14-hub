@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 # 国服与国际服鱼类候选目录同步：只下载数据并调用已存在的转换器，不执行上游脚本。
+# 默认仅写 preview；生产导入须显式选择 production + 确认，避免初始化误写线上。
 set -euo pipefail
+TARGET_ENV="${TARGET_ENV:-preview}"
+if [[ "$TARGET_ENV" != "preview" && "$TARGET_ENV" != "production" ]]; then
+  echo "TARGET_ENV 必须为 preview 或 production" >&2; exit 2
+fi
+if [[ "${DRY_RUN:-0}" != "1" && "$TARGET_ENV" == "production" && "${CONFIRM_PRODUCTION_IMPORT:-}" != "ff14-hub-production" ]]; then
+  echo "生产鱼类导入须显式设置 CONFIRM_PRODUCTION_IMPORT=ff14-hub-production" >&2; exit 2
+fi
 : "${GH_TOKEN:?Missing GitHub read token}"
 if [[ "${DRY_RUN:-0}" != "1" ]]; then
   : "${CLOUDFLARE_API_TOKEN:?Missing Cloudflare deployment token}"
@@ -36,7 +44,7 @@ fi
 for region in cn global; do
   split -l 150 -d -a 3 --additional-suffix=.sql "$tmp/$region.sql" "$tmp/$region-"
   for file in "$tmp/$region-"*.sql; do
-    pnpm exec wrangler d1 execute DB --remote --env production --file "$file"
+    pnpm exec wrangler d1 execute DB --remote --env "$TARGET_ENV" --file "$file"
   done
-  echo "$region 鱼类目录导入完毕，来源规则：$sha_global；国服表：$sha_cn"
+  echo "$TARGET_ENV: $region 鱼类目录导入完毕，来源规则：$sha_global；国服表：$sha_cn"
 done

@@ -1,11 +1,21 @@
-import {spawn} from 'node:child_process';
+import {spawn,execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {verifyLive} from './verify-live.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
-export function releaseGuard(environment,variables){
+/** 人工发布必须来自 clean main checkout；不能只凭使用者自填 WORKERS_CI_BRANCH。 */
+export function checkoutState(){
+  const git=(args)=>execFileSync('git',args,{cwd:root,encoding:'utf8',timeout:10000}).trim();
+  return {branch:git(['branch','--show-current']),clean:git(['status','--porcelain']).length===0};
+}
+export function releaseGuard(environment,variables,checkout=null){
   if(!['production','preview'].includes(environment))throw new Error('Unknown release environment');
-  if(environment==='production'&&(variables.WORKERS_CI!=='1'||variables.WORKERS_CI_BRANCH!=='main'))throw new Error('Automatic production release requires a main-branch Workers Builds run');
+  if(environment!=='production')return;
+  const workersBuilds=variables.WORKERS_CI==='1'&&variables.WORKERS_CI_BRANCH==='main';
+  if(workersBuilds)return;
+  const manual=variables.FF14_MANUAL_RELEASE_APPROVAL==='ff14-hub-production';
+  if(!manual)throw new Error('Production release requires main Workers Builds or explicit manual approval');
+  if(checkout?.branch!=='main'||!checkout.clean)throw new Error('Manual production release requires a clean main checkout');
 }
 async function wrangler(args){
   return new Promise((resolve,reject)=>{
@@ -15,7 +25,8 @@ async function wrangler(args){
   });
 }
 export async function releaseWorker(environment,{variables=process.env,run=wrangler,verify=verifyLive,sleep=ms=>new Promise(r=>setTimeout(r,ms))}={}){
-  releaseGuard(environment,variables);
+  const manual=environment==='production'&&!(variables.WORKERS_CI==='1'&&variables.WORKERS_CI_BRANCH==='main');
+  releaseGuard(environment,variables,manual?checkoutState():null);
   const revision=/^[a-f0-9]{40}$/.test(variables.WORKERS_CI_COMMIT_SHA??'')?variables.WORKERS_CI_COMMIT_SHA.slice(0,12):'verified-build';
   const output=await run(['versions','upload','--env',environment,'--keep-vars','--tag','automated-'+environment,'--message','Verified CI release '+revision]);
   const version=/Worker Version ID:\s*([a-f0-9]{8}-[a-f0-9-]{27})/i.exec(output)?.[1];

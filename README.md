@@ -44,6 +44,9 @@ pnpm run smoke:local
 
 ## 数据库与部署
 
+`/api/v1/health` 只检查 Worker/D1 连通，不能代表业务数据就绪。新增 `pnpm run db:ready:preview` 和 `pnpm run db:ready:production`，以只读 SQL 检查 16 张业务表、历史迁移、鱼类两区服数据及外键完整性；新 D1 还需另外导入鱼类，流程见 [D1 基线手册](docs/d1-single-baseline.md)。鱼类源导入脚本默认预览环境，生产需显式二次确认。
+
+
 **数据库初始结构现已整理为唯一的 `migrations/0001_core.sql`**：新建 D1 时创建 16 张现行业务表、10 个索引和 6 个审计触发器，旧工作空间与服务端工作台表不再出现。已部署 D1 因保存了原 `0001_core.sql` 的迁移记录而跳过新版基线，其实际历史表和数据不自动删除。将来的增量迁移从 `0022_*.sql` 开始。发布前务必阅读 [D1 单文件基线及既有数据库升级规则](docs/d1-single-baseline.md)，不能把修改 SQL 文件等同于生产数据库清理。
 
 预览与生产使用独立 Worker、数据库及配置。发布前先执行验证和 `ops:preflight`；涉及数据库变更时先备份并核对待执行迁移。部署使用对应环境并保留线上变量，随后用 `node scripts/ops/verify-live.mjs production` 校验健康状态、域名和静态资源。
