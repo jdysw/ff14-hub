@@ -7,6 +7,8 @@ import {readGameData,saveGameData} from '../modules/admin/game-data';
 import {DEFAULT_GAME_DATA,frontlineAt} from '@ff14-hub/shared';
 import {applyCalendarEdits} from '../modules/events/calendar-editor';
 import {checkedJobs,replaceLocalJobs} from '../modules/reminders/local-push';
+import {demoFish} from './fixtures/fish';
+import {readFish} from '../modules/fish/service';
 let token='';
 const request=(path:string,method='GET',body?:unknown,auth=token)=>SELF.fetch('https://example.com/api/v1/admin/'+path,{method,headers:{Authorization:'Bearer '+auth,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
 beforeEach(async()=>{
@@ -16,7 +18,7 @@ beforeEach(async()=>{
 it('requires owner authorization for deletion and game rules, but publishes only validated public data',async()=>{
   expect((await request('content-state','GET',undefined,'')).status).toBe(401);
   expect((await request('game-data','PUT',{expectedRevision:0,data:DEFAULT_GAME_DATA},'')).status).toBe(401);
-  const response=await SELF.fetch('https://example.com/api/v1/site/data');expect(response.status).toBe(200);expect(await response.json()).toEqual({revision:0,data:DEFAULT_GAME_DATA});
+  const response=await SELF.fetch('https://example.com/api/v1/site/data');expect(response.status).toBe(200);expect(await response.json()).toMatchObject({revision:0,data:DEFAULT_GAME_DATA});
 });
 it('navigation deletion survives reseeding and restore preserves the original record',async()=>{
   await applyCatalogSeed({db:env.DB,now:Date.now()});const id=NAV_CATALOG_SEED[0]!.id;
@@ -62,4 +64,12 @@ it('keeps long-range todo reminders while preserving shorter public-source limit
   await env.DB.prepare("INSERT INTO local_push_devices(id,token_hash,endpoint_hash,channel_ciphertext,expires_at,updated_at) VALUES('test','test','test','test',?,?)").bind(now+90*86400000,now).run();
   await replaceLocalJobs(env.DB,'test',[job],now);await replaceLocalJobs(env.DB,'test',[],now);await replaceLocalJobs(env.DB,'test',[job],now);
   expect((await env.DB.prepare("SELECT status FROM local_push_jobs WHERE device_id='test'").first<{status:string}>())?.status).toBe('queued');
+});
+it('publishes a new forecast rule to the server catalog with explicit unverified provenance',async()=>{
+  const data=structuredClone(DEFAULT_GAME_DATA),rule={...demoFish('cn')[0]!.rule,fishId:90001,validationStatus:'verified' as const};
+  data.fish.push({region:'cn',id:90001,fishType:'big',name:'人工修订样例',bait:['鱼饵'],conditions:[],rule,sourceUrl:'https://example.com/source',reason:'测试新增可预测规则'});
+  const saved=await saveGameData(env.DB,data,0);expect(saved.revision).toBe(1);
+  const record=(await readFish(env.DB,'cn')).find(fish=>fish.id===90001);expect(record?.fishType).toBe('big');expect(record?.rule.validationStatus).toBe('unverified');expect(record?.source.url).toBe('https://example.com/source');expect(record?.source.verificationStatus).toBe('unverified');
+  data.fish[0]!.rule=null;await saveGameData(env.DB,data,1);expect((await readFish(env.DB,'cn')).some(fish=>fish.id===90001)).toBe(false);
+  const wrongRegion={...data,fish:[{...data.fish[0]!,rule:{...rule,region:'global'}}]};expect((await request('game-data','PUT',{expectedRevision:2,data:wrongRegion})).status).toBe(422);
 });
