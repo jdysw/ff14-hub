@@ -23,7 +23,7 @@ export function RecyclePanel(){
   const content=useContentState(),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
   const act=async(record:ContentState,state:'active'|'deleted')=>{if(state==='deleted'&&!window.confirm(`彻底删除“${record.title}”？之后不能从回收站恢复；来源屏蔽标记和操作记录会保留。`))return;
     setBusy(true);try{await content.change(record.domain,record.contentId,state);setMessage(state==='active'?'已恢复，原来的隐藏状态保持不变':'已彻底删除，并保留防止来源重新收录的标记');}catch(error){setMessage(error instanceof Error?error.message:'操作失败');}finally{setBusy(false);}};
-  return <section><h3>回收站与操作记录</h3><p>删除会进入回收站；彻底删除后保留来源屏蔽标记，自动同步不会重新带回。</p>{content.error&&<p role="alert">{content.error}</p>}{message&&<p role="status">{message}</p>}<button type="button" onClick={()=>void content.reload()}>重新读取</button>
+  return <section><h3>回收站与操作记录</h3><p>删除会进入回收站；彻底删除后保留来源屏蔽标记，自动同步不会重新带回。</p>{content.error&&<p role="alert">{content.error}</p>}{message&&<output style={{display:'block'}}>{message}</output>}<button type="button" onClick={()=>void content.reload()}>重新读取</button>
     <ul className="directory-admin__list">{content.records.filter(row=>row.state==='trash').map(row=><li key={row.domain+row.contentId}><div><strong>{row.title}</strong><small>{row.domain==='navigation'?'网站':'活动'} · {new Date(row.updatedAt).toLocaleString('zh-CN')}</small></div><div className="site-admin__actions"><button type="button" disabled={busy} onClick={()=>void act(row,'active')}>恢复</button><button type="button" disabled={busy} onClick={()=>void act(row,'deleted')}>彻底删除</button></div></li>)}</ul>
     {!content.records.some(row=>row.state==='trash')&&<p>回收站为空。</p>}<AuditList/>
   </section>;

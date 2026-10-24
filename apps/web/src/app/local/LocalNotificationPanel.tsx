@@ -49,6 +49,6 @@ export function LocalNotificationPanel({store}:{store:LocalStore}){
     {settings.lastPlan?<p>上次登记 {new Date(settings.lastPlan).toLocaleString('zh-CN')}。鱼窗汇总在服务器每天生成，关闭网页后继续运行；关注列表按最近一次同步为准。活动临近提醒和网页内提示保留未来 72 小时内最近 30 条，每次访问或前台停留满 6 小时补充。订阅在 90 天不访问后过期。</p>:null}
     {status?<div className="personal-feature__preview"><h4>投递记录</h4><p>今日发送尝试 {status.device.sentDay===new Date().toISOString().slice(0,10)?status.device.sentCount:0} / {status.device.dailyLimit} 批（UTC 日界限）</p><ul>{status.jobs.map(job=><li key={job.key}>{new Date(job.dueAt).toLocaleString('zh-CN')} · {({queued:'待发送',leased:'发送中',sent:'渠道已接受',failed:'发送失败',cancelled:'已取消'} as Record<string,string>)[job.status]??job.status} · 尝试 {job.attempts} 次</li>)}</ul></div>:null}
     {settings.error?<p role="alert" className="notice notice--error">上次后台登记：{settings.error}。网页内提醒仍独立工作。</p>:null}
-    {message?<p role="status" className="notice notice--ok">{message}</p>:null}{error?<p role="alert" className="notice notice--error">{error}</p>:null}
+    {message?<output className="notice notice--ok" style={{display:'block'}}>{message}</output>:null}{error?<p role="alert" className="notice notice--error">{error}</p>:null}
   </section>;
 }

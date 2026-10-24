@@ -32,7 +32,7 @@ export function DataManagementPanel({store,data,initialSection='sync'}:{store:Lo
     <nav className="data-management__tabs" aria-label="数据管理方式">
       {([['sync','云端同步'],['fish','钓鱼导入导出'],['backup','备份与恢复']] as const).map(([value,label])=><button key={value} type="button" aria-pressed={section===value} onClick={()=>setSection(value)}>{label}</button>)}
     </nav>
-    {error?<p role="alert" className="notice notice--error">{error}</p>:null}{notice?<p role="status" className="notice notice--ok">{notice}</p>:null}
+    {error?<p role="alert" className="notice notice--error">{error}</p>:null}{notice?<output className="notice notice--ok" style={{display:'block'}}>{notice}</output>:null}
     <div hidden={section!=='sync'}><FishcakeSyncPanel store={store}/><RemoteSyncPanel store={store}/></div>
     <section hidden={section!=='fish'} aria-label="鱼糕数据导入导出"><h3>鱼糕数据</h3>
       <label className="local-settings__field">区服<select aria-label="本地钓鱼导入区服" value={region} disabled={busy} onChange={event=>{setRegion(event.target.value as FishRegion);setConfirmed(false);}}><option value="cn">国服</option><option value="global">国际服</option></select></label>

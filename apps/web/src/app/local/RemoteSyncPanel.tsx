@@ -61,6 +61,6 @@ export function RemoteSyncPanel({store}:{store:LocalStore}){
       })}>应用双向同步</button>
     </div>:null}
     {saved?.backup?<button disabled={busy} onClick={()=>{if(window.confirm('恢复上一次同步前的本机数据？远端文件不会改变。'))void run(async()=>{const backup=localDataSchema.parse(saved.backup);await store.restoreBackup({format:'ff14-hub-local',version:1,exportedAt:new Date().toISOString(),data:backup});setMessage('已恢复上一次同步前的本机数据，请重新预览再同步');setPreview(null);});}}>恢复同步前的本机快照</button>:null}
-    {message?<p role="status" className="notice notice--ok">{message}</p>:null}{error?<p role="alert" className="notice notice--error">{error}</p>:null}
+    {message?<output className="notice notice--ok" style={{display:'block'}}>{message}</output>:null}{error?<p role="alert" className="notice notice--error">{error}</p>:null}
   </section>;
 }

@@ -68,7 +68,7 @@ export function LocalLinkEditor({link,store}: {link:SavedLink;store:LocalStore})
           <button type="button" disabled={busy||!title.trim()} onClick={save}>保存修改</button>
           <button type="button" disabled={busy} onClick={remove}>移除网站</button>
         </div>
-        {message?<p role="status">{message}</p>:null}
+        {message?<output style={{display:'block'}}>{message}</output>:null}
       </details>
     </div>
   </li>;

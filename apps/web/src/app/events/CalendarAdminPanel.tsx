@@ -200,7 +200,7 @@ export function CalendarAdminPanel({ getToken, onClose, onSaved }: {
       <section className="calendar-admin__list" aria-label="可编辑活动">
         <input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="搜索活动名称／类别" aria-label="搜索可编辑活动"/>
         <label><input type="checkbox" checked={showHistory} onChange={e => setShowHistory(e.target.checked)}/> 包含历史已结束活动</label>
-        {loading ? <p role="status">正在读取后台活动…</p> : <p className="panel__muted">共 {visible.length} 项 · 已隐藏的活动也可从此恢复</p>}
+        {loading ? <output style={{display:'block'}}>正在读取后台活动…</output> : <p className="panel__muted">共 {visible.length} 项 · 已隐藏的活动也可从此恢复</p>}
         <ul>{visible.map(row => <li key={row.id}><button type="button"
           aria-current={selectedId === row.id ? 'true' : undefined} onClick={() => select(row)}>
           <strong>{row.item.title}</strong>
@@ -232,7 +232,7 @@ export function CalendarAdminPanel({ getToken, onClose, onSaved }: {
           {selected && (selected.mode === 'hide' || (selected.mode === 'upsert' && !selected.id.startsWith('manual:'))) && <button className="button button--secondary" type="button" disabled={saving} onClick={()=>void submit('restore')}>{selected.mode === 'hide' ? '恢复显示' : '恢复官方原文'}</button>}
           <button className="text-button" type="button" onClick={()=>setDraft(selected ? inputFromEvent(selected.item) : { ...EMPTY })}>撤销表单修改</button>
         </div>
-        {message && <p className="notice" role="status">{message}</p>}
+        {message && <output className="notice" style={{display:'block'}}>{message}</output>}
       </form>
     </div>
   </section>;

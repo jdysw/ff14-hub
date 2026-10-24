@@ -66,7 +66,7 @@ export function SiteSettingsPanel() {
   }
   return <section className="site-admin__settings" aria-label="全站设置">
     <header><h3>全站设置</h3><p className="panel__muted">仅展示类配置可以在线修改。密钥、数据库、域名、CORS 与权限策略不能在网页中修改。</p></header>
-    {loading?<p role="status">正在读取站点设置…</p>:<>
+    {loading?<output style={{display:'block'}}>正在读取站点设置…</output>:<>
       <label>网站名称
         <input type="text" required minLength={2} maxLength={48} value={draft.siteName}
           onChange={e=>patch('siteName',e.target.value)} />
@@ -87,6 +87,6 @@ export function SiteSettingsPanel() {
         <small>配置版本 {revision}</small>
       </div>
     </>}
-    {message&&<p className="notice" role="status">{message}</p>}
+    {message&&<output className="notice" style={{display:'block'}}>{message}</output>}
   </section>;
 }

@@ -38,7 +38,7 @@ export function FishReminderPanel({fish,region,enabled,caught,onSave,onClose,onS
     {!finite?<p>此鱼没有有限开窗规则，可保留提醒标记，但暂不生成开窗通知。</p>:<p>按社区时间天气候选窗口提醒；鱼饵、鱼识及技能条件仍需另行满足。</p>}
     {caught?<p>此鱼已标记钓获，提醒将跳过；取消钓获后才会恢复。</p>:null}
     <label>这条鱼提前多久提醒<select aria-label="单鱼提醒提前时间" value={lead} disabled={busy||!settings} onChange={e=>setLead(Number(e.target.value))}>{[5,10,15,30,60].map(value=><option key={value} value={value}>{value} 分钟</option>)}</select></label>
-    <p role="status">{settings?.browser&&'Notification' in window&&Notification.permission==='granted'?'网页内通知已启用':'网页内通知尚未启用'} · {settings?.token?'后台渠道已连接':'后台渠道未连接'}</p>
+    <output style={{display:'block'}}>{settings?.browser&&'Notification' in window&&Notification.permission==='granted'?'网页内通知已启用':'网页内通知尚未启用'} · {settings?.token?'后台渠道已连接':'后台渠道未连接'}</output>
     <div className="fish-reminder-panel__actions"><button type="button" disabled={busy||!settings} onClick={()=>{void save();}}>{enabled?'保存这条鱼的提醒':'保存提醒标记'}</button>
       <button type="button" disabled={busy||!settings} onClick={authorize}>授权并启用网页通知</button>
       {enabled?<button type="button" disabled={busy||!settings} onClick={()=>{setBusy(true);void onSave(false).then(ok=>{if(ok)onClose();}).catch(()=>setError('取消提醒失败')).finally(()=>setBusy(false));}}>取消这条鱼的提醒</button>:null}

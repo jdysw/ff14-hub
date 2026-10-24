@@ -136,13 +136,13 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
       <button type="button" aria-pressed={phase==='active'} onClick={()=>setPhase('active')}>进行中活动</button>
       <button type="button" aria-pressed={phase==='upcoming'} onClick={()=>setPhase('upcoming')}>未来活动</button>
     </div>
-    {state.kind === 'loading' && <p className="home-state" role="status">正在获取最新活动…</p>}
+    {state.kind === 'loading' && <output className="home-state" style={{display:'block'}}>正在获取最新活动…</output>}
     {state.kind === 'error' && <div className="home-official__notice" role="alert">
       活动暂时无法加载。 <button className="text-button" type="button" onClick={reload}>重试</button>
       <button className="text-button" type="button" onClick={onOpenCalendar}>打开活动中心</button>
     </div>}
     {state.kind === 'ready' && <>
-      {state.value.source.stale && <p className="home-official__notice" role="status">当前展示缓存数据，官方活动可能已有变更。</p>}
+      {state.value.source.stale && <output className="home-official__notice" style={{display:'block'}}>当前展示缓存数据，官方活动可能已有变更。</output>}
       <div className="home-official__stats" aria-label="国服活动摘要">
         <button type="button" onClick={onOpenCalendar}><strong>{overview.active.length}</strong><span>进行中</span></button>
         <button type="button" onClick={onOpenCalendar}><strong>{overview.upcoming.length}</strong><span>未来 7 天开始</span></button>

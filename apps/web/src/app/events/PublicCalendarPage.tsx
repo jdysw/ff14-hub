@@ -137,13 +137,13 @@ export function PublicCalendarPage({ onBack, overlay = false,initialEventId }: {
         }}>刷新</button>
       </div>
     </header>
-    {state.status === 'loading' && <p className="home-state" role="status">正在加载国服官方活动…</p>}
+    {state.status === 'loading' && <output className="home-state" style={{display:'block'}}>正在加载国服官方活动…</output>}
     {state.status === 'failed' && <p className="notice notice--error" role="alert">国服活动暂时不可用。
       <button type="button" className="text-button" onClick={() => {
         setState({ status: 'loading' }); setAttempt(i => i + 1);
       }}>重试</button></p>}
     {state.status === 'loaded' && <>
-      {state.data.source.stale && <p className="notice notice--warn" role="status">官方源暂时无法更新，当前展示的是历史快照，时间可能已变更。</p>}
+      {state.data.source.stale && <output className="notice notice--warn" style={{display:'block'}}>官方源暂时无法更新，当前展示的是历史快照，时间可能已变更。</output>}
       <div className="calendar-center__stats" aria-label="活动概览">
         {summary('进行中', overview.active.length, 'active')}
         {summary('未来 7 天开始', overview.upcoming.length, 'upcoming')}
