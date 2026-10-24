@@ -21,13 +21,22 @@ function appendDeadlineRows(text:string[],settings:FishDigestSettings,now:number
   if(!ending.length)text.push('没有达到所选提前天数的活动。','');
   return ending.length;
 }
+/** 单条鱼窗文案独立于循环生成，避免多层条件与循环嵌套造成维护歧义。 */
+function dailyWindowLine(row:DigestRow,from:number,to:number,now:number):string{
+  const end=row.end>=to?'24:00':digestClock(row.end);
+  const candidate=row.candidate?' [候选]':'';
+  const elapsed=row.end<=now?' [已过]':'';
+  return `${digestClock(Math.max(from,row.time))}–${end} ${row.name} · ${row.location}（${row.region}）${candidate}${elapsed}`;
+}
 function appendDailyRows(text:string[],rows:DigestRow[],settings:FishDigestSettings,start:number,now:number):void{
-  for(let day=0;day<2&&settings.targets.length>0;day++){
+  if(!settings.targets.length)return;
+  for(let day=0;day<2;day++){
     const from=start+day*DAY,to=from+DAY;
-    text.push(`${day===0?'今天':'明天'} ${digestDate(from)}`,'');
+    const label=day===0?'今天':'明天';
+    text.push(`${label} ${digestDate(from)}`,'');
     const items=rows.filter(row=>row.time<to&&row.end>from);
-    for(const row of items){text.push(`${digestClock(Math.max(from,row.time))}–${row.end>=to?'24:00':digestClock(row.end)} ${row.name} · ${row.location}（${row.region}）${row.candidate?' [候选]':''}${row.end<=now?' [已过]':''}`,'');}
-    if(items.length===0)text.push('没有符合时间天气规则的有限窗口。','');
+    for(const row of items){text.push(dailyWindowLine(row,from,to,now),'');}
+    if(!items.length)text.push('没有符合时间天气规则的有限窗口。','');
   }
 }
 export function renderFishDigest(settings:FishDigestSettings,now:number,catalogs:Partial<Record<'cn'|'global',Catalog>>,events:EventCalendarItem[]=[]){

@@ -185,6 +185,14 @@
 - [ ] `AndroidManifest.xml` 6 项导出接收器安全问题仍需真机/模拟器功能测试。Android 官方示例既出现 `exported=true`（https://developer.android.com/codelabs/glance），也出现 `exported=false`（https://developer.android.com/develop/ui/compose/glance/create-app-widget），不在无设备验证情况下机械修改以求消警。
 - [ ] 需等 SonarCloud 对 PR 最新 SHA 复扫，确认本批相应历史告警减少且没有新增告警；历史 648 项尚未完成全量验收。
 
+## 第二十一批：PR 新增代码四项告警的结构化修复（2026-10-24）
+
+- [x] SonarCloud 在 `PR #84@77d2270` 上报告 4 项新增代码问题：`TodayPlan.tsx` 的 `S3776` 和 2 项 `S3358`，`fish-digest.ts` 的 `S3776`；本批直接整改对应函数，不调整质量门或标记误报。
+- [x] `TodayPlan.tsx` 提取只读属性的 `TodayFishResults`、`TodayActivityRows` 组件，按错误、加载、成功、空结果明确分支，保留原有点击跳转、分页、截止时间和区服行为。
+- [x] `fish-digest.ts` 将每日单条鱼窗状态文本格式化抽为纯函数，减小双日循环的认知复杂度，同时保留北京时间、已过期、候选窗口、跨日截断与空组提示。
+- [x] 完整 `pnpm run verify` 通过：项目测试 611 项、运维测试 60 项，ESLint、TypeScript、Web/Worker 构建、鱼糕/Android/D1 校验及 `git diff --check` 均通过；SonarCloud 仍需扫描最终提交。
+- [ ] 此批完成提交后复扫、确认相关 issueKey 关闭；主线历史积压 648 项尚不能宣称清零。
+
 ## 后续批次（同一个 PR）
 
 1. **P0 安全与可靠性**：清理未完成的 High/Blocker、消息来源、路径边界及正则复杂度问题。
