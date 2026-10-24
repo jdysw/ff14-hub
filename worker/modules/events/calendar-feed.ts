@@ -56,39 +56,34 @@ function chinaTimestamp(v: string): number | null {
 function isAsciiWordCode(code:number):boolean{
   return code===95||(code>=48&&code<=57)||(code>=65&&code<=90)||(code>=97&&code<=122);
 }
-/** 线性移除 HTML 的 script/style 代码区块，避免对不受信任的长页面执行回溯正则。 */
-function stripOfficialExecutableBlocks(source:string):string{
-  let html=source;
-  for(const tag of ['script','style']){
-    const lower=html.toLowerCase();
-    const chunks:string[]=[];
-    let cursor=0,last=0;
-    const prefix='<'+tag,closing='</'+tag+'>';
-    while(cursor<html.length){
-      const open=lower.indexOf(prefix,cursor);
-      if(open<0)break;
-      const after=lower.charCodeAt(open+prefix.length);
-      // 等价于原先的单词边界：<scripted> / <stylesheet> 不属于代码区块。
-      if(isAsciiWordCode(after)){
-        cursor=open+prefix.length;
-        continue;
-      }
-      const tagEnd=lower.indexOf('>',open+prefix.length);
-      if(tagEnd<0)break;
-      const close=lower.indexOf(closing,tagEnd+1);
-      // 后面已经没有结束标签，后续任意同类起始标签也不可能匹配。
-      // 直接退出以避免对大量未闭合 <script> 重复扫描剩余全文。
-      if(close<0)break;
-      chunks.push(html.slice(last,open),' ');
-      last=close+closing.length;
-      cursor=last;
+/** 单一 HTML 标签的线性扫描；无需反复对未闭合标签后的长文本做正则回溯。 */
+function stripOfficialBlock(html:string,tag:string):string{
+  const lower=html.toLowerCase(),chunks:string[]=[];
+  let cursor=0,last=0;
+  const prefix='<'+tag,closing='</'+tag+'>';
+  while(cursor<html.length){
+    const open=lower.indexOf(prefix,cursor);
+    if(open<0)break;
+    // 仅识别 script/style 标签本身，不剔除 scripted / stylesheet。
+    if(isAsciiWordCode(lower.codePointAt(open+prefix.length)??-1)){
+      cursor=open+prefix.length;
+      continue;
     }
-    if(chunks.length){
-      chunks.push(html.slice(last));
-      html=chunks.join('');
-    }
+    const tagEnd=lower.indexOf('>',open+prefix.length);
+    if(tagEnd<0)break;
+    const close=lower.indexOf(closing,tagEnd+1);
+    if(close<0)break;
+    chunks.push(html.slice(last,open),' ');
+    last=close+closing.length;
+    cursor=last;
   }
-  return html;
+  if(!chunks.length)return html;
+  chunks.push(html.slice(last));
+  return chunks.join('');
+}
+/** 只移除可执行代码区块；保留普通文字和相似的非代码标签。 */
+function stripOfficialExecutableBlocks(html:string):string{
+  return stripOfficialBlock(stripOfficialBlock(html,'script'),'style');
 }
 
 /** 仅解析紧随“活动时间/活动期间”的两个完整日期时间；其他含糊日期一律不猜。 */
@@ -110,7 +105,7 @@ export function extractOfficialActivityRange(html: string): { startsAt: number; 
 export function extractOfficialActivityTiming(html:string):{startsAt:number;endsAt:number|null;endCondition?:string}|null{
   const complete=extractOfficialActivityRange(html);if(complete)return complete;
   const plain=stripOfficialExecutableBlocks(html).replace(/<[^>]*>/g,' ').replace(/&nbsp;|&#160;|[\u3000\s]+/gi,' ').slice(0,100000);
-  const match=/(?:活动时间|活动期间|举办时间|起止时间)\s*[：:]?\s*(\d{4}年\d{1,2}月\d{1,2}日\s*\d{1,2}:\d{2}(?::\d{2})?)\s*(?:至|到|~|～|—|－|-|–)\s*(\d{1,2}\.\d{1,2}版本(?:更新)?维护(?:开始)?前)/.exec(plain);
+  const match=/(?:活动时间|活动期间|举办时间|起止时间)\s*(?:[：:]\s*)?(\d{4}年\d{1,2}月\d{1,2}日\s*\d{1,2}:\d{2}(?::\d{2})?)\s*[至到~～—－–-]\s*(\d{1,2}\.\d{1,2}版本(?:更新)?维护(?:开始)?前)/.exec(plain);
   const startsAt=match?chinaTimestamp(match[1]??''):null;
   return startsAt===null?null:{startsAt,endsAt:null,endCondition:match![2]!};
 }
