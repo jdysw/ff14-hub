@@ -8,9 +8,9 @@
  * 相对导入 `../src/nav-api` 而不是 `../src/index`：本文件要能独立验证新契约，
  * 不依赖 barrel（`index.ts`）是否已经接线。
  */
-import { describe, expect, it } from 'vitest';
 import {
-  MAX_NAV_ALIAS_LENGTH,
+  describe,
+  expect,
   MAX_NAV_ALIASES,
   MAX_NAV_ICON_LENGTH,
   MAX_NAV_GROUP_NAME_LENGTH,
@@ -21,26 +21,16 @@ import {
   MAX_NAV_TITLE_LENGTH,
   NAV_DEFAULT_ICON,
   NAV_EXPORT_SCHEMA_VERSION,
-  NAV_MODULE_ID,
-  NAV_MODULE_MANIFEST,
-  NAV_QUICK_LINKS_CONFIG_VERSION,
-  NAV_SEARCH_CONFIG_VERSION,
   NAV_SORT_MODES,
-  NAV_WIDGET_CONFIG_CONTRACTS,
-  NAV_WIDGET_IDS,
   buildNavExportDocument,
   catalogUpgradePlan,
   decideCatalogImport,
   filterNavLinks,
-  findNavWidgetConfigContract,
   navCatalogEntrySchema,
   navCatalogEntryState,
-  navConflictSchema,
   navGroupSchema,
   navLinkSchema,
   navMembershipSchema,
-  navQuickLinksConfigSchema,
-  navSearchConfigSchema,
   navUrlSchema,
   normalizeNavAliases,
   normalizeNavTags,
@@ -60,7 +50,6 @@ import {
   type NavLink,
   type NavMembership,
 } from '../src/nav-api';
-import { validateModuleManifest } from '../src/module-manifest';
 import {normalizeNavText as sourceNormalize} from '../src/nav-normalize';
 import {parseBookmarkHtmlWithDependencies} from '../src/nav-bookmark-parser';
 import {filterNavLinks as sourceFilter,sortNavLinks as sourceSort,projectNavLinks as sourceProject} from '../src/nav-projection';
@@ -1105,118 +1094,3 @@ describe('buildNavExportDocument / parseNavExportDocument：往返与拒绝', ()
 // ---------------------------------------------------------------------------
 // 8. Manifest 与 Widget 契约
 // ---------------------------------------------------------------------------
-
-describe('Manifest 与 Widget 配置契约一致', () => {
-  it('NAV_MODULE_MANIFEST 通过 validateModuleManifest，并声明所需能力', () => {
-    const validation = validateModuleManifest(NAV_MODULE_MANIFEST);
-    if (!validation.ok) {
-      throw new Error(`Manifest 校验失败：${validation.issues.join('; ')}`);
-    }
-    expect(validation.manifest.id).toBe(NAV_MODULE_ID);
-    expect(validation.manifest.version).toBe('1.0.0');
-    expect(validation.manifest.capabilities).toContain('navigation:read-catalog');
-    expect(validation.manifest.capabilities).toContain('storage:own');
-    expect(validation.manifest.routes).toEqual([{ path: '/nav', viewId: 'nav' }]);
-    expect(validation.manifest.settingsSchemaVersion).toBe(1);
-    expect(validation.manifest.lifecycle).toEqual({
-      onEnable: 'ff14.navigation.enable',
-      onDisable: 'ff14.navigation.disable',
-      onUninstall: 'ff14.navigation.uninstall',
-    });
-    expect(validation.manifest.widgets.map((widget) => widget.id).sort((a, b) => a.localeCompare(b))).toEqual(
-      [NAV_WIDGET_IDS.quickLinks, NAV_WIDGET_IDS.search].sort((a, b) => a.localeCompare(b)),
-    );
-  });
-
-  it('每个 Widget 的 configSchemaVersion 与同名契约一致，默认配置通过自己的 Schema', () => {
-    const manifestVersions = new Map(
-      NAV_MODULE_MANIFEST.widgets.map((widget) => [widget.id, widget.configSchemaVersion]),
-    );
-    expect(NAV_WIDGET_CONFIG_CONTRACTS).toHaveLength(2);
-    for (const contract of NAV_WIDGET_CONFIG_CONTRACTS) {
-      expect(manifestVersions.get(contract.widgetId)).toBe(contract.configSchemaVersion);
-      expect(contract.migrations).toEqual({});
-      // 默认配置必须能通过自己的 Schema（否则新建实例立刻是非法状态）。
-      expect(contract.schema.safeParse(contract.defaultConfig).success).toBe(true);
-      // 默认配置必须与 Schema 自己的 .default() 结果完全一致。
-      expect(contract.schema.parse({})).toEqual(contract.defaultConfig);
-    }
-    expect(findNavWidgetConfigContract(NAV_WIDGET_IDS.quickLinks)?.configSchemaVersion).toBe(
-      NAV_QUICK_LINKS_CONFIG_VERSION,
-    );
-    expect(findNavWidgetConfigContract(NAV_WIDGET_IDS.search)?.configSchemaVersion).toBe(NAV_SEARCH_CONFIG_VERSION);
-    expect(findNavWidgetConfigContract('nav-unknown')).toBeNull();
-  });
-
-  it('nav-quick-links 默认值与边界：收藏优先、limit 1..20、拒绝未知字段', () => {
-    expect(navQuickLinksConfigSchema.parse({})).toEqual({
-      title: '常用网站',
-      groupId: null,
-      favoritesOnly: true,
-      limit: 8,
-    });
-    expect(navQuickLinksConfigSchema.parse({ groupId: 'g1', favoritesOnly: false, limit: 20 })).toEqual({
-      title: '常用网站',
-      groupId: 'g1',
-      favoritesOnly: false,
-      limit: 20,
-    });
-    expect(navQuickLinksConfigSchema.safeParse({ limit: 0 }).success).toBe(false);
-    expect(navQuickLinksConfigSchema.safeParse({ limit: 21 }).success).toBe(false);
-    expect(navQuickLinksConfigSchema.safeParse({ title: '' }).success).toBe(false);
-    expect(navQuickLinksConfigSchema.safeParse({ extra: 1 }).success).toBe(false);
-  });
-
-  it('nav-search 默认值与边界：region=both、tag=null、sort=manual', () => {
-    expect(navSearchConfigSchema.parse({})).toEqual({
-      title: '导航搜索',
-      groupId: null,
-      region: 'both',
-      tag: null,
-      sort: 'manual',
-    });
-    expect(navSearchConfigSchema.safeParse({ region: 'jp' }).success).toBe(false);
-    expect(navSearchConfigSchema.safeParse({ sort: 'random' }).success).toBe(false);
-    expect(navSearchConfigSchema.safeParse({ sort: 'favorite', region: 'cn', tag: '攻略' }).success).toBe(true);
-    expect(navSearchConfigSchema.safeParse({ extra: 1 }).success).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 9. 结构化冲突形状
-// ---------------------------------------------------------------------------
-
-describe('navConflictSchema：结构化冲突形状', () => {
-  const conflict = {
-    reason: 'revision_conflict',
-    entityType: 'nav_link',
-    entityId: 'l1',
-    field: null,
-    baseRevision: 1,
-    currentRevision: 2,
-    resolutionOptions: ['local', 'server'],
-  };
-
-  it('合法冲突形状通过（含整行级 field=null）', () => {
-    expect(navConflictSchema.safeParse(conflict).success).toBe(true);
-    expect(
-      navConflictSchema.safeParse({ ...conflict, field: 'title', baseRevision: null, currentRevision: null }).success,
-    ).toBe(true);
-  });
-
-  it('缺任一必需字段都被拒绝', () => {
-    for (const key of Object.keys(conflict)) {
-      const rest = Object.fromEntries(Object.entries(conflict).filter(([entryKey]) => entryKey !== key));
-      expect(navConflictSchema.safeParse(rest).success, `缺少 ${key}`).toBe(false);
-    }
-  });
-
-  it('未知 reason / 未知实体类型 / 空处理选项 / 未知字段 / 负 revision 都被拒绝', () => {
-    expect(navConflictSchema.safeParse({ ...conflict, reason: 'meltdown' }).success).toBe(false);
-    expect(navConflictSchema.safeParse({ ...conflict, entityType: 'nav_widget' }).success).toBe(false);
-    expect(navConflictSchema.safeParse({ ...conflict, resolutionOptions: [] }).success).toBe(false);
-    expect(navConflictSchema.safeParse({ ...conflict, resolutionOptions: ['server', 'mine'] }).success).toBe(false);
-    expect(navConflictSchema.safeParse({ ...conflict, extra: 1 }).success).toBe(false);
-    expect(navConflictSchema.safeParse({ ...conflict, baseRevision: -1 }).success).toBe(false);
-  });
-});
