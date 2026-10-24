@@ -48,5 +48,10 @@ test('CLI only emits read-only SELECT/PRAGMA and cannot select implicit remote e
  for(const call of calls){assert.ok(/^(SELECT|PRAGMA) /.test(call.sql));assert.ok(call.args.includes('--local'));assert.ok(!call.args.includes('--remote'));}
  assert.throws(()=>inspectD1('production',undefined,{runner}));
  assert.throws(()=>inspectD1('staging','--remote',{runner}));
+ assert.throws(()=>inspectD1('development','--remote',{runner}));
+ const start=calls.length;
+ assert.equal(inspectD1('development','--local',{runner}).ready,true);
+ for(const call of calls.slice(start))assert.ok(!call.args.includes('--env'));
+
  assert.throws(()=>runReadOnlyQuery('preview','--local','SELECT 1',{runner:()=>({status:1,stdout:''})}));
 });
