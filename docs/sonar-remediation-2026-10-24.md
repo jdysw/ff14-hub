@@ -6,6 +6,7 @@
 ## 基线与验收方法
 
 - SonarCloud Issues API：`GET /api/issues/search?componentKeys=jdysw_ff14-hub&ps=300&p=1..3&issueStatuses=OPEN,CONFIRMED`，合计 **648** 项。
+- 2026-10-24 再次完整分页读取并校验 **648 条唯一 issueKey**，保存为 [`sonar-baseline-issues-2026-10-24.tsv`](./sonar-baseline-issues-2026-10-24.tsv)（规则、严重度、质量影响、路径、行号、消息）。此快照是**尚未合并的 main 基线**，不等于当前 PR 的剩余问题数。
 - 按软件质量的影响次数：可维护性 **605**、可靠性 **87**、安全性 **17**。一项问题可能同时影响多个维度，因此相加可超过 648。
 - 高频规则：`typescript:S3358` 108、`typescript:S2681` 57、`typescript:S6819` 54、`css:S4666` 41、`typescript:S9382` 33、`javascript:S9382` 33、`javascript:S3358` 30。
 - 集中分布文件：`FishingBoard.tsx` 70、`fishing-crosscheck.mjs` 28、`home-cards.css` 24、`LocalApp.tsx` 19、`calendar-feed.ts` 18。
