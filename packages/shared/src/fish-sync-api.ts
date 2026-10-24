@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { fishRegionSchema,fishProgressFieldSchema } from './fish-api';
-import { operationIdSchema } from './workbench-api';
+import { operationIdSchema } from './operation-id';
 import type { ModuleManifest } from './module-manifest';
 import type { WidgetConfigContract } from './builtin-modules';
 export {parseFishDocument,serializeFishDocument,mergeFishDocuments,fieldsToDocument,documentChanges,canonicalJson,fishDocumentSchema} from '@ff14-hub/fish-sync';
