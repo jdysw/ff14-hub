@@ -34,9 +34,9 @@ const results = [];
 export const safeLogText = (value) => JSON.stringify(String(value)).slice(1, -1).slice(0, 180);
 
 function record(name, ok, detail) {
-  results.push({ name, ok, detail });
-  const mark = ok ? 'PASS' : 'FAIL';
-  console.log(`[${mark}] ${safeLogText(name)}${detail ? ` — ${safeLogText(detail)}` : ''}`);
+  results.push({ name: safeLogText(name), ok, detail: safeLogText(detail ?? '') });
+  // 仅输出固定标记与本地生成的编号：未经信任的响应、异常信息绝不流入终端日志。
+  console.log(ok ? '[PASS] Local check' : '[FAIL] Local check', results.length);
 }
 
 async function get(path) {

@@ -31,8 +31,8 @@ export async function s3Headers(config:RemoteConfig,method:string,body:string,he
   if(config.sessionToken)signed['x-amz-security-token']=config.sessionToken;
   // SigV4 的 CanonicalHeaders 必须使用字节序，而不是受系统 locale 影响的排序。
    const names=Object.keys(signed).sort((a,b)=>{
-     if(a<b)return -1;
-     if(a>b)return 1;
+     if(a<b){return -1;}
+     if(a>b){return 1;}
      return 0;
    }),scope=`${day}/${config.region}/s3/aws4_request`;
   const canonical=[method,url.pathname,'',names.map(name=>`${name}:${signed[name]!.trim()}\n`).join(''),names.join(';'),hash].join('\n');

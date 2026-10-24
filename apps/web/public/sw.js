@@ -295,7 +295,7 @@ self.addEventListener('fetch', (event) => {
 /** 只接受同源、已打开的窗口客户端发送的更新或缓存指令。 */
 function isTrustedPageMessage(event) {
   const source = event.source;
-  if (!source || source.type !== 'window' || typeof source.url !== 'string') {
+  if (source?.type !== 'window' || typeof source?.url !== 'string') {
     return false;
   }
   try {
