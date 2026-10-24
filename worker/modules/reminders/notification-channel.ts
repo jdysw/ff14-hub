@@ -2,7 +2,7 @@ import {localNotificationChannelSchema,type LocalNotificationChannel} from '@ff1
 import type {Env} from '../../env';
 import {createPushTransport} from './push';
 const enc=new TextEncoder();
-async function key(secret:string){if(secret.length<32)throw new Error('notification_encryption_unavailable');return crypto.subtle.importKey('raw',await crypto.subtle.digest('SHA-256',enc.encode('ff14.notification-channel.v1:'+secret)),{name:'AES-GCM'},false,['encrypt','decrypt']);}
+async function key(secret:string){if(secret.length<32){throw new Error('notification_encryption_unavailable');}return crypto.subtle.importKey('raw',await crypto.subtle.digest('SHA-256',enc.encode('ff14.notification-channel.v1:'+secret)),{name:'AES-GCM'},false,['encrypt','decrypt']);}
 const b64=(value:Uint8Array)=>btoa(Array.from(value,b=>String.fromCharCode(b)).join(''));
 export async function encryptChannel(channel:LocalNotificationChannel,secret:string,id:string){
   const iv=crypto.getRandomValues(new Uint8Array(12));

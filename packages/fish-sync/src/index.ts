@@ -39,7 +39,11 @@ export function parseFishDocument(text:string):FishDocument{return fishDocumentS
 export function canonicalJson(value:Json|undefined):string{
   if(value===undefined)return 'undefined';
   if(Array.isArray(value))return `[${value.map(canonicalJson).join(',')}]`;
-  if(value!==null&&typeof value==='object')return `{${Object.keys(value).sort().map((key)=>`${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+  if(value!==null&&typeof value==='object')return `{${Object.keys(value).sort((a,b)=>{
+     if(a<b)return -1;
+     if(a>b)return 1;
+     return 0;
+   }).map((key)=>`${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
   return JSON.stringify(value);
 }
 export function serializeFishDocument(document:FishDocument):string{
