@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "FF14 Hub — 个人导航与模块化工作台",
-  "short_name": "FF14 Hub",
-  "description": "FF14 Hub：个人导航目录、活动列表与可自定义的模块化工作台（离线仅显示缓存的公开内容）。",
+  "name": "私用以太之光 — FF14 日常助手",
+  "short_name": "私用以太之光",
+  "description": "FF14 导航、活动、鱼窗、PVP 与个人待办助手。",
   "lang": "zh-CN",
   "dir": "ltr",
   "start_url": "/",

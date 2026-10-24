@@ -38,10 +38,10 @@ async function schemaNames(type:'table'|'index'|'trigger'):Promise<Set<string>>{
 describe('单文件初始迁移',()=>{
   it('只登记一份现行迁移且重复调用迁移接口不会重新执行',async()=>{
     const before=await env.DB.prepare('SELECT name FROM d1_migrations').all<{name:string}>();
-    expect(before.results.map(row=>row.name)).toEqual(['0001_core.sql']);
+    expect(before.results.map(row=>row.name)).toEqual(['0001_core.sql','0022_content_management.sql']);
     await applyD1Migrations(env.DB,env.TEST_MIGRATIONS);
     const after=await env.DB.prepare('SELECT name FROM d1_migrations').all<{name:string}>();
-    expect(after.results.map(row=>row.name)).toEqual(['0001_core.sql']);
+    expect(after.results.map(row=>row.name)).toEqual(['0001_core.sql','0022_content_management.sql']);
   });
 
   it('精确包含当前 16 张表，不再创建旧身份与工作空间表',async()=>{
@@ -49,7 +49,7 @@ describe('单文件初始迁移',()=>{
     for(const table of LIVE_TABLES)expect(tables.has(table),`缺少现行表 ${table}`).toBe(true);
     for(const table of RETIRED_TABLES)expect(tables.has(table),`仍在新基线创建废弃表 ${table}`).toBe(false);
     const visible=[...tables].filter(name=>name!=='d1_migrations'&&name!=='sqlite_sequence'&&!name.startsWith('_cf_'));
-    expect(visible.sort()).toEqual([...LIVE_TABLES].sort());
+    expect(visible.sort()).toEqual([...LIVE_TABLES,'admin_content_state','admin_content_audit','site_game_data','site_game_data_history','admin_sync_runs'].sort());
   });
 
   it('保留查询索引和 owner 操作审计触发器',async()=>{

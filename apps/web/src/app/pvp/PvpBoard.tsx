@@ -1,4 +1,5 @@
 import {useEffect,useState} from 'react';
+import {useGameData} from '../admin/game-data';
 import {
   beijingDate,beijingHour,crystallineAt,crystallineSchedule,
   formatPvpCountdown,frontlineAt,frontlineSchedule,
@@ -28,8 +29,9 @@ function useRotationClock():number{
 /** 首页只保留两种 PVP 当前地图；详情继承网站统一的原位展开/收起交互。 */
 export function PvpBoard({expanded=false,onOpenDetail}:PvpBoardProps){
   const now=useRotationClock();
-  const frontline=frontlineAt(now);
-  const crystal=crystallineAt(now);
+  const rules=useGameData().pvp;
+  const frontline=frontlineAt(now,rules);
+  const crystal=crystallineAt(now,rules);
   const countdownFrontline=formatPvpCountdown(frontline.changesAt,now);
   const countdownCrystal=formatPvpCountdown(crystal.changesAt,now);
   const tomorrow=beijingDate(frontline.changesAt);
@@ -45,7 +47,7 @@ export function PvpBoard({expanded=false,onOpenDetail}:PvpBoardProps){
     </header>}
     <div className="pvp-board__current">
       <article className="pvp-board__mode">
-        <div className="pvp-board__mode-head"><h3>纷争前线</h3><span>北京时间每日 23:00</span></div>
+        <div className="pvp-board__mode-head"><h3>纷争前线</h3><span>北京时间 {beijingHour(frontline.changesAt)} 轮换</span></div>
         <strong className="pvp-board__map">{frontline.current}</strong>
         <div className="pvp-board__meta">
           <span>下轮：{frontline.next} · 北京时间 {beijingHour(frontline.changesAt)}</span>
@@ -53,7 +55,7 @@ export function PvpBoard({expanded=false,onOpenDetail}:PvpBoardProps){
         </div>
       </article>
       <article className="pvp-board__mode">
-        <div className="pvp-board__mode-head"><h3>水晶冲突</h3><span>北京时间每 60 分钟</span></div>
+        <div className="pvp-board__mode-head"><h3>水晶冲突</h3><span>每 {rules.crystalline.period/60000} 分钟</span></div>
         <strong className="pvp-board__map">{crystal.current}</strong>
         <div className="pvp-board__meta">
           <span>下张：{crystal.next} · 北京时间 {beijingHour(crystal.changesAt)}</span>
@@ -65,15 +67,15 @@ export function PvpBoard({expanded=false,onOpenDetail}:PvpBoardProps){
       <section className="pvp-board__schedule" aria-label="纷争前线未来八天">
         <h3>纷争前线 · 未来 8 天</h3>
         <p>每日北京时间 23:00 更换地图，下一次为 {tomorrow} 23:00。</p>
-        <ol>{frontlineSchedule(now).map((entry,index)=><li key={entry.date} aria-current={index===0?'time':undefined}>
-          <span className="pvp-board__schedule-time">{entry.date} 23:00 {index===0?'（本轮）':''}</span>
+        <ol>{frontlineSchedule(now,8,rules).map((entry,index)=><li key={entry.startsAt} aria-current={index===0?'time':undefined}>
+          <span className="pvp-board__schedule-time">{entry.date} {beijingHour(entry.startsAt)} {index===0?'（本轮）':''}</span>
           <span className="pvp-board__schedule-map">{entry.current}</span>
         </li>)}</ol>
       </section>
       <section className="pvp-board__schedule" aria-label="水晶冲突未来八小时">
         <h3>水晶冲突 · 接下来 8 小时</h3>
         <p>每小时整点切换；时间均为北京时间。</p>
-        <ol>{crystallineSchedule(now).map((entry,index)=><li key={entry.startsAt} aria-current={index===0?'time':undefined}>
+        <ol>{crystallineSchedule(now,8,rules).map((entry,index)=><li key={entry.startsAt} aria-current={index===0?'time':undefined}>
           <span className="pvp-board__schedule-time">{entry.date} {entry.startHour}–{entry.endHour}</span>
           <span className="pvp-board__schedule-map">{entry.current}</span>
         </li>)}</ol>

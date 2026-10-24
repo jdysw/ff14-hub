@@ -1,5 +1,5 @@
 import {lazy,Suspense,useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import {canonicalNavUrl} from '@ff14-hub/shared';
+import {canonicalNavUrl,splitDirectoryCategory,resolveDirectoryCategory,DEFAULT_CATEGORIES} from '@ff14-hub/shared';
 import {directoryLinks} from './directory-links';
 import {useNavigationCatalog} from './use-navigation-catalog';
 import {HomeOfficialEvents} from '../shell/HomeOfficialEvents';
@@ -23,7 +23,8 @@ import './local.css';
 import './site-discovery.css';
 import './unified-search.css';
 import {GlobalSearch} from './GlobalSearch';
-import {TodayPlan} from './TodayPlan';
+import {TodoBoard} from './TodoBoard';
+import {ModuleGrid} from './ModuleGrid';
 import type {FeatureTarget,FishSearchTarget} from './site-search';
 
 const SiteAdminPage=lazy(()=>import('../admin/SiteAdminPage').then(module=>({default:module.SiteAdminPage})));
@@ -76,20 +77,22 @@ export function LocalApp(){
   const openFish=(target:FishSearchTarget)=>{setView('home');openModule('fishing',{...target,view:'all',kind:'all',text:'',hideCaught:false,windowHours:24});};
   const openEvent=(id:string)=>{setView('home');openModule('events',undefined,id);};
   const openFeature=(target:FeatureTarget)=>{
-    if(target==='sync'||target==='backup'||target==='notifications'||target==='notes'){
-      setSearchOpen(false);setExpanded(null);setSettingsTab(target==='notifications'?'notifications':target==='notes'?'notes':'data');if(target==='sync'||target==='backup')setDataSection(target);setView('settings');
+    if(target==='notes'||target==='plan'){openModule('notes');return;}
+    if(target==='sync'||target==='backup'||target==='notifications'){
+      setSearchOpen(false);setExpanded(null);setSettingsTab(target==='notifications'?'notifications':'data');if(target==='sync'||target==='backup')setDataSection(target);setView('settings');
     }else openModule(target);
   };
   useEffect(()=>startLocalNotifications(store),[store]);
   useEffect(()=>startFishcakeSync(store),[store]);
   const [category,setCategory]=useState('all');
+  const [subcategory,setSubcategory]=useState('all');
   const siteSettings=useSiteSettings();
   const adminSession=useCalendarAdminSession();
   const adminClicks=useRef<number[]>([]);
   const openAdmin=()=>{
     const now=Date.now();
     adminClicks.current=[...adminClicks.current.filter(time=>now-time<4000),now];
-    if(adminSession.authenticated||adminClicks.current.length>=5){adminClicks.current=[];setView('admin');}
+    adminClicks.current=[];setView('admin');
   };
   useEffect(()=>{document.title=siteSettings.siteName;},[siteSettings.siteName]);
   const [favorites,setFavorites]=useState(false);
@@ -116,18 +119,21 @@ export function LocalApp(){
     window.addEventListener('keydown',shortcut);return()=>window.removeEventListener('keydown',shortcut);
   },[showSearch]);
   // 合并系统与本地目录：本地收藏和人工简介优先，搜索覆盖系统别名与标签。
-  const allLinks=useMemo(()=>directoryLinks(catalog,data?.links??[]),[catalog,data]);
+  const allLinks=useMemo(()=>directoryLinks(catalog,data?.links??[]).map(link=>({...link,category:resolveDirectoryCategory(link.category,siteSettings.presentation?.categoryAliases)})),[catalog,data,siteSettings.presentation?.categoryAliases]);
   const links=useMemo(()=>allLinks.filter(link=>!favorites||link.favorite),[allLinks,favorites]);
-  const groups=useMemo(()=>[...new Set(allLinks.map(link=>link.category||'常用网站'))].sort((a,b)=>a.localeCompare(b,'zh-CN')),[allLinks]);
-  const filteredLinks=useMemo(()=>category==='all'?links:links.filter(link=>(link.category||'常用网站')===category),[links,category]);
+  const taxonomy=siteSettings.presentation?.categories??DEFAULT_CATEGORIES;
+  const groups=useMemo(()=>{const names=new Set(allLinks.map(link=>splitDirectoryCategory(link.category).main));return [...taxonomy.map(group=>group.name).filter(name=>names.delete(name)),...names];},[allLinks,taxonomy]);
+  const subgroups=useMemo(()=>category==='all'?[]:[...new Set(allLinks.filter(link=>splitDirectoryCategory(link.category).main===category).map(link=>splitDirectoryCategory(link.category).sub).filter(Boolean))].sort((a,b)=>{const order=taxonomy.find(g=>g.name===category)?.children??[];return (order.includes(a)?order.indexOf(a):100)-(order.includes(b)?order.indexOf(b):100);}),[category,allLinks,taxonomy]);
+  const filteredLinks=useMemo(()=>links.filter(link=>{const group=splitDirectoryCategory(link.category);return (category==='all'||group.main===category)&&(subcategory==='all'||group.sub===subcategory);}),[links,category,subcategory]);
   const hasFilters=Boolean(favorites||category!=='all');
-  const clearFilters=()=>{setCategory('all');setFavorites(false);setVisibleLimit(36);};
-  const enabledSections=data?.configuration.order.filter(section=>data.configuration.visible[section]&&(section!=='events'||siteSettings.homeCalendarEnabled))??[];
+  const clearFilters=()=>{setCategory('all');setSubcategory('all');setFavorites(false);setVisibleLimit(36);};
+  const sectionOrder=data&&(data.configuration.orderCustomized||data.configuration.order.join(',')!=='events,fishing,pvp,notes')?data.configuration.order:siteSettings.presentation?.home.order??data?.configuration.order??[];
+  const enabledSections=sectionOrder.filter(section=>data?.configuration.visible[section]&&(siteSettings.presentation?.home.enabled[section]??true)&&(section!=='events'||siteSettings.homeCalendarEnabled));
   const saveFavorite=(link:typeof links[number])=>{
     void store.change(document=>{
       const old=document.data.links.find(item=>canonicalNavUrl(item.url)===canonicalNavUrl(link.url));
       if(old)old.favorite=!old.favorite;
-      else document.data.links.push({id:crypto.randomUUID(),title:link.title,url:link.url,category:link.category,description:link.description??'',...(link.faviconUrl?{faviconUrl:link.faviconUrl}:{}),favorite:true});
+      else document.data.links.push({id:crypto.randomUUID(),title:link.title,url:link.url,category:link.category,categoryCustomized:link.personal,description:link.description??'',...(link.faviconUrl?{faviconUrl:link.faviconUrl}:{}),favorite:true});
     }).catch((cause:unknown)=>setError(cause instanceof Error?cause.message:'本机保存失败'));
   };
 
@@ -135,7 +141,7 @@ export function LocalApp(){
     <a className="skip-link" href="#main-content">跳转到主要内容</a>
     <header className="shell__header shell__header--unified">
       <button className="brand__home" type="button" onClick={()=>setView('home')} aria-current={view==='home'?'page':undefined} aria-label={siteSettings.siteName+' 首页'}>
-        <span className="brand__mark" aria-hidden="true">XIV</span>
+        <img className="brand__aetheryte" src="/icons/aetheryte.svg" alt="" width="38" height="38"/>
         <h1 className="brand__title">{siteSettings.siteName}</h1>
       </button>
       <div className="home-global-search">
@@ -151,7 +157,7 @@ export function LocalApp(){
         </form>
       </div>
       <div className="local-app__header-actions">
-        <button className="site-discovery-trigger" type="button" disabled={!data} onClick={()=>openModule('plan')}>今日计划</button>
+        <button className="site-discovery-trigger" type="button" disabled={!data} onClick={()=>openModule('notes')}>我的待办</button>
         {view==='home'&&data?<a className="local-app__nav-jump" href="#local-navigation">导航站 ↓</a>:null}
         {view!=='home'&&<button type="button" className="local-app__back" onClick={()=>setView('home')}>← <span>返回</span></button>}
         <button className="shell__settings" type="button" aria-label={view==='settings'?'返回首页':'设置'} aria-pressed={view==='settings'} onClick={()=>setView(view==='settings'?'home':'settings')}>
@@ -174,7 +180,7 @@ export function LocalApp(){
               <h2>常用功能</h2>
               <button type="button" className="local-dashboard__manage" onClick={()=>{setSettingsTab('home');setView('settings');}}>自定义 <span aria-hidden="true">↗</span></button>
             </header>
-            <div className="local-dashboard__module-grid">
+            <ModuleGrid identity={enabledSections.join(',')} mode={siteSettings.presentation?.home.layout??'auto'}>
               {enabledSections.length===0?<p className="local-dashboard__empty">
                 <button type="button" onClick={()=>{setSettingsTab('home');setView('settings');}}>启用功能模块 ＋</button>
               </p>:enabledSections.map(section=><div className="local-dashboard__module" key={section} data-module={section}>
@@ -182,15 +188,9 @@ export function LocalApp(){
                   onHide={()=>{void store.change(document=>{document.data.configuration.visible.events=false;}).catch(()=>setError('设置未能保存到本机'));}}/>:
                 section==='fishing'?<FishingBoard data={dataPort} subscribeProgress={subscribeProgress} initialRegion={data.configuration.region} embedded onOpenDetail={selection=>openModule('fishing',selection)}/>:
                 section==='pvp'?<PvpBoard onOpenDetail={()=>openModule('pvp')}/>:
-                <section className="local-notes" aria-label="我的备忘">
-                  <header className="local-notes__heading"><h3>备忘</h3>
-                    <button type="button" className="local-dashboard__manage" onClick={()=>openModule('notes')}>查看全部 ↗</button>
-                  </header>
-                  {data.notes.length?data.notes.slice(0,2).map(note=><article key={note.id}><h4>{note.title}</h4><p>{note.text}</p></article>):
-                    <p className="local-notes__empty">暂无备忘 <button type="button" onClick={()=>{setSettingsTab('notes');setView('settings');}}>添加 ＋</button></p>}
-                </section>}
+                <TodoBoard data={data} store={store} onExpand={()=>openModule('notes')}/>}
               </div>)}
-            </div>
+            </ModuleGrid>
           </section>
           <div className="field-divider" aria-hidden="true"/>
           <section id="local-navigation" className="local-directory" aria-label="导航站">
@@ -204,10 +204,11 @@ export function LocalApp(){
             {hasFilters?<div className="local-directory__toolbar"><button type="button" className="local-directory__reset" onClick={clearFilters}>清除筛选</button></div>:null}
             <div className="local-directory__category-row">
               <nav className="local-directory__filters" aria-label="网站分类">
-                <button type="button" aria-pressed={category==='all'} onClick={()=>{setCategory('all');setVisibleLimit(36);}}>全部</button>
-                {groups.map(group=><button type="button" key={group} aria-pressed={category===group} onClick={()=>{setCategory(group);setVisibleLimit(36);}}>{group}</button>)}
+                <button type="button" aria-pressed={category==='all'} onClick={()=>{setCategory('all');setSubcategory('all');setVisibleLimit(36);}}>全部</button>
+                {groups.map(group=><button type="button" key={group} aria-pressed={category===group} onClick={()=>{setCategory(group);setSubcategory('all');setVisibleLimit(36);}}>{group}</button>)}
               </nav>
             </div>
+            {subgroups.length>0&&<nav className="local-directory__subcategories" aria-label="网站子分类"><button type="button" aria-pressed={subcategory==='all'} onClick={()=>{setSubcategory('all');setVisibleLimit(36);}}>全部{category}</button>{subgroups.map(sub=><button type="button" key={sub} aria-pressed={subcategory===sub} onClick={()=>{setSubcategory(sub);setVisibleLimit(36);}}>{sub}</button>)}</nav>}
             {catalogError&&<div role="status" className="local-directory__notice">公共目录暂时无法更新，本机网站和已加载内容仍可使用。 <button type="button" onClick={reloadCatalog}>重试</button></div>}
             {catalogLoading?<p role="status" className="local-directory__loading">正在更新网站目录…</p>:null}
             {filteredLinks.length===0?(!catalogLoading&&<div id="directory-results" className="local-directory__empty"><h3>{hasFilters?'没有找到匹配的网站':catalogError?'暂时无法读取公共目录':'还没有网站'}</h3><p>{hasFilters?'试试取消收藏筛选，或选择其他分类。':'可以在设置中添加自己的常用网站。'}</p>{hasFilters?<button type="button" onClick={clearFilters}>查看全部网站</button>:<button type="button" onClick={()=>{setSettingsTab('links');setView('settings');}}>添加个人网站</button>}</div>):
@@ -228,24 +229,17 @@ export function LocalApp(){
     </main>
     {expanded&&data&&view!=='admin'?<LocalModuleOverlay
       key={expanded.kind+':'+String(expanded.fishFilters?.fishId??'')+':'+String(expanded.fishFilters?.windowStartsAt??'')+':'+String(expanded.eventId??'')}
-      title={{events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的备忘',plan:'今日计划'}[expanded.kind]}
+      title={{events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的待办',plan:'我的待办'}[expanded.kind]}
       origin={expanded.origin}
       onClose={()=>setExpanded(null)}>
-      {expanded.kind==='plan'?<TodayPlan data={data} store={store} onFish={openFish} onEvent={openEvent} onFeature={openFeature}/>:
+      {expanded.kind==='plan'?<TodoBoard data={data} store={store} expanded/>:
         expanded.kind==='events'?<PublicCalendarPage overlay {...(expanded.eventId?{initialEventId:expanded.eventId}:{})} onBack={()=>setExpanded(null)}/>:
         expanded.kind==='fishing'?<FishingBoard data={dataPort} subscribeProgress={subscribeProgress} initialRegion={data.configuration.region} onNotificationSettings={()=>{setExpanded(null);setSettingsTab('notifications');setView('settings');}}
           initialFilters={expanded.fishFilters} expanded onImport={()=>{
             setExpanded(null);setDataSection('fish');setSettingsTab('data');setView('settings');
           }}/>:
         expanded.kind==='pvp'?<PvpBoard expanded/>:
-        <section className="local-detail local-detail--notes" aria-label="全部备忘">
-          <header className="local-detail__header"><h2>我的备忘</h2>
-            <button type="button" onClick={()=>{setExpanded(null);setSettingsTab('notes');setView('settings');}}>管理备忘 ↗</button>
-          </header>
-          {data.notes.length?data.notes.map(note=><article className="local-detail__note" key={note.id}>
-            <h3>{note.title}</h3><p>{note.text}</p>
-          </article>):<p className="local-detail__empty">暂无备忘。可在设置中添加。</p>}
-        </section>}
+        <TodoBoard data={data} store={store} expanded/>}
     </LocalModuleOverlay>:null}
   </div>;
 }

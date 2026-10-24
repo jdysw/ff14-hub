@@ -10,7 +10,8 @@ import {fileURLToPath} from 'node:url';
 
 const directory=fileURLToPath(new URL('../../migrations/',import.meta.url));
 const files=(await readdir(directory)).filter(name=>name.endsWith('.sql')).sort();
-assert.deepEqual(files,['0001_core.sql'],'全新 D1 必须由唯一一份 0001_core.sql 创建');
+assert.equal(files[0],'0001_core.sql','全新 D1 必须从 0001_core.sql 创建');
+assert.ok(files.slice(1).every(file=>/^00(?:2[2-9]|[3-9]\d)_/.test(file)),'后续增量迁移从 0022 开始');
 const sql=await readFile(new URL('../../migrations/0001_core.sql',import.meta.url),'utf8');
 const statements=sql.split('\n').filter(line=>!line.trimStart().startsWith('--')).join('\n');
 const capture=(regex)=>[...statements.matchAll(regex)].map(match=>match[1]);

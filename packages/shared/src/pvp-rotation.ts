@@ -3,6 +3,7 @@
  * 不依赖浏览器时区、不请求后台，也不按进入页面的时刻累计计时。
  * 若游戏运营调整轮换表或临时停服，需要更新锚点/规则。
  */
+import {z} from 'zod';
 export const PVP_DAY_MS=86_400_000;
 export const CRYSTAL_PERIOD_MS=3_600_000;
 const CN_OFFSET_MS=8*CRYSTAL_PERIOD_MS;
@@ -31,6 +32,10 @@ export const CRYSTAL_MAPS=[
 function modulo(n:number,size:number):number{
   return ((n%size)+size)%size;
 }
+const rotationRule=z.object({anchor:z.number().int().nonnegative(),anchorIndex:z.number().int().nonnegative(),period:z.number().int().min(60000).max(7*86400000),maps:z.array(z.string().trim().min(1).max(60)).min(1).max(12)}).strict().refine(rule=>rule.anchorIndex<rule.maps.length,'锚点序号超出地图范围');
+export const pvpRulesSchema=z.object({version:z.string().trim().min(1).max(80),frontline:rotationRule,crystalline:rotationRule}).strict();
+export type PvpRules=ReturnType<typeof pvpRulesSchema.parse>;
+export const DEFAULT_PVP_RULES:PvpRules={version:PVP_RULE_VERSION,frontline:{anchor:FRONTLINE_ANCHOR_UTC,anchorIndex:4,period:PVP_DAY_MS,maps:[...FRONTLINE_MAPS]},crystalline:{anchor:CRYSTAL_ANCHOR_UTC,anchorIndex:6,period:CRYSTAL_PERIOD_MS,maps:[...CRYSTAL_MAPS]}};
 
 export interface PvpRotationStatus {
   readonly current:string;
@@ -52,12 +57,12 @@ function statusAt(now:number,anchor:number,period:number,maps:readonly string[],
   };
 }
 
-export function frontlineAt(now:number):PvpRotationStatus{
-  return statusAt(now,FRONTLINE_ANCHOR_UTC,PVP_DAY_MS,FRONTLINE_MAPS,4);
+export function frontlineAt(now:number,rules=DEFAULT_PVP_RULES):PvpRotationStatus{
+  const rule=rules.frontline;return statusAt(now,rule.anchor,rule.period,rule.maps,rule.anchorIndex);
 }
 
-export function crystallineAt(now:number):PvpRotationStatus{
-  return statusAt(now,CRYSTAL_ANCHOR_UTC,CRYSTAL_PERIOD_MS,CRYSTAL_MAPS,6);
+export function crystallineAt(now:number,rules=DEFAULT_PVP_RULES):PvpRotationStatus{
+  const rule=rules.crystalline;return statusAt(now,rule.anchor,rule.period,rule.maps,rule.anchorIndex);
 }
 
 export function formatPvpCountdown(until:number,now:number):string{
@@ -76,18 +81,18 @@ export function beijingHour(utc:number):string{
   return new Date(utc+CN_OFFSET_MS).toISOString().slice(11,16);
 }
 
-export function frontlineSchedule(now:number,count=8){
-  const current=frontlineAt(now);
+export function frontlineSchedule(now:number,count=8,rules=DEFAULT_PVP_RULES){
+  const current=frontlineAt(now,rules);
   return Array.from({length:count},(_,step)=>{
-    const at=current.startsAt+step*PVP_DAY_MS;
-    return {date:beijingDate(at),...frontlineAt(at)};
+    const at=current.startsAt+step*rules.frontline.period;
+    return {date:beijingDate(at),...frontlineAt(at,rules)};
   });
 }
 
-export function crystallineSchedule(now:number,count=8){
-  const current=crystallineAt(now);
+export function crystallineSchedule(now:number,count=8,rules=DEFAULT_PVP_RULES){
+  const current=crystallineAt(now,rules);
   return Array.from({length:count},(_,step)=>{
-    const at=current.startsAt+step*CRYSTAL_PERIOD_MS;
-    return {date:beijingDate(at),startHour:beijingHour(at),endHour:beijingHour(at+CRYSTAL_PERIOD_MS),...crystallineAt(at)};
+    const at=current.startsAt+step*rules.crystalline.period;
+    return {date:beijingDate(at),startHour:beijingHour(at),endHour:beijingHour(at+rules.crystalline.period),...crystallineAt(at,rules)};
   });
 }

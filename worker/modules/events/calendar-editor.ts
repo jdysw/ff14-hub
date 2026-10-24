@@ -2,10 +2,10 @@
 import { eventCalendarItemSchema, type EventCalendarItem, type EventCalendarResponse } from '@ff14-hub/shared';
 import { ApiError } from '@ff14-hub/shared';
 import { z } from 'zod';
+import {excludedContent} from '../admin/content-state';
 
 export const calendarEditSchema = eventCalendarItemSchema.omit({ id: true, region: true }).superRefine((item, context) => {
-  if ((item.startsAt === null) !== (item.endsAt === null) ||
-      (item.startsAt !== null && item.endsAt !== null && item.endsAt <= item.startsAt)) {
+  if (item.startsAt !== null && item.endsAt !== null && item.endsAt <= item.startsAt) {
     context.addIssue({ code: 'custom', path: ['endsAt'], message: '时间必须为有效区间' });
   }
 });
@@ -54,6 +54,7 @@ export async function applyCalendarEdits(db: D1Database, source: EventCalendarRe
     if (record.mode === 'hide') result.delete(record.id);
     else if (record.mode === 'upsert' && record.item !== null) result.set(record.id, record.item);
   }
+  for(const id of await excludedContent(db,'calendar'))result.delete(id);
   return { ...source, events: Array.from(result.values()).slice(0, 250) };
 }
 
