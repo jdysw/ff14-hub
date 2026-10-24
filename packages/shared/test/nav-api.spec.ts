@@ -10,6 +10,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  MAX_NAV_ALIAS_LENGTH,
   MAX_NAV_ALIASES,
   MAX_NAV_ICON_LENGTH,
   MAX_NAV_GROUP_NAME_LENGTH,
