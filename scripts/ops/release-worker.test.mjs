@@ -13,3 +13,12 @@ test('confirmed upload precedes promotion and propagation retries never redeploy
 test('an incomplete upload can never alter traffic',async()=>{
   let calls=0;await assert.rejects(releaseWorker('preview',{run:async()=>{calls++;return 'no confirmed version';}}));assert.equal(calls,1);
 });
+
+test('manual production release needs explicit approval AND a clean main checkout',()=>{
+  const manual={FF14_MANUAL_RELEASE_APPROVAL:'ff14-hub-production'};
+  assert.throws(()=>releaseGuard('production',manual));
+  assert.throws(()=>releaseGuard('production',manual,{branch:'feature',clean:true}));
+  assert.throws(()=>releaseGuard('production',manual,{branch:'main',clean:false}));
+  assert.doesNotThrow(()=>releaseGuard('production',manual,{branch:'main',clean:true}));
+  assert.throws(()=>releaseGuard('production',{FF14_MANUAL_RELEASE_APPROVAL:'yes'},{branch:'main',clean:true}));
+});
