@@ -265,7 +265,7 @@ body { background:var(--bg);color:var(--text);font-family:Inter,'PingFang SC','M
 .local-app :is(button,input,select,textarea,a):focus-visible{outline:2px solid #527eb5;outline-offset:3px;}
 .local-app .notice--error{background:#fff7f7;color:#a73f49;}
 .local-app .notice--warn{background:#fffbf0;color:#886a2b;}
-.local-app__main>p[role='status'],.local-app__main>p[role='alert']{font-size:13px;color:#647284;padding:12px;}
+.local-app__main>output,.local-app__main>p[role='alert']{font-size:13px;color:#647284;padding:12px;}
 @media(max-width:920px){
   .local-dashboard__module-grid {grid-auto-rows:minmax(200px,310px);max-height:min(37vh,322px);}
   .local-dashboard__module{height:min(37vh,310px);}

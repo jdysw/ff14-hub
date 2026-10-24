@@ -22,6 +22,20 @@ describe('盛趣官方公告活动时间提取', () => {
     expect(extractOfficialActivityTiming('活动时间：2026年2月30日16:00～8.0版本更新维护前')).toBeNull();
     expect(extractOfficialActivityTiming('<script>'+text+'</script>')).toBeNull();
   });
+  it('维护前结束的时间标签逐段解析，并在线性时间内处理大量未闭合标签', () => {
+    const startsAt = Date.UTC(2026, 9, 28, 8);
+    expect(extractOfficialActivityTiming('活动期间 : 2026年10月28日16:00 - 8.0版本维护前'))
+      .toEqual({ startsAt, endsAt: null, endCondition: '8.0版本维护前' });
+    expect(extractOfficialActivityTiming('活动时间：2026年10月28日16:00～8.0版本更新维护开始前'))
+      .toEqual({ startsAt, endsAt: null, endCondition: '8.0版本更新维护开始前' });
+    expect(extractOfficialActivityTiming('活动时间：2026年10月28日16:00～未知结束时间'))
+      .toBeNull();
+    const malformed = '<'.repeat(12_000);
+    expect(extractOfficialActivityTiming(malformed + '活动时间：2026年10月28日16:00～8.0版本更新维护前'))
+      .toEqual({ startsAt, endsAt: null, endCondition: '8.0版本更新维护前' });
+    expect(extractOfficialActivityTiming(malformed + '<script>活动时间：2026年10月28日16:00～8.0版本更新维护前</script>'))
+      .toBeNull();
+  });
   it('从明确的北京时间完整区间提取', () => {
     const result = extractOfficialActivityRange(
       '<p>活动时间：2026年10月19日 10:00 ～ 2026年11月2日 23:59</p>',
@@ -39,6 +53,23 @@ describe('盛趣官方公告活动时间提取', () => {
     expect(extractOfficialActivityRange('活动时间：2026年2月30日10:00-2026年3月1日10:00')).toBeNull();
   });
 
+  it('忽略大小写混合的脚本/样式区块，且不把相似标签误判为脚本',()=>{
+    const value='活动时间：2026年10月19日10:00-2026年10月20日10:00';
+    const hidden='<SCRIPT type="text/javascript">'+value+'</sCrIpT><STYLE>'+value+'</STYLE>';
+    expect(extractOfficialActivityRange(hidden)).toBeNull();
+    expect(extractOfficialActivityTiming(hidden)).toBeNull();
+    expect(extractOfficialLandingRange(hidden)).toBeNull();
+    expect(extractOfficialActivityRange('<scripted>'+value+'</scripted>')).not.toBeNull();
+  });
+  it('长的未匹配相似标签不会影响后续合法时间提取',()=>{
+    const date='活动时间：2026年10月19日10:00-2026年10月20日10:00';
+    const input='<scripted>'.repeat(3000)+'<script>'+date+'</script><p>'+date+'</p>';
+    expect(extractOfficialActivityRange(input)).toEqual({
+      startsAt:Date.UTC(2026,9,19,2),endsAt:Date.UTC(2026,9,20,2),
+    });
+    // 未闭合起始标签应只检查一次余下文本，避免退化成二次扫描。
+    expect(extractOfficialActivityRange('<script>'.repeat(5000))).toBeNull();
+  });
   it('拒绝结束早于开始的活动区间', () => {
     expect(extractOfficialActivityRange('活动时间：2026年10月20日10:00-2026年10月19日10:00')).toBeNull();
   });

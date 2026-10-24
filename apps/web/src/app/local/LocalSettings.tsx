@@ -43,7 +43,7 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
     <div className="local-settings__content">
     <div hidden={activeTab!=='data'}><DataManagementPanel store={store} data={data} initialSection={initialDataSection}/></div>
     {activeTab==='notifications'?<LocalNotificationPanel store={store}/>:null}
-    {error?<p role="alert" className="notice notice--error">{error}</p>:null}{notice?<p role="status" className="notice notice--ok">{notice}</p>:null}
+    {error?<p role="alert" className="notice notice--error">{error}</p>:null}{notice?<output className="notice notice--ok" style={{display:'block'}}>{notice}</output>:null}
     <section hidden={activeTab!=='home'}><h3>首页模块</h3>
       {data.configuration.order.map((section,index)=><div className="local-settings__module" key={section}>
         <label><input type="checkbox" checked={data.configuration.visible[section]} disabled={busy} onChange={event=>{const checked=event.target.checked;void run(async()=>{await store.change(document=>{document.data.configuration.visible[section]=checked;});});}}/>{labels[section]}</label>

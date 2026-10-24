@@ -1,7 +1,9 @@
 /** Read declarative tracker facts; array indices must never become fish IDs. */
 export function predatorPairs(value){
   if(value!==undefined&&value!==null&&typeof value!=='object')throw new Error('Invalid predator list');
-  const raw=Array.isArray(value)?value:value&&typeof value==='object'?Object.entries(value):[];
+  let raw=[];
+  if(Array.isArray(value)){raw=value;}
+  else if(value&&typeof value==='object'){raw=Object.entries(value);}
   const pairs=[];
   for(const entry of raw){
     const id=Number(entry?.[0]),count=Number(entry?.[1]);

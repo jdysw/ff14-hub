@@ -106,6 +106,7 @@ describe('首页公开活动', () => {
     const {container}=render(<HomeOfficialEvents onOpenCalendar={onOpenCalendar} onHide={vi.fn()}/>);
     await screen.findByText('临期活动');
     await waitFor(()=>expect(container.querySelectorAll('.home-official-event')).toHaveLength(4));
+    expect(screen.getByText('即将结束')).toBeTruthy();
     expect(screen.queryByText('近期开始活动')).toBeNull();
     expect(screen.getByText('长期进行B')).toBeTruthy();
     expect(screen.queryByText('公告待核实A')).toBeNull();

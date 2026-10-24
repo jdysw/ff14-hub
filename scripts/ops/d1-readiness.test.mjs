@@ -58,5 +58,14 @@ test('CLI only emits read-only SELECT/PRAGMA and cannot select implicit remote e
  assert.equal(inspectD1('development','--local',{runner}).ready,true);
  for(const call of calls.slice(start))assert.ok(!call.args.includes('--env'));
 
- assert.throws(()=>runReadOnlyQuery('preview','--local','SELECT 1',{runner:()=>({status:1,stdout:''})}));
+ let spawned=false;
+ const neverSpawn=()=>{spawned=true;throw new Error('不应执行外部进程');};
+ for(const [env,mode,sql] of [
+   ['production','--remote','SELECT 1'],
+   ['production','--verbose',READ_ONLY_QUERIES.tables],
+   ['development','--remote',READ_ONLY_QUERIES.tables],
+   ['--help','--local',READ_ONLY_QUERIES.tables],
+ ]) assert.throws(()=>runReadOnlyQuery(env,mode,sql,{runner:neverSpawn}));
+ assert.equal(spawned,false,'拒绝不可信参数应发生在创建子进程之前');
+ assert.throws(()=>runReadOnlyQuery('preview','--local',READ_ONLY_QUERIES.tables,{runner:()=>({status:1,stdout:''})}));
 });

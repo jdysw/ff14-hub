@@ -38,10 +38,18 @@ export function assessReadiness({tables,migrations,fish,foreignKeys}){
    missingTables,firstBaseline,partialLegacy,missingFishRegions:absentFish,
    fishCounts:{cn:fishCounts.cn??0,global:fishCounts.global??0},
    foreignKeyViolations:foreignKeys.length,
-   historicalTables:[...known].filter(name=>/^(workspace_|workspaces$|device_pairings$|widget_|workbench_)/.test(name)).sort(),
+   historicalTables:[...known].filter(name=>/^(workspace_|workspaces$|device_pairings$|widget_|workbench_)/.test(name)).sort((a,b)=>a.localeCompare(b)),
    migrationsApplied:names.length};
 }
 export function runReadOnlyQuery(environment,mode,sql,{runner=spawnSync}={}){
+ // 该函数可被直接调用，必须在构造子进程参数前独立验证全部输入。
+ // SQL 只允许模块内固定的四条只读语句，绝不让外部文本进入 --command。
+ if(!['development','preview','production'].includes(environment)||
+    !['--local','--remote'].includes(mode)||
+    (environment==='development'&&mode!=='--local')||
+    !Object.values(READ_ONLY_QUERIES).includes(sql)){
+   throw new Error('非法 D1 只读查询参数');
+ }
  const wrangler=path.join(root,'node_modules','wrangler','bin','wrangler.js');
  const args=[wrangler,'d1','execute','DB',...(environment==='development'?[]:['--env',environment]),mode,'--command',sql,'--json'];
  const response=runner(process.execPath,args,{cwd:root,encoding:'utf8',maxBuffer:4*1024*1024,timeout:45000});

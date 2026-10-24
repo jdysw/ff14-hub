@@ -92,7 +92,7 @@ export function PublicCalendarPage({ onBack, overlay = false,initialEventId }: {
   const now = state.status === 'loaded' ? clock + state.offset : clock;
   const events = useMemo(() => state.status === 'loaded' ? state.data.events : [], [state]);
   const overview = useMemo(() => calendarOverview(events, now), [events, now]);
-  const categories = useMemo(() => [...new Set(events.map(x => x.category || '官方公告'))].sort(), [events]);
+  const categories = useMemo(() => [...new Set(events.map(x => x.category || '官方公告'))].sort((a,b)=>a.localeCompare(b,'zh-CN')), [events]);
   const selectedYear = Number(selectedDay.slice(0, 4));
   const selectedMonth = Number(selectedDay.slice(5, 7));
   const days = useMemo(() => chinaMonthDays(selectedYear, selectedMonth), [selectedYear, selectedMonth]);
@@ -124,7 +124,7 @@ export function PublicCalendarPage({ onBack, overlay = false,initialEventId }: {
     </button>;
 
   return <div className="calendar-center">
-    {targetId?<p role="status">已定位所选活动。<button type="button" onClick={()=>setTargetId(null)}>查看全部活动</button>{state.status==='loaded'&&!events.some(e=>e.id===targetId)?' 该活动已移除或暂未收录。':''}</p>:null}
+    {targetId?<output style={{display:'block'}}>已定位所选活动。<button type="button" onClick={()=>setTargetId(null)}>查看全部活动</button>{state.status==='loaded'&&!events.some(e=>e.id===targetId)?' 该活动已移除或暂未收录。':''}</output>:null}
     <header className="calendar-center__header">
       <div>
         {!overlay&&<button type="button" className="text-button" onClick={onBack}>← 返回首页</button>}
@@ -137,13 +137,13 @@ export function PublicCalendarPage({ onBack, overlay = false,initialEventId }: {
         }}>刷新</button>
       </div>
     </header>
-    {state.status === 'loading' && <p className="home-state" role="status">正在加载国服官方活动…</p>}
+    {state.status === 'loading' && <output className="home-state" style={{display:'block'}}>正在加载国服官方活动…</output>}
     {state.status === 'failed' && <p className="notice notice--error" role="alert">国服活动暂时不可用。
       <button type="button" className="text-button" onClick={() => {
         setState({ status: 'loading' }); setAttempt(i => i + 1);
       }}>重试</button></p>}
     {state.status === 'loaded' && <>
-      {state.data.source.stale && <p className="notice notice--warn" role="status">官方源暂时无法更新，当前展示的是历史快照，时间可能已变更。</p>}
+      {state.data.source.stale && <output className="notice notice--warn" style={{display:'block'}}>官方源暂时无法更新，当前展示的是历史快照，时间可能已变更。</output>}
       <div className="calendar-center__stats" aria-label="活动概览">
         {summary('进行中', overview.active.length, 'active')}
         {summary('未来 7 天开始', overview.upcoming.length, 'upcoming')}

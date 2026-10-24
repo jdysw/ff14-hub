@@ -12,6 +12,12 @@ it('balances odd modules and spans the last item only when that removes a substa
   expect(planModules([400,150,200])).toEqual([0,1,1]);expect(planModules([200,190,250])).toEqual([0,1,2]);
   expect(planModules([200,190,250],[],false)).toEqual([0,1,1]);expect(planModules([200,190,100,100])).toEqual([0,1,1,0]);
 });
+it('列高接近时保留既有布局，差距较大时仍优先填充较短列',()=>{
+  expect(planModules([100,130,90],[1,0,1],false)).toEqual([1,0,1]);
+  expect(planModules([100,130,90],[],false)).toEqual([0,1,0]);
+  expect(planModules([100],[],true)).toEqual([2]);
+  expect(planModules([100],[],false)).toEqual([0]);
+});
 it('首页默认活动位于左栏、钓鱼与 PVP 依次位于右栏，用户自定义布局仍有效',()=>{
   expect(planHomeModules([540,415,271],'events,fishing,pvp','auto')).toEqual([0,1,2]);
   expect(planHomeModules([540,415,271],'events,pvp,fishing','auto')).toEqual(planModules([540,415,271]));
@@ -44,6 +50,15 @@ it('刷新时仅恢复相同模块、相同设置和相同宽度的排版；手�
 it('keeps old notes valid and derives overdue status independently of reminder time',()=>{
   const data=initial();data.notes.push({id:crypto.randomUUID(),title:'旧备忘',text:'原文'});expect(localDataSchema.parse(data).notes[0]?.text).toBe('原文');
   expect(todoStatus({...data.notes[0]!,remindAt:1000},2000)).not.toContain('逾期');expect(todoStatus({...data.notes[0]!,endsAt:1000},2000)).toContain('逾期');
+});
+it('待办倒计时保留天、小时、分钟与开始/逾期的原有边界',()=>{
+  const note={id:'one',title:'测试',text:''};
+  const now=1_000_000_000;
+  expect(todoStatus({...note,startsAt:now+2*86400000},now)).toBe('距开始 2 天');
+  expect(todoStatus({...note,endsAt:now+2*3600000},now)).toBe('剩余 2 小时');
+  expect(todoStatus({...note,endsAt:now+59000},now)).toBe('剩余 1 分钟');
+  expect(todoStatus({...note,endsAt:now-60000},now)).toBe('已逾期 1 分钟');
+  expect(todoStatus({...note,startsAt:now+2000,endsAt:now+3600000},now)).toBe('距开始 1 分钟');
 });
 it('quick-add saves immediately and enables the module without requiring time fields',async()=>{
   const data=initial(),change=vi.fn((fn:(doc:{data:typeof data})=>void)=>{fn({data});return Promise.resolve();});

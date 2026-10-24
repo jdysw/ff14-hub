@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {readCachedPublicCalendar,saveCachedPublicCalendar} from '../local/public-calendar-cache';
 import {
   calendarOverview, calendarTimeLabel, calendarEndCondition,chinaDateTime,displayCalendarTitle, eventStatus, isScheduled, SOON_MS,calendarCountdown,
+  type CalendarPhase,
 } from '../events/public-calendar-utils';
 
 export const HOME_EVENT_LIMIT = 4;
@@ -37,12 +38,26 @@ type ViewState =
   | { readonly kind: 'error' }
   | { readonly kind: 'ready'; readonly value: EventCalendarResponse; readonly offset: number };
 
+const EVENT_PHASE_LABELS:Record<CalendarPhase,string>={
+  ending:'即将结束',active:'进行中',upcoming:'即将开始',ended:'已结束',unscheduled:'待核实公告',
+};
+function eventCountdownTarget(status:CalendarPhase,item:EventCalendarItem):number|null{
+  if(status==='upcoming')return item.startsAt;
+  if(status==='active'||status==='ending')return item.endsAt;
+  return null;
+}
+function eventCountdownHeading(status:CalendarPhase,target:number|null):string{
+  if(target===null)return '时间待确认';
+  return status==='upcoming'?'距开始':'距结束';
+}
+function OfficialEventEndTime({item}:{readonly item:EventCalendarItem}){
+  if(item.endsAt===null)return <>结束：{calendarEndCondition(item)??'时间待确认'}</>;
+  return <><span>结束：</span><time dateTime={new Date(item.endsAt).toISOString()}>{chinaDateTime(item.endsAt)}</time></>;
+}
 function OfficialEventSummary({ item, now }: { readonly item: EventCalendarItem; readonly now: number }) {
   const status = eventStatus(item, now);
-  const target = status === 'upcoming' ? item.startsAt : status === 'active' || status === 'ending' ? item.endsAt : null;
-  const label = status === 'ending' ? '即将结束' :
-    status === 'active' ? '进行中' : status === 'upcoming' ? '即将开始' :
-      status === 'ended' ? '已结束' : '待核实公告';
+  const target = eventCountdownTarget(status,item);
+  const label = EVENT_PHASE_LABELS[status];
   return <li className="home-official-event">
     <div className="home-official-event__main">
       <span className="home-official-event__category">{item.category || '官方公告'}</span>
@@ -53,10 +68,10 @@ function OfficialEventSummary({ item, now }: { readonly item: EventCalendarItem;
       <p>{calendarTimeLabel(item)}</p>
     </div>
     <div className="home-official-event__timer" aria-label={target === null ? label : label + calendarCountdown(target, now)}>
-      <span>{target === null ? '时间待确认' : (status === 'upcoming' ? '距开始' : '距结束')}</span>
+      <span>{eventCountdownHeading(status,target)}</span>
       <strong>{target === null ? '—' : calendarCountdown(target, now)}</strong>
       <small className="home-official-event__end" title="北京时间">
-        {item.endsAt!==null?<><span>结束：</span><time dateTime={new Date(item.endsAt).toISOString()}>{chinaDateTime(item.endsAt)}</time></>:<>结束：{calendarEndCondition(item)??'时间待确认'}</>}
+        <OfficialEventEndTime item={item}/>
       </small>
     </div>
   </li>;
@@ -136,13 +151,13 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
       <button type="button" aria-pressed={phase==='active'} onClick={()=>setPhase('active')}>进行中活动</button>
       <button type="button" aria-pressed={phase==='upcoming'} onClick={()=>setPhase('upcoming')}>未来活动</button>
     </div>
-    {state.kind === 'loading' && <p className="home-state" role="status">正在获取最新活动…</p>}
+    {state.kind === 'loading' && <output className="home-state" style={{display:'block'}}>正在获取最新活动…</output>}
     {state.kind === 'error' && <div className="home-official__notice" role="alert">
       活动暂时无法加载。 <button className="text-button" type="button" onClick={reload}>重试</button>
       <button className="text-button" type="button" onClick={onOpenCalendar}>打开活动中心</button>
     </div>}
     {state.kind === 'ready' && <>
-      {state.value.source.stale && <p className="home-official__notice" role="status">当前展示缓存数据，官方活动可能已有变更。</p>}
+      {state.value.source.stale && <output className="home-official__notice" style={{display:'block'}}>当前展示缓存数据，官方活动可能已有变更。</output>}
       <div className="home-official__stats" aria-label="国服活动摘要">
         <button type="button" onClick={onOpenCalendar}><strong>{overview.active.length}</strong><span>进行中</span></button>
         <button type="button" onClick={onOpenCalendar}><strong>{overview.upcoming.length}</strong><span>未来 7 天开始</span></button>

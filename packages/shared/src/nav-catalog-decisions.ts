@@ -60,7 +60,11 @@ export function catalogUpgradePlan(input: {
     }
   }
   return [...input.catalog]
-    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    .sort((a, b) => {
+      if (a.id < b.id) return -1;
+      if (a.id > b.id) return 1;
+      return 0;
+    })
     .map((entry) => {
       const link = byCatalogId.get(entry.id);
       return {

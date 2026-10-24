@@ -89,14 +89,14 @@ export function PwaStatusBar({localMode=false}:{localMode?:boolean}={}) {
   return (
     <section className="pwa-status" aria-label="PWA 状态" data-testid="pwa-status">
       {showOffline ? (
-        <div className="notice notice--warn" role="status" data-testid="offline-notice">
+        <div className="notice notice--warn" aria-live="polite" aria-atomic="true" data-testid="offline-notice">
           <p>{localMode?'当前离线，钓获、收藏和个人设置仍可保存在本机。':offlineState.message}</p>
           <p className="panel__muted">{localMode?'公开活动与目录可能无法更新；恢复网络后可重新读取。':offlineState.detail}</p>
         </div>
       ) : null}
 
       {prompt.visible ? (
-        <div className="notice notice--info" role="status" data-testid="update-notice">
+        <div className="notice notice--info" aria-live="polite" aria-atomic="true" data-testid="update-notice">
           <p>{prompt.message}</p>
           <p className="panel__muted">{prompt.detail}</p>
           <button type="button" className="button button--small" onClick={() => void handleUpdate()}>
@@ -106,9 +106,9 @@ export function PwaStatusBar({localMode=false}:{localMode?:boolean}={}) {
       ) : null}
 
       {notice !== null ? (
-        <p className="notice" role="status" data-testid="pwa-notice">
+        <output className="notice" data-testid="pwa-notice" style={{display:'block'}}>
           {notice}
-        </p>
+        </output>
       ) : null}
     </section>
   );

@@ -16,7 +16,9 @@ export function toBase64Url(bytes: Uint8Array): string {
   for (const byte of bytes) {
     binary += String.fromCharCode(byte);
   }
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const encoded = btoa(binary).replaceAll('+', '-').replaceAll('/', '_');
+  const padding = encoded.indexOf('=');
+  return padding < 0 ? encoded : encoded.slice(0, padding);
 }
 
 /** 计算凭证摘要（SHA-256 十六进制，小写）。 */

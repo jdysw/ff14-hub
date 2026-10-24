@@ -292,7 +292,25 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
+/** 只接受同源、已打开的窗口客户端发送的更新或缓存指令。 */
+function isTrustedPageMessage(event) {
+  const source = event.source;
+  if (source?.type !== 'window' || typeof source?.url !== 'string') {
+    return false;
+  }
+  try {
+    const page = new URL(source.url);
+    return page.origin === self.location.origin &&
+      (typeof event.origin !== 'string' || event.origin === '' || event.origin === self.location.origin);
+  } catch {
+    return false;
+  }
+}
+
 self.addEventListener('message', (event) => {
+  if (!isTrustedPageMessage(event)) {
+    return;
+  }
   const data = event.data;
   if (data === null || typeof data !== 'object') {
     return;

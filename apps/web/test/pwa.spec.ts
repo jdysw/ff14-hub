@@ -516,10 +516,12 @@ describe('sw.js：与 cache-policy.ts 一一对应', () => {
   it('message 收到页面的 SKIP_WAITING 通知后才 skipWaiting', async () => {
     const sandbox = await loadServiceWorker();
     let waited = false;
-    handlerOf(sandbox, 'message')({ data: { type: '别的消息' }, waitUntil: () => undefined });
+    handlerOf(sandbox, 'message')({ origin: APP_ORIGIN, source: { type: 'window', url: `${APP_ORIGIN}/` }, data: { type: '别的消息' }, waitUntil: () => undefined });
     expect(sandbox.skipWaitingCalls()).toBe(0);
 
     handlerOf(sandbox, 'message')({
+      origin: APP_ORIGIN,
+      source: { type: 'window', url: `${APP_ORIGIN}/` },
       data: { type: SKIP_WAITING_MESSAGE },
       waitUntil: () => {
         waited = true;

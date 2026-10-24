@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import {cleanup,render,screen,fireEvent,waitFor} from '@testing-library/react';
 import {afterEach,beforeEach,it,expect,vi} from 'vitest';
-import {FishingBoard,HOME_FISH_PREVIEW_LIMIT,type FishDetailSelection} from '../src/app/fish/FishingBoard';
+import {FishingBoard,HOME_FISH_PREVIEW_LIMIT,fishBoardSummary,type FishDetailSelection} from '../src/app/fish/FishingBoard';
 import {forecastCatalog} from '../src/app/fish/forecast';
 import type {CatalogFish,FishingCatalog} from '../src/app/fish/catalog';
 import type {FishRegion} from '@ff14-hub/shared';
@@ -26,6 +26,13 @@ beforeEach(()=>{reminderSettings.clear();vi.stubGlobal('Worker',ForecastWorker);
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});
 const publicPort=(catalog=fixture):DataPort=>({moduleId:'ff14.fishing',operations:['fish.catalog'],call:<T,>()=>Promise.resolve(catalog as T)});
 
+it('完整鱼窗状态文案分别覆盖计算中、开放中、未来、无限制和全部目录',()=>{
+  expect(fishBoardSummary(false,'windows','open',24,3)).toBe('正在计算完整目录的鱼窗…');
+  expect(fishBoardSummary(true,'windows','open',24,3)).toBe('开放中 · 3 种鱼');
+  expect(fishBoardSummary(true,'windows','upcoming',72,4)).toBe('未来 72 小时内开放 · 4 种鱼');
+  expect(fishBoardSummary(true,'windows','always',24,2)).toBe('时间天气不限 · 2 种鱼');
+  expect(fishBoardSummary(true,'all','open',24,10)).toBe('找到 10 条记录');
+});
 it('separates finite open, future and unrestricted fish and applies future range outside the expanded page',async()=>{
   const entries=[{...fish[0]!,kind:'normal' as const},fish[1]!,fish[2]!,fish[3]!,{...fish[4]!,method:'spear' as const,rule:null}];
   class ScopeWorker{

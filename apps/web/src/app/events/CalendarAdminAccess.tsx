@@ -54,6 +54,6 @@ export function CalendarAdminAccess({onReady,onClose}:{
       </label>
       <button type="submit" className="button" disabled={busy}>{busy?'正在验证…':'安全登录'}</button>
     </form>
-    {message && <p className="notice" role="status">{message}</p>}
+    {message && <output className="notice" style={{display:'block'}}>{message}</output>}
   </section>;
 }

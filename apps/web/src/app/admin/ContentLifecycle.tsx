@@ -4,7 +4,10 @@ export interface ContentState{domain:'navigation'|'calendar';contentId:string;st
 export async function adminRequest(path:string,method='GET',body?:unknown):Promise<unknown>{
   const token=calendarAdminSession.get();if(!token)throw new Error('管理员会话已失效');
   const response=await fetch('/api/v1/admin/'+path,{method,credentials:'omit',cache:'no-store',headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
-  if(!response.ok)throw new Error(response.status===409?'内容已更新，请重新读取后重试':response.status===401?'管理员会话已失效':'操作失败，请重试');
+  if(!response.ok){
+    const messages:Record<number,string>={409:'内容已更新，请重新读取后重试',401:'管理员会话已失效'};
+    throw new Error(messages[response.status]??'操作失败，请重试');
+  }
   return response.json();
 }
 export function useContentState(){
@@ -23,7 +26,7 @@ export function RecyclePanel(){
   const content=useContentState(),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
   const act=async(record:ContentState,state:'active'|'deleted')=>{if(state==='deleted'&&!window.confirm(`彻底删除“${record.title}”？之后不能从回收站恢复；来源屏蔽标记和操作记录会保留。`))return;
     setBusy(true);try{await content.change(record.domain,record.contentId,state);setMessage(state==='active'?'已恢复，原来的隐藏状态保持不变':'已彻底删除，并保留防止来源重新收录的标记');}catch(error){setMessage(error instanceof Error?error.message:'操作失败');}finally{setBusy(false);}};
-  return <section><h3>回收站与操作记录</h3><p>删除会进入回收站；彻底删除后保留来源屏蔽标记，自动同步不会重新带回。</p>{content.error&&<p role="alert">{content.error}</p>}{message&&<p role="status">{message}</p>}<button type="button" onClick={()=>void content.reload()}>重新读取</button>
+  return <section><h3>回收站与操作记录</h3><p>删除会进入回收站；彻底删除后保留来源屏蔽标记，自动同步不会重新带回。</p>{content.error&&<p role="alert">{content.error}</p>}{message&&<output style={{display:'block'}}>{message}</output>}<button type="button" onClick={()=>void content.reload()}>重新读取</button>
     <ul className="directory-admin__list">{content.records.filter(row=>row.state==='trash').map(row=><li key={row.domain+row.contentId}><div><strong>{row.title}</strong><small>{row.domain==='navigation'?'网站':'活动'} · {new Date(row.updatedAt).toLocaleString('zh-CN')}</small></div><div className="site-admin__actions"><button type="button" disabled={busy} onClick={()=>void act(row,'active')}>恢复</button><button type="button" disabled={busy} onClick={()=>void act(row,'deleted')}>彻底删除</button></div></li>)}</ul>
     {!content.records.some(row=>row.state==='trash')&&<p>回收站为空。</p>}<AuditList/>
   </section>;

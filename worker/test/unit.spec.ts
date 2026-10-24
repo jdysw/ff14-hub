@@ -17,6 +17,7 @@ import {
   credentialsEqual,
   generateCredential,
   hashCredential,
+  toBase64Url,
 } from '../modules/identity/credentials';
 
 describe('日志脱敏', () => {
@@ -45,6 +46,34 @@ describe('日志脱敏', () => {
     for (const field of ['password', 'recovery_key', 'api_key', 'private_key', 'webdav_password', 'auth_secret']) {
       const redacted = redactSecrets(`{"${field}":"super-secret-value"}`);
       expect(redacted, field).not.toContain('super-secret-value');
+    }
+  });
+
+  it('preserves sensitive key prefixes, delimiters and mixed-case suffixes', () => {
+    const fields = ['password','passwd','pwd','secret','token','token_hash','recovery_hash','recovery_key','pairing_hash','pairing_code','api_key','api-key','apikey','private_key','private-key','privatekey','p256dh','auth','auth_secret','username','webdav_password','webdav-password','webdavpassword'];
+    for (const field of fields) {
+      const key = field.toUpperCase();
+      const input = `{"${key}": "private-value", "ok": 1} ${key}=another&keep=yes`;
+      expect(redactSecrets(input)).toBe(`{"${key}": "[REDACTED]", "ok": 1} ${key}=[REDACTED]&keep=yes`);
+    }
+    expect(redactSecrets('mytoken_hash=secret auth_secret=hidden pwd=; token='))
+      .toBe('mytoken_hash=[REDACTED] auth_secret=[REDACTED] pwd=; token=');
+    expect(redactSecrets('token="username=hidden"; ok=yes'))
+      .toBe('token="[REDACTED]"; ok=yes');
+  });
+
+  it('keeps partial field names and long malformed suffixes as text', () => {
+    const text = 'token_hash'+ ' '.repeat(30_000) +'! keep=yes';
+    expect(redactSecrets(text)).toBe(text);
+  });
+
+  it('encodes all byte values without padding and round-trips every remainder', () => {
+    for (const length of [0,1,2,3,31,32,33,256]) {
+      const bytes = Uint8Array.from({length}, (_, index) => index);
+      const encoded = toBase64Url(bytes);
+      expect(encoded).toMatch(/^[A-Za-z0-9_-]*$/);
+      const padded = encoded.replaceAll('-', '+').replaceAll('_', '/').padEnd(Math.ceil(encoded.length/4)*4, '=');
+      expect(Uint8Array.from(atob(padded), char => char.codePointAt(0)!)).toEqual(bytes);
     }
   });
 

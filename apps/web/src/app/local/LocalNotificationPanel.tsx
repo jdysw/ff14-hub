@@ -11,13 +11,13 @@ export function LocalNotificationPanel({store}:{store:LocalStore}){
   const [ready,setReady]=useState(false);
   usePrivateDraft(busy||Boolean(!settings.token&&(sendKey||apiKey||from||to)));
   useEffect(()=>{let alive=true;void readDeviceRecord<NotificationSettings>('notifications').then(value=>{if(alive){if(value)setSettings(value);setReady(true);}}).catch(()=>{if(alive){setError('本机通知配置无法读取，请重新配置');setReady(true);}});return()=>{alive=false;};},[]);
-  const run=async(action:()=>Promise<void>)=>{if(busy)return;setBusy(true);setError('');setMessage('');try{await action();}catch(cause){setError(cause instanceof Error?cause.message:'通知操作失败');}finally{setBusy(false);}};
+  const run=async(action:()=>Promise<void>)=>{if(busy){return;}setBusy(true);setError('');setMessage('');try{await action();}catch(cause){setError(cause instanceof Error?cause.message:'通知操作失败');}finally{setBusy(false);}};
   const patch=(value:Partial<NotificationSettings>)=>setSettings(old=>({...old,...value}));
   return <section className="personal-feature" aria-label="通知设置">
     <div className="personal-feature__heading"><h3>通知</h3><span className="personal-feature__badge">低消耗模式</span></div>
     <p>后台通过 Server 酱或邮件发送。鱼窗按每天一份日程汇总，列出今天、明天的全部关注窗口；网页内仍按窗口实时提醒。后台每 5 分钟检查一次，定时发送可能有约 5 分钟偏差。</p>
     <form onSubmit={event=>{event.preventDefault();void run(async()=>{
-      if(settings.token)throw new Error('请先停用当前渠道，再保存新的通知配置');
+      if(settings.token){throw new Error('请先停用当前渠道，再保存新的通知配置');}
       const channel=settings.channel==='serverchan'?{kind:'serverchan' as const,sendKey}:{kind:'resend' as const,apiKey,from,to};
       const next=await registerNotifications(channel,settings,store);setSettings(next);setSendKey('');setApiKey('');setMessage('通知已启用。可发送测试消息检查是否收件。');
     });}}>
@@ -40,7 +40,7 @@ export function LocalNotificationPanel({store}:{store:LocalStore}){
     <p className="local-settings__caution">渠道凭证会通过 HTTPS 发送到本站，并加密保存在服务器，以便网页关闭后投递；不会进入 WebDAV/S3 备份。邮件需自行配置 Resend 的已验证发件域名。渠道额度由各服务决定。</p>
     <div className="personal-feature__toolbar">
       <button disabled={busy||!settings.token} onClick={()=>void run(async()=>{const data=await store.read(),digest=digestSettings(data,settings);await notificationRequest('/plan',settings.token!,'PUT',{jobs:buildTodoNotificationJobs(data),digest,dailyLimit:settings.dailyLimit});const next={...settings,lastPlan:Date.now()};await writeDeviceRecord('notifications',next);setSettings(next);window.dispatchEvent(new Event(NOTIFICATION_SETTINGS_CHANGED));setMessage('提醒规则已保存，无需重新填写渠道凭证');})}>保存提醒规则</button>
-      <button disabled={busy||!settings.token} onClick={()=>void run(async()=>{const result=await notificationRequest('/test',settings.token!,'POST') as {accepted:boolean};if(!result.accepted)throw new Error('渠道未接受测试消息，请检查凭证与额度');setMessage('通知服务已接受测试消息，请在接收端确认收件');})}>发送测试消息</button>
+      <button disabled={busy||!settings.token} onClick={()=>void run(async()=>{const result=await notificationRequest('/test',settings.token!,'POST') as {accepted:boolean};if(!result.accepted){throw new Error('渠道未接受测试消息，请检查凭证与额度');}setMessage('通知服务已接受测试消息，请在接收端确认收件');})}>发送测试消息</button>
       <button disabled={busy||!settings.token} onClick={()=>void run(async()=>{setStatus(await notificationRequest('/status',settings.token!) as NonNullable<typeof status>);setMessage('已更新通知状态');})}>查看投递状态</button>
       <button disabled={busy||!settings.token} onClick={()=>void run(async()=>{await notificationRequest('/subscription',settings.token!,'DELETE');const next={...settings,token:null,jobs:[],lastPlan:0};await writeDeviceRecord('notifications',next);setSettings(next);setStatus(null);window.dispatchEvent(new Event(NOTIFICATION_SETTINGS_CHANGED));setMessage('后台通知已停用，服务器中的渠道凭证和待发任务已删除');})}>停用后台通知</button>
     </div>
@@ -49,6 +49,6 @@ export function LocalNotificationPanel({store}:{store:LocalStore}){
     {settings.lastPlan?<p>上次登记 {new Date(settings.lastPlan).toLocaleString('zh-CN')}。鱼窗汇总在服务器每天生成，关闭网页后继续运行；关注列表按最近一次同步为准。活动临近提醒和网页内提示保留未来 72 小时内最近 30 条，每次访问或前台停留满 6 小时补充。订阅在 90 天不访问后过期。</p>:null}
     {status?<div className="personal-feature__preview"><h4>投递记录</h4><p>今日发送尝试 {status.device.sentDay===new Date().toISOString().slice(0,10)?status.device.sentCount:0} / {status.device.dailyLimit} 批（UTC 日界限）</p><ul>{status.jobs.map(job=><li key={job.key}>{new Date(job.dueAt).toLocaleString('zh-CN')} · {({queued:'待发送',leased:'发送中',sent:'渠道已接受',failed:'发送失败',cancelled:'已取消'} as Record<string,string>)[job.status]??job.status} · 尝试 {job.attempts} 次</li>)}</ul></div>:null}
     {settings.error?<p role="alert" className="notice notice--error">上次后台登记：{settings.error}。网页内提醒仍独立工作。</p>:null}
-    {message?<p role="status" className="notice notice--ok">{message}</p>:null}{error?<p role="alert" className="notice notice--error">{error}</p>:null}
+    {message?<output className="notice notice--ok" style={{display:'block'}}>{message}</output>:null}{error?<p role="alert" className="notice notice--error">{error}</p>:null}
   </section>;
 }

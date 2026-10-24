@@ -46,9 +46,9 @@ export function findFishcakeStore(root){
   const key=Object.keys(root??{}).find(k=>k.startsWith('__reactContainer$'));
   const stack=[root?.[key]],seen=new Set();
   while(stack.length&&seen.size<15000){
-    const node=stack.pop();if(!node||seen.has(node))continue;seen.add(node);
+    const node=stack.pop();if(!node||seen.has(node)){continue;}seen.add(node);
     const store=node.memoizedProps?.store??node.memoizedProps?.value?.store;
-    if(typeof store?.getState==='function'&&typeof store.dispatch==='function'&&typeof store.subscribe==='function'&&store.getState().fishing)return store;
+    if(typeof store?.getState==='function'&&typeof store.dispatch==='function'&&typeof store.subscribe==='function'&&store.getState().fishing){return store;}
     stack.push(node.child,node.sibling,node.alternate);
   }
   throw new Error('鱼糕尚未加载或状态接口已改变');

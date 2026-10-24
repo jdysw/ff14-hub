@@ -97,9 +97,11 @@ export function registerErrorHandlers(app: Hono<AppBindings>): void {
           }),
         );
       }
-      return error.status>=500
-        ?errorResponse(error.code,error.code==='not_implemented'?error.message:DEFAULT_ERROR_MESSAGE[error.code],requestId)
-        :errorResponse(error.code,error.message,requestId,error.details);
+      if(error.status>=500){
+        const message=error.code==='not_implemented'?error.message:DEFAULT_ERROR_MESSAGE[error.code];
+        return errorResponse(error.code,message,requestId);
+      }
+      return errorResponse(error.code,error.message,requestId,error.details);
     }
 
     // Arbitrary names/messages can contain private content without recognizable secret markers.

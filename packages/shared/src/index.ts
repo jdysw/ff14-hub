@@ -1,6 +1,7 @@
 /** FF14 Hub 的现行 Web/Worker/Android 共享协议：只导出仍被运行产品使用的契约与纯函数。 */
 export * from './api-contract';
 export * from './errors';
+export * from './html-text';
 export * from './events-api';
 export * from './fish-api';
 export * from './fish-sync-api';

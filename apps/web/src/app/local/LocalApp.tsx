@@ -171,8 +171,8 @@ export function LocalApp(){
       {data&&searchOpen?<GlobalSearch query={search} links={allLinks} linksLoading={catalogLoading} linksError={catalogError} onRetryLinks={reloadCatalog} initialRegion={data.configuration.region} onFish={openFish} onEvent={openEvent} onFeature={openFeature} onClose={closeSearch}/>:null}
       {siteSettings.announcementEnabled&&siteSettings.announcement.trim()?<aside className="site-public-announcement" aria-label="站点公告">{siteSettings.announcement}</aside>:null}
       {error?<p role="alert" className="notice notice--error">{error}</p>:null}
-      {view==='admin'?<Suspense fallback={<p role="status">正在打开站点后台…</p>}><SiteAdminPage onClose={()=>setView('settings')}/></Suspense>
-        :!data?error?<p role="alert">本机数据读取失败。<button type="button" onClick={()=>window.location.reload()}>重试</button></p>:<p role="status">正在读取…</p>
+      {view==='admin'?<Suspense fallback={<output style={{display:'block'}}>正在打开站点后台…</output>}><SiteAdminPage onClose={()=>setView('settings')}/></Suspense>
+        :!data?error?<p role="alert">本机数据读取失败。<button type="button" onClick={()=>window.location.reload()}>重试</button></p>:<output style={{display:'block'}}>正在读取…</output>
         :view==='settings'?<LocalSettings key={settingsTab+dataSection} initialTab={settingsTab} initialDataSection={dataSection} store={store} data={data} onSaved={()=>{}} onAdmin={openAdmin} adminAuthenticated={adminSession.authenticated}/>
         :<div className="local-dashboard">
           <section className="local-dashboard__modules" aria-label="功能模块">
@@ -209,8 +209,8 @@ export function LocalApp(){
               </nav>
             </div>
             {subgroups.length>0&&<nav className="local-directory__subcategories" aria-label="网站子分类"><button type="button" aria-pressed={subcategory==='all'} onClick={()=>{setSubcategory('all');setVisibleLimit(36);}}>全部{category}</button>{subgroups.map(sub=><button type="button" key={sub} aria-pressed={subcategory===sub} onClick={()=>{setSubcategory(sub);setVisibleLimit(36);}}>{sub}</button>)}</nav>}
-            {catalogError&&<div role="status" className="local-directory__notice">公共目录暂时无法更新，本机网站和已加载内容仍可使用。 <button type="button" onClick={reloadCatalog}>重试</button></div>}
-            {catalogLoading?<p role="status" className="local-directory__loading">正在更新网站目录…</p>:null}
+            {catalogError&&<output className="local-directory__notice" style={{display:'block'}}>公共目录暂时无法更新，本机网站和已加载内容仍可使用。 <button type="button" onClick={reloadCatalog}>重试</button></output>}
+            {catalogLoading?<output className="local-directory__loading" style={{display:'block'}}>正在更新网站目录…</output>:null}
             {filteredLinks.length===0?(!catalogLoading&&<div id="directory-results" className="local-directory__empty"><h3>{hasFilters?'没有找到匹配的网站':catalogError?'暂时无法读取公共目录':'还没有网站'}</h3><p>{hasFilters?'试试取消收藏筛选，或选择其他分类。':'可以在设置中添加自己的常用网站。'}</p>{hasFilters?<button type="button" onClick={clearFilters}>查看全部网站</button>:<button type="button" onClick={()=>{setSettingsTab('links');setView('settings');}}>添加个人网站</button>}</div>):
               <ul id="directory-results" className="local-directory__tiles">{filteredLinks.slice(0,visibleLimit).map(link=><li key={link.id} className="local-directory__tile">
                 <a href={link.url} target="_blank" rel="noopener noreferrer" title={link.url}>

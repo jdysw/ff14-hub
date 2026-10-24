@@ -4,6 +4,8 @@
  * SSRF：仅允许公网 DNS 主机的 HTTPS 默认端口；手动验证每次重定向；
  * 禁止 IP 字面量、内网/保留域名，限制跳转、响应字节数和总耗时。
  */
+import {stripHtmlTags} from '@ff14-hub/shared';
+
 const MAX_HTML_BYTES=96*1024;
 const MAX_REDIRECTS=2;
 const BLOCKED_SUFFIXES=['.localhost','.local','.lan','.internal','.invalid','.test','.onion','.home','.home.arpa','.arpa','.example','.nip.io','.sslip.io','.xip.io','.localtest.me','.vcap.me'];
@@ -43,16 +45,50 @@ function decodeEntities(text:string):string{
 }
 
 function normalizeText(value:string,max:number):string{
-  return decodeEntities(value).replace(/<[^>]*>/g,' ').replace(/[\p{Cc}]+/gu,' ').replace(/\s+/g,' ').trim().slice(0,max);
+  return stripHtmlTags(decodeEntities(value)).replace(/\p{Cc}+/gu,' ').replace(/\s+/g,' ').trim().slice(0,max);
 }
 
 function attributes(tag:string):Record<string,string>{
   const result:Record<string,string>={};
   // 标准 HTML meta/link 属性引号或无引号形式，支持属性任意排列。
-  for(const m of tag.matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>\x60]+))/g)){
-    result[m[1]!.toLowerCase()]=m[2]??m[3]??m[4]??'';
+  const attribute=/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>\x60]+))/y;
+  const name=/[\w:-]+/y;
+  let cursor=0;
+  while(cursor<tag.length){
+    attribute.lastIndex=cursor;
+    const match=attribute.exec(tag);
+    if(match){
+      result[match[1]!.toLowerCase()]=match[2]??match[3]??match[4]??'';
+      cursor=attribute.lastIndex;
+      continue;
+    }
+    // A failed attribute must skip its whole name, rather than retry each suffix.
+    name.lastIndex=cursor;
+    const candidate=name.exec(tag);
+    cursor=candidate?name.lastIndex:cursor+1;
   }
   return result;
+}
+
+function sameOriginIcon(raw:string,siteUrl:URL):string|null{
+  try{
+    const img=new URL(raw,siteUrl);
+    if(img.protocol==='https:'&&img.origin===siteUrl.origin&&!img.username&&!img.password&&!img.search&&!img.hash){
+      return img.href.slice(0,700);
+    }
+  }catch{/* 无效图标地址，回退 favicon.ico */}
+  return null;
+}
+
+function collectMetaText(attr:Record<string,string>,title:string,descriptions:string[]):string{
+  const key=(attr['name']??attr['property']??'').toLowerCase();
+  if(['description','og:description','twitter:description'].includes(key)&&attr['content']){
+    descriptions.push(normalizeText(attr['content'],240));
+  }
+  if(key==='og:title'&&!title){
+    return normalizeText(attr['content']??'',100);
+  }
+  return title;
 }
 
 export function extractSiteMetadata(html:string,siteUrl:URL):SiteMetadata{
@@ -64,15 +100,9 @@ export function extractSiteMetadata(html:string,siteUrl:URL):SiteMetadata{
   for(const match of head.matchAll(/<(?:meta|link)\b[^>]*>/gi)){
     const tag=match[0], attr=attributes(tag);
     if(/^<meta\b/i.test(tag)){
-      const key=(attr['name']??attr['property']??'').toLowerCase();
-      if(key==='og:title'&&!title)title=normalizeText(attr['content']??'',100);
-      if(['description','og:description','twitter:description'].includes(key)&&attr['content'])desc.push(normalizeText(attr['content'],240));
+      title=collectMetaText(attr,title,desc);
     }else if(!iconUrl&&/(^|\s)(icon|shortcut icon|apple-touch-icon)(\s|$)/i.test(attr['rel']??'')&&attr['href']){
-      try{
-        const img=new URL(attr['href'],siteUrl);
-        if(img.protocol==='https:'&&img.origin===siteUrl.origin&&!img.username&&!img.password&&!img.search&&!img.hash)
-          iconUrl=img.href.slice(0,700);
-      }catch{/* 无效图标地址，回退 favicon.ico */}
+      iconUrl=sameOriginIcon(attr['href'],siteUrl);
     }
   }
   return {title,description:desc.find(Boolean)??'',iconUrl};
@@ -100,6 +130,19 @@ async function readHead(response:Response):Promise<string>{
   return text;
 }
 
+function metadataRedirect(response:Response,current:URL,target:URL,attempt:number):URL{
+  const next=response.headers.get('Location');
+  if(!next||attempt===MAX_REDIRECTS){
+    throw new Error('网站重定向次数过多');
+  }
+  const redirected=safeMetadataTarget(new URL(next,current).href);
+  // 避免跨站重定向使公共元数据接口变成更广泛的探测器。
+  if(!redirected||redirected.hostname!==target.hostname){
+    throw new Error('网站重定向到其他域名，已停止自动获取');
+  }
+  return redirected;
+}
+
 export async function fetchSiteMetadata(raw:string,fetcher:typeof fetch=fetch):Promise<SiteMetadata>{
   const target=safeMetadataTarget(raw);
   if(!target)throw new Error('仅支持公开 HTTPS 网站，不能查询内部网络或 IP 地址');
@@ -113,12 +156,8 @@ export async function fetchSiteMetadata(raw:string,fetcher:typeof fetch=fetch):P
         headers:{'Accept':'text/html','Range':`bytes=0-${MAX_HTML_BYTES-1}`},
       });
       if(response.status>=300&&response.status<400){
-        const next=response.headers.get('Location');
-        if(!next||i===MAX_REDIRECTS)throw new Error('网站重定向次数过多');
-        const redirected=safeMetadataTarget(new URL(next,current).href);
-        // 避免跨站重定向使公共元数据接口变成更广泛的探测器。
-        if(!redirected||redirected.hostname!==target.hostname)throw new Error('网站重定向到其他域名，已停止自动获取');
-        current=redirected;continue;
+        current=metadataRedirect(response,current,target,i);
+        continue;
       }
       if(!response.ok)throw new Error(`网站返回 HTTP ${response.status}`);
       const type=response.headers.get('Content-Type')?.toLowerCase()??'';

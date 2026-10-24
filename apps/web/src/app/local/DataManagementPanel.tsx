@@ -23,7 +23,7 @@ export function DataManagementPanel({store,data,initialSection='sync'}:{store:Lo
   const [notice,setNotice]=useState<string|null>(null),[error,setError]=useState<string|null>(null);
   usePrivateDraft(Boolean(fishFile||backup||busy));
   const run=async(action:()=>Promise<void>)=>{
-    if(busy)return;setBusy(true);setError(null);setNotice(null);
+    if(busy){return;}setBusy(true);setError(null);setNotice(null);
     try{await action();}catch(cause){setError(cause instanceof ZodError?'文件格式不正确，原有数据仍保留。':cause instanceof Error?cause.message:'操作失败，原有数据仍保留。');}
     finally{setBusy(false);}
   };
@@ -32,13 +32,13 @@ export function DataManagementPanel({store,data,initialSection='sync'}:{store:Lo
     <nav className="data-management__tabs" aria-label="数据管理方式">
       {([['sync','云端同步'],['fish','钓鱼导入导出'],['backup','备份与恢复']] as const).map(([value,label])=><button key={value} type="button" aria-pressed={section===value} onClick={()=>setSection(value)}>{label}</button>)}
     </nav>
-    {error?<p role="alert" className="notice notice--error">{error}</p>:null}{notice?<p role="status" className="notice notice--ok">{notice}</p>:null}
+    {error?<p role="alert" className="notice notice--error">{error}</p>:null}{notice?<output className="notice notice--ok" style={{display:'block'}}>{notice}</output>:null}
     <div hidden={section!=='sync'}><FishcakeSyncPanel store={store}/><RemoteSyncPanel store={store}/></div>
     <section hidden={section!=='fish'} aria-label="鱼糕数据导入导出"><h3>鱼糕数据</h3>
       <label className="local-settings__field">区服<select aria-label="本地钓鱼导入区服" value={region} disabled={busy} onChange={event=>{setRegion(event.target.value as FishRegion);setConfirmed(false);}}><option value="cn">国服</option><option value="global">国际服</option></select></label>
       <p className="local-settings__caution">鱼糕文件不包含区服信息，请确认所选区服。</p>
       <label className="local-settings__field">鱼糕导出文件<input type="file" aria-label="鱼糕导出文件" accept=".json,application/json" disabled={busy} onChange={event=>{
-        const file=event.target.files?.[0];setFishFile(null);setConfirmed(false);if(!file)return;
+        const file=event.target.files?.[0];setFishFile(null);setConfirmed(false);if(!file){return;}
         void run(async()=>{if(file.size>1048576)throw new Error('鱼糕文件超过 1 MiB 上限');const text=await file.text();const document=parseFishDocument(text.replace(/^\uFEFF/,''));setFishFile({text,document});});
       }}/></label>
       {fishFile?<div className="local-settings__preview"><p>已识别 {new Set(fishFile.document.completed).size} 条已钓获、{new Set(fishFile.document.pinned).size} 条收藏、{new Set(fishFile.document.alarmFish).size} 条提醒。</p>
@@ -52,7 +52,7 @@ export function DataManagementPanel({store,data,initialSection='sync'}:{store:Lo
       <BackupStatusLine/>
       <button type="button" disabled={busy} onClick={()=>{void run(async()=>{downloadJson(JSON.stringify(await store.exportBackup(),null,2),'ff14-hub-personal-backup.json');try{await recordBackupEvent('exportedAt');setNotice('已发起备份下载，请确认文件已保存。');}catch{setNotice('已发起备份下载，但本机导出时间未能记录，请确认文件已保存。');}});}}>导出全部个人数据</button>
       <label className="local-settings__field">选择个人备份<input type="file" aria-label="个人备份文件" accept=".json,application/json" disabled={busy} onChange={event=>{
-        const file=event.target.files?.[0];setBackup(null);setRestoreConfirmed(false);if(!file)return;
+        const file=event.target.files?.[0];setBackup(null);setRestoreConfirmed(false);if(!file){return;}
         void run(async()=>{if(file.size>8*1024*1024)throw new Error('备份超过 8 MiB 上限');const parsed:unknown=JSON.parse((await file.text()).replace(/^\uFEFF/,''));setBackup(localBackupSchema.parse(parsed));});
       }}/></label>
       {backup?<div className="local-settings__preview"><p>备份包含 {backup.data.links.length} 个个人网站、{backup.data.notes.length} 条备忘。恢复会替换本浏览器的个人数据，请先导出当前备份。</p>

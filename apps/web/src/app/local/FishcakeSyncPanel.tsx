@@ -11,7 +11,7 @@ export function FishcakeSyncPanel({store}:{store:LocalStore}){
     let alive=true;const refresh=()=>{void readFishcakeSettings().then(value=>{if(alive)setStatus(value);}).catch(()=>{});};
     refresh();window.addEventListener(FISHCAKE_SYNC_CHANGED,refresh);return()=>{alive=false;window.removeEventListener(FISHCAKE_SYNC_CHANGED,refresh);};
   },[]);
-  const run=async(action:()=>Promise<void>)=>{if(busy)return;setBusy(true);setError('');try{await action();}catch(cause){setError(cause instanceof Error?cause.message:'互通失败，请重新预览');}finally{setBusy(false);}};
+  const run=async(action:()=>Promise<void>)=>{if(busy){return;}setBusy(true);setError('');try{await action();}catch(cause){setError(cause instanceof Error?cause.message:'互通失败，请重新预览');}finally{setBusy(false);}};
   const merged=preview?mergeFishcakePreview(preview,choices):null;
   const conflicts=preview?mergeFishcakePreview(preview).conflicts:[];
   return <section className="personal-feature" aria-label="鱼糕实时互通">
@@ -21,8 +21,8 @@ export function FishcakeSyncPanel({store}:{store:LocalStore}){
     <p className="local-settings__caution">手机浏览器需要支持用户脚本。此连接不经过本站服务器；关闭页面后暂停，也不会自动跨设备同步。鱼糕数据没有区服，请确认绑定的区服。</p>
     <label className="local-settings__field">互通区服<select aria-label="鱼糕互通区服" value={region} disabled={busy} onChange={event=>{setRegion(event.target.value as FishRegion);setPreview(null);setChoices(new Map());}}><option value="cn">国服</option><option value="global">国际服</option></select></label>
     <div className="personal-feature__toolbar"><button disabled={busy} onClick={()=>void run(async()=>{setPreview(null);setChoices(new Map());setPreview(await previewFishcake(store,region));})}>读取并预览鱼糕进度</button><button disabled={busy||!status} onClick={()=>void run(async()=>{await disconnectFishcake();setPreview(null);})}>断开互通</button></div>
-    {status?<p role="status">{status.enabled?'自动互通已启用':'自动互通已暂停'} · {status.region==='cn'?'国服':'国际服'}{status.lastSync?` · 上次成功 ${new Date(status.lastSync).toLocaleString('zh-CN')}`:''}</p>:<p>尚未连接</p>}
-    {status?.error?<p role="status">{status.error}</p>:null}
+    {status?<output style={{display:'block'}}>{status.enabled?'自动互通已启用':'自动互通已暂停'} · {status.region==='cn'?'国服':'国际服'}{status.lastSync?` · 上次成功 ${new Date(status.lastSync).toLocaleString('zh-CN')}`:''}</output>:<p>尚未连接</p>}
+    {status?.error?<output style={{display:'block'}}>{status.error}</output>:null}
     {status?.backup?<button disabled={busy} onClick={()=>void run(async()=>{setPreview(null);setChoices(new Map());setRegion(status.region);setPreview(await previewFishcakeRestore(store));})}>预览恢复同步前进度</button>:null}
     {preview&&merged?<div className="personal-feature__preview">
       <h4>核对进度</h4><p>鱼糕：{preview.remote.completed.length} 条钓获、{preview.remote.pinned.length} 条收藏、{preview.remote.alarmFish.length} 条提醒。差异 {conflicts.length} 项；应用后会更新两边，写入前将保留同步前快照。</p>

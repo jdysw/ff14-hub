@@ -39,13 +39,16 @@ export async function runLocalNotifications(db:D1Database,now:number,send:Sender
     const tag=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(id+jobs.results.map(j=>j.job_key).sort().join('|')))),b=>b.toString(16).padStart(2,'0')).join('');
     let status=0;try{status=await send(id,owner.channel_ciphertext,tag,{title,body});}catch{/* Never log credentials, recipient addresses or notification content. */}
     const accepted=status>=200&&status<300,retry=status===0||status===429||status>=500;
+    let deliveryStatus:'sent'|'queued'|'failed'='failed';
+    if(accepted){deliveryStatus='sent';}
+    else if(retry){deliveryStatus='queued';}
     // Reserve quota before sending to keep concurrent ticks below the daily cap.
     // A provider rejection must release that reservation, but only if this tick
     // still owns the leased jobs. Both updates are in one D1 transaction.
     const complete=db.prepare(`UPDATE local_push_jobs
       SET status=?,due_at=CASE WHEN ?=1 THEN ? ELSE due_at END,lease_until=0
       WHERE device_id=? AND claim_token=? AND status='leased'`)
-      .bind(accepted?'sent':retry?'queued':'failed',retry?1:0,now+300_000,id,claim);
+      .bind(deliveryStatus,retry?1:0,now+300_000,id,claim);
     if(accepted){
       const result=await complete.run();
       if(result.meta.changes>0)count++;

@@ -28,13 +28,19 @@ export function remoteUrl(raw:string,hubOrigin=location.origin):URL{
 export async function s3Headers(config:RemoteConfig,method:string,body:string,headers:Record<string,string>,now=new Date()):Promise<Record<string,string>>{
   const url=remoteUrl(config.url),date=now.toISOString().replace(/[:-]|\.\d{3}/g,''),day=date.slice(0,8);
   const hash=await digest(body),signed:Record<string,string>={host:url.host,'x-amz-content-sha256':hash,'x-amz-date':date,...headers};
-  if(config.sessionToken)signed['x-amz-security-token']=config.sessionToken;
-  const names=Object.keys(signed).sort(),scope=`${day}/${config.region}/s3/aws4_request`;
+  if(config.sessionToken){signed['x-amz-security-token']=config.sessionToken;}
+  // SigV4 的 CanonicalHeaders 必须使用字节序，而不是受系统 locale 影响的排序。
+   const names=Object.keys(signed).sort((a,b)=>{
+     if(a<b){return -1;}
+     if(a>b){return 1;}
+     return 0;
+   }),scope=`${day}/${config.region}/s3/aws4_request`;
   const canonical=[method,url.pathname,'',names.map(name=>`${name}:${signed[name]!.trim()}\n`).join(''),names.join(';'),hash].join('\n');
   let key=await hmac(encoder.encode('AWS4'+config.secretKey),day);
   for(const part of [config.region,'s3','aws4_request'])key=await hmac(key,part);
   const signature=hex((await hmac(key,`AWS4-HMAC-SHA256\n${date}\n${scope}\n${await digest(canonical)}`)).buffer);
-  const {host:_,...result}=signed;void _;
+  const result={...signed};
+  delete result['host'];
   return {...result,Authorization:`AWS4-HMAC-SHA256 Credential=${config.accessKey}/${scope}, SignedHeaders=${names.join(';')}, Signature=${signature}`};
 }
 export function createRemoteClient(input:RemoteConfig,fetcher:typeof fetch=fetch){

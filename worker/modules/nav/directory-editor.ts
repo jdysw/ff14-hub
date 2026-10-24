@@ -39,13 +39,15 @@ export async function saveDirectoryRecord(db: D1Database, records: readonly Dire
   });
   let changed: D1Result;
   try {
-    changed = input.expectedRevision === 0
-      ? await db.prepare(`INSERT INTO nav_catalog_edits(id,payload,canonical_url,hidden,revision,updated_at)
+    if (input.expectedRevision === 0) {
+      changed = await db.prepare(`INSERT INTO nav_catalog_edits(id,payload,canonical_url,hidden,revision,updated_at)
           VALUES(?,?,?,?,1,?) ON CONFLICT(id) DO NOTHING`)
-        .bind(input.id,JSON.stringify(entry),canonical,input.hidden?1:0,now).run()
-      : await db.prepare(`UPDATE nav_catalog_edits SET payload=?,canonical_url=?,hidden=?,revision=revision+1,updated_at=?
+        .bind(input.id,JSON.stringify(entry),canonical,input.hidden?1:0,now).run();
+    } else {
+      changed = await db.prepare(`UPDATE nav_catalog_edits SET payload=?,canonical_url=?,hidden=?,revision=revision+1,updated_at=?
           WHERE id=? AND revision=?`)
         .bind(JSON.stringify(entry),canonical,input.hidden?1:0,now,input.id,input.expectedRevision).run();
+    }
   } catch (cause) {
     if (cause instanceof Error && cause.message.includes('UNIQUE constraint failed')) throw new ApiError('conflict','该网址已存在，请重新读取目录');
     throw cause;

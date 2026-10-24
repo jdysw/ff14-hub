@@ -23,7 +23,7 @@ export function useNavigationCatalog(){
         return navCatalogResponseSchema.parse(await response.json());
       })
       .then(result=>{if(active){saveCachedNavigation(result);setCatalog([...result.entries]);setCatalogError(false);}})
-      .catch(()=>{if(active){const saved=readCachedNavigation();if(saved)setCatalog(saved);setCatalogError(true);}})
+      .catch(()=>{if(active){const saved=readCachedNavigation();if(saved){setCatalog(saved);}setCatalogError(true);}})
       .finally(()=>{if(active)setCatalogLoading(false);});
     return()=>{active=false;};
   },[version]);

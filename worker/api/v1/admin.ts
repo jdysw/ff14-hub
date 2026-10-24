@@ -87,7 +87,7 @@ adminRoutes.get('/game-data',adminAuth(),async c=>noStoreJson(c,await readGameDa
 const gameDataMutation=z.object({expectedRevision:z.number().int().nonnegative(),data:siteGameDataSchema}).strict();
 adminRoutes.put('/game-data',adminAuth(),validateJsonBody(gameDataMutation),async c=>{const input=parsedJsonBody(c,gameDataMutation);return noStoreJson(c,await saveGameData(c.env.DB,input.data,input.expectedRevision));});
 adminRoutes.get('/game-data/history',adminAuth(),async c=>noStoreJson(c,{records:(await c.env.DB.prepare('SELECT revision,updated_at FROM site_game_data_history ORDER BY revision DESC LIMIT 50').all()).results}));
-adminRoutes.get('/game-data/history/:revision',adminAuth(),async c=>{const row=await c.env.DB.prepare('SELECT payload FROM site_game_data_history WHERE revision=?').bind(Number(c.req.param('revision'))).first<{payload:string}>();if(!row)throw new ApiError('not_found','版本不存在');return noStoreJson(c,{data:siteGameDataSchema.parse(JSON.parse(row.payload))});});
+adminRoutes.get('/game-data/history/:revision',adminAuth(),async c=>{const row=await c.env.DB.prepare('SELECT payload FROM site_game_data_history WHERE revision=?').bind(Number(c.req.param('revision'))).first<{payload:string}>();if(!row){throw new ApiError('not_found','版本不存在');}return noStoreJson(c,{data:siteGameDataSchema.parse(JSON.parse(row.payload))});});
 adminRoutes.put('/settings',adminAuth(),validateJsonBody(siteSettingsMutationSchema),async c=>{
   const input=parsedJsonBody(c,siteSettingsMutationSchema);
   return noStoreJson(c,await updateSiteSettings(c.env.DB,input));
@@ -98,10 +98,10 @@ async function assertEditableId(db:D1Database,id:string):Promise<void> {
     throw new ApiError('validation_failed','活动标识不合法');
   const saved=await db.prepare('SELECT id FROM calendar_editor_entries WHERE id=?')
     .bind(id).first<{id:string}>();
-  if(saved!==null)return;
-  if(await db.prepare("SELECT 1 FROM admin_content_state WHERE domain='calendar' AND content_id=?").bind(id).first())return;
+  if(saved!==null){return;}
+  if(await db.prepare("SELECT 1 FROM admin_content_state WHERE domain='calendar' AND content_id=?").bind(id).first()){return;}
   const base=await readOfficialCalendarSnapshot(db);
-  if(base?.events.some(event=>event.id===id))return;
+  if(base?.events.some(event=>event.id===id)){return;}
   throw new ApiError('not_found','活动不存在');
 }
 

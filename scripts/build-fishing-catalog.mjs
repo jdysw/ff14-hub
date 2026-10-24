@@ -8,6 +8,12 @@ import {compareCnWeather,dependencyFacts} from './lib/fish-accuracy.mjs';
 import {createHash} from 'node:crypto';
 import {firstPositiveId} from './lib/fishing-special-content.mjs';
 
+/** 稀有等级优先级与原始国服游戏表及 Tracker 一致。 */
+function fishKind(id,trackerFish,param,legendary){
+  if(legendary.has(id))return 'legendary';
+  if(trackerFish?.bigFish||param?.IsHidden==='True'&&param.IsInLog==='True'&&Number(param.OceanStars)===0)return 'big';
+  return 'normal';
+}
 const [directory,trackerSha,cnSha,teamcraftSha]=process.argv.slice(2);
 if(!directory||![trackerSha,cnSha,teamcraftSha].every(s=>/^[a-f0-9]{40}$/.test(s??'')))throw new Error('Usage: source-directory tracker-sha cn-sha teamcraft-sha');
 const read=(name)=>readFile(path.join(directory,name),'utf8');
@@ -57,10 +63,16 @@ for(const region of ['cn','global']){
     if(!name)throw new Error('Missing name for fish '+id);
     const label=(itemId)=>region==='cn'?names.get(Number(itemId))??tracker.ITEMS[itemId]?.name_en:tracker.ITEMS[itemId]?.name_en;
     const baitIds=t?.bestCatchPath??extra?.fish.data?.[0]?.gatheringNode?.baits?.map(b=>b.id)??[];
-    const baitLabel=value=>typeof value==='number'?label(value):Array.isArray(value)?value.map(baitLabel).filter(Boolean).join(' / '):null;
+    const baitLabel=value=>{
+      if(typeof value==='number')return label(value);
+      if(Array.isArray(value))return value.map(baitLabel).filter(Boolean).join(' / ');
+      return null;
+    };
     const bait=baitIds.map(baitLabel).filter(Boolean);
     const sourceRecord=rules.get(id);
-    const method=t?.gig||region==='cn'&&spearIds.has(id)?'spear':Number(param?.OceanStars)>0?'ocean':'rod';
+    let method='rod';
+    if(t?.gig||region==='cn'&&spearIds.has(id))method='spear';
+    else if(Number(param?.OceanStars)>0)method='ocean';
     let rule=method==='rod'?(sourceRecord?.rule??null):null;
     if(region==='cn'){
       audit.summary.identities++;
@@ -91,7 +103,7 @@ for(const region of ['cn','global']){
     const zone=region==='cn'?(placeNames.get(Number(territory?.PlaceName))||location):g?.zone_en??location;
     const conditions=t?trackerRequirements(t,label).filter(c=>c.kind!=='bait').map(c=>c.description):[];
     records.push({id,name,englishName:g?.name_en??tracker.ITEMS[id]?.name_en??'',
-      kind:legendary.has(id)?'legendary':t?.bigFish||param?.IsHidden==='True'&&param.IsInLog==='True'&&Number(param.OceanStars)===0?'big':'normal',method,
+      kind:fishKind(id,t,param,legendary),method,
       level:g?.level?.[0]??extra?.fish.level??0,patch:String(t?.patch??''),zone,location,spotId,bait,
       tug:t?.tug??'',hookset:t?.hookset??'',conditions,always,rule});
   }

@@ -15,18 +15,32 @@
  *   4. GET /api/v1/nope      未知 API 路径必须是 JSON 404（不能是 HTML）
  * 任一项失败即以退出码 1 结束，不隐藏失败。
  */
-const baseUrl = (process.argv[2] ?? 'http://127.0.0.1:8787').replace(/\/+$/, '');
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+/** 该脚本只能探测开发者明确启动的本地 Worker，禁止作为任意 URL 的请求代理。 */
+export function smokeBaseUrl(value = 'http://127.0.0.1:8787') {
+  const url = new URL(value);
+  if (url.protocol !== 'http:' || !['127.0.0.1', '[::1]', 'localhost'].includes(url.hostname) ||
+      url.username || url.password || url.pathname !== '/' || url.search || url.hash ||
+      !/^\d{1,5}$/.test(url.port || '8787') || Number(url.port || 8787) > 65535) {
+    throw new Error('冒烟测试仅允许本机 HTTP 地址，不接受路径、凭证或远程主机');
+  }
+  return url.origin;
+}
+let baseUrl = 'http://127.0.0.1:8787';
 
 const results = [];
+/** 日志只记录短、单行诊断值，避免上游响应注入额外日志行。 */
+export const safeLogText = (value) => JSON.stringify(String(value)).slice(1, -1).slice(0, 180);
 
 function record(name, ok, detail) {
-  results.push({ name, ok, detail });
-  const mark = ok ? 'PASS' : 'FAIL';
-  console.log(`[${mark}] ${name}${detail ? ` — ${detail}` : ''}`);
+  results.push({ name: safeLogText(name), ok, detail: safeLogText(detail ?? '') });
+  // 仅输出固定标记与本地生成的编号：未经信任的响应、异常信息绝不流入终端日志。
+  console.log(ok ? '[PASS] Local check' : '[FAIL] Local check', results.length);
 }
 
 async function get(path) {
-  const response = await fetch(`${baseUrl}${path}`, { redirect: 'manual' });
+  const response = await fetch(new URL(path, baseUrl), { redirect: 'manual', credentials: 'omit' });
   const text = await response.text();
   return { response, text };
 }
@@ -88,17 +102,18 @@ async function checkNotFound() {
   );
 }
 
-console.log(`冒烟目标：${baseUrl}`);
-
-try {
-  await checkStaticPage();
-  await checkHealth();
-  await checkUnauthorized();
-  await checkNotFound();
-} catch (error) {
-  record('冒烟执行', false, error instanceof Error ? error.message : String(error));
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try {
+    baseUrl = smokeBaseUrl(process.argv[2]);
+    console.log(`冒烟目标：${baseUrl}`);
+    await checkStaticPage();
+    await checkHealth();
+    await checkUnauthorized();
+    await checkNotFound();
+  } catch (error) {
+    record('冒烟执行', false, error instanceof Error ? error.message : String(error));
+  }
+  const failed = results.filter((item) => !item.ok);
+  console.log(`\n共 ${results.length} 项，失败 ${failed.length} 项。`);
+  process.exitCode = failed.length === 0 ? 0 : 1;
 }
-
-const failed = results.filter((item) => !item.ok);
-console.log(`\n共 ${results.length} 项，失败 ${failed.length} 项。`);
-process.exit(failed.length === 0 ? 0 : 1);
