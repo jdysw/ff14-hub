@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# 国服与国际服鱼类候选目录同步：只下载数据并调用已存在的转换器，不执行上游脚本。\n# 默认仅写 preview；生产导入须显式选择 production + 确认，避免初始化误写线上。
+# 国服与国际服鱼类候选目录同步：只下载数据并调用已存在的转换器，不执行上游脚本。
+# 默认仅写 preview；生产导入须显式选择 production + 确认，避免初始化误写线上。
 set -euo pipefail
 TARGET_ENV="${TARGET_ENV:-preview}"
 if [[ "$TARGET_ENV" != "preview" && "$TARGET_ENV" != "production" ]]; then

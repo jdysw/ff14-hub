@@ -9,6 +9,7 @@ const requiredTables=[
  'calendar_admin_accounts','calendar_admin_sessions','calendar_admin_rate_limits',
  'calendar_editor_entries','calendar_admin_audit','site_admin_settings',
  'site_admin_settings_audit','nav_catalog_edits','nav_catalog_audit','local_push_devices','local_push_jobs',
+ 'admin_content_state','admin_content_audit','admin_sync_runs','site_game_data','site_game_data_history',
 ];
 export const READ_ONLY_QUERIES={
  tables:"SELECT name FROM sqlite_master WHERE type='table'",

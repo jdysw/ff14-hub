@@ -33,7 +33,7 @@ FF14 Hub 目前为维护者本人使用的 Local-first 站点，普通访问者�
 ## 3. 无生产写入的验证路径
 
 1. `pnpm install --frozen-lockfile`。
-2. `pnpm run test:db-baseline`：静态核对目录仅剩一份 SQL、16 张表、必须的触发器/索引且没有旧表与破坏性 SQL。
+2. `pnpm run test:db-baseline`：静态核对 0001 基线的 16 张表、必须的触发器/索引且没有旧表与破坏性 SQL；新增管理功能通过 0022 及后续增量迁移升级。
 3. `pnpm --filter @ff14-hub/worker test`：Vitest 的 `cloudflare:test` 在隔离 D1 中应用新基线；`worker/test/migrations.spec.ts` 真实验证数据库清单、CHECK、外键、级联删除、审计触发器以及 `d1_migrations` 幂等。
 4. `pnpm run verify:release`：Web/Worker 类型检查、回归、构建和预览/生产 Wrangler 干跑。
 5. **历史生产路径单独检查**：仅在确认只读目标后查询 `SELECT name FROM d1_migrations ORDER BY id`，核实已应用 0018/0019/0020/0021，检查保留的现行业务表存在；执行前按现有流程备份。这里没有自动执行远程 SQL。
@@ -62,7 +62,7 @@ pnpm run db:ready:production
 pnpm run db:ready:local
 ```
 
-脚本要求 16 张现行业务表、合法 `d1_migrations` 基线、无外键错误，并且 `cn`、`global` 两个区服 `fish_catalog` 均有有效行。返回 exit 0 = ready、2 = 未就绪、1 = 查询失败。只报告缺失表、历史链是否完整和数据行数，不输出敏感数据。导航目录由首次公开 `GET /navigation/catalog` 惰性写入种子；国服公告有独立的远端快照刷新路径，所以不强制首次就存在。
+脚本要求当前 21 张业务表（0001 的 16 张核心表和 0022 的 5 张管理表）、合法 `d1_migrations` 基线、无外键错误，并且 `cn`、`global` 两个区服 `fish_catalog` 均有有效行。返回 exit 0 = ready、2 = 未就绪、1 = 查询失败。只报告缺失表、历史链是否完整和数据行数，不输出敏感数据。导航目录由首次公开 `GET /navigation/catalog` 惰性写入种子；国服公告有独立的远端快照刷新路径，所以不强制首次就存在。
 
 初次导入先本地执行转换检查（需要只读 GitHub Token）：
 
