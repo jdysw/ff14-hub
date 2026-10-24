@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import {cleanup,render,fireEvent,screen,waitFor} from '@testing-library/react';
 import {afterEach,expect,it,vi} from 'vitest';
-import {planModules} from '../src/app/local/ModuleGrid';
+import {planHomeModules,planModules,readSavedHomeColumns,clearSavedHomeLayout} from '../src/app/local/ModuleGrid';
 import {TodoBoard,todoStatus} from '../src/app/local/TodoBoard';
 import {localDataSchema,type LocalStore} from '../src/app/local/store';
 import {buildTodoNotificationJobs} from '../src/app/local/local-notifications';
@@ -11,6 +11,35 @@ afterEach(cleanup);
 it('balances odd modules and spans the last item only when that removes a substantial gap',()=>{
   expect(planModules([400,150,200])).toEqual([0,1,1]);expect(planModules([200,190,250])).toEqual([0,1,2]);
   expect(planModules([200,190,250],[],false)).toEqual([0,1,1]);expect(planModules([200,190,100,100])).toEqual([0,1,1,0]);
+});
+it('首页默认活动位于左栏、钓鱼与 PVP 依次位于右栏，用户自定义布局仍有效',()=>{
+  expect(planHomeModules([540,415,271],'events,fishing,pvp','auto')).toEqual([0,1,2]);
+  expect(planHomeModules([540,415,271],'events,pvp,fishing','auto')).toEqual(planModules([540,415,271]));
+  expect(planHomeModules([540,415,271],'events,fishing,pvp','balanced')).toEqual(planModules([540,415,271],[],false));
+  expect(planHomeModules([300,270,250,200],'events,fishing,pvp,notes','auto')).toEqual(planModules([300,270,250,200]));
+});
+it('刷新时仅恢复相同模块、相同设置和相同宽度的排版；手动重排可删除缓存',()=>{
+  const key='ff14-hub:home-module-columns:v3';
+  localStorage.setItem(key,JSON.stringify({
+    version:3,identity:'events,fishing,pvp',mode:'auto',width:1200,viewportWidth:1280,columns:[0,1,2],heights:[505,533,206],
+  }));
+  expect(readSavedHomeColumns('events,fishing,pvp','auto',1200,1280,3)).toEqual([0,1,2]);
+  expect(readSavedHomeColumns('events,pvp,fishing','auto',1200,1280,3)).toBeNull();
+  expect(readSavedHomeColumns('events,fishing,pvp','balanced',1200,1280,3)).toBeNull();
+  expect(readSavedHomeColumns('events,fishing,pvp','auto',990,1050,3)).toBeNull();
+  expect(readSavedHomeColumns('events,fishing,pvp','auto',1200,1280,2)).toBeNull();
+  localStorage.setItem(key,JSON.stringify({
+    version:1,identity:'events,fishing,pvp',mode:'auto',width:1200,viewportWidth:1280,columns:[0,1,2],heights:[505,533,206],
+  }));
+  expect(readSavedHomeColumns('events,fishing,pvp','auto',1200,1280,3)).toBeNull();
+  localStorage.setItem(key,JSON.stringify({
+    version:3,identity:'events,fishing,pvp',mode:'balanced',width:1200,viewportWidth:1280,columns:[0,1,2],heights:[505,533,206],
+  }));
+  expect(readSavedHomeColumns('events,fishing,pvp','balanced',1200,1280,3)).toBeNull();
+  localStorage.setItem(key,JSON.stringify({version:3,identity:'events,fishing,pvp',mode:'auto',width:1200,viewportWidth:1280,columns:[0,1,2],heights:[505,-10,206]}));
+  expect(readSavedHomeColumns('events,fishing,pvp','auto',1200,1280,3)).toBeNull();
+  clearSavedHomeLayout();
+  expect(localStorage.getItem(key)).toBeNull();
 });
 it('keeps old notes valid and derives overdue status independently of reminder time',()=>{
   const data=initial();data.notes.push({id:crypto.randomUUID(),title:'旧备忘',text:'原文'});expect(localDataSchema.parse(data).notes[0]?.text).toBe('原文');

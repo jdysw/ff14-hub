@@ -1,6 +1,7 @@
 /** 首页只显示值得关注的近期日程；完整历史、筛选与日期选择放入独立活动中心。 */
 import { eventCalendarResponseSchema, type EventCalendarItem, type EventCalendarResponse } from '@ff14-hub/shared';
 import { useEffect, useMemo, useState } from 'react';
+import {readCachedPublicCalendar,saveCachedPublicCalendar} from '../local/public-calendar-cache';
 import {
   calendarOverview, calendarTimeLabel, calendarEndCondition,chinaDateTime,displayCalendarTitle, eventStatus, isScheduled, SOON_MS,calendarCountdown,
 } from '../events/public-calendar-utils';
@@ -91,12 +92,15 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
         const parsed = eventCalendarResponseSchema.safeParse(data);
         if (!parsed.success) throw new Error('calendar_contract_error');
         if (!controller.signal.aborted&&current===sequence) {
-          setState({ kind: 'ready', value: parsed.data, offset: parsed.data.serverTimeMs - Date.now() });
+          saveCachedPublicCalendar(parsed.data);
+          setState({ kind: 'ready', value: parsed.data, offset: parsed.data.source.stale ? 0 : parsed.data.serverTimeMs - Date.now() });
         }
       } catch {
-        if (!controller.signal.aborted&&current===sequence) setState(previous=>previous.kind==='ready'
-          ?{...previous,value:{...previous.value,source:{...previous.value.source,stale:true}}}
-          :{kind:'error'});
+        if (!controller.signal.aborted&&current===sequence) setState(previous=>{
+          if(previous.kind==='ready')return {...previous,value:{...previous.value,source:{...previous.value.source,stale:true}},offset:0};
+          const cached=readCachedPublicCalendar();
+          return cached?{kind:'ready',value:cached,offset:0}:{kind:'error'};
+        });
       }
     };
     void load();

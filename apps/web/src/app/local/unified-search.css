@@ -1,9 +1,14 @@
 /* One search entry; results belong to the document rather than a floating layer. */
-.local-app .shell__header.shell__header--unified{display:grid;grid-template-columns:auto minmax(240px,1fr) auto;gap:24px}
-.home-global-search{display:flex;align-items:center;gap:12px;min-width:0;max-width:620px;justify-self:stretch}
-.home-global-search__label{display:flex;align-items:center;gap:8px;min-height:44px;flex:none;border:0;background:none;padding:0;color:var(--text);font:inherit;font-size:13px;white-space:nowrap;cursor:pointer}
+/* 三段标题栏左右留出等宽弹性空间，让搜索以视口中轴居中而非靠左贴列。 */
+.local-app .shell__header.shell__header--unified{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,min(760px,53vw)) minmax(0,1fr);gap:20px}
+.shell__header--unified .brand__home{justify-self:start;min-width:0}
+.shell__header--unified .local-app__header-actions{justify-self:end;white-space:nowrap}
+.home-global-search{display:flex;align-items:center;gap:12px;min-width:0;width:100%;max-width:760px;justify-self:center}
+/* 只保留输入框内的放大镜按钮；视觉不再重复标注「全站搜索」，保留 aria-label。 */
+.home-global-search__label{display:grid;place-items:center;flex:0 0 36px;min-width:36px;min-height:42px;border:0;border-radius:6px;background:none;padding:0;color:var(--text);cursor:pointer}
+.home-global-search__label:hover{background:color-mix(in srgb,var(--accent) 7%,transparent)}
 .home-global-search__label .ui-icon{width:16px;height:16px;color:var(--accent)}
-.home-global-search form{display:flex;align-items:center;gap:4px;flex:1;min-width:0;min-height:44px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);padding:0 6px 0 12px;transition:border-color .15s,box-shadow .15s}
+.home-global-search form{display:flex;align-items:center;gap:5px;flex:1;min-width:0;min-height:44px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);padding:0 7px;transition:border-color .15s,box-shadow .15s}
 .home-global-search form:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 10%,transparent)}
 .home-global-search input{width:100%;min-width:0;min-height:42px;border:0;background:transparent;color:var(--text);font:inherit;font-size:14px;outline:none}
 .home-global-search input::-webkit-search-cancel-button{display:none}
@@ -51,9 +56,10 @@
 .global-search-results__more{display:block;margin:20px auto 0;padding:6px 16px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--accent)!important;font-size:13px!important}
 .global-search-results__empty{padding:20px 0 12px}.global-search-results__empty h3{color:var(--text);font-size:17px}.global-search-results__empty p{color:var(--text-muted);font-size:14px;margin:8px 0 0}
 @keyframes search-unfold{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
-@media(min-width:1800px){.global-search-results{max-width:2560px}.home-global-search{max-width:760px;justify-self:center;width:100%}}
-@media(max-width:1100px){.local-app .shell__header.shell__header--unified{grid-template-columns:minmax(0,1fr) auto;gap:8px 20px}.home-global-search{grid-column:1 / -1;grid-row:2;max-width:none}.shell__header--unified .local-app__header-actions{grid-column:2;grid-row:1}}
-@media(max-width:700px){.local-app .shell__header.shell__header--unified{gap:6px 8px;padding-block:8px 10px}.home-global-search{gap:10px}.home-global-search input{font-size:16px}.home-global-search__label{font-size:12px;gap:5px}.home-global-search__label .ui-icon{width:15px;height:15px}.global-search-results{padding:20px 16px 22px;margin-bottom:28px}.global-search-results__heading{gap:12px;margin-bottom:16px}.global-search-results__heading h2{font-size:24px}.global-search-results__heading p{font-size:12px}.global-search-results__close kbd{display:none}.global-search-results__grid{grid-template-columns:minmax(0,1fr);gap:24px}.global-search-results__toolbar{gap:8px}.global-search-results__scopes{gap:0;max-width:100%}.global-search-results__scopes button{padding-inline:8px;gap:5px;font-size:12px}.global-search-results__region{margin-left:auto}.global-search-results__shortcuts{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 16px}.global-search-results li strong{font-size:14px}.global-search-results li>:is(a,button){min-height:66px}}
+@media(min-width:1800px){.global-search-results{max-width:2560px}}
+/* 中等屏幕将搜索独占下一行并居中；无需缩小点击区或挤压右侧操作。 */
+@media(max-width:1250px){.local-app .shell__header.shell__header--unified{grid-template-columns:minmax(0,1fr) auto;gap:8px 20px}.home-global-search{grid-column:1 / -1;grid-row:2;width:min(100%,760px);max-width:760px;justify-self:center}.shell__header--unified .local-app__header-actions{grid-column:2;grid-row:1}}
+@media(max-width:700px){.local-app .shell__header.shell__header--unified{gap:6px 8px;padding-block:8px 10px}.home-global-search{width:100%;max-width:none;gap:10px}.home-global-search input{font-size:16px}.home-global-search__label{font-size:12px;gap:5px}.home-global-search__label .ui-icon{width:15px;height:15px}.global-search-results{padding:20px 16px 22px;margin-bottom:28px}.global-search-results__heading{gap:12px;margin-bottom:16px}.global-search-results__heading h2{font-size:24px}.global-search-results__heading p{font-size:12px}.global-search-results__close kbd{display:none}.global-search-results__grid{grid-template-columns:minmax(0,1fr);gap:24px}.global-search-results__toolbar{gap:8px}.global-search-results__scopes{gap:0;max-width:100%}.global-search-results__scopes button{padding-inline:8px;gap:5px;font-size:12px}.global-search-results__region{margin-left:auto}.global-search-results__shortcuts{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 16px}.global-search-results li strong{font-size:14px}.global-search-results li>:is(a,button){min-height:66px}}
 @media(max-width:420px){.shell__header--unified .local-app__nav-jump{display:none}.shell__header--unified .local-app__header-actions{gap:0}.shell__header--unified .site-discovery-trigger{padding-inline:6px}.global-search-results__region{gap:6px}.global-search-results__region select{padding-inline:8px}}
 @media(prefers-reduced-motion:reduce){.global-search-results{animation:none}.home-global-search form{transition:none}}
 @media(max-width:420px){.local-app .shell__header--unified .shell__settings .ui-icon{display:inline-block}}

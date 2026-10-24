@@ -1,10 +1,11 @@
-import {useEffect,useMemo,useRef,useState} from 'react';
+import {useEffect,useId,useMemo,useRef,useState} from 'react';
+import {UiIcon} from '../local/UiIcon';
 import {eorzeaTime,fishProgressResponseSchema,type FishProgress,type FishProgressField,type FishRegion} from '@ff14-hub/shared';
 import type {DataPort} from '../../lib/data-port';
 import {fishingCatalogSchema,type CatalogFish,type FishingCatalog} from './catalog';
 import {windowState,type FishForecast} from './forecast';
 import {nextFishingWindowRefresh,subscribeFishingForecast} from './forecast-session';
-import {GAME_DATA_CHANGED} from '../admin/game-data';
+import {GAME_DATA_CHANGED,gameDataSource} from '../admin/game-data';
 import './fishing-board.css';
 import {registerPrivateDraftSource} from '../pwa/draft-registry';
 import {fishCountdown as duration} from './countdown';
@@ -30,6 +31,8 @@ type WindowPhase='open'|'upcoming'|'always';
 type Method='all'|'rod'|'spear'|'ocean';
 type SearchField='name'|'location'|'bait'|'all';
 type HomeView='open'|'upcoming'|'followed';
+/** 首页仅提供少量近期鱼窗速览；完整页始终展示全部符合条件的记录。 */
+export const HOME_FISH_PREVIEW_LIMIT=5;
 export interface FishDetailSelection {
   readonly region:FishRegion;
   readonly view:View;
@@ -77,6 +80,8 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
   const [hideCaught,setHideCaught]=useState(initialFilters?.hideCaught??(embedded&&data.operations.includes('fish.progress.read')));
   // 时间范围控制首页的数据密度，绝不使用固定条数截断选定范围。
   const [windowHours,setWindowHours]=useState<6|24|72|168>(initialFilters?.windowHours??24);
+  const [homeFiltersOpen,setHomeFiltersOpen]=useState(false);
+  const homeFilterId=useId();
   const [limit,setLimit]=useState(compact?6:30);
   const [now,setNow]=useState(()=>Date.now());
   // 倒计时每秒更新，完整目录筛选/排序仅在分钟或鱼窗边界时重新计算。
@@ -199,6 +204,9 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
       ...(selectedPhase&&overrides.view!=='all'&&overrides.view!=='followed'?{windowPhase:selectedPhase}:{}),...overrides});
   };
   const displayed=expanded?visible:visible.slice(0,limit);
+  // 首页只呈现最紧迫的几条鱼窗，其余通过完整页查看，避免长列表和嵌套滚动。
+  // visible 始终是完整结果：统计与完整页面的筛选范围都不受截取影响。
+  const homePreview=visible.slice(0,HOME_FISH_PREVIEW_LIMIT);
   const et=eorzeaTime(now);
   const undoNotice=<div className="fish-board__feedback" role="status">{feedback}{undo&&undo.expiresAt>now?<button type="button" disabled={busy||pending!==null} onClick={()=>{
     if(undoChecking.current||mutationInFlight.current)return;undoChecking.current=true;
@@ -213,7 +221,6 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
   const hasFilters=Boolean(query||kind!=='all'||(view!=='windows'&&method!=='all')||hideCaught||targetId!==null);
   const kindName=kind==='rare'?'鱼王 / 鱼皇':kind==='special'?'任务 / 特殊条目':kindLabel[kind as keyof typeof kindLabel];
   if(embedded){
-    const active=visible.filter(fish=>windowState(fish,forecastsById.get(fish.id),now).open!==null).length;
     const ready=catalog!==null&&forecasts!==null;
     return <section className="fish-glance" aria-label="钓鱼鱼窗概览" data-testid="fishing-board">
       <header className="fish-glance__heading">
@@ -221,25 +228,22 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
         <button type="button" className="fish-glance__link" onClick={()=>openDetail()}>全部鱼窗 ↗</button>
       </header>
       <div className="fish-glance__meta">
-        <span>{region==='cn'?'国服':'国际服'} · 艾欧泽亚时间 <strong>{String(et.hour).padStart(2,'0')}:{String(et.minute).padStart(2,'0')}</strong></span>
-        <span>{homeView==='open'?'当前开放':homeView==='upcoming'?`未来 ${windowHours} 小时`:'已收藏或设置提醒'}</span>
+        <span aria-label={`${region==='cn'?'国服':'国际服'}艾欧泽亚时间`}>ET <strong>{String(et.hour).padStart(2,'0')}:{String(et.minute).padStart(2,'0')}</strong></span>
       </div>
       <div className="home-status-tabs" role="group" aria-label="首页鱼窗切换">
         {([['open','开放中鱼窗'],['upcoming','未来鱼窗'],['followed','关注鱼窗']] as const).map(([value,label])=><button type="button" key={value} aria-pressed={homeView===value} onClick={()=>setHomeView(value)}>{label}</button>)}
       </div>
-      <div className="fish-board__filter-tags" aria-label="当前鱼窗筛选">
+      <div className="fish-glance__filter-bar"><span>{catalog&&forecasts?`${visible.length} 条 · `:''}{following?'收藏或提醒 · 含已钓获':`${hideCaught?'未钓获':'不限钓获状态'} · ${kindName}`}</span><button type="button" aria-expanded={homeFiltersOpen} aria-controls={homeFilterId} onClick={()=>setHomeFiltersOpen(value=>!value)}><UiIcon name="sliders"/>筛选</button></div>
+      <div id={homeFilterId} hidden={!homeFiltersOpen} className="fish-board__filter-tags fish-glance__filter-panel" aria-label="当前鱼窗筛选">
         {following?<span>收藏或提醒 · 含已钓获</span>:<>{data.operations.includes('fish.progress.read')?<label><input type="checkbox" checked={hideCaught} disabled={!progressReady} onChange={event=>setHideCaught(event.target.checked)}/>只看未钓获</label>:null}
         <label>鱼种 <select aria-label="首页鱼种" value={kind} onChange={event=>setKind(event.target.value)}><option value="rare">鱼王 / 鱼皇</option><option value="all">全部鱼种</option></select></label></>}
         <button type="button" onClick={()=>openDetail({view:'all',kind:'all',hideCaught:false,text:''})}>查看全部鱼类</button>
+        <button type="button" onClick={()=>setHomeFiltersOpen(false)}>完成筛选</button>
       </div>
       {error?<p className="fish-glance__message" role="alert">{error} <button type="button" onClick={onReload}>重试</button></p>:
       !ready?<p className="fish-glance__message" role="status">正在计算鱼窗…</p>:<>
-        <div className="fish-glance__stats" aria-label="鱼窗状态统计">
-          {homeView==='followed'?<><span><strong>{visible.length}</strong> 已关注</span><span><strong>{active}</strong> 当前开放</span></>:<span><strong>{visible.length}</strong> {homeView==='open'?'开放中':'未来鱼窗'}</span>}
-        </div>
-        {visible.length===0?<p className="fish-glance__message">{homeView==='open'?'当前没有符合筛选条件的开放中鱼窗，可切换“未来鱼窗”查看。':homeView==='upcoming'?`未来 ${windowHours} 小时内没有符合筛选条件的鱼窗。`:'还没有关注的鱼，在完整鱼窗中收藏或设置提醒即可。'}</p>:<>
-          <div className="fish-glance__columns" aria-hidden="true"><span>鱼类</span><span>地点</span><span>剩余时间</span></div>
-          <ul key={homeView} className="fish-glance__list" tabIndex={0} aria-label="鱼窗列表">{visible.map(fish=>{
+        {visible.length===0?<div className="fish-glance__empty"><strong>{homeView==='followed'?'还没有关注的鱼':'当前暂无符合条件的鱼窗'}</strong><p>{homeView==='open'?'可以看看下一场，或调整筛选条件。':homeView==='upcoming'?`未来 ${windowHours} 小时内暂无结果，可以调整筛选条件。`:'在完整鱼窗中收藏鱼类或设置提醒，即可集中查看。'}</p><button type="button" onClick={()=>homeView==='upcoming'?setHomeFiltersOpen(true):setHomeView('upcoming')}>{homeView==='upcoming'?'调整筛选':'查看未来鱼窗 →'}</button></div>:<>
+          <ul key={homeView} className="fish-glance__list" aria-label="鱼窗列表">{homePreview.map(fish=>{
             const state=windowState(fish,forecastsById.get(fish.id),now);
             const displayedWindow=homeView==='upcoming'?state.next:state.open??state.next;
             return <li key={fish.id} className="fish-glance__item">
@@ -251,8 +255,14 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
                 </span>
               </button>
             </li>;
-          })}</ul></>}
+          })}</ul>
+          {visible.length>homePreview.length&&<button type="button" className="fish-glance__more-windows" onClick={()=>openDetail()}>
+            <span>展示前 {homePreview.length} 条，另有 {visible.length-homePreview.length} 条</span>
+            <strong>查看全部鱼窗 <span aria-hidden="true">↗</span></strong>
+          </button>}
+        </>}
       </>}
+      {catalog && gameDataSource()!=='live' ? <p className="fish-glance__message" role="status">{gameDataSource()==='cached'?'当前使用已保存的站点修订缓存，可能不是最新版本。':'当前使用内置鱼类目录，站点最新人工修订尚未获取。'}</p> : null}
       {progressError?<p className="fish-glance__message" role="alert">{progressError}</p>:null}
     </section>;
   }
@@ -263,6 +273,7 @@ function FishingBoardSession({data,region,hours=168,compact=false,embedded=false
         {embedded&&onOpenDetail?<button type="button" className="fish-board__open-detail" onClick={()=>openDetail()}>查看完整鱼窗 ↗</button>:null}
       </div>
     </header>
+    {catalog && gameDataSource()!=='live' ? <p className="fish-board__summary" role="status">{gameDataSource()==='cached'?'当前使用上次保存的站点修订缓存。':'当前使用内置鱼类目录；站点人工修订尚未更新。'}</p> : null}
     {feedback?undoNotice:null}
     {targetId!==null&&initialFilters?.windowStartsAt!==undefined&&forecasts!==null&&initialFilters.windowStartsAt<now&&!forecasts.some(f=>f.id===initialFilters.fishId&&f.windows.some(w=>w.startsAtUtcMs===initialFilters.windowStartsAt))?<p role="status">原提醒的窗口已结束或已更新，下面显示最新鱼窗。</p>:null}
     {targetId!==null?<p className="fish-board__account">已定位所选鱼类。<button type="button" onClick={()=>{clearFishFilters();setView('all');}}>查看全部鱼类</button></p>:null}

@@ -2,8 +2,10 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HomeOfficialEvents, HOME_CALENDAR_POLL_MS } from '../src/app/shell/HomeOfficialEvents';
+import {PUBLIC_CALENDAR_CACHE_KEY,saveCachedPublicCalendar} from '../src/app/local/public-calendar-cache';
+import {eventCalendarResponseSchema} from '@ff14-hub/shared';
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); localStorage.removeItem(PUBLIC_CALENDAR_CACHE_KEY); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 const response = {
   serverTimeMs: new Date('2026-10-19T05:00:00Z').getTime(),
@@ -117,6 +119,15 @@ describe('首页公开活动', () => {
     expect(screen.getByRole('list',{name:'国服活动列表'}).tabIndex).toBe(0);
     fireEvent.click(screen.getByRole('button',{name:'完整日历 ↗'}));
     expect(onOpenCalendar).toHaveBeenCalledTimes(1);
+  });
+
+  it('离线时显示上次校验过的公开活动缓存，并明确标记数据可能过期', async () => {
+    saveCachedPublicCalendar(eventCalendarResponseSchema.parse(response));
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('network offline'))));
+    render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
+    expect(await screen.findByText('官方测试活动')).toBeTruthy();
+    expect(screen.getByText(/当前展示缓存数据，官方活动可能已有变更/)).toBeTruthy();
+    expect(screen.queryByText('活动暂时无法加载。')).toBeNull();
   });
 
   it('服务不可用时展示重试，且不伪装为无活动', async () => {
