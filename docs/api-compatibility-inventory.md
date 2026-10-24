@@ -6,6 +6,10 @@
 
 本 PR 已移除旧路由 `/api/v1/identity/*`、`/api/v1/me/*`、`/api/v1/modules/catalog` 以及对应的服务器端认证、工作台、模块生命周期、工作空间导航与旧提醒调度。访问这些旧路径必须是 JSON 404，不能误回 SPA HTML、伪装为未认证 401，也不提供临时兼容代理。
 
+## 共享包退役边界（PR B）
+
+`packages/shared` 只在主入口导出现行业务契约；已删除原 `identity-api.ts`、`module-api.ts`、`module-manifest.ts`、`builtin-modules.ts`、`operations-api.ts`、`sync-api.ts`、`workbench-api.ts`、旧 `reminder-api.ts` 和 `identity.ts`。将现行的 `operationIdSchema` 独立于工作台，Web Push 订阅校验独立于旧提醒规则；鱼糕导入/导出继续调用 `@ff14-hub/fish-sync`。删除的旧服务器协议不承诺 API/TS 类型兼容。
+
 ## 现行保留 API
 
 | 路径 | 用途与归属 |
