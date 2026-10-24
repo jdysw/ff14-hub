@@ -39,6 +39,23 @@ describe('盛趣官方公告活动时间提取', () => {
     expect(extractOfficialActivityRange('活动时间：2026年2月30日10:00-2026年3月1日10:00')).toBeNull();
   });
 
+  it('忽略大小写混合的脚本/样式区块，且不把相似标签误判为脚本',()=>{
+    const value='活动时间：2026年10月19日10:00-2026年10月20日10:00';
+    const hidden='<SCRIPT type="text/javascript">'+value+'</sCrIpT><STYLE>'+value+'</STYLE>';
+    expect(extractOfficialActivityRange(hidden)).toBeNull();
+    expect(extractOfficialActivityTiming(hidden)).toBeNull();
+    expect(extractOfficialLandingRange(hidden)).toBeNull();
+    expect(extractOfficialActivityRange('<scripted>'+value+'</scripted>')).not.toBeNull();
+  });
+  it('长的未匹配相似标签不会影响后续合法时间提取',()=>{
+    const date='活动时间：2026年10月19日10:00-2026年10月20日10:00';
+    const input='<scripted>'.repeat(3000)+'<script>'+date+'</script><p>'+date+'</p>';
+    expect(extractOfficialActivityRange(input)).toEqual({
+      startsAt:Date.UTC(2026,9,19,2),endsAt:Date.UTC(2026,9,20,2),
+    });
+    // 未闭合起始标签应只检查一次余下文本，避免退化成二次扫描。
+    expect(extractOfficialActivityRange('<script>'.repeat(5000))).toBeNull();
+  });
   it('拒绝结束早于开始的活动区间', () => {
     expect(extractOfficialActivityRange('活动时间：2026年10月20日10:00-2026年10月19日10:00')).toBeNull();
   });

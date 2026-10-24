@@ -53,10 +53,47 @@ function chinaTimestamp(v: string): number | null {
   if (date.getUTCFullYear() !== y || date.getUTCMonth() !== mo - 1 || date.getUTCDate() !== d) return null;
   return utc - 8 * 3_600_000;
 }
+function isAsciiWordCode(code:number):boolean{
+  return code===95||(code>=48&&code<=57)||(code>=65&&code<=90)||(code>=97&&code<=122);
+}
+/** 线性移除 HTML 的 script/style 代码区块，避免对不受信任的长页面执行回溯正则。 */
+function stripOfficialExecutableBlocks(source:string):string{
+  let html=source;
+  for(const tag of ['script','style']){
+    const lower=html.toLowerCase();
+    const chunks:string[]=[];
+    let cursor=0,last=0;
+    const prefix='<'+tag,closing='</'+tag+'>';
+    while(cursor<html.length){
+      const open=lower.indexOf(prefix,cursor);
+      if(open<0)break;
+      const after=lower.charCodeAt(open+prefix.length);
+      // 等价于原先的单词边界：<scripted> / <stylesheet> 不属于代码区块。
+      if(isAsciiWordCode(after)){
+        cursor=open+prefix.length;
+        continue;
+      }
+      const tagEnd=lower.indexOf('>',open+prefix.length);
+      if(tagEnd<0)break;
+      const close=lower.indexOf(closing,tagEnd+1);
+      // 后面已经没有结束标签，后续任意同类起始标签也不可能匹配。
+      // 直接退出以避免对大量未闭合 <script> 重复扫描剩余全文。
+      if(close<0)break;
+      chunks.push(html.slice(last,open),' ');
+      last=close+closing.length;
+      cursor=last;
+    }
+    if(chunks.length){
+      chunks.push(html.slice(last));
+      html=chunks.join('');
+    }
+  }
+  return html;
+}
+
 /** 仅解析紧随“活动时间/活动期间”的两个完整日期时间；其他含糊日期一律不猜。 */
 export function extractOfficialActivityRange(html: string): { startsAt: number; endsAt: number } | null {
-  const plain = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+  const plain = stripOfficialExecutableBlocks(html)
     .replace(/<[^>]*>/g, ' ').replace(/&nbsp;|&#160;/gi, ' ')
     .replace(/&(?:mdash|ndash);/gi, '-').replace(/[\u3000\s]+/g, ' ').slice(0, 100_000);
   const date = '(\\d{4}年\\d{1,2}月\\d{1,2}日\\s*\\d{1,2}:\\d{2}(?::\\d{2})?)';
@@ -72,7 +109,7 @@ export function extractOfficialActivityRange(html: string): { startsAt: number; 
 /** Keep a confirmed start when the official ending is a named maintenance, never invent its date. */
 export function extractOfficialActivityTiming(html:string):{startsAt:number;endsAt:number|null;endCondition?:string}|null{
   const complete=extractOfficialActivityRange(html);if(complete)return complete;
-  const plain=html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,' ').replace(/<[^>]*>/g,' ').replace(/&nbsp;|&#160;|[\u3000\s]+/gi,' ').slice(0,100000);
+  const plain=stripOfficialExecutableBlocks(html).replace(/<[^>]*>/g,' ').replace(/&nbsp;|&#160;|[\u3000\s]+/gi,' ').slice(0,100000);
   const match=/(?:活动时间|活动期间|举办时间|起止时间)\s*[：:]?\s*(\d{4}年\d{1,2}月\d{1,2}日\s*\d{1,2}:\d{2}(?::\d{2})?)\s*(?:至|到|~|～|—|－|-|–)\s*(\d{1,2}\.\d{1,2}版本(?:更新)?维护(?:开始)?前)/.exec(plain);
   const startsAt=match?chinaTimestamp(match[1]??''):null;
   return startsAt===null?null:{startsAt,endsAt:null,endCondition:match![2]!};
@@ -94,8 +131,7 @@ function officialProjectUrl(value: unknown): string | null {
  * 只推导明确在同一日历年的结束日；跨年缺失年份则保持未知。
  */
 export function extractOfficialLandingRange(html: string): { startsAt: number; endsAt: number } | null {
-  const content = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+  const content = stripOfficialExecutableBlocks(html)
     .replace(/<[^>]*>/g, ' ').replace(/&nbsp;|&#160;/gi, ' ')
     .replace(/[\u3000\s]+/g, ' ').slice(0, 100_000);
   const start = '(\\d{4}年\\d{1,2}月\\d{1,2}日\\s*\\d{1,2}:\\d{2}(?::\\d{2})?)';

@@ -176,6 +176,15 @@
 - [x] 在隔离的 PR HEAD 工作树执行完整 `pnpm run verify`：项目测试 609 项（Web 268、Worker 164、shared 154、engine 17、sync 6），运维测试 60 项，ESLint、TypeScript、Web/Worker 构建、生成物/Android/D1 校验通过；`git diff --check` 通过。
 - [ ] **仅确认代码本地验证通过**。需要 SonarCloud 针对本批最新 PR 提交完成重新分析，确认新增问题仍为 0，并继续处理未解决的主线历史问题。
 
+## 第二十批：国服活动 HTML 的线性安全解析（2026-10-24）
+
+- [x] `worker/modules/events/calendar-feed.ts` 用 `indexOf` 单向扫描取代 3 处对外来官方页面中 `<script>` / `<style>` 代码区块的回溯正则，保留大小写不敏感与 `<scripted>` 等相似标签不被剔除的语义。
+- [x] 缺少闭合标签时立即退出当前标签扫描，避免大量不完整 `<script>` 导致反复检查相同后缀；输入上限、固定官方域名、日期判定不变。
+- [x] 新增混合大小写代码区块、相似标签、超长不完整标签和可用时间提取的回归测试；不将脚本内部伪造的活动日期当作真实活动时间。
+- [x] 再次执行完整 `pnpm run verify`：项目测试 611 项（Web 268、Worker 166、shared 154、engine 17、sync 6）、运维测试 60 项、ESLint、TypeScript、Web/Worker 构建、Android/D1/鱼糕一致性检查均通过。
+- [ ] `AndroidManifest.xml` 6 项导出接收器安全问题仍需真机/模拟器功能测试。Android 官方示例既出现 `exported=true`（https://developer.android.com/codelabs/glance），也出现 `exported=false`（https://developer.android.com/develop/ui/compose/glance/create-app-widget），不在无设备验证情况下机械修改以求消警。
+- [ ] 需等 SonarCloud 对 PR 最新 SHA 复扫，确认本批相应历史告警减少且没有新增告警；历史 648 项尚未完成全量验收。
+
 ## 后续批次（同一个 PR）
 
 1. **P0 安全与可靠性**：清理未完成的 High/Blocker、消息来源、路径边界及正则复杂度问题。
