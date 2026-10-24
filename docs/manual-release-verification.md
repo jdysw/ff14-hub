@@ -68,7 +68,7 @@ cd apps/android
 ## 4. 发布
 
 - 先部署 **preview**，检查公开导航/活动、管理员登录、通知和鱼窗，核实 Preview D1 与 Secrets。
-- 确认审批后才调用受控的 `pnpm run release:production`。不得将 `wrangler deploy` 的默认环境推断为 production。
+- 生产发布保留 main Workers Builds 的自动分支门禁。**人工发布**必须在干净的本地 `main` checkout 中明确设置 `FF14_MANUAL_RELEASE_APPROVAL=ff14-hub-production` 再执行 `pnpm run release:production`；普通执行仍会拒绝。先执行 `verify:release` 与只读 D1 就绪核查并人工检查生产备份。不得将 `wrangler deploy` 的默认环境推断为 production。
 - 发布后运行 `node scripts/ops/verify-live.mjs production`，核对实际自定义域名、健康及静态资源，并检查 `BOOTSTRAP_SECRET` 等 Secrets 确实仍在。
 - 如果生产异常，按 `docs/operations-runbook.md` 回滚代码与数据库变更；不要通过重置管理员密钥作为恢复手段。
 
