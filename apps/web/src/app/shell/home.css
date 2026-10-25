@@ -55,7 +55,7 @@ code { background: #f0f3f6; }
 .notice--warn { background: #fff9ed; color: #77500f; }
 .notice--ok { background: #f0f8f3; color: #24583c; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
-[hidden] { display: none !important; }
+:root [hidden][hidden]{ display: none; }
 @media (max-width: 639px) {
   .shell { padding: 16px 20px 24px; }
   .home-search { margin-top: 28px; padding-left: 14px; gap: 10px; min-height: 56px; }

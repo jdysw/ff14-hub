@@ -1,3 +1,11 @@
+import {firstDefinedSequential} from "../../../../../packages/shared/src/sequential-tasks.mjs";
+
+function fishcakeProgressLabel({field}:Readonly<{field:string|undefined}>){
+if(field==='completed'){return '钓获';}
+if(field==='pinned'){return '收藏';}
+if(field==='alarmFish'){return '提醒';}
+return '扩展字段';
+}
 import {z} from 'zod';
 import {canonicalJson,fieldsToDocument,fishDocumentSchema,mergeFishDocuments,documentChanges,type FishDocument,type FishRegion,type MergeConflict} from '@ff14-hub/shared';
 import {readDeviceRecord,writeDeviceRecord} from './secure-storage';
@@ -15,7 +23,7 @@ export function fishcakeRequest(action:string,region?:FishRegion,extra:Record<st
     const receive=(event:MessageEvent<unknown>)=>{
       if(event.source!==window||event.origin!==location.origin){return;}
       const message=event.data as Record<string,unknown>|null;
-      if(!message||message['channel']!=='ff14hub-fishcake'||message['direction']!=='response'||message['id']!==id){return;}
+      if(message?.['channel']!=='ff14hub-fishcake'||message['direction']!=='response'||message['id']!==id){return;}
       finish();if(typeof message['error']==='string'&&message['error']){reject(new Error(message['error']));}else {resolve(message['value']);}
     };
     const timer=setTimeout(()=>{finish();reject(new Error('未收到互通脚本响应，请安装或更新脚本，并刷新本站和鱼糕页面。'));},timeout);
@@ -41,12 +49,16 @@ export async function previewFishcakeRestore(store:LocalStore):Promise<FishcakeP
 }
 export function fishcakeConflictLabel(conflict:MergeConflict):string{
   const [field,id]=conflict.key.split(':');
-  return `${field==='completed'?'钓获':field==='pinned'?'收藏':field==='alarmFish'?'提醒':'扩展字段'} · ${id??''}`;
+  return `${fishcakeProgressLabel({field})} · ${id??''}`;
 }
 async function readRemote(region:FishRegion,waitForPeer=false):Promise<FishDocument>{
   let raw:unknown=await fishcakeRequest('read',region);
-  for(let attempt=0;!raw&&waitForPeer&&attempt<12;attempt++){
-    await new Promise(resolve=>setTimeout(resolve,500));raw=await fishcakeRequest('read',region);
+  if(!raw&&waitForPeer){
+    raw=await firstDefinedSequential(Array.from({length:12},(_,index)=>index),async()=>{
+      await new Promise(resolve=>setTimeout(resolve,500));
+      const value=await fishcakeRequest('read',region);
+      return value||undefined;
+    });
   }
   if(!raw){throw new Error('请在同一浏览器打开鱼糕页面，并确认互通脚本已启用；稍后重新读取。');}
   const snapshot=snapshotSchema.parse(raw);

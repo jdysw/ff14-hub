@@ -61,32 +61,46 @@ class PvpWidgetLayoutTest {
     }
 
     @Test fun everyVisibleFieldFitsItsDesignedSize() {
-        for (fontScale in listOf(1f, 1.15f, 1.3f, 2f)) for ((width, height) in listOf(120 to 88, 140 to 100, 220 to 120, 280 to 140, 120 to 220, 280 to 260))
-            for (now in listOf(1792548600000L, java.time.Instant.parse("2026-10-23T02:10:00Z").toEpochMilli())) {
-            val using = context.createConfigurationContext(Configuration(context.resources.configuration).apply {
-                this.fontScale = fontScale
-            })
-            val density = PvpPresentation.density(width.toFloat(), height.toFloat(), fontScale)
-            val root = render(density, using, now, width < 220)
-            val scale = using.resources.displayMetrics.density
-            val w = (width * scale).toInt()
-            val h = (height * scale).toInt()
-            root.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
-                View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
-            root.layout(0, 0, w, h)
-            fun inspect(view: View, parentTop: Int) {
-                if (view.visibility != View.VISIBLE) return
-                val top = parentTop + view.top
-                if (view is TextView) {
-                    if (view.text.isNotEmpty()) assertTrue("$density ${width}x$height font=$fontScale has zero height for ${view.text}", view.height > 0)
-                    assertTrue("$density clips ${view.text}: top=$top height=${view.height} limit=$h font=$fontScale", top + view.height <= h)
-                    val textLayout = view.layout
-                    if (textLayout != null) for (line in 0 until textLayout.lineCount)
-                        assertEquals("$density ellipsizes ${view.text}", 0, textLayout.getEllipsisCount(line))
+        for (fontScale in listOf(1f, 1.15f, 1.3f, 2f)) {
+            for ((width, height) in listOf(120 to 88, 140 to 100, 220 to 120, 280 to 140, 120 to 220, 280 to 260)) {
+                for (now in listOf(1792548600000L, java.time.Instant.parse("2026-10-23T02:10:00Z").toEpochMilli())) {
+                    assertDesignedSize(fontScale, width, height, now)
                 }
-                if (view is ViewGroup) for (i in 0 until view.childCount) inspect(view.getChildAt(i), top)
             }
-            inspect(root, 0)
+        }
+    }
+
+    private fun assertDesignedSize(fontScale: Float, width: Int, height: Int, now: Long) {
+        val using = context.createConfigurationContext(Configuration(context.resources.configuration).apply {
+            this.fontScale = fontScale
+        })
+        val density = PvpPresentation.density(width.toFloat(), height.toFloat(), fontScale)
+        val root = render(density, using, now, width < 220)
+        val scale = using.resources.displayMetrics.density
+        val w = (width * scale).toInt()
+        val h = (height * scale).toInt()
+        root.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
+        root.layout(0, 0, w, h)
+        inspectVisibleBounds(root, 0, h, density.toString() + " " + width + "x" + height + " font=" + fontScale)
+    }
+
+    private fun inspectVisibleBounds(view: View, parentTop: Int, height: Int, label: String) {
+        if (view.visibility != View.VISIBLE) return
+        val top = parentTop + view.top
+        if (view is TextView) inspectTextBounds(view, top, height, label)
+        if (view is ViewGroup) {
+            for (i in 0 until view.childCount) inspectVisibleBounds(view.getChildAt(i), top, height, label)
+        }
+    }
+
+    private fun inspectTextBounds(view: TextView, top: Int, height: Int, label: String) {
+        if (view.text.isNotEmpty()) assertTrue(label + " has zero height for " + view.text, view.height > 0)
+        assertTrue(label + " clips " + view.text + ": top=" + top + " height=" + view.height + " limit=" + height,
+            top + view.height <= height)
+        val textLayout = view.layout ?: return
+        for (line in 0 until textLayout.lineCount) {
+            assertEquals(label + " ellipsizes " + view.text, 0, textLayout.getEllipsisCount(line))
         }
     }
 

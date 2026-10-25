@@ -5,8 +5,8 @@ const HOST = 'ff14.zhixia.uk';
 const decoder = new TextEncoder();
 
 function escapedText(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/\r\n|\n|\r/g, '\\n')
-    .replace(/,/g, '\\,').replace(/;/g, '\\;');
+  return value.replaceAll('\\', '\\\\').replaceAll(/\r\n|\n|\r/g, String.raw`\n`)
+    .replaceAll(',', String.raw`\,`).replaceAll(';', String.raw`\;`);
 }
 
 /** RFC 5545 行折叠必须以 UTF-8 octet 数而非 JS 字符数计算。 */
@@ -29,7 +29,7 @@ export function foldIcsLine(line: string): string {
 }
 
 function icsUtc(ms: number): string {
-  return new Date(ms).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+  return new Date(ms).toISOString().replaceAll(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
 }
 
 function validRange(event: EventCalendarItem): boolean {
@@ -65,13 +65,15 @@ export function createOfficialCalendarIcs(value: EventCalendarResponse): string 
     if (!validRange(event) || seen.has(event.id)) continue;
     seen.add(event.id);
     const url = officialUrl(event.sourceUrl);
-    rows.push('BEGIN:VEVENT');
-    rows.push('UID:' + escapedText(event.id) + '@' + HOST);
-    rows.push('DTSTAMP:' + stamp);
-    rows.push('DTSTART:' + icsUtc(event.startsAt!));
-    // 活动公告的结束时刻视作含末秒，iCalendar 的 DTEND 为排他的时刻。
-    rows.push('DTEND:' + icsUtc(event.endsAt! + 1000));
-    rows.push('SUMMARY:' + escapedText(event.title));
+    rows.push(
+'BEGIN:VEVENT',
+'UID:' + escapedText(event.id) + '@' + HOST,
+'DTSTAMP:' + stamp,
+'DTSTART:' + icsUtc(event.startsAt!),
+// 活动公告的结束时刻视作含末秒，iCalendar 的 DTEND 为排他的时刻。
+'DTEND:' + icsUtc(event.endsAt! + 1000),
+'SUMMARY:' + escapedText(event.title)
+);
     if (event.category) rows.push('CATEGORIES:' + escapedText(event.category));
     if (event.description || url) {
       rows.push('DESCRIPTION:' + escapedText([event.description, url && '官方链接：' + url].filter(Boolean).join('\n')));

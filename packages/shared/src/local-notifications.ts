@@ -6,7 +6,7 @@ export const localNotificationChannelSchema=z.discriminatedUnion('kind',[
   z.object({kind:z.literal('webpush'),subscription:pushSubscriptionInputSchema}).strict(),
 ]);
 export type LocalNotificationChannel=z.infer<typeof localNotificationChannelSchema>;
-export const fishDigestSchema=z.object({enabled:z.boolean(),time:z.string().regex(/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/),
+export const fishDigestSchema=z.object({enabled:z.boolean(),time:z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/),
   eventEndDays:z.array(z.union([z.literal(1),z.literal(3)])).max(2),
   targets:z.array(z.object({region:z.enum(['cn','global']),fishId:z.number().int().positive()}).strict()).max(50)}).strict();
 export type FishDigestSettings=z.infer<typeof fishDigestSchema>;

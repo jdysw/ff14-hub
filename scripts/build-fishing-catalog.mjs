@@ -1,3 +1,79 @@
+
+function countWeatherAuditStatus({weather}){
+if(weather.status==='matched')audit.summary.weatherMatched++;
+        else if(weather.status==='mismatch')audit.summary.weatherMismatch++;
+        else audit.summary.weatherMissing++;
+}
+
+function catalogAcquisitionMethod({t,region,id,method,param}){
+if(t?.gig||region==='cn'&&spearIds.has(id))method='spear';
+    else if(Number(param?.OceanStars)>0)method='ocean';
+return method;
+}
+
+function isUnrestrictedCatalogFish({method,g,t}){
+const always=Boolean(method==='rod'&&g?.time_restricted===0&&g.weather_restricted===0&&g.special_conditions===0&&!t?.dataMissing&&
+      (!t||(t.startHour===0&&t.endHour===24&&!t.weatherSet.length&&!t.previousWeatherSet.length)));
+return always;
+}
+
+function auditRegionalFishRule({rule,t,id,name}){
+
+      audit.summary.identities++;
+      if(rule&&t){
+        audit.summary.forecastRules++;
+        const weather=compareCnWeather({fish:t,tracker,spots:cnSpots,territories,rates:weatherRates});
+        countWeatherAuditStatus({weather});
+        const dependencies=dependencyFacts(t,cnFishIds,names);
+        if(dependencies.predators.length)audit.summary.fishWithPredators++;
+        audit.summary.missingPredatorReferences+=dependencies.predators.filter(p=>!p.presentInRegion||!p.name).length;
+        const unrestricted=rule.startHour===0&&rule.endHour===24&&!rule.currentWeather.length&&!rule.previousWeather.length;
+        if(unrestricted)audit.summary.unrestrictedRules++;
+        else if(rule.startHour===0&&rule.endHour===24)audit.summary.weatherOnlyRules++;
+        if(rule.endHour<rule.startHour)audit.summary.overnightRules++;
+        audit.fish.push({id,name,identity:'cn-game-table',weather,timeRule:'community-unverified',dependencies,
+          requiredMechanisms:rule.conditions.map(c=>c.kind),gameplayVerified:false});
+        // Keep the identity and guide, but do not forecast mismatched/missing CN weather.
+        if(weather.status!=='matched')rule=null;
+      }
+
+return rule;
+}
+
+function appendCatalogFish({id,region,rules,records}){
+
+    const g=byGuide.get(id),t=tracker.FISH[id],extra=extras.get(id);
+    const param=cnFish.get(id),spotId=firstPositiveId(t?.location,param?.FishingSpot,extra?.spot.id);
+    const spot=tracker.FISHING_SPOTS[spotId]??tracker.SPEARFISHING_SPOTS?.[spotId];
+    const localizedSpot=cnSpots.get(spotId);
+    const name=region==='cn'?names.get(id):g?.name_en??tracker.ITEMS[id]?.name_en;
+    if(!name)throw new Error('Missing name for fish '+id);
+    const label=(itemId)=>region==='cn'?names.get(Number(itemId))??tracker.ITEMS[itemId]?.name_en:tracker.ITEMS[itemId]?.name_en;
+    const baitIds=t?.bestCatchPath??extra?.fish.data?.[0]?.gatheringNode?.baits?.map(b=>b.id)??[];
+    const baitLabel=value=>{
+      if(typeof value==='number')return label(value);
+      if(Array.isArray(value))return value.map(baitLabel).filter(Boolean).join(' / ');
+      return null;
+    };
+    const bait=baitIds.map(baitLabel).filter(Boolean);
+    const sourceRecord=rules.get(id);
+    let method='rod';
+    method=catalogAcquisitionMethod({t,region,id,method,param});
+    let rule=method==='rod'?(sourceRecord?.rule??null):null;
+    if(region==='cn'){rule=auditRegionalFishRule({rule,t,id,name});}
+    // Absence of a forecast must never be interpreted as an unrestricted fish.
+    const always=isUnrestrictedCatalogFish({method,g,t});
+    const location=region==='cn'?(placeNames.get(Number(localizedSpot?.PlaceName))??spot?.name_en??'钓场待补'):spot?.name_en??g?.zone_en??'Location not recorded';
+    const territory=territories.get(Number(localizedSpot?.TerritoryType??spot?.territory_id??param?.TerritoryType));
+    const zone=region==='cn'?(placeNames.get(Number(territory?.PlaceName))||location):g?.zone_en??location;
+    const conditions=t?trackerRequirements(t,label).filter(c=>c.kind!=='bait').map(c=>c.description):[];
+    records.push({id,name,englishName:g?.name_en??tracker.ITEMS[id]?.name_en??'',
+      kind:fishKind(id,t,param,legendary),method,
+      level:g?.level?.[0]??extra?.fish.level??0,patch:String(t?.patch??''),zone,location,spotId,bait,
+      tug:t?.tug??'',hookset:t?.hookset??'',conditions,always,rule});
+
+}
+import {forEachSequential} from "../packages/shared/src/sequential-tasks.mjs";
 /** Build public factual snapshots without executing any upstream JavaScript. */
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import path from 'node:path';
@@ -46,67 +122,14 @@ const audit={schemaVersion:1,generatedAt,versions:{tracker:trackerSha,cn:cnSha,t
   meaning:'Game-table checks are not in-game catch or history verification. No gameplay rules are promoted to verified.',
   files:{},summary:{identities:0,forecastRules:0,weatherMatched:0,weatherMismatch:0,weatherMissing:0,
     unrestrictedRules:0,weatherOnlyRules:0,overnightRules:0,fishWithPredators:0,missingPredatorReferences:0},fish:[]};
-for(const filename of ['tracker.js','Item.csv','EventItem.csv','FishParameter.csv','Weather.csv','WeatherRate.csv','FishingSpot.csv','PlaceName.csv','TerritoryType.csv','teamcraft.json','legendary.json'])
-  audit.files[filename]=createHash('sha256').update(await read(filename)).digest('hex');
+await forEachSequential(['tracker.js','Item.csv','EventItem.csv','FishParameter.csv','Weather.csv','WeatherRate.csv','FishingSpot.csv','PlaceName.csv','TerritoryType.csv','teamcraft.json','legendary.json'],async (filename)=>{audit.files[filename]=createHash('sha256').update(await read(filename)).digest('hex');});
 await mkdir('apps/web/public/fishing',{recursive:true});
-for(const region of ['cn','global']){
+await forEachSequential(['cn','global'],async (region)=>{
   const normalized=fishDataBundleSchema.parse(JSON.parse(await read(region+'.json')));
   const rules=new Map(normalized.records.map(record=>[record.id,record]));
   const ids=region==='cn'?[...cnFish.keys()]:[...new Set([...byGuide.keys(),...Object.keys(tracker.FISH).map(Number)])];
   const records=[];
-  for(const id of ids){
-    const g=byGuide.get(id),t=tracker.FISH[id],extra=extras.get(id);
-    const param=cnFish.get(id),spotId=firstPositiveId(t?.location,param?.FishingSpot,extra?.spot.id);
-    const spot=tracker.FISHING_SPOTS[spotId]??tracker.SPEARFISHING_SPOTS?.[spotId];
-    const localizedSpot=cnSpots.get(spotId);
-    const name=region==='cn'?names.get(id):g?.name_en??tracker.ITEMS[id]?.name_en;
-    if(!name)throw new Error('Missing name for fish '+id);
-    const label=(itemId)=>region==='cn'?names.get(Number(itemId))??tracker.ITEMS[itemId]?.name_en:tracker.ITEMS[itemId]?.name_en;
-    const baitIds=t?.bestCatchPath??extra?.fish.data?.[0]?.gatheringNode?.baits?.map(b=>b.id)??[];
-    const baitLabel=value=>{
-      if(typeof value==='number')return label(value);
-      if(Array.isArray(value))return value.map(baitLabel).filter(Boolean).join(' / ');
-      return null;
-    };
-    const bait=baitIds.map(baitLabel).filter(Boolean);
-    const sourceRecord=rules.get(id);
-    let method='rod';
-    if(t?.gig||region==='cn'&&spearIds.has(id))method='spear';
-    else if(Number(param?.OceanStars)>0)method='ocean';
-    let rule=method==='rod'?(sourceRecord?.rule??null):null;
-    if(region==='cn'){
-      audit.summary.identities++;
-      if(rule&&t){
-        audit.summary.forecastRules++;
-        const weather=compareCnWeather({fish:t,tracker,spots:cnSpots,territories,rates:weatherRates});
-        if(weather.status==='matched')audit.summary.weatherMatched++;
-        else if(weather.status==='mismatch')audit.summary.weatherMismatch++;
-        else audit.summary.weatherMissing++;
-        const dependencies=dependencyFacts(t,cnFishIds,names);
-        if(dependencies.predators.length)audit.summary.fishWithPredators++;
-        audit.summary.missingPredatorReferences+=dependencies.predators.filter(p=>!p.presentInRegion||!p.name).length;
-        const unrestricted=rule.startHour===0&&rule.endHour===24&&!rule.currentWeather.length&&!rule.previousWeather.length;
-        if(unrestricted)audit.summary.unrestrictedRules++;
-        else if(rule.startHour===0&&rule.endHour===24)audit.summary.weatherOnlyRules++;
-        if(rule.endHour<rule.startHour)audit.summary.overnightRules++;
-        audit.fish.push({id,name,identity:'cn-game-table',weather,timeRule:'community-unverified',dependencies,
-          requiredMechanisms:rule.conditions.map(c=>c.kind),gameplayVerified:false});
-        // Keep the identity and guide, but do not forecast mismatched/missing CN weather.
-        if(weather.status!=='matched')rule=null;
-      }
-    }
-    // Absence of a forecast must never be interpreted as an unrestricted fish.
-    const always=Boolean(method==='rod'&&g&&g.time_restricted===0&&g.weather_restricted===0&&g.special_conditions===0&&!t?.dataMissing&&
-      (!t||(t.startHour===0&&t.endHour===24&&!t.weatherSet.length&&!t.previousWeatherSet.length)));
-    const location=region==='cn'?(placeNames.get(Number(localizedSpot?.PlaceName))??spot?.name_en??'钓场待补'):spot?.name_en??g?.zone_en??'Location not recorded';
-    const territory=territories.get(Number(localizedSpot?.TerritoryType??spot?.territory_id??param?.TerritoryType));
-    const zone=region==='cn'?(placeNames.get(Number(territory?.PlaceName))||location):g?.zone_en??location;
-    const conditions=t?trackerRequirements(t,label).filter(c=>c.kind!=='bait').map(c=>c.description):[];
-    records.push({id,name,englishName:g?.name_en??tracker.ITEMS[id]?.name_en??'',
-      kind:fishKind(id,t,param,legendary),method,
-      level:g?.level?.[0]??extra?.fish.level??0,patch:String(t?.patch??''),zone,location,spotId,bait,
-      tug:t?.tug??'',hookset:t?.hookset??'',conditions,always,rule});
-  }
+  for(const id of ids){appendCatalogFish({id,region,rules,records});}
   records.sort((a,b)=>a.id-b.id);
   const catalog={schemaVersion:1,region,generatedAt,versions:{tracker:trackerSha,cn:cnSha,teamcraft:teamcraftSha},
     ...(region==='cn'?{accuracy:{weatherMatched:audit.summary.weatherMatched,weatherMismatch:audit.summary.weatherMismatch,
@@ -114,7 +137,7 @@ for(const region of ['cn','global']){
     coverage:{total:records.length,forecast:records.filter(r=>r.rule!==null).length,always:records.filter(r=>!r.rule&&r.always).length,unknown:records.filter(r=>!r.rule&&!r.always).length},fish:records};
   await writeFile('apps/web/public/fishing/catalog-'+region+'.json',JSON.stringify(catalog)+'\n');
   console.log(JSON.stringify({region,...catalog.coverage,bytes:JSON.stringify(catalog).length}));
-}
+});
 await mkdir('data',{recursive:true});
 await writeFile('data/fishing-accuracy-audit.json',JSON.stringify(audit,null,2)+'\n');
 console.log(JSON.stringify({accuracyAudit:audit.summary}));

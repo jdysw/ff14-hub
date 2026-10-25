@@ -1,3 +1,19 @@
+import {readerResults} from '@ff14-hub/shared';
+
+function mergePersonalEntry({b,key,l,r,base,choices,conflicts,out}:Readonly<{b:Map<string, unknown>;key:string;l:Map<string, unknown>;r:Map<string, unknown>;base:LocalData|null;choices:Record<string, "local" | "remote">;conflicts:SyncConflict[];out:Map<string, unknown>}>){
+
+    const before=b.get(key),left=l.get(key),right=r.get(key);let value:unknown;
+    if(canonical(left)===canonical(right)){value=left;}
+    else if(base&&canonical(left)===canonical(before)){value=right;}
+    else if(base&&canonical(right)===canonical(before)){value=left;}
+    else if(!base&&!l.has(key)){value=right;}
+    else if(!base&&!r.has(key)){value=left;}
+    else if(choices[key]){value=preferredSyncEntry(choices[key],left,right);}
+    else{const item=(left??right) as {title?:string}|undefined;conflicts.push({key,label:key==='configuration'?'首页设置':item?.title??key,local:left,remote:right});value=left;}
+    if(value!==undefined){out.set(key,value);}
+
+}
+import {forEachSequential} from "../../../../../packages/shared/src/sequential-tasks.mjs";
 import {z} from 'zod';
 import {localBackupSchema,localDataSchema,type LocalData,type LocalStore} from './store';
 
@@ -37,7 +53,7 @@ export async function s3Headers(config:RemoteConfig,method:string,body:string,he
    }),scope=`${day}/${config.region}/s3/aws4_request`;
   const canonical=[method,url.pathname,'',names.map(name=>`${name}:${signed[name]!.trim()}\n`).join(''),names.join(';'),hash].join('\n');
   let key=await hmac(encoder.encode('AWS4'+config.secretKey),day);
-  for(const part of [config.region,'s3','aws4_request'])key=await hmac(key,part);
+  await forEachSequential([config.region,'s3','aws4_request'],async (part)=>{key=await hmac(key,part);});
   const signature=hex((await hmac(key,`AWS4-HMAC-SHA256\n${date}\n${scope}\n${await digest(canonical)}`)).buffer);
   const result={...signed};
   delete result['host'];
@@ -63,7 +79,7 @@ export function createRemoteClient(input:RemoteConfig,fetcher:typeof fetch=fetch
       if(!etag||!/^"[^"\r\n]+"$/.test(etag)){throw new RemoteSyncError('etag','已连接远端，但未取得强 ETag。请暴露 ETag 响应头，并确认服务提供强版本标识；暂不允许覆盖写入。');}
       if(Number(response.headers.get('Content-Length')??0)>8*1024*1024){throw new Error('远端备份超过 8 MiB');}
       const reader=response.body?.getReader();let text='',size=0;const decoder=new TextDecoder();
-      if(reader){while(true){const part=await reader.read();if(part.done){break;}size+=part.value.byteLength;if(size>8*1024*1024){await reader.cancel();throw new Error('远端备份超过 8 MiB');}text+=decoder.decode(part.value,{stream:true});}text+=decoder.decode();}
+      if(reader){for await(const part of readerResults<Uint8Array>(reader)){size+=part.value.byteLength;if(size>8*1024*1024){throw new Error('远端备份超过 8 MiB');}text+=decoder.decode(part.value,{stream:true});}text+=decoder.decode();}
       try{return {etag,data:localBackupSchema.parse(JSON.parse(text.replace(/^\uFEFF/,'')) as unknown).data};}
       catch{throw new RemoteSyncError('format','文件可读取，但不是本站的完整个人备份。请选择独立的 personal.json，不要填写鱼糕原始数据文件。');}
     },
@@ -83,6 +99,10 @@ const canonical=(value:unknown):string=>{
   if(value!==null&&typeof value==='object'){return '{'+Object.entries(value).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>JSON.stringify(k)+':'+canonical(v)).join(',')+'}';}
   return JSON.stringify(value);
 };
+function preferredSyncEntry(side:'local'|'remote',left:unknown,right:unknown):unknown{
+  if(side==='local'){return left;}
+  return right;
+}
 export interface SyncConflict{key:string;label:string;local:unknown;remote:unknown}
 function entries(data:LocalData){
   const map=new Map<string,unknown>([['configuration',data.configuration]]);
@@ -94,17 +114,7 @@ function entries(data:LocalData){
 export function mergePersonalData(base:LocalData|null,local:LocalData,remote:LocalData|null,choices:Record<string,'local'|'remote'>={}){
   if(!remote){return {data:localDataSchema.parse(local),conflicts:[] as SyncConflict[]};}
   const b=base?entries(base):new Map<string,unknown>(),l=entries(local),r=entries(remote),out=new Map<string,unknown>(),conflicts:SyncConflict[]=[];
-  for(const key of new Set([...b.keys(),...l.keys(),...r.keys()])){
-    const before=b.get(key),left=l.get(key),right=r.get(key);let value:unknown;
-    if(canonical(left)===canonical(right)){value=left;}
-    else if(base&&canonical(left)===canonical(before)){value=right;}
-    else if(base&&canonical(right)===canonical(before)){value=left;}
-    else if(!base&&!l.has(key)){value=right;}
-    else if(!base&&!r.has(key)){value=left;}
-    else if(choices[key]){value=choices[key]==='local'?left:right;}
-    else{const item=(left??right) as {title?:string}|undefined;conflicts.push({key,label:key==='configuration'?'首页设置':item?.title??key,local:left,remote:right});value=left;}
-    if(value!==undefined){out.set(key,value);}
-  }
+  for(const key of new Set([...b.keys(),...l.keys(),...r.keys()])){mergePersonalEntry({b,key,l,r,base,choices,conflicts,out});}
   const data:LocalData={...local,links:[],notes:[],fish:{cn:[],global:[]},configuration:out.get('configuration') as LocalData['configuration']};
   for(const [key,value] of out){
     if(key.startsWith('link:')){data.links.push(value as LocalData['links'][number]);}

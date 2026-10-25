@@ -287,100 +287,95 @@ export function skipOf(
  * - 只把 `<a href>` 与 `<h3>`/`<dt>` 当数据读，其余标签一律忽略；script/style 整体丢弃。
  * - 每一项要么进 `items`，要么进 `skipped` 并带原因——不存在"静默丢弃"。
  */
-export function parseBookmarkHtmlWithDependencies(
-  html: unknown,
-  options: { readonly defaultRegion?: NavRegion } | undefined,
-  dependencies: BookmarkParseDependencies,
-): NavParseResult {
-  const {MAX_NAV_GROUP_NAME_LENGTH,MAX_NAV_TITLE_LENGTH,MAX_NAV_URL_LENGTH,MAX_NAV_IMPORT_ITEMS,validateNavUrl}=dependencies;
-  const region = options?.defaultRegion ?? 'cn';
-  const source = stripNonDataBlocks(typeof html === 'string' ? html.slice(0, 4 * 1024 * 1024) : '');
-  const lower = source.toLowerCase();
-  const items: NavImportItem[] = [];
-  const skipped: NavImportSkipped[] = [];
-  const seen = new Set<string>();
-
-  let cursor = 0;
-  let currentGroup: string | null = null;
-  while (cursor < source.length) {
-    const open = source.indexOf('<', cursor);
-    if (open < 0) {
-      break;
-    }
-    const close = source.indexOf('>', open);
-    if (close < 0) {
-      break;
-    }
-    const rawTag = source.slice(open + 1, close);
-    cursor = close + 1;
-    const tagName = (rawTag.trim().split(/[\s/]/, 1)[0] ?? '').toLowerCase();
-
-    // 只有 `<h3>` 是「文件夹名」的载体：它在真实导出里成对出现。
-    // `<dt>` 必须**单独当作无内容标签跳过**——真实浏览器导出的 `<DT>` 既不闭合、
-    // 又包裹着 `<A>`，把它当成"分组名直到 </DT>"会把整份文件吃掉（复核发现的真实缺陷：
-    // 之前对真实书签文件解析结果恒为空且静默丢弃）。
-    if (tagName === 'h3') {
-      const closeTag = '</h3>';
-      const end = lower.indexOf(closeTag, cursor);
-      const fragment = end < 0 ? '' : source.slice(cursor, end);
-      cursor = end < 0 ? source.length : end + closeTag.length;
-      const name = textOfFragment(fragment);
-      if (name.length > 0) {
-        currentGroup = name.slice(0, MAX_NAV_GROUP_NAME_LENGTH);
-      }
-      continue;
-    }
-
-    if (tagName !== 'a') {
-      continue;
-    }
-
-    const end = lower.indexOf('</a>', cursor);
-    const fragment = end < 0 ? '' : source.slice(cursor, end);
-    cursor = end < 0 ? source.length : end + 4;
-
-    const href = extractHref(rawTag);
-    const title = textOfFragment(fragment).slice(0, MAX_NAV_TITLE_LENGTH);
-    if (href === null) {
-      skipped.push(skipOf('invalid_url', '链接没有可用的 href', title.length > 0 ? title : null, null));
-      continue;
-    }
-    const validation = validateNavUrl(href);
-    if (!validation.ok) {
-      skipped.push(
-        skipOf(
-          validation.reason === 'scheme' ? 'unsupported_scheme' : 'invalid_url',
-          validation.reason === 'scheme'
-            ? '只允许 https:// 链接，已跳过非 https 地址'
-            : 'URL 形态不可用（缺少主机、含凭证或超长）',
-          title.length > 0 ? title : null,
-          href.slice(0, MAX_NAV_URL_LENGTH),
-        ),
-      );
-      continue;
-    }
-    if (title.length === 0) {
-      skipped.push(skipOf('missing_title', '链接没有标题，无法作为导航条目', null, validation.url));
-      continue;
-    }
-    const key = normalizeNavText(validation.url);
-    if (seen.has(key)) {
-      skipped.push(skipOf('duplicate', '同一 URL 已在本次导入中出现过', title, validation.url));
-      continue;
-    }
-    if (items.length >= MAX_NAV_IMPORT_ITEMS) {
-      skipped.push(skipOf('too_many_items', `单次导入上限为 ${String(MAX_NAV_IMPORT_ITEMS)} 条`, title, validation.url));
-      continue;
-    }
-    seen.add(key);
-    items.push({
-      title,
-      url: validation.url,
-      region,
-      ...(currentGroup === null ? {} : { groupName: currentGroup }),
-    });
-  }
-
-  return { items, skipped };
+interface BookmarkFragment {
+  readonly kind:'h3'|'a';
+  readonly rawTag:string;
+  readonly text:string;
 }
 
+/** Scan complete folder/link fragments once, preserving malformed closing-tag behavior. */
+function* bookmarkFragments(source:string):Generator<BookmarkFragment>{
+  const lower=source.toLowerCase();
+  let cursor=0;
+  while(cursor<source.length){
+    const open=source.indexOf('<',cursor);
+    if(open<0){break;}
+    const close=source.indexOf('>',open);
+    if(close<0){break;}
+    const rawTag=source.slice(open+1,close);
+    cursor=close+1;
+    const kind=(rawTag.trim().split(/[\s/]/,1)[0]??'').toLowerCase();
+    if(kind!=='h3'&&kind!=='a'){continue;}
+    const closing='</'+kind+'>';
+    const end=lower.indexOf(closing,cursor);
+    const text=end<0?'':source.slice(cursor,end);
+    cursor=end<0?source.length:end+closing.length;
+    yield {kind,rawTag,text};
+  }
+}
+
+interface BookmarkAccumulator {
+  readonly region:NavRegion;
+  readonly dependencies:BookmarkParseDependencies;
+  readonly items:NavImportItem[];
+  readonly skipped:NavImportSkipped[];
+  readonly seen:Set<string>;
+  readonly groupName:string|null;
+}
+
+function invalidBookmarkUrl(validation:Extract<NavUrlValidation,{readonly ok:false}>,title:string,href:string,max:number):NavImportSkipped{
+  if(validation.reason==='scheme'){
+    return skipOf('unsupported_scheme','只允许 https:// 链接，已跳过非 https 地址',title||null,href.slice(0,max));
+  }
+  return skipOf('invalid_url','URL 形态不可用（缺少主机、含凭证或超长）',title||null,href.slice(0,max));
+}
+
+function appendBookmarkLink(fragment:BookmarkFragment,state:BookmarkAccumulator):void{
+  const {dependencies,items,skipped,seen,region,groupName}=state;
+  const href=extractHref(fragment.rawTag);
+  const title=textOfFragment(fragment.text).slice(0,dependencies.MAX_NAV_TITLE_LENGTH);
+  if(href===null){
+    skipped.push(skipOf('invalid_url','链接没有可用的 href',title||null,null));
+    return;
+  }
+  const validation=dependencies.validateNavUrl(href);
+  if(!validation.ok){
+    skipped.push(invalidBookmarkUrl(validation,title,href,dependencies.MAX_NAV_URL_LENGTH));
+    return;
+  }
+  if(title.length===0){
+    skipped.push(skipOf('missing_title','链接没有标题，无法作为导航条目',null,validation.url));
+    return;
+  }
+  const key=normalizeNavText(validation.url);
+  if(seen.has(key)){
+    skipped.push(skipOf('duplicate','同一 URL 已在本次导入中出现过',title,validation.url));
+    return;
+  }
+  if(items.length>=dependencies.MAX_NAV_IMPORT_ITEMS){
+    skipped.push(skipOf('too_many_items','单次导入上限为 '+String(dependencies.MAX_NAV_IMPORT_ITEMS)+' 条',title,validation.url));
+    return;
+  }
+  seen.add(key);
+  items.push({title,url:validation.url,region,...(groupName===null?{}:{groupName})});
+}
+
+export function parseBookmarkHtmlWithDependencies(
+  html:unknown,
+  options:{readonly defaultRegion?:NavRegion}|undefined,
+  dependencies:BookmarkParseDependencies,
+):NavParseResult{
+  const region=options?.defaultRegion??'cn';
+  const source=stripNonDataBlocks(typeof html==='string'?html.slice(0,4*1024*1024):'');
+  const items:NavImportItem[]=[],skipped:NavImportSkipped[]=[],seen=new Set<string>();
+  let groupName:string|null=null;
+  for(const fragment of bookmarkFragments(source)){
+    if(fragment.kind==='h3'){
+      const name=textOfFragment(fragment.text);
+      if(name.length>0){groupName=name.slice(0,dependencies.MAX_NAV_GROUP_NAME_LENGTH);}
+    }else{
+      appendBookmarkLink(fragment,{region,dependencies,items,skipped,seen,groupName});
+    }
+  }
+  return {items,skipped};
+}

@@ -1,3 +1,13 @@
+
+function NotificationChannelFields({settings,sendKey,setSendKey,apiKey,setApiKey,from,setFrom,to,setTo}:Readonly<{settings:NotificationSettings;sendKey:string;setSendKey:React.Dispatch<React.SetStateAction<string>>;apiKey:string;setApiKey:React.Dispatch<React.SetStateAction<string>>;from:string;setFrom:React.Dispatch<React.SetStateAction<string>>;to:string;setTo:React.Dispatch<React.SetStateAction<string>>}>){
+if(settings.token){return <p>当前渠道已连接，凭证不会回显。提醒规则可以直接保存；切换接收渠道请先停用后重新配置。</p>;}
+if(settings.channel==='serverchan'){return <label className="local-settings__field">Server 酱 SendKey<input required type="password" autoComplete="new-password" value={sendKey} placeholder="SCT…" onChange={event=>setSendKey(event.target.value)}/><small>使用 Turbo 的 SCT 开头 SendKey。Server 酱³ 密钥不适用于此入口。</small></label>;}
+return <div className="personal-feature__fields">
+        <label className="local-settings__field">Resend API Key<input required type="password" autoComplete="new-password" value={apiKey} onChange={event=>setApiKey(event.target.value)}/></label>
+        <label className="local-settings__field">已验证域名的发件邮箱<input required type="email" value={from} onChange={event=>setFrom(event.target.value)}/></label>
+        <label className="local-settings__field">接收邮箱<input required type="email" value={to} onChange={event=>setTo(event.target.value)}/></label>
+      </div>;
+}
 import {useEffect,useState} from 'react';
 import {usePrivateDraft} from '../pwa/draft-registry';
 import type {LocalStore} from './store';
@@ -22,11 +32,7 @@ export function LocalNotificationPanel({store}:Readonly<{store:LocalStore}>){
       const next=await registerNotifications(channel,settings,store);setSettings(next);setSendKey('');setApiKey('');setMessage('通知已启用。可发送测试消息检查是否收件。');
     });}}>
       <label className="local-settings__field">后台通知渠道<select value={settings.channel} disabled={busy||!!settings.token} onChange={event=>patch({channel:event.target.value as NotificationSettings['channel']})}><option value="serverchan">Server 酱 Turbo</option><option value="resend">邮件（Resend）</option></select></label>
-      {settings.token?<p>当前渠道已连接，凭证不会回显。提醒规则可以直接保存；切换接收渠道请先停用后重新配置。</p>:settings.channel==='serverchan'?<label className="local-settings__field">Server 酱 SendKey<input required type="password" autoComplete="new-password" value={sendKey} placeholder="SCT…" onChange={event=>setSendKey(event.target.value)}/><small>使用 Turbo 的 SCT 开头 SendKey。Server 酱³ 密钥不适用于此入口。</small></label>:<div className="personal-feature__fields">
-        <label className="local-settings__field">Resend API Key<input required type="password" autoComplete="new-password" value={apiKey} onChange={event=>setApiKey(event.target.value)}/></label>
-        <label className="local-settings__field">已验证域名的发件邮箱<input required type="email" value={from} onChange={event=>setFrom(event.target.value)}/></label>
-        <label className="local-settings__field">接收邮箱<input required type="email" value={to} onChange={event=>setTo(event.target.value)}/></label>
-      </div>}
+      {NotificationChannelFields({settings,sendKey,setSendKey,apiKey,setApiKey,from,setFrom,to,setTo})}
       <fieldset disabled={busy}><legend>提醒内容</legend>
         <label><input type="checkbox" checked={settings.events} onChange={event=>patch({events:event.target.checked})}/>后台活动临近结束汇总</label><br/>
         {settings.events?<div className="personal-feature__toolbar">{([3,1] as const).map(days=><label key={days}><input type="checkbox" checked={settings.eventEndDays.includes(days)} onChange={event=>patch({eventEndDays:event.target.checked?[...settings.eventEndDays,days]:settings.eventEndDays.filter(value=>value!==days)})}/>结束前 {days} 天提醒</label>)}</div>:null}

@@ -72,14 +72,14 @@ object PvpWidgetRenderer {
         // Hosts reuse views: reset properties changed by an earlier font/theme/density.
         // Keep surface and palette in XML. Xiaomi can rebuild cached RemoteViews on theme changes.
         val compact = density == PvpDensity.SMALL || density == PvpDensity.MINI
-        val basePadding = ((if (density == PvpDensity.MINI) 6 else if (compact) 8 else 10) * context.resources.displayMetrics.density).toInt()
+        val basePadding = (contentPadding(density) * context.resources.displayMetrics.density).toInt()
         views.setViewPadding(R.id.pvp_content, basePadding, basePadding, basePadding, basePadding)
         views.setViewVisibility(R.id.pvp_heading, View.GONE)
         views.setViewVisibility(R.id.pvp_status, View.GONE)
         views.setTextViewText(R.id.pvp_status, "")
         views.setViewVisibility(R.id.pvp_front_label, View.VISIBLE)
         views.setViewVisibility(R.id.pvp_crystal_label, View.VISIBLE)
-        val baseText = if (density == PvpDensity.MINI) 12f else if (compact) 14f else 16f
+        val baseText = baseTextSize(density)
         views.setTextViewTextSize(R.id.pvp_front_current, TypedValue.COMPLEX_UNIT_SP, baseText)
         views.setTextViewTextSize(R.id.pvp_crystal_current, TypedValue.COMPLEX_UNIT_SP, baseText)
         val rules = snapshot.getJSONObject("pvp")
@@ -136,6 +136,18 @@ object PvpWidgetRenderer {
         views.setOnClickPendingIntent(R.id.widget_root, PendingIntent.getActivity(context, id, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
         return views
+    }
+
+    private fun contentPadding(density: PvpDensity) = when (density) {
+        PvpDensity.MINI -> 6
+        PvpDensity.SMALL -> 8
+        else -> 10
+    }
+
+    private fun baseTextSize(density: PvpDensity) = when (density) {
+        PvpDensity.MINI -> 12f
+        PvpDensity.SMALL -> 14f
+        else -> 16f
     }
 
     private fun countdown(views: RemoteViews, view: Int, until: Long, now: Long) {

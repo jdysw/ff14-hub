@@ -1,3 +1,10 @@
+
+function localSettingsFailure({cause}:Readonly<{cause:unknown}>){
+if(cause instanceof ZodError){return '文件或输入格式不正确，请检查后重试；原有数据仍保留。';}
+if(cause instanceof Error){return cause.message;}
+return '操作失败，原有数据仍保留。';
+}
+import {forEachSequential} from "../../../../../packages/shared/src/sequential-tasks.mjs";
 import {useState} from 'react';
 import {ZodError} from 'zod';
 import type {FishRegion} from '@ff14-hub/shared';
@@ -24,7 +31,7 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
   usePrivateDraft(Boolean(title||url||description||busy||recognizing));
   const run=async(action:()=>Promise<void>)=>{
     if(busy){return;}setBusy(true);setError(null);setNotice(null);
-    try{await action();onSaved();}catch(cause){setError(cause instanceof ZodError?'文件或输入格式不正确，请检查后重试；原有数据仍保留。':cause instanceof Error?cause.message:'操作失败，原有数据仍保留。');}
+    try{await action();onSaved();}catch(cause){setError(localSettingsFailure({cause}));}
     finally{setBusy(false);}
   };
   const move=(section:HomeSection,delta:number)=>{void run(async()=>{
@@ -72,19 +79,15 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
         setTitle('');setUrl('');setDescription('');setFaviconUrl(undefined);
         if(!link.description){setNotice('已添加网站。自动识别暂未取得简介，可在下方手动补充。');}
       });}}>
-        <label className="local-settings__field">网站名称
-          <input required value={title} onChange={event=>setTitle(event.target.value)} maxLength={100}/>
+        <label className="local-settings__field">网站名称{' '}<input required value={title} onChange={event=>setTitle(event.target.value)} maxLength={100}/>
         </label>
-        <label className="local-settings__field">HTTPS 地址
-          <input required type="url" value={url} onChange={event=>{
+        <label className="local-settings__field">HTTPS 地址{' '}<input required type="url" value={url} onChange={event=>{
             setUrl(event.target.value);setFaviconUrl(undefined);
           }}/>
         </label>
-        <label className="local-settings__field">分类
-          <input value={category} onChange={event=>setCategory(event.target.value)} maxLength={60}/>
+        <label className="local-settings__field">分类{' '}<input value={category} onChange={event=>setCategory(event.target.value)} maxLength={60}/>
         </label>
-        <label className="local-settings__field">网页简介
-          <textarea value={description} onChange={event=>setDescription(event.target.value)}
+        <label className="local-settings__field">网页简介{' '}<textarea value={description} onChange={event=>setDescription(event.target.value)}
             rows={3} maxLength={240} placeholder="可手动填写，留空将在添加时自动识别。"/>
         </label>
         <div className="local-settings__link-actions">
@@ -108,9 +111,9 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
             // 单次最多补齐 10 条，避免大规模抓取或突破服务端频率限制。
             const pending=data.links.filter(link=>!link.description?.trim()).slice(0,10);
             let updated=0;
-            for(const link of pending){
+            await forEachSequential(pending,async (link)=>{
               const metadata=await fetchNavigationMetadata(link.url).catch(()=>null);
-              if(!metadata?.description){continue;}
+              if(!metadata?.description){return;}
               await store.change(document=>{
                 const current=document.data.links.find(item=>item.id===link.id);
                 if(current&&!current.description?.trim()&&current.url===link.url){
@@ -119,7 +122,7 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
                   updated++;
                 }
               });
-            }
+            });
             setNotice(`补全 ${updated} 条简介；未识别的网站仍可手动编辑。`);
           });}}>批量补全缺失简介（每次最多 10 条）</button>
       </div>

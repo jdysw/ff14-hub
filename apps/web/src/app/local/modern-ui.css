@@ -143,7 +143,7 @@ body { background:var(--bg);color:var(--text);font-family:Inter,'PingFang SC','M
 .local-dashboard__module .fish-board__actions{position:static;width:auto;display:flex;gap:6px;margin:0 0 7px;}
 .local-dashboard__module .fish-board__actions button{min-height:27px;padding:3px 8px;border:1px solid #edf0f4;border-radius:7px;font-size:11px;}
 .local-dashboard__module .fish-board__detail{font-size:11px;}
-.local-dashboard__module .fish-board__more{margin:7px auto 0;font-size:11px!important;min-height:32px;}
+:root .local-dashboard__module .fish-board__more{margin:7px auto 0;font-size:11px;min-height:32px;}
 
 /* Notes reuse the same neutral surface. */
 .local-dashboard__module .local-notes{display:block;padding:0;border:0;}
@@ -169,12 +169,12 @@ body { background:var(--bg);color:var(--text);font-family:Inter,'PingFang SC','M
 .local-app .home-search {
   width:clamp(250px,32vw,430px);max-width:100%;min-width:190px;margin:0;flex:0 1 430px;
   display:flex;align-items:center;gap:9px;min-height:43px;padding:7px 12px;
-  border-radius:10px;border:1px solid #dce3eb;background:#fff;box-shadow:none;color:#8693a2;
+  border-radius:10px;border:1px solid #dce3eb;background:#fff;box-shadow:none;color:#657386;
 }
 .local-app .home-search:focus-within{border-color:#90afd7;outline:2px solid #dce8f7;outline-offset:1px;}
 .local-app .home-search input {flex:1;min-width:0;border:0;outline:0;background:transparent;color:#253343;padding:4px 0;font-size:12px;}
-.local-app .home-search input::placeholder{color:#95a0ac;}
-.local-app .home-search kbd {padding:1px 6px;border:1px solid #e5e9ee;border-radius:5px;color:#9da6b0;background:#f8fafb;font-size:11px;}
+.local-app .home-search input::placeholder{color:#657386;}
+.local-app .home-search kbd {padding:1px 6px;border:1px solid #e5e9ee;border-radius:5px;color:#657386;background:#f8fafb;font-size:11px;}
 .local-directory__filters{
   min-width:0;flex:1 1 auto;display:flex;gap:5px;align-items:center;
   padding:0;margin:0;border:0;overflow-x:auto;scrollbar-width:none;
@@ -207,10 +207,10 @@ body { background:var(--bg);color:var(--text);font-family:Inter,'PingFang SC','M
 .local-directory__star{
   position:absolute;right:5px;top:12px;width:30px;height:32px;
   display:grid;place-items:center;border:0;border-radius:6px;
-  background:transparent;color:#a9b4c0;font-size:17px;
+  background:transparent;color:#657386;font-size:17px;
 }
-.local-directory__star:hover,.local-directory__star[aria-pressed=true]{color:#b38948;background:#fff8ef;}
-.local-directory__notice,.local-directory__empty{padding:12px;color:#7a8794;font-size:12px;}
+.local-directory__star:hover,.local-directory__star[aria-pressed=true]{color:#886123;background:#fff8ef;}
+.local-directory__notice,.local-directory__empty{padding:12px;color:#657386;font-size:12px;}
 .local-directory__notice button,.local-directory__empty button{background:transparent;color:#385f9d;border:0;padding:6px;}
 /* Settings: horizontal categories and one focused content panel. */
 .local-app .local-settings{
@@ -251,7 +251,7 @@ body { background:var(--bg);color:var(--text);font-family:Inter,'PingFang SC','M
 .local-settings__content>section form{max-width:780px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 18px;}
 .local-settings__content>section form>button[type='submit']{justify-self:start;margin:10px 0;}
 .local-settings__items{max-height:45vh;overflow:auto;border-top:1px solid #ecf0f4;margin-top:18px;}
-.local-settings__caution{font-size:12px!important;color:#8a6d3a;}
+:root .local-settings__caution{font-size:12px;color:#8a6d3a;}
 .local-settings__preview{background:#f8fafc;border:1px solid #e5e9ee;border-radius:10px;padding:13px;}
 
 /* Dedicated content pages may scroll vertically; the dashboard does not. */

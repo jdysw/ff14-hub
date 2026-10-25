@@ -1,14 +1,15 @@
+import {forEachSequential} from "../../../packages/shared/src/sequential-tasks.mjs";
 import { fishDataBundleSchema, type FishRecord } from '@ff14-hub/shared';
 
 /** Offline importer: validates the whole bundle before writing, bounded transactions. */
 export async function importFishBundle(db: D1Database, raw: unknown): Promise<number> {
   const bundle = fishDataBundleSchema.parse(raw);
   // A bundle may extend the catalog but never deletes identities referenced by progress.
-  for (let offset = 0; offset < bundle.records.length; offset += 50) {
-    await db.batch(bundle.records.slice(offset,offset+50).map((record) => db.prepare(
+  await forEachSequential(Array.from({length:Math.ceil(bundle.records.length/50)},(_,index)=>index*50),async offset=>{
+    await db.batch(bundle.records.slice(offset,offset+50).map(record=>db.prepare(
       'INSERT INTO fish_catalog(region,fish_id,record_json) VALUES(?,?,?) ON CONFLICT(region,fish_id) DO UPDATE SET record_json=excluded.record_json',
     ).bind(record.region,record.id,JSON.stringify(record))));
-  }
+  });
   return bundle.records.length;
 }
 

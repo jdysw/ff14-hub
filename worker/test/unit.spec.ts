@@ -188,7 +188,7 @@ describe('现行高熵凭证与哈希原语', () => {
   it('临时高熵凭证符合 32 字节无填充 base64url 的形状', () => {
     const token = generateCredential('ffh_test_');
     expect(/^ffh_test_[A-Za-z0-9_-]{43}$/.test(token)).toBe(true);
-    expect(token.length).toBe('ffh_test_'.length + TOKEN_BODY_LENGTH);
+    expect(token).toHaveLength('ffh_test_'.length + TOKEN_BODY_LENGTH);
   });
 
   it('每次生成都不同（高熵随机的实际检验）', () => {

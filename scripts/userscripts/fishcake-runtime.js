@@ -1,40 +1,46 @@
-/* Runs in the userscript manager, with a separate page-realm adapter. */
-const allowedHub=['https://ff14.zhixia.uk','https://ff14-preview.zhixia.uk'];
-const isFish=location.origin==='https://fish.ffmomola.com';
-const prefix='ff14hub-fishcake-v1:';
-const get=key=>GM_getValue(prefix+key,null);
-const set=(key,value)=>GM_setValue(prefix+key,value);
-const watch=(key,callback)=>GM_addValueChangeListener(prefix+key,(_name,_before,next)=>callback(next));
-const uuid=()=>crypto.randomUUID();
-const validBinding=b=>b&&['cn','global'].includes(b.region)&&allowedHub.includes(b.origin);
-const pageNonce=uuid();
-const emit=(id,value,error)=>window.postMessage({channel:'ff14hub-fishcake',direction:'response',id,value,error},location.origin);
-if(!isFish){
-  window.addEventListener('message',async event=>{
-    if(event.source!==window||event.origin!==location.origin||!allowedHub.includes(event.origin)){return;}
-    const message=event.data;
-    if(message?.channel!=='ff14hub-fishcake'||message.direction!=='request'||typeof message.id!=='string'||message.id.length>100){return;}
-    try{
-      const binding=get('binding');
-      if(message.action==='hello'){emit(message.id,{installed:true,version:1});return;}
-      if(message.action==='connect'){
+
+function connectFishcakeSession({message,binding}){
+
         if(!['cn','global'].includes(message.region)){throw new Error('请选择区服');}
         if(validBinding(binding)&&binding.origin!==location.origin){throw new Error('已连接另一站点，请先在原站点断开');}
         if(!binding||binding.region!==message.region){set('snapshot',null);set('command',null);}
-        set('binding',{origin:location.origin,region:message.region});emit(message.id,{connected:true});return;
-      }
-      if(!validBinding(binding)||binding.origin!==location.origin||binding.region!==message.region){throw new Error('请先连接所选区服');}
-      if(message.action==='disconnect'){set('binding',null);set('snapshot',null);set('command',null);emit(message.id,{disconnected:true});return;}
-      if(message.action==='read'){emit(message.id,get('snapshot'));return;}
-      if(message.action==='apply'){
+        set('binding',{origin:location.origin,region:message.region});emit(message.id,{connected:true});
+}
+
+function queueFishcakeProgressCommand({binding,message}){
+
         const snapshot=get('snapshot');
         if(!snapshot||Date.now()-snapshot.at>20000||snapshot.region!==binding.region){throw new Error('鱼糕页面未在线，请打开鱼糕');}
         fishcakeDocument(message.document);fishcakeDocument(message.expected);
         if(JSON.stringify(message).length>1048576){throw new Error('进度过大');}
         const timer=setTimeout(()=>{GM_removeValueChangeListener(listener);emit(message.id,null,'鱼糕未确认写入，请重新读取');},15000);
         const listener=watch('reply',reply=>{if(reply?.id!==message.id){return;}clearTimeout(timer);GM_removeValueChangeListener(listener);emit(message.id,reply.document,reply.error);});
-        set('command',{id:message.id,session:snapshot.session,region:binding.region,expires:Date.now()+12000,expected:message.expected,document:message.document});return;
-      }
+        set('command',{id:message.id,session:snapshot.session,region:binding.region,expires:Date.now()+12000,expected:message.expected,document:message.document});
+}
+/* Runs in the userscript manager, with a separate page-realm adapter. */
+const allowedHub=new Set(['https://ff14.zhixia.uk','https://ff14-preview.zhixia.uk']);
+const isFish=location.origin==='https://fish.ffmomola.com';
+const prefix='ff14hub-fishcake-v1:';
+const get=key=>GM_getValue(prefix+key,null);
+const set=(key,value)=>GM_setValue(prefix+key,value);
+const watch=(key,callback)=>GM_addValueChangeListener(prefix+key,(_name,_before,next)=>callback(next));
+const uuid=()=>crypto.randomUUID();
+const validBinding=b=>b&&['cn','global'].includes(b.region)&&allowedHub.has(b.origin);
+const pageNonce=uuid();
+const emit=(id,value,error)=>window.postMessage({channel:'ff14hub-fishcake',direction:'response',id,value,error},location.origin);
+if(!isFish){
+  window.addEventListener('message',event=>{
+    if(event.source!==window||event.origin!==location.origin||!allowedHub.has(event.origin)){return;}
+    const message=event.data;
+    if(message?.channel!=='ff14hub-fishcake'||message.direction!=='request'||typeof message.id!=='string'||message.id.length>100){return;}
+    try{
+      const binding=get('binding');
+      if(message.action==='hello'){emit(message.id,{installed:true,version:1});return;}
+      if(message.action==='connect'){connectFishcakeSession({message,binding});return;}
+      if(!validBinding(binding)||binding.origin!==location.origin||binding.region!==message.region){throw new Error('请先连接所选区服');}
+      if(message.action==='disconnect'){set('binding',null);set('snapshot',null);set('command',null);emit(message.id,{disconnected:true});return;}
+      if(message.action==='read'){emit(message.id,get('snapshot'));return;}
+      if(message.action==='apply'){queueFishcakeProgressCommand({binding,message});return;}
       throw new Error('不支持的互通操作');
     }catch(error){emit(message.id,null,error.message||'互通失败');}
   });

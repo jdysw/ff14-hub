@@ -22,9 +22,10 @@ if [[ ! "$sha_global" =~ ^[a-f0-9]{40}$ || ! "$sha_cn" =~ ^[a-f0-9]{40}$ ]]; the
   echo "上游版本 SHA 非法，停止导入" >&2; exit 1
 fi
 download() {
-  curl --fail --silent --show-error --location --retry 3 --max-time 120 \
-    --output "$1" "https://raw.githubusercontent.com/$2/$3"
-  [[ -s "$1" ]]
+  local output="$1" repository="$2" revision_path="$3"
+  curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --retry 3 --max-time 120 \
+    --output "$output" "https://raw.githubusercontent.com/$repository/$revision_path"
+  [[ -s "$output" ]]
 }
 download "$tmp/data.js" "icykoneko/ff14-fish-tracker-app" "$sha_global/js/app/data.js"
 for sheet in Item FishParameter Weather FishingSpot PlaceName; do

@@ -1,3 +1,4 @@
+import {forEachSequential} from "../../packages/shared/src/sequential-tasks.mjs";
 /**
  * 速率限制（HUB-006）：D1 上的固定窗口计数，原子且并发安全。
  *
@@ -130,7 +131,7 @@ export async function enforceRateLimits(
   entries: readonly (readonly [scopeKey: string, policy: RateLimitPolicy])[],
 ): Promise<RateLimitDecision> {
   let worst: RateLimitDecision = allow();
-  for (const [scopeKey, policy] of entries) {
+  await forEachSequential(entries,async ([scopeKey, policy])=>{
     const decision = await consumeRateLimit(db, scopeKey, policy);
     if (!decision.allowed) {
       worst = {
@@ -138,6 +139,6 @@ export async function enforceRateLimits(
         retryAfterSeconds: Math.max(worst.retryAfterSeconds, decision.retryAfterSeconds),
       };
     }
-  }
+  });
   return worst;
 }

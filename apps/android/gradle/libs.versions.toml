@@ -1,0 +1,9 @@
+[versions]
+work = "2.10.1"
+junit = "4.13.2"
+robolectric = "4.17"
+
+[libraries]
+androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
+junit = { module = "junit:junit", version.ref = "junit" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }

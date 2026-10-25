@@ -3,7 +3,7 @@ package uk.zhixia.ff14hub.widgets
 import android.content.Context
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
-import java.net.URL
+import java.net.URI
 import javax.net.ssl.HttpsURLConnection
 
 /** 用户数据仅存本机。服务端只接收明确选择的鱼 ID，不接收钓获记录或凭据。 */
@@ -106,7 +106,7 @@ object WidgetData {
                 val ids = requested.ids
                 if (ids.isNotBlank()) append("&fishIds=").append(ids)
             }
-            val url = URL("$apiOrigin/api/v1/widgets/v1/summary$params")
+            val url = URI("$apiOrigin/api/v1/widgets/v1/summary$params").toURL()
             connection = url.openConnection() as HttpsURLConnection
             connection.instanceFollowRedirects = false
             connection.connectTimeout = 8_000

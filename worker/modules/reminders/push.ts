@@ -17,6 +17,6 @@ export function createPushTransport(env:Env):PushTransport{
     // Consume no arbitrary response body, never follow a provider redirect.
     const retry=Number(response.headers.get('Retry-After'));
     if(response.body!==null)await response.body.cancel();
-    return {status:response.status,...(Number.isFinite(retry)&&retry>0?{retryAfterMs:Math.min(retry*1000,3600_000)}:{})};
+    return {status:response.status,...(Number.isFinite(retry)&&retry>0?{retryAfterMs:Math.min(retry*1000,3_600_000)}:{})};
   }};
 }

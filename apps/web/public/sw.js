@@ -99,13 +99,13 @@ function shouldCacheRequest(request) {
   if (matchesAnyPrefix(pathname, CACHE_POLICY.privatePathPrefixes)) {
     return false;
   }
-  if (CACHE_POLICY.publicStaticExactPaths.indexOf(pathname) !== -1) {
+  if (CACHE_POLICY.publicStaticExactPaths.includes(pathname)) {
     return true;
   }
   if (matchesAnyPrefix(pathname, CACHE_POLICY.publicStaticPathPrefixes)) {
     return true;
   }
-  return CACHE_POLICY.publicApiPaths.indexOf(pathname) !== -1;
+  return CACHE_POLICY.publicApiPaths.includes(pathname);
 }
 
 /**
@@ -118,7 +118,7 @@ function shouldCacheResponse(response) {
   }
   const cacheControl = typeof response.cacheControl === 'string' ? response.cacheControl.toLowerCase() : '';
   for (const directive of CACHE_POLICY.forbiddenCacheControlDirectives) {
-    if (cacheControl.indexOf(directive) !== -1) {
+    if (cacheControl.includes(directive)) {
       return false;
     }
   }
@@ -151,7 +151,7 @@ function describeResponse(response) {
 }
 
 function isPublicApiPath(pathname) {
-  return CACHE_POLICY.publicApiPaths.indexOf(pathname) !== -1;
+  return CACHE_POLICY.publicApiPaths.includes(pathname);
 }
 
 /**
@@ -308,6 +308,7 @@ function isTrustedPageMessage(event) {
 }
 
 self.addEventListener('message', (event) => {
+  if(typeof event.origin==='string'&&event.origin!==''&&event.origin!==self.location.origin){return;}
   if (!isTrustedPageMessage(event)) {
     return;
   }
@@ -334,42 +335,31 @@ self.addEventListener('message', (event) => {
  *   非白名单路径等），响应再过 `shouldCacheResponse`（非 200 / no-store / 敏感类型都拒绝）；
  * - 任何一条失败只记录，不影响其它条目，也不抛错给页面。
  */
-async function cacheReportedUrls(urls) {
-  if (!Array.isArray(urls)) {
-    return;
-  }
-  const cache = await caches.open(PUBLIC_CACHE_NAME);
-  const seen = new Set();
-  let handled = 0;
-  for (const raw of urls) {
-    if (handled >= CACHE_URLS_LIMIT) {
-      return;
-    }
-    if (typeof raw !== 'string' || raw.length === 0 || raw.length > 2048) {
-      continue;
-    }
+
+async function cacheReportedRequest(cache,request){
+  try{const response=await fetch(request);await putIfPolicyAllows(cache,request,response);return 1;}
+  catch{return 0;}
+}
+async function* reportedCacheTasks(cache,urls){
+  const seen=new Set();let handled=0;
+  for(const raw of urls){
+    if(handled>=CACHE_URLS_LIMIT){return;}
+    if(typeof raw!=='string'||raw.length===0||raw.length>2048){continue;}
     let url;
-    try {
-      url = new URL(raw, self.location.origin);
-    } catch {
-      continue;
-    }
-    if (url.origin !== self.location.origin || seen.has(url.pathname + url.search)) {
-      continue;
-    }
-    seen.add(url.pathname + url.search);
-    handled += 1;
-    const request = new Request(url.toString(), { method: 'GET', credentials: 'same-origin' });
-    if (!shouldCacheRequest(describeRequest(request))) {
-      continue;
-    }
-    try {
-      const response = await fetch(request);
-      await putIfPolicyAllows(cache, request, response);
-    } catch {
-      // 单个资源失败（离线、404）不影响其它资源；这里刻意不抛出。
-    }
+    try{url=new URL(raw,self.location.origin);}catch{continue;}
+    if(url.origin!==self.location.origin||seen.has(url.pathname+url.search)){continue;}
+    seen.add(url.pathname+url.search);handled++;
+    const request=new Request(url.toString(),{method:'GET',credentials:'same-origin'});
+    if(!shouldCacheRequest(describeRequest(request))){continue;}
+    yield cacheReportedRequest(cache,request);
   }
+}
+async function cacheReportedUrls(urls){
+  if(!Array.isArray(urls)){return;}
+  const cache=await caches.open(PUBLIC_CACHE_NAME);
+  let processed=0;
+  for await(const count of reportedCacheTasks(cache,urls)){processed+=count;}
+  return processed;
 }
 
 /**

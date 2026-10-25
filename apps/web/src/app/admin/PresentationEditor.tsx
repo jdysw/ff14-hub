@@ -1,3 +1,9 @@
+
+function renamedCategoryTarget({target,from,to}:Readonly<{target:string;from:string;to:string}>){
+if(target===from){return to;}
+if(target.startsWith(from+' / ')){return to+target.slice(from.length);}
+return target;
+}
 import {useState} from 'react';
 import type {managedPresentationSchema} from '@ff14-hub/shared';
 import {DEFAULT_CATEGORIES,DEFAULT_HOME} from '@ff14-hub/shared';
@@ -7,7 +13,7 @@ export function PresentationEditor({value,onChange}:Readonly<{value:SiteSettings
   const current=value??{categories:DEFAULT_CATEGORIES,home:DEFAULT_HOME,categoryAliases:{}};
   const [name,setName]=useState(''),[children,setChildren]=useState(''),[message,setMessage]=useState('');
   const [childDraft,setChildDraft]=useState<Record<string,string>>({});
-  const renamedAliases=(from:string,to:string):Record<string,string>=>{const aliases:Record<string,string>={};for(const [key,target] of Object.entries(current.categoryAliases)){if(key===to){continue;}const next=target===from?to:target.startsWith(from+' / ')?to+target.slice(from.length):target;if(key!==next){aliases[key]=next;}}aliases[from]=to;return aliases;};
+  const renamedAliases=(from:string,to:string):Record<string,string>=>{const aliases:Record<string,string>={};for(const [key,target] of Object.entries(current.categoryAliases)){if(key===to){continue;}const next=renamedCategoryTarget({target,from,to});if(key!==next){aliases[key]=next;}}aliases[from]=to;return aliases;};
   const rename=(old:string,next:string)=>{if(!next.trim()||next===old){return;}if(current.categories.some(group=>group.name===next)){setMessage('分类名称重复');return;}
     onChange({...current,categories:current.categories.map(group=>group.name===old?{...group,name:next}:group),categoryAliases:renamedAliases(old,next)});};
   const layoutDescription:Record<Presentation['home']['layout'],string>={

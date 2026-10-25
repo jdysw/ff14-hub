@@ -28,7 +28,7 @@ export function FishReminderPanel({fish,region,enabled,caught,onSave,onClose,onS
     }).catch((cause:unknown)=>setError(cause instanceof Error?cause.message:'通知授权失败')).finally(()=>setBusy(false));
   };
   const rule=fish.rule;
-  const unrestricted=rule&&rule.startHour===0&&rule.endHour===24&&
+  const unrestricted=rule?.startHour===0&&rule.endHour===24&&
     (!rule.currentWeather.length||rule.weatherRates.every(r=>rule.currentWeather.includes(r.weather)))&&
     (!rule.previousWeather.length||rule.weatherRates.every(r=>rule.previousWeather.includes(r.weather)));
   const finite=rule&&fish.method==='rod'&&!unrestricted&&!rule.conditions.some(c=>c.kind==='unknown');

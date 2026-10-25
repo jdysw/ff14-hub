@@ -1,4 +1,4 @@
-import {localNotificationChannelSchema,type LocalNotificationChannel} from '@ff14-hub/shared';
+import {readerResults,localNotificationChannelSchema,type LocalNotificationChannel} from '@ff14-hub/shared';
 import type {Env} from '../../env';
 import {createPushTransport} from './push';
 const enc=new TextEncoder();
@@ -15,6 +15,13 @@ export async function decryptChannel(ciphertext:string,secret:string,id:string){
   const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv:bytes(iv),additionalData:enc.encode(id)},await key(secret),bytes(body));
   return localNotificationChannelSchema.parse(JSON.parse(new TextDecoder().decode(plain)) as unknown);
 }
+function channelReceipt(kind:LocalNotificationChannel['kind'],text:string):number{
+  try{
+    const value=JSON.parse(text) as {code?:number;id?:string};
+    if(kind==='serverchan'){return value.code===0?200:400;}
+    return typeof value.id==='string'?200:400;
+  }catch{return 400;}
+}
 export async function sendChannel(env:Env,channel:LocalNotificationChannel,tag:string,content:{title:string;body:string}):Promise<number>{
   if(channel.kind==='webpush')return (await createPushTransport(env).send(channel.subscription,tag,{title:content.title,body:content.body.slice(0,200)})).status;
   const title=content.title.replace(/[\r\n]/g,' ').slice(0,80);
@@ -26,10 +33,6 @@ export async function sendChannel(env:Env,channel:LocalNotificationChannel,tag:s
   }
   if(!response.ok){await response.body?.cancel();return response.status>=300&&response.status<400?400:response.status;}
   const reader=response.body?.getReader() as ReadableStreamDefaultReader<Uint8Array>|undefined;let text='',size=0;const decoder=new TextDecoder();
-  if(reader){while(true){const part=await reader.read();if(part.done){break;}size+=part.value.byteLength;if(size>8192){await reader.cancel();return 400;}text+=decoder.decode(part.value,{stream:true});}text+=decoder.decode();}
-  try{
-    const value=JSON.parse(text) as {code?:number;id?:string};
-    if(channel.kind==='serverchan')return value.code===0?200:400;
-    return typeof value.id==='string'?200:400;
-  }catch{return 400;}
+  if(reader){for await(const part of readerResults<Uint8Array>(reader)){size+=part.value.byteLength;if(size>8192){return 400;}text+=decoder.decode(part.value,{stream:true});}text+=decoder.decode();}
+  return channelReceipt(channel.kind,text);
 }

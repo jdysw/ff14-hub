@@ -54,14 +54,11 @@ export function LocalLinkEditor({link,store}: Readonly<{link:SavedLink;store:Loc
       {link.description?<p>{link.description}</p>:<small>暂无简介，可自动识别或手动填写</small>}
       <details className="local-settings__link-editor">
         <summary>编辑网站资料</summary>
-        <label className="local-settings__field">网站名称
-          <input value={title} onChange={event=>setTitle(event.target.value)} maxLength={100}/>
+        <label className="local-settings__field">网站名称{' '}<input value={title} onChange={event=>setTitle(event.target.value)} maxLength={100}/>
         </label>
-        <label className="local-settings__field">分类
-          <input value={category} onChange={event=>setCategory(event.target.value)} maxLength={60}/>
+        <label className="local-settings__field">分类{' '}<input value={category} onChange={event=>setCategory(event.target.value)} maxLength={60}/>
         </label>
-        <label className="local-settings__field">网站简介
-          <textarea value={description} onChange={event=>setDescription(event.target.value)} maxLength={240} rows={3}/>
+        <label className="local-settings__field">网站简介{' '}<textarea value={description} onChange={event=>setDescription(event.target.value)} maxLength={240} rows={3}/>
         </label>
         <div className="local-settings__link-actions">
           <button type="button" disabled={busy} onClick={identify}>自动识别简介与图标</button>

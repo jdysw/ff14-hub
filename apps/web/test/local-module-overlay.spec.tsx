@@ -64,7 +64,7 @@ it('opens details on top of the current page, and click on outside blank space c
   expect(dialog.hasAttribute('open')).toBe(true);
   fireEvent.click(screen.getByRole('button',{name:'内部控件'}));
   expect(onClose).not.toHaveBeenCalled();
-  fireEvent.click(dialog);
+  fireEvent.click(screen.getByRole('button',{name:'关闭展开页面'}));
   expect(onClose).toHaveBeenCalledTimes(1);
   expect(trigger).toBe(document.activeElement);
   trigger.remove();

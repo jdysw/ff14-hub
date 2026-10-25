@@ -24,7 +24,7 @@ function writeCachedGameData(value:SiteGameData):void{
 }
 export function gameDataSource():GameDataSource{return source;}
 export function loadGameData():Promise<SiteGameData>{
-  return cached??=fetch('/api/v1/site/data',{credentials:'omit',cache:'no-store',redirect:'error'})
+  if(cached!==undefined&&cached!==null){return cached;} cached=fetch('/api/v1/site/data',{credentials:'omit',cache:'no-store',redirect:'error'})
     .then(async response=>{
       if(!response.ok)throw new Error('在线修订暂不可用');
       const payload=await response.json() as {data:unknown};
@@ -37,7 +37,7 @@ export function loadGameData():Promise<SiteGameData>{
       // 鱼类的全部基础数据随前端静态资源打包；管理端修订不可访问时不能因此阻断鱼窗。
       // 使用默认修订规则时调用方应显示来源警告，不得假称已经获取最新人工修订。
       return saved??DEFAULT_GAME_DATA;
-    });
+    }); return cached;
 }
 export function invalidateGameData(){cached=undefined;window.dispatchEvent(new Event(GAME_DATA_CHANGED));}
 export function useGameData(){

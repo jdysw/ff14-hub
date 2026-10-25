@@ -14,7 +14,7 @@ const CREDENTIAL_PATTERN = /\bffh_(?:dev|rec|pair)_[A-Za-z0-9_-]{8,}/g;
 
 /** Authorization 头：连方案（Bearer/Basic/…）带凭证一起吞掉，只保留字段名。 */
 const AUTHORIZATION_PATTERN =
-  /\b(authorization\s*:\s*)(?:[A-Za-z][A-Za-z0-9!#$%&'*+.^_`|~-]*\s+)?[^\s,;"']+/gi;
+  /\b(authorization\s*:\s*)(?:[A-Z][A-Z0-9!#$%&'*+.^_`|~-]*\s+)?[^\s,;"']+/gi;
 
 /** 十六进制形态的长摘要（例如 token_hash / recovery_hash 的 SHA-256 十六进制输出）。 */
 const HEX_DIGEST_PATTERN = /\b[0-9a-fA-F]{64}\b/g;

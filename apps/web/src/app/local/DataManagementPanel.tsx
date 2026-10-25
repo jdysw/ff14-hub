@@ -1,3 +1,9 @@
+
+function dataManagementFailure({cause}:Readonly<{cause:unknown}>){
+if(cause instanceof ZodError){return '文件格式不正确，原有数据仍保留。';}
+if(cause instanceof Error){return cause.message;}
+return '操作失败，原有数据仍保留。';
+}
 import {useState} from 'react';
 import {ZodError} from 'zod';
 import {parseFishDocument,serializeFishDocument,type FishRegion,type FishDocument} from '@ff14-hub/shared';
@@ -24,7 +30,7 @@ export function DataManagementPanel({store,data,initialSection='sync'}:Readonly<
   usePrivateDraft(Boolean(fishFile||backup||busy));
   const run=async(action:()=>Promise<void>)=>{
     if(busy){return;}setBusy(true);setError(null);setNotice(null);
-    try{await action();}catch(cause){setError(cause instanceof ZodError?'文件格式不正确，原有数据仍保留。':cause instanceof Error?cause.message:'操作失败，原有数据仍保留。');}
+    try{await action();}catch(cause){setError(dataManagementFailure({cause}));}
     finally{setBusy(false);}
   };
   return <section className="data-management" aria-label="数据管理">

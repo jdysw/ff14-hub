@@ -7,7 +7,9 @@
 - 完整清单：[sonar-baseline-after-pr84.tsv](./sonar-baseline-after-pr84.tsv)。`targeted_in_batch` 标记本批代码整改对象，不代表平台已确认关闭。
 - 主线完整复扫前，不以 PR 的 new-code 数字推算历史问题剩余数。
 
-## 本批代码整改对象：77 条
+## 首批代码整改对象：77 条
+
+其余 275 项已接续处理，见 [完整处理记录](./sonar-remediation-remaining-275.md) 与 [逐项台账](./sonar-remaining-275-tracker.tsv)。本节及基线 TSV 的 targeted_in_batch 仅描述首批范围。
 
 | 规则 | 基线数量 | 处理 |
 | --- | ---: | --- |

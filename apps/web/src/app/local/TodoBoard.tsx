@@ -43,6 +43,14 @@ export function TodoBoard({data,store,expanded=false,onExpand}:Readonly<{data:Lo
   useEffect(()=>{const timer=window.setInterval(()=>setNow(Date.now()),30000);return()=>window.clearInterval(timer);},[]);
   const run=async(action:()=>Promise<unknown>)=>{if(busy){return;}setBusy(true);setError('');try{await action();}catch(cause){setError(cause instanceof Error?cause.message:'保存失败，输入仍保留');}finally{setBusy(false);}};
   const reset=()=>{setTitle('');setText('');setStarts('');setEnds('');setReminder('');setEditing(null);setTimes(false);};
+  const toggleNote=(note:Todo)=>{void run(async()=>{
+    await store.change(document=>{const current=document.data.notes.find(n=>n.id===note.id);if(current){current.completed=!current.completed;}});
+    setUndo(note);
+  });};
+  const deleteNote=(note:Todo)=>{void run(async()=>{
+    await store.change(document=>{document.data.notes=document.data.notes.filter(n=>n.id!==note.id);});
+    setUndo(note);
+  });};
   const edit=(note:Todo)=>{setTitle(note.title);setText(note.text);setStarts(inputTime(note.startsAt));setEnds(inputTime(note.endsAt));setReminder(inputTime(note.remindAt));setEditing(note.id);setTimes(true);};
   // Minute updates change labels only. Sorting is recalculated when data changes.
   const items=data.notes.filter(note=>Boolean(note.completed)===completed).slice().sort((a,b)=>(a.endsAt??a.startsAt??a.remindAt??Infinity)-(b.endsAt??b.startsAt??b.remindAt??Infinity));
@@ -60,7 +68,7 @@ export function TodoBoard({data,store,expanded=false,onExpand}:Readonly<{data:Lo
     </form>
     <nav className="todo-tabs" aria-label="待办状态"><button type="button" aria-pressed={!completed} onClick={()=>setCompleted(false)}>待完成 {data.notes.filter(n=>!n.completed).length}</button><button type="button" aria-pressed={completed} onClick={()=>setCompleted(true)}>已完成</button></nav>
     {error&&<p role="alert">{error}</p>}
-    <ul>{items.slice(0,expanded?100:5).map(note=><li key={note.id}><input type="checkbox" aria-label={`完成 ${note.title}`} checked={Boolean(note.completed)} disabled={busy} onChange={()=>void run(async()=>{await store.change(document=>{const current=document.data.notes.find(n=>n.id===note.id);if(current){current.completed=!current.completed;}});setUndo(note);})}/><button type="button" className="todo-title" onClick={()=>edit(note)}><strong>{note.title}</strong>{note.text&&<span>{note.text}</span>}</button><div className="todo-time"><span>{todoStatus(note,now)}</span>{(note.startsAt!==undefined||note.endsAt!==undefined)&&<small>{note.startsAt!==undefined?`开始 ${actual(note.startsAt)}`:''}{note.startsAt!==undefined&&note.endsAt!==undefined?' · ':''}{note.endsAt!==undefined?`截止 ${actual(note.endsAt)}`:''}</small>}</div>{expanded&&<button type="button" disabled={busy} aria-label={`删除 ${note.title}`} onClick={()=>void run(async()=>{await store.change(document=>{document.data.notes=document.data.notes.filter(n=>n.id!==note.id);});setUndo(note);})}>删除</button>}</li>)}</ul>
+    <ul>{items.slice(0,expanded?100:5).map(note=><li key={note.id}><input type="checkbox" aria-label={`完成 ${note.title}`} checked={Boolean(note.completed)} disabled={busy} onChange={()=>toggleNote(note)}/><button type="button" className="todo-title" onClick={()=>edit(note)}><strong>{note.title}</strong>{note.text&&<span>{note.text}</span>}</button><div className="todo-time"><span>{todoStatus(note,now)}</span>{(note.startsAt!==undefined||note.endsAt!==undefined)&&<small>{note.startsAt!==undefined?`开始 ${actual(note.startsAt)}`:''}{note.startsAt!==undefined&&note.endsAt!==undefined?' · ':''}{note.endsAt!==undefined?`截止 ${actual(note.endsAt)}`:''}</small>}</div>{expanded&&<button type="button" disabled={busy} aria-label={`删除 ${note.title}`} onClick={()=>deleteNote(note)}>删除</button>}</li>)}</ul>
     {!items.length&&<p className="todo-empty">{completed?'还没有已完成事项':'暂时没有待办，随手记一件吧。'}</p>}
     {!expanded&&items.length>5&&<button type="button" onClick={onExpand}>查看其余 {items.length-5} 项</button>}
     {times&&<output className="todo-notification-info" style={{display:'block'}}>{notificationInfo}</output>}

@@ -1,3 +1,4 @@
+import {firstDefinedSequential} from "../../../packages/shared/src/sequential-tasks.mjs";
 /**
  * 管理员认证：单一站点 owner，独立于玩家设备登录。
  * 密码 PBKDF2-SHA256 100000 轮+随机盐+服务端 HMAC 密钥，TOTP RFC6238(SHA1/6位/30秒)，
@@ -10,7 +11,7 @@ import { hashCredential, credentialsEqual } from '../identity/credentials';
 
 /** Cloudflare 生产 workerd 对单次 PBKDF2 限制 100000；本地 Vitest 可能无法复现超限。 */
 export const ADMIN_PBKDF2_ITERATIONS = 100_000;
-const ADMIN_PASSWORD_HASH_VERSION = 'pbkdf2-sha256-100k-hmac-v2:';
+const ADMIN_DERIVATION_FORMAT = 'pbkdf2-sha256-100k-hmac-v2:';
 const SESSION_MS = 8 * 60 * 60_000;
 const STEP_MS = 30_000;
 const DIGITS = 1_000_000;
@@ -26,7 +27,7 @@ function bytesHex(input: Uint8Array): string {
 }
 function hexBytes(input: string): Uint8Array {
   if (!/^(?:[a-f0-9]{2})+$/i.test(input)) throw new Error('invalid hex');
-  return Uint8Array.from(input.match(/.{2}/g)!, v => parseInt(v,16));
+  return Uint8Array.from(input.match(/.{2}/g)!, v => Number.parseInt(v,16));
 }
 function encode64(input: Uint8Array): string {
   return btoa(Array.from(input, v => String.fromCodePoint(v)).join(''));
@@ -38,7 +39,7 @@ function base32(input: Uint8Array): string {
   let bits = 0, buffer = 0, out = '';
   for (const v of input) {
     buffer = (buffer << 8) | v; bits += 8;
-    while (bits >= 5) { out += ALPHABET[(buffer >>> (bits -= 5)) & 31]; }
+    while (bits >= 5) { bits -= 5; out += ALPHABET[(buffer >>> bits) & 31]; }
   }
   if (bits > 0) out += ALPHABET[(buffer << (5 - bits)) & 31];
   return out;
@@ -74,10 +75,10 @@ async function passwordHash(password: string, salt: Uint8Array, setupSecret: str
   const pepperKey = await crypto.subtle.importKey('raw', pepperKeyBytes,
     { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const signed = await crypto.subtle.sign('HMAC', pepperKey, derived);
-  return ADMIN_PASSWORD_HASH_VERSION + bytesHex(new Uint8Array(signed));
+  return ADMIN_DERIVATION_FORMAT + bytesHex(new Uint8Array(signed));
 }
 async function matchesPassword(password: string, row: AdminAccountRow, setupSecret: string): Promise<boolean> {
-  if (!row.password_hash.startsWith(ADMIN_PASSWORD_HASH_VERSION)) return false;
+  if (!row.password_hash.startsWith(ADMIN_DERIVATION_FORMAT)) return false;
   const candidate = await passwordHash(password,hexBytes(row.password_salt),setupSecret);
   return constantTimeEqualStrings(candidate,row.password_hash);
 }
@@ -88,7 +89,7 @@ async function otpAt(secret: Uint8Array, counter: number): Promise<string> {
   view.setUint32(4, counter >>> 0);
   const key = await crypto.subtle.importKey('raw',secret,{name:'HMAC',hash:'SHA-1'},false,['sign']);
   const hmac = new Uint8Array(await crypto.subtle.sign('HMAC',key,data));
-  const offset = hmac[hmac.length - 1]! & 15;
+  const offset = hmac.at(-1)! & 15;
   const code = ((hmac[offset]! & 127)<<24 | hmac[offset+1]!<<16 | hmac[offset+2]!<<8 | hmac[offset+3]!) % DIGITS;
   return String(code).padStart(6,'0');
 }
@@ -100,7 +101,7 @@ export function totpSetupUri(username: string, secret: string): string {
   return 'otpauth://totp/' + label + '?secret=' + secret + '&issuer=' +
     encodeURIComponent('FF14 Hub') + '&algorithm=SHA1&digits=6&period=30';
 }
-export async function accountRow(db: D1Database): Promise<AdminAccountRow | null> {
+export function accountRow(db: D1Database): Promise<AdminAccountRow | null> {
   return db.prepare("SELECT * FROM calendar_admin_accounts WHERE id='owner'").first<AdminAccountRow>();
 }
 export async function verifySetupSecret(provided: string | null, configured: string | undefined): Promise<void> {
@@ -136,15 +137,16 @@ export async function startAdminSetup(db: D1Database, configured: string,
 async function matchedStep(secret: Uint8Array, code: string, now=Date.now()): Promise<number | null> {
   if (!/^\d{6}$/.test(code)) return null;
   const step=Math.floor(now/STEP_MS);
-  for (const candidate of [step,step-1,step+1]) {
-    if (candidate>=0 && constantTimeEqualStrings(await otpAt(secret,candidate),code)) return candidate;
-  }
-  return null;
+  const candidate=await firstDefinedSequential([step,step-1,step+1],async value=>{
+    if(value>=0&&constantTimeEqualStrings(await otpAt(secret,value),code)){return value;}
+    return undefined;
+  });
+  return candidate??null;
 }
 export async function validateAdminCredentials(db: D1Database, configured: string | undefined,
   username: string,password: string,code: string,activate: boolean): Promise<boolean> {
   const row=await accountRow(db);
-  if (!row || row.username.toLowerCase()!==username.toLowerCase() ||
+  if (row?.username.toLowerCase()!==username.toLowerCase() ||
       Boolean(row.activated_at)!==!activate ||
       !configured || configured.length<32 ||
       !await matchesPassword(password,row,configured)) return false;

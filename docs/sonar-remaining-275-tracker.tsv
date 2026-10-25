@@ -1,0 +1,277 @@
+# 2026-10-25; original remaining set after the first 77 targets; 275 unique keys
+issue_key	rule	baseline_path	baseline_line	remediation_kind	verification_state	evidence
+AaFtGQ9w5WNdnY_XE17c	typescript:S1121	apps/web/src/app/admin/game-data.ts	27	code	pending-main-rescan	缓存赋值与位计数从表达式中分离为明确语句
+AaFtGQ_W5WNdnY_XE1-9	typescript:S3776	apps/web/src/app/fish/FishingBoard.tsx	131	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGQ_W5WNdnY_XE1_Q	typescript:S3358	apps/web/src/app/fish/FishingBoard.tsx	323	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ4C5WNdnY_XE15g	typescript:S5906	worker/test/unit.spec.ts	191	code	pending-main-rescan	长度断言改为 toHaveLength，保持相同期望值
+AaFtGRAn5WNdnY_XE2A7	javascript:S6353	scripts/ops/d1-readiness.mjs	32	code	pending-main-rescan	ASCII 数字类改为等价的简明语法
+AaFtGRAn5WNdnY_XE2A9	jssecurity:S8705	scripts/ops/d1-readiness.mjs	55	code	pending-main-rescan	固定白名单与命令形状校验；从允许的 SQL/环境/版本模板重建 argv；拒绝参数注入测试
+AaFtGRAs5WNdnY_XE2A_	javascript:S4036	scripts/ops/release-worker.mjs	8	code	pending-main-rescan	使用系统或程序目录内的绝对命令路径，避免 PATH 命令名查找
+AaFtGQ9s5WNdnY_XE17Y	typescript:S6479	apps/web/src/app/admin/ContentLifecycle.tsx	34	code	pending-main-rescan	审计行使用 domain/content_id/revision 的稳定组合键
+AaFtGQ915WNdnY_XE17i	typescript:S7722	apps/web/src/app/admin/GameDataPanel.tsx	16	code	pending-main-rescan	Error 构造提供固定诊断文案
+AaFtGQ9n5WNdnY_XE17J	typescript:S3358	apps/web/src/app/admin/OperationsPanel.tsx	4	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ9i5WNdnY_XE169	typescript:S3358	apps/web/src/app/admin/PresentationEditor.tsx	10	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ9p5WNdnY_XE17K	typescript:S9382	apps/web/src/app/admin/SiteDirectoryPanel.tsx	71	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ9p5WNdnY_XE17L	typescript:S9382	apps/web/src/app/admin/SiteDirectoryPanel.tsx	72	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ9p5WNdnY_XE17N	typescript:S9382	apps/web/src/app/admin/SiteDirectoryPanel.tsx	80	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ9p5WNdnY_XE17O	typescript:S9382	apps/web/src/app/admin/SiteDirectoryPanel.tsx	81	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ9p5WNdnY_XE17S	typescript:S9382	apps/web/src/app/admin/SiteDirectoryPanel.tsx	83	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ9p5WNdnY_XE17T	typescript:S9382	apps/web/src/app/admin/SiteDirectoryPanel.tsx	83	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ-S5WNdnY_XE18V	typescript:S3776	apps/web/src/app/local/GlobalSearch.tsx	11	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGQ-e5WNdnY_XE18q	typescript:S3776	apps/web/src/app/local/LocalApp.tsx	37	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGQ-e5WNdnY_XE18w	typescript:S3358	apps/web/src/app/local/LocalApp.tsx	175	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ-e5WNdnY_XE18z	typescript:S3358	apps/web/src/app/local/LocalApp.tsx	176	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ-e5WNdnY_XE180	typescript:S3358	apps/web/src/app/local/LocalApp.tsx	189	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ-e5WNdnY_XE181	typescript:S3358	apps/web/src/app/local/LocalApp.tsx	190	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ-e5WNdnY_XE185	typescript:S3358	apps/web/src/app/local/LocalApp.tsx	236	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ-e5WNdnY_XE187	typescript:S3358	apps/web/src/app/local/LocalApp.tsx	237	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ-e5WNdnY_XE188	typescript:S3358	apps/web/src/app/local/LocalApp.tsx	241	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ_D5WNdnY_XE1-h	typescript:S2004	apps/web/src/app/local/TodoBoard.tsx	63	code	pending-main-rescan	待办切换/删除使用具名操作，减少行渲染回调嵌套
+AaFtGQ_D5WNdnY_XE1-i	typescript:S2004	apps/web/src/app/local/TodoBoard.tsx	63	code	pending-main-rescan	待办切换/删除使用具名操作，减少行渲染回调嵌套
+AaFtGRAL5WNdnY_XE2Ak	typescript:S3358	packages/shared/src/site-management.ts	25	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGRBG5WNdnY_XE2B8	javascript:S3735	scripts/import-navigation.mjs	89	code	pending-main-rescan	删除未执行的历史分类函数及其 void 引用，历史保留在 Git
+AaFtGQ8y5WNdnY_XE16b	typescript:S7749	worker/modules/reminders/local-push.ts	6	code	pending-main-rescan	修正数值分组长度，不改变数值
+AaFtGQ_W5WNdnY_XE1_A	typescript:S3776	apps/web/src/app/fish/FishingBoard.tsx	237	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGQ-X5WNdnY_XE18i	css:S7924	apps/web/src/app/local/modern-content.css	170	code	pending-main-rescan	提高浅色文字、占位文字及图标与既定背景的对比度
+AaFtGRBa5WNdnY_XE2Cv	plsql:S1192	migrations/0001_core.sql	33	individual-review	FALSE_POSITIVE	SQLite/D1 DDL 被套用 PL/SQL 常量规则，保留已发布迁移及 CHECK 约束
+AaFtGRBa5WNdnY_XE2Ct	plsql:S1192	migrations/0001_core.sql	94	individual-review	FALSE_POSITIVE	SQLite/D1 DDL 被套用 PL/SQL 常量规则，保留独立表的枚举约束
+AaFtGRBa5WNdnY_XE2Cu	plsql:S1192	migrations/0001_core.sql	122	individual-review	FALSE_POSITIVE	SQLite mode/upsert/hide/restore 约束不能使用 PL/SQL 常量
+AaFtGRBa5WNdnY_XE2Cw	plsql:S1192	migrations/0001_core.sql	122	individual-review	FALSE_POSITIVE	SQLite 审计/内容模式枚举的重复不适用 PL/SQL 声明
+AaFtGRAC5WNdnY_XE2Ai	typescript:S3776	packages/shared/src/nav-bookmark-parser.ts	290	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGQ8y5WNdnY_XE16d	typescript:S3776	worker/modules/reminders/local-push.ts	18	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGQ8y5WNdnY_XE16j	typescript:S9382	worker/modules/reminders/local-push.ts	53	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ8y5WNdnY_XE16k	typescript:S9382	worker/modules/reminders/local-push.ts	56	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ-S5WNdnY_XE18X	typescript:S6847	apps/web/src/app/local/GlobalSearch.tsx	32	code	pending-main-rescan	键盘事件置于可交互控件；模态背景使用原生关闭按钮
+AaFtGQ-S5WNdnY_XE18Y	typescript:S7753	apps/web/src/app/local/GlobalSearch.tsx	36	code	pending-main-rescan	身份查找改用 indexOf
+AaFtGQ-S5WNdnY_XE18Z	typescript:S6819	apps/web/src/app/local/GlobalSearch.tsx	40	code	pending-main-rescan	使用原生 fieldset 分组，保留名称及显式无边框布局
+AaFtGQ-e5WNdnY_XE184	typescript:S3358	apps/web/src/app/local/LocalApp.tsx	214	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ-95WNdnY_XE1-L	css:S9423	apps/web/src/app/local/unified-search.css	56	code	pending-main-rescan	显式选择器与层叠优先级替换 important；保持 hidden 与减少动态效果行为
+AaFtGQ-95WNdnY_XE1-M	css:S9423	apps/web/src/app/local/unified-search.css	56	code	pending-main-rescan	显式选择器与层叠优先级替换 important；保持 hidden 与减少动态效果行为
+AaFtGQ8X5WNdnY_XE15t	typescript:S9382	worker/modules/events/calendar-feed.ts	328	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ-I5WNdnY_XE18I	typescript:S6847	apps/web/src/app/local/LocalModuleOverlay.tsx	121	code	pending-main-rescan	键盘事件置于可交互控件；模态背景使用原生关闭按钮
+AaFtGQ-I5WNdnY_XE18J	typescript:S1082	apps/web/src/app/local/LocalModuleOverlay.tsx	121	code	pending-main-rescan	原生按钮承担弹层背景关闭行为，保留 Esc/关闭按钮
+AaFtGQ_W5WNdnY_XE1_N	typescript:S6443	apps/web/src/app/fish/FishingBoard.tsx	307	code	pending-main-rescan	区分清空筛选和保留搜索词，不再清空后回写相同 state
+AaFtGQ_W5WNdnY_XE1_b	typescript:S6819	apps/web/src/app/fish/FishingBoard.tsx	371	code	pending-main-rescan	使用原生 fieldset 分组，保留名称及显式无边框布局
+AaFtGQ_W5WNdnY_XE1_c	typescript:S6819	apps/web/src/app/fish/FishingBoard.tsx	375	code	pending-main-rescan	使用原生 fieldset 分组，保留名称及显式无边框布局
+AaFtGQ_W5WNdnY_XE1_d	typescript:S6819	apps/web/src/app/fish/FishingBoard.tsx	378	code	pending-main-rescan	使用原生 fieldset 分组，保留名称及显式无边框布局
+AaFtGQ_W5WNdnY_XE1_-	typescript:S3358	apps/web/src/app/fish/FishingBoard.tsx	426	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ_W5WNdnY_XE1_8	typescript:S3358	apps/web/src/app/fish/FishingBoard.tsx	426	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ_W5WNdnY_XE1_9	typescript:S3358	apps/web/src/app/fish/FishingBoard.tsx	426	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ_W5WNdnY_XE1__	typescript:S3358	apps/web/src/app/fish/FishingBoard.tsx	426	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ_W5WNdnY_XE2AA	typescript:S3358	apps/web/src/app/fish/FishingBoard.tsx	426	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ_W5WNdnY_XE1_q	typescript:S3776	apps/web/src/app/fish/FishingBoard.tsx	399	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGQ_W5WNdnY_XE1_r	typescript:S3358	apps/web/src/app/fish/FishingBoard.tsx	402	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ_W5WNdnY_XE1_7	typescript:S3358	apps/web/src/app/fish/FishingBoard.tsx	418	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGRBM5WNdnY_XE2CV	javascript:S878	scripts/audit-fishing-cross-sources.mjs	65	code	pending-main-rescan	逗号操作符改为独立计数语句和明确 return
+AaFtGRBB5WNdnY_XE2By	javascript:S3776	scripts/lib/fishing-audit-summary.mjs	3	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGRAy5WNdnY_XE2BE	javascript:S3776	scripts/lib/fishing-corrections.mjs	6	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGRAy5WNdnY_XE2BF	javascript:S7723	scripts/lib/fishing-corrections.mjs	63	code	pending-main-rescan	显式 new Error 构造
+AaFtGRAy5WNdnY_XE2BG	javascript:S7723	scripts/lib/fishing-corrections.mjs	69	code	pending-main-rescan	显式 new Error 构造
+AaFtGRA-5WNdnY_XE2Ba	javascript:S7723	scripts/lib/fishing-crosscheck.mjs	120	code	pending-main-rescan	显式 new Error 构造
+AaFtGRA-5WNdnY_XE2Bc	javascript:S3776	scripts/lib/fishing-crosscheck.mjs	123	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGRA-5WNdnY_XE2Bd	javascript:S7778	scripts/lib/fishing-crosscheck.mjs	134	code	pending-main-rescan	相邻 push 合并，保留数据和说明顺序
+AaFtGRA-5WNdnY_XE2Bl	javascript:S7750	scripts/lib/fishing-crosscheck.mjs	147	code	pending-main-rescan	只需首个匹配项时使用 find
+AaFtGRA25WNdnY_XE2BI	javascript:S3776	scripts/lib/fishing-special-content.mjs	12	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGRA55WNdnY_XE2BP	javascript:S3776	scripts/lib/fish-intuition-audit.mjs	19	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGRA55WNdnY_XE2BT	javascript:S7776	scripts/lib/fish-intuition-audit.mjs	46	code	pending-main-rescan	纯成员判定集合使用 Set，保留集合语义
+AaFtGRA55WNdnY_XE2BU	javascript:S6557	scripts/lib/fish-intuition-audit.mjs	47	code	pending-main-rescan	固定前缀判断使用 startsWith
+AaFtGQ-e5WNdnY_XE18r	typescript:S3358	apps/web/src/app/local/LocalApp.tsx	61	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ-e5WNdnY_XE186	typescript:S3358	apps/web/src/app/local/LocalApp.tsx	236	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ-m5WNdnY_XE19f	typescript:S1121	apps/web/src/app/local/public-resources.ts	8	code	pending-main-rescan	缓存赋值与位计数从表达式中分离为明确语句
+AaFtGQ-P5WNdnY_XE18U	typescript:S4043	apps/web/src/app/local/today-plan.ts	18	code	pending-main-rescan	排序在独立语句执行后再返回或截取，保留比较器和原顺序
+AaFtGRBO5WNdnY_XE2CW	javascript:S9382	scripts/audit-fish-intuition.mjs	22	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBO5WNdnY_XE2CZ	javascript:S9382	scripts/audit-fish-intuition.mjs	35	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRAs5WNdnY_XE2BC	jssecurity:S8705	scripts/ops/release-worker.mjs	22	code	pending-main-rescan	固定白名单与命令形状校验；从允许的 SQL/环境/版本模板重建 argv；拒绝参数注入测试
+AaFtGRAs5WNdnY_XE2BA	javascript:S9382	scripts/ops/release-worker.mjs	37	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRAs5WNdnY_XE2BB	javascript:S9382	scripts/ops/release-worker.mjs	37	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ_W5WNdnY_XE1_P	typescript:S6819	apps/web/src/app/fish/FishingBoard.tsx	320	code	pending-main-rescan	使用原生 fieldset 分组，保留名称及显式无边框布局
+AaFtGQ_g5WNdnY_XE2AH	typescript:S6819	apps/web/src/app/shell/HomeOfficialEvents.tsx	150	code	pending-main-rescan	使用原生 fieldset 分组，保留名称及显式无边框布局
+AaFtGQ_g5WNdnY_XE2AK	typescript:S6845	apps/web/src/app/shell/HomeOfficialEvents.tsx	167	individual-review	FALSE_POSITIVE	具名可滚动活动列表必须保留键盘焦点；MDN overflow 无障碍指引及既有回归测试支持
+AaFtGQ_Q5WNdnY_XE1-4	typescript:S6582	apps/web/src/app/fish/FishReminderPanel.tsx	31	code	pending-main-rescan	可选链或明确的缺失记录提前返回，保留失效配置的拒绝边界
+AaFtGQ_W5WNdnY_XE1_F	typescript:S3776	apps/web/src/app/fish/FishingBoard.tsx	269	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGQ_W5WNdnY_XE1_G	typescript:S3358	apps/web/src/app/fish/FishingBoard.tsx	283	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ_W5WNdnY_XE1_H	typescript:S3358	apps/web/src/app/fish/FishingBoard.tsx	283	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ_W5WNdnY_XE1_I	typescript:S3358	apps/web/src/app/fish/FishingBoard.tsx	283	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ_W5WNdnY_XE1_J	typescript:S3358	apps/web/src/app/fish/FishingBoard.tsx	283	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ_W5WNdnY_XE1_a	typescript:S3358	apps/web/src/app/fish/FishingBoard.tsx	369	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ-F5WNdnY_XE176	typescript:S3776	apps/web/src/app/local/local-notifications.ts	17	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGQ-F5WNdnY_XE178	typescript:S7749	apps/web/src/app/local/local-notifications.ts	20	code	pending-main-rescan	修正数值分组长度，不改变数值
+AaFtGQ-F5WNdnY_XE179	typescript:S7749	apps/web/src/app/local/local-notifications.ts	22	code	pending-main-rescan	修正数值分组长度，不改变数值
+AaFtGQ-F5WNdnY_XE18H	typescript:S9382	apps/web/src/app/local/local-notifications.ts	78	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ_y5WNdnY_XE2AM	javascript:S1481	apps/web/public/fishcake-sync.user.js	74	code	pending-main-rescan	生成器仅在 Hub realm 输出实际使用的文档验证器；完整页面适配器仍保留在 page realm
+AaFtGQ_y5WNdnY_XE2AN	javascript:S7776	apps/web/public/fishcake-sync.user.js	93	code	pending-main-rescan	纯成员判定集合使用 Set，保留集合语义
+AaFtGQ_y5WNdnY_XE2AO	javascript:S3776	apps/web/public/fishcake-sync.user.js	104	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGQ-z5WNdnY_XE193	typescript:S6582	apps/web/src/app/local/fishcake-sync.ts	18	code	pending-main-rescan	可选链或明确的缺失记录提前返回，保留失效配置的拒绝边界
+AaFtGQ-z5WNdnY_XE194	typescript:S3358	apps/web/src/app/local/fishcake-sync.ts	44	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ-z5WNdnY_XE195	typescript:S3358	apps/web/src/app/local/fishcake-sync.ts	44	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ-z5WNdnY_XE196	typescript:S9382	apps/web/src/app/local/fishcake-sync.ts	49	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ-z5WNdnY_XE197	typescript:S9382	apps/web/src/app/local/fishcake-sync.ts	49	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBJ5WNdnY_XE2CA	javascript:S9382	scripts/build-fishing-catalog.mjs	50	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBJ5WNdnY_XE2CE	javascript:S6582	scripts/build-fishing-catalog.mjs	99	code	pending-main-rescan	可选链或明确的缺失记录提前返回，保留失效配置的拒绝边界
+AaFtGRAe5WNdnY_XE2Aq	javascript:S7776	scripts/userscripts/fishcake-runtime.js	2	code	pending-main-rescan	纯成员判定集合使用 Set，保留集合语义
+AaFtGRAe5WNdnY_XE2Ar	javascript:S3776	scripts/userscripts/fishcake-runtime.js	13	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGRAe5WNdnY_XE2Av	javascript:S7785	scripts/userscripts/fishcake-runtime.js	77	individual-review	FALSE_POSITIVE	经典 userscript 被拼入非 async IIFE，不能使用 ES module 顶层 await；保留锁生命周期与拒绝处理
+AaFtGQ9M5WNdnY_XE16s	kotlin:S3776	apps/android/app/src/main/java/uk/zhixia/ff14hub/widgets/widgets/PvpWidgetRenderer.kt	64	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGQ9a5WNdnY_XE162	kotlin:S3776	apps/android/app/src/test/java/uk/zhixia/ff14hub/widgets/widgets/PvpWidgetLayoutTest.kt	63	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGQ9X5WNdnY_XE16w	xml:S5322	apps/android/app/src/main/AndroidManifest.xml	12	code	pending-main-rescan	六个 AppWidget 接收器关闭导出；Android 构建/单测及 API35 系统添加验证
+AaFtGQ9X5WNdnY_XE16x	xml:S5322	apps/android/app/src/main/AndroidManifest.xml	16	code	pending-main-rescan	六个 AppWidget 接收器关闭导出；Android 构建/单测及 API35 系统添加验证
+AaFtGQ9X5WNdnY_XE16y	xml:S5322	apps/android/app/src/main/AndroidManifest.xml	20	code	pending-main-rescan	六个 AppWidget 接收器关闭导出；Android 构建/单测及 API35 系统添加验证
+AaFtGQ9d5WNdnY_XE163	kotlin:S6624	apps/android/app/build.gradle.kts	32	code	pending-main-rescan	Android 依赖版本移入 Gradle version catalog
+AaFtGQ9d5WNdnY_XE164	kotlin:S6624	apps/android/app/build.gradle.kts	33	code	pending-main-rescan	Android 依赖版本移入 Gradle version catalog
+AaFtGQ9d5WNdnY_XE165	kotlin:S6624	apps/android/app/build.gradle.kts	34	code	pending-main-rescan	Android 依赖版本移入 Gradle version catalog
+AaFtGQ9X5WNdnY_XE16z	xml:S5322	apps/android/app/src/main/AndroidManifest.xml	24	code	pending-main-rescan	六个 AppWidget 接收器关闭导出；Android 构建/单测及 API35 系统添加验证
+AaFtGQ9X5WNdnY_XE160	xml:S5322	apps/android/app/src/main/AndroidManifest.xml	28	code	pending-main-rescan	六个 AppWidget 接收器关闭导出；Android 构建/单测及 API35 系统添加验证
+AaFtGQ9X5WNdnY_XE161	xml:S5322	apps/android/app/src/main/AndroidManifest.xml	40	code	pending-main-rescan	六个 AppWidget 接收器关闭导出；Android 构建/单测及 API35 系统添加验证
+AaFtGQ9P5WNdnY_XE16t	kotlin:S1874	apps/android/app/src/main/java/uk/zhixia/ff14hub/widgets/FishCatalogSearch.kt	17	code	pending-main-rescan	弃用的 URL 构造改用 URI.toURL，保留 HTTPS 连接限制
+AaFtGQ9S5WNdnY_XE16u	kotlin:S3776	apps/android/app/src/main/java/uk/zhixia/ff14hub/widgets/MainActivity.kt	28	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGQ9U5WNdnY_XE16v	kotlin:S1874	apps/android/app/src/main/java/uk/zhixia/ff14hub/widgets/WidgetData.kt	109	code	pending-main-rescan	弃用的 URL 构造改用 URI.toURL，保留 HTTPS 连接限制
+AaFtGQ9g5WNdnY_XE166	text:S8569	apps/android/build.gradle.kts		code	pending-main-rescan	Gradle 依赖锁与 SHA256 verification metadata，严格校验构建
+AaFtGQ-15WNdnY_XE19_	typescript:S3358	apps/web/src/app/local/DataManagementPanel.tsx	27	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ-F5WNdnY_XE17_	typescript:S9382	apps/web/src/app/local/local-notifications.ts	29	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ-F5WNdnY_XE18E	typescript:S6582	apps/web/src/app/local/local-notifications.ts	62	code	pending-main-rescan	可选链或明确的缺失记录提前返回，保留失效配置的拒绝边界
+AaFtGRBV5WNdnY_XE2Cp	javascript:S9382	scripts/e2e-local-personal.mjs	57	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBV5WNdnY_XE2Cs	javascript:S9382	scripts/e2e-local-personal.mjs	86	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBR5WNdnY_XE2Cb	javascript:S9382	scripts/e2e-navigation.mjs	50	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ-r5WNdnY_XE19t	typescript:S3358	apps/web/src/app/local/LocalNotificationPanel.tsx	25	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ-F5WNdnY_XE18A	typescript:S4043	apps/web/src/app/local/local-notifications.ts	34	code	pending-main-rescan	排序在独立语句执行后再返回或截取，保留比较器和原顺序
+AaFtGQ-F5WNdnY_XE18B	typescript:S3358	apps/web/src/app/local/local-notifications.ts	39	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ-F5WNdnY_XE18D	typescript:S6582	apps/web/src/app/local/local-notifications.ts	58	code	pending-main-rescan	可选链或明确的缺失记录提前返回，保留失效配置的拒绝边界
+AaFtGQ-F5WNdnY_XE18F	typescript:S7749	apps/web/src/app/local/local-notifications.ts	70	code	pending-main-rescan	修正数值分组长度，不改变数值
+AaFtGQ-F5WNdnY_XE18G	typescript:S9382	apps/web/src/app/local/local-notifications.ts	77	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ-L5WNdnY_XE18L	typescript:S9382	apps/web/src/app/local/remote-sync.ts	40	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ-L5WNdnY_XE18P	typescript:S9382	apps/web/src/app/local/remote-sync.ts	66	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ-L5WNdnY_XE18Q	typescript:S3776	apps/web/src/app/local/remote-sync.ts	94	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGQ-45WNdnY_XE1-D	typescript:S1121	apps/web/src/app/local/secure-storage.ts	4	code	pending-main-rescan	缓存赋值与位计数从表达式中分离为明确语句
+AaFtGRAO5WNdnY_XE2Am	typescript:S6353	packages/shared/src/local-notifications.ts	9	code	pending-main-rescan	ASCII 数字类改为等价的简明语法
+AaFtGRAO5WNdnY_XE2An	typescript:S6353	packages/shared/src/local-notifications.ts	9	code	pending-main-rescan	ASCII 数字类改为等价的简明语法
+AaFtGQ885WNdnY_XE16n	typescript:S7749	worker/api/v1/local-notifications.ts	37	code	pending-main-rescan	修正数值分组长度，不改变数值
+AaFtGQ8w5WNdnY_XE16P	typescript:S3776	worker/modules/reminders/fish-digest.ts	60	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGQ8w5WNdnY_XE16Q	typescript:S9382	worker/modules/reminders/fish-digest.ts	70	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ8w5WNdnY_XE16R	typescript:S9382	worker/modules/reminders/fish-digest.ts	72	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ8w5WNdnY_XE16T	typescript:S9382	worker/modules/reminders/fish-digest.ts	79	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ8w5WNdnY_XE16U	typescript:S9382	worker/modules/reminders/fish-digest.ts	80	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ8w5WNdnY_XE16V	typescript:S9382	worker/modules/reminders/fish-digest.ts	80	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ8w5WNdnY_XE16W	typescript:S9382	worker/modules/reminders/fish-digest.ts	81	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ8w5WNdnY_XE16X	typescript:S9382	worker/modules/reminders/fish-digest.ts	84	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ8w5WNdnY_XE16Y	typescript:S9382	worker/modules/reminders/fish-digest.ts	86	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ8y5WNdnY_XE16c	typescript:S7749	worker/modules/reminders/local-push.ts	13	code	pending-main-rescan	修正数值分组长度，不改变数值
+AaFtGQ8y5WNdnY_XE16e	typescript:S9382	worker/modules/reminders/local-push.ts	28	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ8y5WNdnY_XE16f	typescript:S9382	worker/modules/reminders/local-push.ts	32	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ8y5WNdnY_XE16g	typescript:S9382	worker/modules/reminders/local-push.ts	39	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ8y5WNdnY_XE16h	typescript:S9382	worker/modules/reminders/local-push.ts	40	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ8y5WNdnY_XE16l	typescript:S7749	worker/modules/reminders/local-push.ts	65	code	pending-main-rescan	修正数值分组长度，不改变数值
+AaFtGQ8t5WNdnY_XE16H	typescript:S3776	worker/modules/reminders/notification-channel.ts	18	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGQ-u5WNdnY_XE191	css:S9423	apps/web/src/app/local/field-guide.css	232	code	pending-main-rescan	显式选择器与层叠优先级替换 important；保持 hidden 与减少动态效果行为
+AaFtGRAF5WNdnY_XE2Aj	typescript:S7747	packages/shared/src/nav-directory.ts	8	code	pending-main-rescan	需要删除 URL 参数时显式快照 keys，避免迭代中删除跳项
+AaFtGRBR5WNdnY_XE2Ca	javascript:S9382	scripts/e2e-navigation.mjs	30	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBR5WNdnY_XE2Cc	javascript:S9382	scripts/e2e-navigation.mjs	93	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBR5WNdnY_XE2Cd	javascript:S9382	scripts/e2e-navigation.mjs	93	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBR5WNdnY_XE2Ce	javascript:S9382	scripts/e2e-navigation.mjs	94	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBR5WNdnY_XE2Cf	javascript:S9382	scripts/e2e-navigation.mjs	94	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBR5WNdnY_XE2Cg	javascript:S9382	scripts/e2e-navigation.mjs	95	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBR5WNdnY_XE2Ch	javascript:S9382	scripts/e2e-navigation.mjs	95	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBR5WNdnY_XE2Ci	javascript:S9382	scripts/e2e-navigation.mjs	96	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBR5WNdnY_XE2Cj	javascript:S4036	scripts/e2e-navigation.mjs	110	code	pending-main-rescan	使用系统或程序目录内的绝对命令路径，避免 PATH 命令名查找
+AaFtGRBG5WNdnY_XE2B2	javascript:S7773	scripts/import-navigation.mjs	15	code	pending-main-rescan	Number.parseInt 显式命名空间
+AaFtGRBG5WNdnY_XE2B3	javascript:S7781	scripts/import-navigation.mjs	15	code	pending-main-rescan	固定文本全局替换使用 replaceAll
+AaFtGRBG5WNdnY_XE2B4	javascript:S7781	scripts/import-navigation.mjs	15	code	pending-main-rescan	固定文本全局替换使用 replaceAll
+AaFtGRBG5WNdnY_XE2B5	javascript:S7781	scripts/import-navigation.mjs	15	code	pending-main-rescan	固定文本全局替换使用 replaceAll
+AaFtGRBG5WNdnY_XE2B6	javascript:S9382	scripts/import-navigation.mjs	18	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBG5WNdnY_XE2B7	javascript:S7747	scripts/import-navigation.mjs	59	code	pending-main-rescan	需要删除 URL 参数时显式快照 keys，避免迭代中删除跳项
+AaFtGRBG5WNdnY_XE2B_	javascript:S9382	scripts/import-navigation.mjs	125	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ_I5WNdnY_XE1-o	typescript:S6772	apps/web/src/app/local/LocalLinkEditor.tsx	58	code	pending-main-rescan	标签与控件之间使用明确空白，保持可访问名称
+AaFtGQ_I5WNdnY_XE1-p	typescript:S6772	apps/web/src/app/local/LocalLinkEditor.tsx	61	code	pending-main-rescan	标签与控件之间使用明确空白，保持可访问名称
+AaFtGQ_I5WNdnY_XE1-q	typescript:S6772	apps/web/src/app/local/LocalLinkEditor.tsx	64	code	pending-main-rescan	标签与控件之间使用明确空白，保持可访问名称
+AaFtGQ_A5WNdnY_XE1-R	typescript:S6772	apps/web/src/app/local/LocalSettings.tsx	76	code	pending-main-rescan	标签与控件之间使用明确空白，保持可访问名称
+AaFtGQ_A5WNdnY_XE1-S	typescript:S6772	apps/web/src/app/local/LocalSettings.tsx	79	code	pending-main-rescan	标签与控件之间使用明确空白，保持可访问名称
+AaFtGQ_A5WNdnY_XE1-T	typescript:S6772	apps/web/src/app/local/LocalSettings.tsx	84	code	pending-main-rescan	标签与控件之间使用明确空白，保持可访问名称
+AaFtGQ_A5WNdnY_XE1-U	typescript:S6772	apps/web/src/app/local/LocalSettings.tsx	87	code	pending-main-rescan	标签与控件之间使用明确空白，保持可访问名称
+AaFtGQ_A5WNdnY_XE1-V	typescript:S9382	apps/web/src/app/local/LocalSettings.tsx	112	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ_A5WNdnY_XE1-W	typescript:S9382	apps/web/src/app/local/LocalSettings.tsx	114	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ9D5WNdnY_XE16r	typescript:S3863	worker/api/v1/navigation.ts	15	code	pending-main-rescan	同一响应模块导入合并
+AaFtGQ8q5WNdnY_XE157	typescript:S7773	worker/modules/nav/metadata.ts	40	code	pending-main-rescan	Number.parseInt 显式命名空间
+AaFtGQ8q5WNdnY_XE158	typescript:S7773	worker/modules/nav/metadata.ts	40	code	pending-main-rescan	Number.parseInt 显式命名空间
+AaFtGQ8q5WNdnY_XE16B	typescript:S6594	worker/modules/nav/metadata.ts	98	code	pending-main-rescan	正则捕获使用 RegExp.exec，保持可选捕获组及缺失行为
+AaFtGQ8q5WNdnY_XE16D	typescript:S9382	worker/modules/nav/metadata.ts	167	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGQ-75WNdnY_XE1-J	css:S9423	apps/web/src/app/local/modern-ui.css	146	code	pending-main-rescan	显式选择器与层叠优先级替换 important；保持 hidden 与减少动态效果行为
+AaFtGQ-75WNdnY_XE1-F	css:S7924	apps/web/src/app/local/modern-ui.css	172	code	pending-main-rescan	提高浅色文字、占位文字及图标与既定背景的对比度
+AaFtGQ-75WNdnY_XE1-G	css:S7924	apps/web/src/app/local/modern-ui.css	177	code	pending-main-rescan	提高浅色文字、占位文字及图标与既定背景的对比度
+AaFtGQ-75WNdnY_XE1-H	css:S7924	apps/web/src/app/local/modern-ui.css	204	code	pending-main-rescan	提高浅色文字、占位文字及图标与既定背景的对比度
+AaFtGQ-75WNdnY_XE1-I	css:S7924	apps/web/src/app/local/modern-ui.css	212	code	pending-main-rescan	提高浅色文字、占位文字及图标与既定背景的对比度
+AaFtGQ-75WNdnY_XE1-K	css:S9423	apps/web/src/app/local/modern-ui.css	254	code	pending-main-rescan	显式选择器与层叠优先级替换 important；保持 hidden 与减少动态效果行为
+AaFtGQ-e5WNdnY_XE18x	typescript:S3358	apps/web/src/app/local/LocalApp.tsx	175	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGQ_L5WNdnY_XE1-0	css:S9423	apps/web/src/app/fish/fishing-board.css	18	code	pending-main-rescan	显式选择器与层叠优先级替换 important；保持 hidden 与减少动态效果行为
+AaFtGQ_L5WNdnY_XE1-z	css:S9423	apps/web/src/app/fish/fishing-board.css	18	code	pending-main-rescan	显式选择器与层叠优先级替换 important；保持 hidden 与减少动态效果行为
+AaFtGQ_A5WNdnY_XE1-P	typescript:S3358	apps/web/src/app/local/LocalSettings.tsx	27	code	pending-main-rescan	文案、条件决策与视图组件提取为明确分支，保留优先级
+AaFtGRBJ5WNdnY_XE2CB	javascript:S9382	scripts/build-fishing-catalog.mjs	53	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBJ5WNdnY_XE2CG	javascript:S9382	scripts/build-fishing-catalog.mjs	115	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBV5WNdnY_XE2Cl	javascript:S9382	scripts/e2e-local-personal.mjs	51	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBV5WNdnY_XE2Cm	javascript:S9382	scripts/e2e-local-personal.mjs	51	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBV5WNdnY_XE2Cn	javascript:S9382	scripts/e2e-local-personal.mjs	51	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBV5WNdnY_XE2Co	javascript:S9382	scripts/e2e-local-personal.mjs	51	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBV5WNdnY_XE2Cq	javascript:S9382	scripts/e2e-local-personal.mjs	58	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRBV5WNdnY_XE2Cr	javascript:S9382	scripts/e2e-local-personal.mjs	58	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFtGRA05WNdnY_XE2BH	javascript:S3776	scripts/lib/fish-csv.mjs	2	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGQ9z5WNdnY_XE17e	typescript:S6772	apps/web/src/app/admin/SiteSettingsPanel.tsx	71	code	pending-main-rescan	标签与控件之间使用明确空白，保持可访问名称
+AaFtGQ9z5WNdnY_XE17f	typescript:S6772	apps/web/src/app/admin/SiteSettingsPanel.tsx	75	code	pending-main-rescan	标签与控件之间使用明确空白，保持可访问名称
+AaFtGQ-A5WNdnY_XE170	typescript:S6772	apps/web/src/app/events/CalendarAdminAccess.tsx	47	code	pending-main-rescan	标签与控件之间使用明确空白，保持可访问名称
+AaFtGQ-A5WNdnY_XE171	typescript:S6772	apps/web/src/app/events/CalendarAdminAccess.tsx	50	code	pending-main-rescan	标签与控件之间使用明确空白，保持可访问名称
+AaFtGQ-A5WNdnY_XE172	typescript:S6772	apps/web/src/app/events/CalendarAdminAccess.tsx	53	code	pending-main-rescan	标签与控件之间使用明确空白，保持可访问名称
+AaFtGQ9-5WNdnY_XE17v	typescript:S3776	apps/web/src/app/events/CalendarAdminPanel.tsx	143	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGQ8T5WNdnY_XE15h	typescript:S2068	worker/modules/events/calendar-admin-auth.ts	13	code	pending-main-rescan	密码派生格式标记明确命名为格式标记，常量值与存储兼容性不变
+AaFtGQ8T5WNdnY_XE15i	typescript:S7773	worker/modules/events/calendar-admin-auth.ts	29	code	pending-main-rescan	Number.parseInt 显式命名空间
+AaFtGQ8T5WNdnY_XE15l	typescript:S1121	worker/modules/events/calendar-admin-auth.ts	41	code	pending-main-rescan	缓存赋值与位计数从表达式中分离为明确语句
+AaFtGQ8T5WNdnY_XE15m	typescript:S7755	worker/modules/events/calendar-admin-auth.ts	91	code	pending-main-rescan	末尾字节访问使用 at，保持同一偏移
+AaFtGQ8T5WNdnY_XE15n	typescript:S7503	worker/modules/events/calendar-admin-auth.ts	103	code	pending-main-rescan	仅转发 Promise 的函数移除多余 async
+AaFtGQ8T5WNdnY_XE15o	typescript:S6582	worker/modules/events/calendar-admin-auth.ts	147	code	pending-main-rescan	可选链或明确的缺失记录提前返回，保留失效配置的拒绝边界
+AaFtGRAh5WNdnY_XE2Aw	shell:S6506	scripts/ops/refresh-fish-catalog.sh	25	code	pending-main-rescan	curl 初始协议与重定向协议均限制 HTTPS
+AaFtGRAh5WNdnY_XE2Ax	shelldre:S7679	scripts/ops/refresh-fish-catalog.sh	26	code	pending-main-rescan	Shell 位置参数绑定具名 local 变量
+AaFtGRAh5WNdnY_XE2Ay	shelldre:S7679	scripts/ops/refresh-fish-catalog.sh	26	code	pending-main-rescan	Shell 位置参数绑定具名 local 变量
+AaFtGRAh5WNdnY_XE2Az	shelldre:S7679	scripts/ops/refresh-fish-catalog.sh	26	code	pending-main-rescan	Shell 位置参数绑定具名 local 变量
+AaFtGRAh5WNdnY_XE2A1	shelldre:S7679	scripts/ops/refresh-fish-catalog.sh	27	code	pending-main-rescan	Shell 位置参数绑定具名 local 变量
+AaFtGRBD5WNdnY_XE2Bz	javascript:S3776	scripts/prepare-fish-cn-import.mjs	16	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGQ965WNdnY_XE17p	typescript:S6772	apps/web/src/app/events/PublicCalendarPage.tsx	142	code	pending-main-rescan	标签与控件之间使用明确空白，保持可访问名称
+AaFtGQ965WNdnY_XE17r	typescript:S6819	apps/web/src/app/events/PublicCalendarPage.tsx	153	code	pending-main-rescan	使用原生 fieldset 分组，保留名称及显式无边框布局
+AaFtGQ965WNdnY_XE17s	typescript:S6772	apps/web/src/app/events/PublicCalendarPage.tsx	158	code	pending-main-rescan	标签与控件之间使用明确空白，保持可访问名称
+AaFtGQ965WNdnY_XE17t	typescript:S6772	apps/web/src/app/events/PublicCalendarPage.tsx	164	code	pending-main-rescan	标签与控件之间使用明确空白，保持可访问名称
+AaFtGQ965WNdnY_XE17u	typescript:S6819	apps/web/src/app/events/PublicCalendarPage.tsx	196	code	pending-main-rescan	使用原生 fieldset 分组，保留名称及显式无边框布局
+AaFtGQ8k5WNdnY_XE15u	typescript:S7781	worker/modules/events/calendar-ics.ts	8	code	pending-main-rescan	固定文本全局替换使用 replaceAll
+AaFtGQ8k5WNdnY_XE15v	typescript:S7780	worker/modules/events/calendar-ics.ts	8	code	pending-main-rescan	正则/ICS 转义使用 String.raw 保持源文本
+AaFtGQ8k5WNdnY_XE15w	typescript:S7781	worker/modules/events/calendar-ics.ts	9	code	pending-main-rescan	固定文本全局替换使用 replaceAll
+AaFtGQ8k5WNdnY_XE15x	typescript:S7780	worker/modules/events/calendar-ics.ts	9	code	pending-main-rescan	正则/ICS 转义使用 String.raw 保持源文本
+AaFtGQ8k5WNdnY_XE15y	typescript:S7781	worker/modules/events/calendar-ics.ts	9	code	pending-main-rescan	固定文本全局替换使用 replaceAll
+AaFtGQ8k5WNdnY_XE15z	typescript:S7780	worker/modules/events/calendar-ics.ts	9	code	pending-main-rescan	正则/ICS 转义使用 String.raw 保持源文本
+AaFtGQ8k5WNdnY_XE150	typescript:S7778	worker/modules/events/calendar-ics.ts	69	code	pending-main-rescan	相邻 push 合并，保留数据和说明顺序
+AaFtGQ8k5WNdnY_XE151	typescript:S7778	worker/modules/events/calendar-ics.ts	70	code	pending-main-rescan	相邻 push 合并，保留数据和说明顺序
+AaFtGQ8k5WNdnY_XE152	typescript:S7778	worker/modules/events/calendar-ics.ts	71	code	pending-main-rescan	相邻 push 合并，保留数据和说明顺序
+AaFtGQ8k5WNdnY_XE153	typescript:S7778	worker/modules/events/calendar-ics.ts	73	code	pending-main-rescan	相邻 push 合并，保留数据和说明顺序
+AaFtGQ8k5WNdnY_XE154	typescript:S7778	worker/modules/events/calendar-ics.ts	74	code	pending-main-rescan	相邻 push 合并，保留数据和说明顺序
+AaFS3qvkngdPIRfT-cJH	javascript:S9382	scripts/ops/verify-live.mjs	31	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFS3qvkngdPIRfT-cJI	javascript:S9382	scripts/ops/verify-live.mjs	56	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFSoe7CEya8iWldUtK7	typescript:S6035	worker/modules/events/calendar-feed.ts	111	code	pending-main-rescan	单字符分隔符分支改为字符类，保持全部分隔符
+AaFSoe7CEya8iWldUtLA	typescript:S7780	worker/modules/events/calendar-feed.ts	165	code	pending-main-rescan	正则/ICS 转义使用 String.raw 保持源文本
+AaFSoe7CEya8iWldUtLB	typescript:S7780	worker/modules/events/calendar-feed.ts	166	code	pending-main-rescan	正则/ICS 转义使用 String.raw 保持源文本
+AaFSoe7CEya8iWldUtLC	typescript:S6035	worker/modules/events/calendar-feed.ts	167	code	pending-main-rescan	单字符分隔符分支改为字符类，保持全部分隔符
+AaFSoe7CEya8iWldUtLD	typescript:S7780	worker/modules/events/calendar-feed.ts	167	code	pending-main-rescan	正则/ICS 转义使用 String.raw 保持源文本
+AaFSoe7CEya8iWldUtLE	typescript:S6594	worker/modules/events/calendar-feed.ts	174	code	pending-main-rescan	正则捕获使用 RegExp.exec，保持可选捕获组及缺失行为
+AaFSoME7Kb2a573BQxiG	css:S9423	apps/web/src/app/shell/home.css	58	code	pending-main-rescan	显式选择器与层叠优先级替换 important；保持 hidden 与减少动态效果行为
+AaFOnYKFvVeOeStU51b-	typescript:S7749	worker/modules/reminders/push.ts	20	code	pending-main-rescan	修正数值分组长度，不改变数值
+AaFOaB12K8wdZAVl8YUH	typescript:S3776	packages/fish-engine/src/index.ts	80	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFOaBLiK8wdZAVl8YUF	typescript:S9382	worker/test/fixtures/fish.ts	8	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFOV-1767GBU-uG1F7N	javascript:S7765	apps/web/public/sw.js	102	code	pending-main-rescan	存在性检查使用 includes
+AaFOV-1767GBU-uG1F7O	javascript:S7765	apps/web/public/sw.js	108	code	pending-main-rescan	存在性检查使用 includes
+AaFOV-1767GBU-uG1F7P	javascript:S7765	apps/web/public/sw.js	121	code	pending-main-rescan	存在性检查使用 includes
+AaFOV-1767GBU-uG1F7Q	javascript:S7765	apps/web/public/sw.js	154	code	pending-main-rescan	存在性检查使用 includes
+AaFOV-1767GBU-uG1F7R	javascript:S2819	apps/web/public/sw.js	310	code	pending-main-rescan	Service Worker 消息入口显式验证 origin，并保留同源 window Client 检查
+AaFOV-1767GBU-uG1F7S	javascript:S9382	apps/web/public/sw.js	367	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFOV-1767GBU-uG1F7T	javascript:S9382	apps/web/public/sw.js	368	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFOV-ia67GBU-uG1F7B	typescript:S6582	apps/web/src/app/pwa/register-service-worker.ts	86	code	pending-main-rescan	可选链或明确的缺失记录提前返回，保留失效配置的拒绝边界
+AaFOV-Wm67GBU-uG1F6b	typescript:S4144	packages/shared/src/events-api.ts	258	code	pending-main-rescan	数值和 UTF16 ID 比较共用泛型比较器，保留不减法、不 localeCompare 的契约
+AaFOV-WV67GBU-uG1F6Y	typescript:S3776	packages/shared/src/nav-api.ts	713	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFOV-WV67GBU-uG1F6a	typescript:S3776	packages/shared/src/nav-api.ts	851	code	pending-main-rescan	按视图/状态、审核领域、规则查询、Android 搜索与布局断言职责拆分；测试和复杂度复核
+AaFtGQ9D5WNdnY_XE16q	typescript:S3863	worker/api/v1/navigation.ts	10	code	pending-main-rescan	同一响应模块导入合并
+AaFMz2zhdzrnai1EBF76	css:S9423	apps/web/src/styles.css	224	code	pending-main-rescan	显式选择器与层叠优先级替换 important；保持 hidden 与减少动态效果行为
+AaFL0WJI67GBU-uGZbcq	typescript:S7770	worker/lib/zod-issues.ts	35	code	pending-main-rescan	字符串转换直接使用 String
+AaFL0WJP67GBU-uGZbcr	typescript:S9382	worker/lib/rate-limit.ts	134	code	pending-main-rescan	惰性串行执行、有限重试、保留限批与超时、流异步迭代；不盲目并行副作用
+AaFL0WJd67GBU-uGZbct	typescript:S5869	worker/lib/redact.ts	17	code	pending-main-rescan	不区分大小写正则删除重复字符范围，匹配集合不变
+AaFL0WJd67GBU-uGZbcu	typescript:S5869	worker/lib/redact.ts	17	code	pending-main-rescan	不区分大小写正则删除重复字符范围，匹配集合不变

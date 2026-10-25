@@ -1,9 +1,15 @@
+
+function quotedCsvStep(text,index,field){
+  if(text[index]!=='"'){return {field:field+text[index],quoted:true,index};}
+  if(text[index+1]==='"'){return {field:field+'"',quoted:true,index:index+1};}
+  return {field,quoted:false,index};
+}
 /** RFC4180, including multiline quoted fields in game CSV exports. */
 export function csvRows(text){
   const rows=[];let row=[],field='',quoted=false;
   for(let i=0;i<text.length;i++){
     const c=text[i];
-    if(quoted){if(c==='"'&&text[i+1]==='"'){field+='"';i++;}else if(c==='"')quoted=false;else field+=c;}
+    if(quoted){const next=quotedCsvStep(text,i,field);field=next.field;quoted=next.quoted;i=next.index;}
     else if(c==='"'&&field==='')quoted=true;
     else if(c===','){row.push(field);field='';}
     else if(c==='\n'){row.push(field);rows.push(row);row=[];field='';}

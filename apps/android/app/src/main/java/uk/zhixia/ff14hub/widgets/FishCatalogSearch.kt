@@ -2,7 +2,7 @@ package uk.zhixia.ff14hub.widgets
 
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
-import java.net.URL
+import java.net.URI
 import java.net.URLEncoder
 import javax.net.ssl.HttpsURLConnection
 
@@ -14,7 +14,7 @@ object FishCatalogSearch {
         require(region == "cn" || region == "global")
         require(keyword.isNotBlank() && keyword.length <= 60)
         val escaped=URLEncoder.encode(keyword,"UTF-8")
-        val url=URL("${WidgetData.apiOrigin}/api/v1/fish?region=$region&text=$escaped&limit=30")
+        val url = URI("${WidgetData.apiOrigin}/api/v1/fish?region=$region&text=$escaped&limit=30").toURL()
         val connection=url.openConnection() as HttpsURLConnection
         return try {
             connection.instanceFollowRedirects=false

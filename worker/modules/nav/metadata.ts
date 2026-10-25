@@ -4,7 +4,7 @@
  * SSRF：仅允许公网 DNS 主机的 HTTPS 默认端口；手动验证每次重定向；
  * 禁止 IP 字面量、内网/保留域名，限制跳转、响应字节数和总耗时。
  */
-import {stripHtmlTags} from '@ff14-hub/shared';
+import {readerResults,stripHtmlTags} from '@ff14-hub/shared';
 
 const MAX_HTML_BYTES=96*1024;
 const MAX_REDIRECTS=2;
@@ -37,7 +37,7 @@ function decodeEntities(text:string):string{
   return text.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos|nbsp);/gi,(_,entity:string)=>{
     const key=entity.toLowerCase();
     if(key.startsWith('#')){
-      const code=key.startsWith('#x')?parseInt(key.slice(2),16):parseInt(key.slice(1),10);
+      const code=key.startsWith('#x')?Number.parseInt(key.slice(2),16):Number.parseInt(key.slice(1),10);
       return Number.isInteger(code)&&code>0&&code<=0x10ffff&&!(code>=0xd800&&code<=0xdfff)?String.fromCodePoint(code):'';
     }
     return ({amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' '} as Record<string,string>)[key]??'';
@@ -95,7 +95,7 @@ export function extractSiteMetadata(html:string,siteUrl:URL):SiteMetadata{
   const head=html.split(/<\/head\s*>/i)[0]!.slice(0,MAX_HTML_BYTES);
   const desc:string[]=[];
   let title='', iconUrl:string|null=null;
-  const titleMatch=head.match(/<title(?:\s[^>]*)?>([\s\S]*?)<\/title\s*>/i);
+  const titleMatch=/<title(?:\s[^>]*)?>([\s\S]*?)<\/title\s*>/i.exec(head);
   if(titleMatch)title=normalizeText(titleMatch[1]??'',100);
   for(const match of head.matchAll(/<(?:meta|link)\b[^>]*>/gi)){
     const tag=match[0], attr=attributes(tag);
@@ -114,9 +114,7 @@ async function readHead(response:Response):Promise<string>{
   const decoder=new TextDecoder();
   let bytes=0,text='';
   try{
-    while(true){
-      const {done,value}:ReadableStreamReadResult<Uint8Array>=await reader.read();
-      if(done)break;
+    for await(const {value} of readerResults<Uint8Array>(reader)){
       const left=Math.max(0,MAX_HTML_BYTES-bytes);
       const slice=value.subarray(0,left);
       bytes+=slice.byteLength;
@@ -143,29 +141,26 @@ function metadataRedirect(response:Response,current:URL,target:URL,attempt:numbe
   return redirected;
 }
 
+
+async function fetchMetadataTarget(current:URL,target:URL,attempt:number,signal:AbortSignal,fetcher:typeof fetch):Promise<SiteMetadata>{
+  const response=await fetcher(current.href,{
+    method:'GET',redirect:'manual',signal,headers:{'Accept':'text/html','Range':'bytes=0-'+(MAX_HTML_BYTES-1)},
+  });
+  if(response.status>=300&&response.status<400){
+    const redirected=metadataRedirect(response,current,target,attempt);
+    return fetchMetadataTarget(redirected,target,attempt+1,signal,fetcher);
+  }
+  if(!response.ok){throw new Error('网站返回 HTTP '+response.status);}
+  const type=response.headers.get('Content-Type')?.toLowerCase()??'';
+  if(!type.includes('text/html')&&!type.includes('application/xhtml+xml')){
+    throw new Error('网站没有返回 HTML 页面');
+  }
+  return extractSiteMetadata(await readHead(response),current);
+}
 export async function fetchSiteMetadata(raw:string,fetcher:typeof fetch=fetch):Promise<SiteMetadata>{
   const target=safeMetadataTarget(raw);
-  if(!target)throw new Error('仅支持公开 HTTPS 网站，不能查询内部网络或 IP 地址');
-  let current=target;
-  const abort=new AbortController();
-  const timer=setTimeout(()=>abort.abort(),5000);
-  try{
-    for(let i=0;i<=MAX_REDIRECTS;i++){
-      const response=await fetcher(current.href,{
-        method:'GET',redirect:'manual',signal:abort.signal,
-        headers:{'Accept':'text/html','Range':`bytes=0-${MAX_HTML_BYTES-1}`},
-      });
-      if(response.status>=300&&response.status<400){
-        current=metadataRedirect(response,current,target,i);
-        continue;
-      }
-      if(!response.ok)throw new Error(`网站返回 HTTP ${response.status}`);
-      const type=response.headers.get('Content-Type')?.toLowerCase()??'';
-      if(!type.includes('text/html')&&!type.includes('application/xhtml+xml'))
-        throw new Error('网站没有返回 HTML 页面');
-      // 很多站点的全文很大，但元数据在 head 开头；只流式读取前 96 KiB。
-      return extractSiteMetadata(await readHead(response),current);
-    }
-  }finally{clearTimeout(timer);}
-  throw new Error('无法读取网页元数据');
+  if(!target){throw new Error('仅支持公开 HTTPS 网站，不能查询内部网络或 IP 地址');}
+  const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),5000);
+  try{return await fetchMetadataTarget(target,target,0,abort.signal,fetcher);}
+  finally{clearTimeout(timer);}
 }
