@@ -201,7 +201,7 @@ body { background:var(--bg);color:var(--text);font-family:Inter,'PingFang SC','M
 }
 .local-directory__monogram {
   flex:0 0 32px;width:32px;height:32px;border-radius:8px;border:1px solid #e8edf2;
-  display:grid;place-items:center;color:#617a9b;background:#f5f7fa;font-size:13px;font-weight:600;
+  display:grid;place-items:center;color:#536b8b;background:#f5f7fa;font-size:13px;font-weight:600;
 }
 .local-directory__link-name{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12px;font-weight:550;}
 .local-directory__star{
