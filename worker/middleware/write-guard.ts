@@ -1,7 +1,7 @@
 /**
  * 写请求守卫（HUB-004）：Origin / Content-Type / 体积上限 / JSON 解析。
  *
- * 明确的安全边界（这是**纵深防御**，不是身份认证；认证由 deviceAuth 负责）：
+ * 明确的安全边界（这是**纵深防御**，不是身份认证；认证由各路由的鉴权中间件负责）：
  * 1) Origin：若请求携带 Origin，则必须等于同源或落在 ALLOWED_ORIGINS 白名单内，否则 403。
  *    Origin 缺失时不拒绝——理由：本项目身份凭证走 Authorization 头，不是 ambient credential（Cookie），
  *    因此缺少 Origin 不构成 CSRF 通道；而 Tampermonkey 等非浏览器客户端也可能不带 Origin。

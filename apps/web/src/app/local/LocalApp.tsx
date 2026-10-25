@@ -142,7 +142,7 @@ import {PwaStatusBar} from '../pwa/PwaStatusBar';
 import {useSiteSettings,type SiteSettings} from '../admin/site-settings';
 import {useCalendarAdminSession} from '../events/calendar-admin-session';
 import './local.css';
-import './site-discovery.css';
+import './local-tools.css';
 import './unified-search.css';
 import {GlobalSearch} from './GlobalSearch';
 import {TodoBoard} from './TodoBoard';

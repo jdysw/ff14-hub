@@ -1,0 +1,4 @@
+.site-discovery-trigger{min-height:44px;padding:6px 10px;border:0;background:transparent;color:var(--text);font:inherit;font-size:13px;cursor:pointer}
+.sync-steps{display:flex;gap:8px;list-style:none;padding:0;flex-wrap:wrap;font-size:13px}.sync-steps li{border-bottom:2px solid var(--border);padding:8px}.sync-steps li[aria-current=step]{border-color:var(--accent);color:var(--accent);font-weight:600}
+.sync-diagnostic{border-left:3px solid var(--accent);padding:8px 12px;margin:12px 0;font-size:14px}.backup-status{font-size:13px;color:var(--text-muted)}
+@media(max-width:700px){.local-app .shell__header{flex-wrap:wrap;gap:8px}.local-app__header-actions{flex-wrap:wrap;gap:4px}.site-discovery-trigger{padding-inline:8px}}
