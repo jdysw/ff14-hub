@@ -16,6 +16,9 @@ describe('单用户共享契约',()=>{
     expect(shared).not.toHaveProperty('syncChangesResponseSchema');
     expect(shared).not.toHaveProperty('WORKBENCH_BACKUP_SCHEMA_VERSION');
     expect(shared).not.toHaveProperty('MODULE_CAPABILITIES');
+    for(const retired of ['navSnapshotSchema','navGroupSchema','navMembershipSchema','parseBookmarkHtml','navImportPreviewRequestSchema','workspaceEventSchema','createWorkspaceEventRequestSchema','eventsManageConfigSchema','fishWidgetConfigSchema']){
+      expect(shared).not.toHaveProperty(retired);
+    }
     expect(typeof shared.parseFishDocument).toBe('function');
     expect(typeof shared.fishWindows).toBe('function');
     expect(typeof shared.canonicalNavUrl).toBe('function');

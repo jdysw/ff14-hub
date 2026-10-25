@@ -28,10 +28,6 @@ export interface PublicEventListInput {
   readonly nowMs:number;
   readonly sort?:EventSortOrder;
 }
-export interface EventServiceDeps {readonly db:D1Database;readonly now?:(()=>number)|undefined;}
-export interface EventService {
-  listPublic(input:PublicEventListInput):Promise<PublicEventListResponse>;
-}
 
 function toPublicEvent(row:PublicEventRow):PublicEvent{
   const verificationStatus:EventVerificationStatus=
@@ -45,15 +41,10 @@ function toPublicEvent(row:PublicEventRow):PublicEvent{
   };
 }
 
-export function createEventService({db}:EventServiceDeps):EventService{
-  return {
-    async listPublic(input){
-      const result=await db.prepare(`SELECT ${PUBLIC_EVENT_COLUMNS} FROM events`).all<PublicEventRow>();
-      const all=result.results.map(toPublicEvent);
-      const events=sortEvents(filterEvents(all,{
-        region:input.region??null,phase:input.phase??null,text:input.text??null,nowMs:input.nowMs,
-      }),input.sort??'startsAt');
-      return {events,serverTimeMs:input.nowMs};
-    },
-  };
+export async function listPublicEvents(db:D1Database,input:PublicEventListInput):Promise<PublicEventListResponse>{
+  const result=await db.prepare(`SELECT ${PUBLIC_EVENT_COLUMNS} FROM events`).all<PublicEventRow>();
+  const events=sortEvents(filterEvents(result.results.map(toPublicEvent),{
+    region:input.region??null,phase:input.phase??null,text:input.text??null,nowMs:input.nowMs,
+  }),input.sort??'startsAt');
+  return {events,serverTimeMs:input.nowMs};
 }

@@ -4,8 +4,8 @@ import {afterEach,beforeEach,it,expect,vi} from 'vitest';
 import {FishingBoard,HOME_FISH_PREVIEW_LIMIT,fishBoardSummary,type FishDetailSelection} from '../src/app/fish/FishingBoard';
 import {forecastCatalog} from '../src/app/fish/forecast';
 import type {CatalogFish,FishingCatalog} from '../src/app/fish/catalog';
-import type {FishRegion} from '@ff14-hub/shared';
-import type {DataPort} from '../src/lib/data-port';
+import type {FishProgress,FishRegion} from '@ff14-hub/shared';
+import type {FishingData} from '../src/app/fish/data';
 import {readFileSync} from 'node:fs';
 import {fishingCatalogSchema} from '../src/app/fish/catalog';
 const source=fishingCatalogSchema.parse(JSON.parse(readFileSync('public/fishing/catalog-cn.json','utf8')) as unknown);
@@ -24,7 +24,7 @@ const reminderSettings=vi.hoisted(()=>new Map<string,unknown>());
 vi.mock('../src/app/local/secure-storage',()=>({readDeviceRecord:(key:string)=>Promise.resolve(reminderSettings.get(key)??null),updateDeviceRecord:(key:string,change:(previous:unknown)=>unknown)=>{const next=change(reminderSettings.get(key)??null);reminderSettings.set(key,next);return Promise.resolve(next);}}));
 beforeEach(()=>{reminderSettings.clear();vi.stubGlobal('Worker',ForecastWorker);});
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});
-const publicPort=(catalog=fixture):DataPort=>({moduleId:'ff14.fishing',operations:['fish.catalog'],call:<T,>()=>Promise.resolve(catalog as T)});
+const publicPort=(catalog=fixture):FishingData=>({loadCatalog:()=>Promise.resolve(catalog)});
 
 it('完整鱼窗状态文案分别覆盖计算中、开放中、未来、无限制和全部目录',()=>{
   expect(fishBoardSummary(false,'windows','open',24,3)).toBe('正在计算完整目录的鱼窗…');
@@ -127,14 +127,16 @@ it('renders actionable fish directly, and searches beyond the first 30 records',
 function editablePort(){
   let fields:{region:'cn';fishId:number;field:'caught'|'pinned'|'alarm';value:boolean;revision:number;updatedAt:number}[]=[],watermark=0;
   const writes:{field:string;value:boolean;expectedRevision:number;operationId:string}[]=[];
-  const data:DataPort={moduleId:'ff14.fishing',operations:['fish.catalog','fish.progress','fish.progress.read'],call:<T,>(op:string,input?:unknown):Promise<T>=>{
-    if(op==='fish.catalog')return Promise.resolve({...fixture,fish:[fish[0]],coverage:{total:1,forecast:1,always:0,unknown:0}} as T);
-    if(op==='fish.progress.read')return Promise.resolve({fields:structuredClone(fields),watermark} as T);
-    const edit=input as typeof fields[number]&{expectedRevision:number;operationId:string};const previous=fields.find(f=>f.field===edit.field);
-    if((previous?.revision??0)!==edit.expectedRevision)return Promise.reject(new Error('conflict'));
-    writes.push(edit);fields=fields.filter(f=>f.field!==edit.field);fields.push({region:'cn',fishId:1000,field:edit.field,value:edit.value,revision:edit.expectedRevision+1,updatedAt:Date.now()});watermark++;
-    return Promise.resolve({} as T);
-  }};
+  const data:FishingData={
+    loadCatalog:()=>Promise.resolve({...fixture,fish:[fish[0]!],coverage:{total:1,forecast:1,always:0,unknown:0}}),
+    readProgress:()=>Promise.resolve({fields:structuredClone(fields),watermark}),
+    saveProgress:edit=>{
+      const previous=fields.find(f=>f.field===edit.field);
+      if((previous?.revision??0)!==edit.expectedRevision)return Promise.reject(new Error('conflict'));
+      writes.push(edit);fields=fields.filter(f=>f.field!==edit.field);fields.push({region:'cn',fishId:1000,field:edit.field,value:edit.value,revision:edit.expectedRevision+1,updatedAt:Date.now()});watermark++;
+      return Promise.resolve();
+    },
+  };
   return {data,writes,concurrentEdit(){fields=fields.map(f=>({...f,revision:f.revision+1}));watermark++;}};
 }
 it('undo restores a caught fish after it disappears, using a new revision and operation',async()=>{
@@ -172,12 +174,11 @@ it('shows fish lacking rules in full catalog without a false all-day claim',asyn
 });
 it('keeps failed mutation intent and retries the identical operation',async()=>{
   let attempts=0;const intents:unknown[]=[];
-  const call=vi.fn((operation:string,input?:unknown):Promise<unknown>=>{
-    if(operation==='fish.catalog')return Promise.resolve({...fixture,fish:[fish[0]],coverage:{total:1,forecast:1,always:0,unknown:0}});
-    if(operation==='fish.progress.read')return Promise.resolve({fields:[],watermark:0});
-    intents.push(input);if(attempts++===0)return Promise.reject(new Error('temporary network failure'));return Promise.resolve({});
-  });
-  const data:DataPort={moduleId:'ff14.fishing',operations:['fish.catalog','fish.progress','fish.progress.read'],call:<T,>(op:string,input?:unknown)=>call(op,input) as Promise<T>};
+  const data:FishingData={
+    loadCatalog:()=>Promise.resolve({...fixture,fish:[fish[0]!],coverage:{total:1,forecast:1,always:0,unknown:0}}),
+    readProgress:()=>Promise.resolve({fields:[],watermark:0}),
+    saveProgress:input=>{intents.push(input);if(attempts++===0)return Promise.reject(new Error('temporary network failure'));return Promise.resolve();},
+  };
   render(<FishingBoard data={data}/>);
   fireEvent.click(screen.getByRole('button',{name:'时间天气不限'}));
   const pin=await screen.findByRole('button',{name:'收藏 测试鱼0'});
@@ -273,8 +274,8 @@ it('home defaults to finite open windows, shows next times in future, and unions
     terminate(){this.onmessage=null;}
   }
   vi.stubGlobal('Worker',PhaseWorker);
-  const fields=[{fishId:1001,field:'alarm'},{fishId:1001,field:'pinned'},{fishId:1002,field:'pinned'},{fishId:1002,field:'caught'}].map(f=>({...f,region:'cn',value:true,revision:1,updatedAt:1}));
-  const data:DataPort={moduleId:'ff14.fishing',operations:['fish.catalog','fish.progress.read'],call:<T,>(operation:string)=>Promise.resolve((operation==='fish.catalog'?{...fixture,fish:entries,coverage:{total:3,forecast:3,always:0,unknown:0}}:{fields,watermark:1}) as T)};
+  const fields:FishProgress[]=[{fishId:1001,field:'alarm' as const},{fishId:1001,field:'pinned' as const},{fishId:1002,field:'pinned' as const},{fishId:1002,field:'caught' as const}].map(f=>({...f,region:'cn',value:true,revision:1,updatedAt:1}));
+  const data:FishingData={loadCatalog:()=>Promise.resolve({...fixture,fish:entries,coverage:{total:3,forecast:3,always:0,unknown:0}}),readProgress:()=>Promise.resolve({fields,watermark:1})};
   const open=vi.fn();render(<FishingBoard data={data} embedded onOpenDetail={open}/>);
   await screen.findByRole('button',{name:'查看测试鱼0的完整鱼窗'});expect(document.querySelectorAll('.fish-glance__item')).toHaveLength(1);expect(screen.queryByText('测试鱼2')).toBeNull();
   expect(screen.getByRole('button',{name:'开放中鱼窗'}).getAttribute('aria-pressed')).toBe('true');

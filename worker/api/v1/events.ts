@@ -13,7 +13,7 @@ import { noStoreJson } from '../../lib/response';
 import { nowUtcMs } from '../../lib/util';
 import { methodNotAllowed } from '../../middleware/error-handler';
 import { validateQuery } from '../../middleware/validation';
-import { createEventService } from '../../modules/events/service';
+import { listPublicEvents } from '../../modules/events/service';
 import { CN_CALENDAR_CACHE_MS } from '../../modules/events/calendar-feed';
 import { createOfficialCalendarIcs } from '../../modules/events/calendar-ics';
 import { readOfficialCalendarSnapshot } from '../../modules/events/calendar-snapshot';
@@ -55,13 +55,12 @@ publicEventRoutes.get('/', validateQuery(publicEventQuerySchema), async (c) => {
   // 中间件已经用**同一份输入**校验过，这里的 parse 不会失败；
   // 万一失败（说明中间件链被改动），让它以 500 响亮失败，而不是返回形状不完整的数据。
   const query = publicEventQuerySchema.parse(rawQuery(c.req.url));
-  const service = createEventService({ db: c.env.DB });
   const region: EventRegion | null = query.region ?? null;
   const phase: EventPhase | null = query.phase ?? null;
   const sort: EventSortOrder = query.sort ?? 'startsAt';
   return noStoreJson(
     c,
-    await service.listPublic({
+    await listPublicEvents(c.env.DB,{
       region,
       phase,
       text: query.text ?? null,

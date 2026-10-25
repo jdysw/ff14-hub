@@ -1,24 +1,4 @@
-/**
- * 系统推荐目录（HUB-047 / ADR-0004 D1）——**只读**参考数据。
- *
- * 本文件是 `nav_catalog_links` 的**唯一**写入口（没有任何用户 API 能修改它）。
- * 语义要点：
- *
- * - **版本化、只升不降**：种子里每条都带 `sourceVersion`。`applyCatalogSeed` 用
- *   `INSERT ... ON CONFLICT (id) DO UPDATE ... WHERE excluded.source_version > 现版本`
- *   写入，因此重复调用是幂等的（0 行变化），且**更高版本才覆盖**、绝不会把新数据降级回旧种子。
- * - **来源留痕**：每条都有 `sourceUrl`（写库后的 `source_url`）与 `verifiedAt`。
- *   没有来源与核对时间的条目不允许进种子（`nav-catalog.spec.ts` 表驱动断言）。
- * - **`verificationStatus` 只描述「来源条目本身核对过」**，**绝不**表示网站当前在线：
- *   本阶段没有任何服务端探测（ADR-0004 D4/D12），在线健康状态一律 `unknown`。
- * - **导入决策不在这里实现**：`navCatalogEntryState` / `catalogUpgradePlan` /
- *   `decideCatalogImport` 是共享契约里的**唯一实现**，服务层直接调用（ADR-0004 D5/D1）。
- *
- * ── 种子里的条目为什么只有这几条 ─────────────────────────────────────────────
- * 收录标准是「我确实知道其官方域名（或作者官方仓库）」，并且能在 `sourceUrl` 指到
- * 一个**可核对的公开页面**。不确定域名的站点一律不收录——宁可少一条，也不编造一个
- * 看起来合理的地址。因此这里刻意**不含**任何「大概在哪个域名」的条目。
- */
+/** Public catalog seeds only advance versions; owner edits and source blocking remain separate. */
 import {
   navCatalogEntrySchema,
   type NavCatalogEntry,
@@ -45,13 +25,7 @@ export const NAV_CATALOG_SOURCE_VERSION = 4;
  */
 export const NAV_CATALOG_VERIFIED_AT = Date.parse('2026-10-19T16:00:00Z');
 
-/**
- * 系统推荐目录种子（3–8 条）。每条注释写明**据以核对的来源页面**。
- *
- * 注意 `icon` 一律非空：导入时服务端会 `sanitizeNavIcon(entry.icon)`，若种子给空串就会
- * 落成默认图标 `🔗`，于是刚导入的行立刻被判定为「用户改过」（`navCatalogEntryState`
- * 逐字段比较图标）。种子显式给图标可以避免这个假冲突。
- */
+/** Stable built-in entries retain their original IDs and source attribution. */
 const LEGACY_CATALOG_SEED: readonly NavCatalogEntry[] = [
   {
     // 来源：Square Enix 运营的 FINAL FANTASY XIV 官方门户（www.finalfantasyxiv.com）
@@ -417,27 +391,4 @@ export async function readBaseCatalog(db: D1Database): Promise<NavCatalogEntry[]
     )
     .all<NavCatalogRow>();
   return result.results.map(toCatalogEntry);
-}
-
-/**
- * 按目录 ID 取条目（导入决策用）。
- *
- * 为什么读全表再在内存里过滤：系统目录是**代码里的固定种子**（3–8 条），全表读取的代价
- * 可以忽略，而 `/me/navigation/catalog/import` 传入的 ID 列表长度不受信任——
- * 拼 `IN (?, ?, …)` 会按请求长度生成 SQL 文本。读全表既避免拼接，也让「请求里的 ID
- * 在目录里不存在」成为一个可解释的逐项结果，而不是一个 SQL 构造问题。
- */
-export async function readCatalogByIds(input: {
-  readonly db: D1Database;
-  readonly catalogIds: readonly string[];
-}): Promise<Map<string, NavCatalogEntry>> {
-  const wanted = new Set(input.catalogIds);
-  const entries = await readCatalog({ db: input.db });
-  const byId = new Map<string, NavCatalogEntry>();
-  for (const entry of entries) {
-    if (wanted.has(entry.id)) {
-      byId.set(entry.id, entry);
-    }
-  }
-  return byId;
 }

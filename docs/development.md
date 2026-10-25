@@ -21,6 +21,8 @@ pnpm run dev:api
 - API：`worker/index.ts` → `worker/app.ts` → `worker/api/v1/`。
 - 公共契约和计算：`packages/shared`、`packages/fish-engine`；鱼糕格式处理：`packages/fish-sync`。
 - 定时投递：`worker/scheduled/index.ts`；个人数据：`apps/web/src/app/local/store.ts`。
+- 钓鱼看板通过 `fish/data.ts` 的目录读取、进度读取/保存方法访问本机数据，不经过通用模块操作分发。
+- shared 仅维护现行公共 API、数据校验和纯函数；旧工作空间导航分组、导入恢复及个人活动协议已经退役。
 - Android：`apps/android`，使用独立 Gradle 门禁。
 
 运行 `pnpm run verify` 检查网页、Worker、共享包、生成物和构建；原生 Android 及真实浏览器另外验证，见 [验证清单](manual-release-verification.md)。
