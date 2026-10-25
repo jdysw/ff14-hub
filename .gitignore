@@ -27,7 +27,7 @@ eslint-report.json
 *.log
 npm-debug.log*
 pnpm-debug.log*
-# E2E 运行期生成的**临时**测试凭证（由 scripts/e2e-phase02.mjs 写入并清理，绝不入库）
+# 浏览器验收临时凭证与运行期文件（含历史路径，绝不入库）
 tests/e2e/.credentials.json
 tests/e2e/.credentials.*.json
 tests/e2e/.runtime/

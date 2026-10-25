@@ -24,4 +24,4 @@
 
 问题和资料纠错请 [提交 Issue](https://github.com/jdysw/ff14-hub/issues)，注明操作步骤；鱼类问题请附区服与鱼名。
 
-[构建与验证](docs/manual-release-verification.md) · [部署](docs/automatic-deployment.md) · [来源与致谢](THIRD_PARTY_NOTICES.md)
+[文档](docs/README.md) · [来源与致谢](THIRD_PARTY_NOTICES.md)

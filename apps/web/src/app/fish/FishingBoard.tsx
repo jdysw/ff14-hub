@@ -126,7 +126,7 @@ return <section className="fish-glance" aria-label="钓鱼鱼窗概览" data-tes
       </fieldset>
       <div className="fish-glance__filter-bar"><span>{catalog&&forecasts?`${visible.length} 条 · `:''}{fishHomeFilterDescription({following,hideCaught,kindName})}</span><button type="button" aria-expanded={homeFiltersOpen} aria-controls={homeFilterId} onClick={()=>setHomeFiltersOpen(value=>!value)}><UiIcon name="sliders"/>筛选</button></div>
       <div id={homeFilterId} hidden={!homeFiltersOpen} className="fish-board__filter-tags fish-glance__filter-panel" aria-label="当前鱼窗筛选">
-        {following?<span>收藏或提醒 · 含已钓获</span>:<>{data.operations.includes('fish.progress.read')?<label><input type="checkbox" checked={hideCaught} disabled={!progressReady} onChange={event=>setHideCaught(event.target.checked)}/>只看未钓获</label>:null}
+        {following?<span>收藏或提醒 · 含已钓获</span>:<>{data.readProgress?<label><input type="checkbox" checked={hideCaught} disabled={!progressReady} onChange={event=>setHideCaught(event.target.checked)}/>只看未钓获</label>:null}
         <label>鱼种 <select aria-label="首页鱼种" value={kind} onChange={event=>setKind(event.target.value)}><option value="rare">鱼王 / 鱼皇</option><option value="all">全部鱼种</option></select></label></>}
         <button type="button" onClick={()=>openDetail({view:'all',kind:'all',hideCaught:false,text:''})}>查看全部鱼类</button>
         <button type="button" onClick={()=>setHomeFiltersOpen(false)}>完成筛选</button>
@@ -228,8 +228,8 @@ return `已${intent.value?'标记':'取消'}${field==='caught'?'钓获':'收藏'
 import {useEffect,useId,useMemo,useRef,useState} from 'react';
 import {UiIcon} from '../local/UiIcon';
 import {eorzeaTime,fishProgressResponseSchema,type FishProgress,type FishProgressField,type FishRegion} from '@ff14-hub/shared';
-import type {DataPort} from '../../lib/data-port';
-import {fishingCatalogSchema,type CatalogFish,type FishingCatalog} from './catalog';
+import type {FishingData} from './data';
+import {type CatalogFish,type FishingCatalog} from './catalog';
 import {windowState,type FishForecast} from './forecast';
 import {nextFishingWindowRefresh,subscribeFishingForecast} from './forecast-session';
 import {GAME_DATA_CHANGED,gameDataSource} from '../admin/game-data';
@@ -347,12 +347,12 @@ export interface FishDetailSelection {
 
 interface FishingBoardProps {
   subscribeProgress?:(listener:()=>void)=>()=>void;onNotificationSettings?:()=>void;
-  data:DataPort;initialRegion?:FishRegion;hours?:number;compact?:boolean;embedded?:boolean;expanded?:boolean;initialFilters?:FishDetailSelection|undefined;onOpenDetail?:(selection:FishDetailSelection)=>void;onReady?:()=>void;onError?:((error:unknown)=>void)|undefined;onConnect?:()=>void;onImport?:()=>void;
+  data:FishingData;initialRegion?:FishRegion;hours?:number;compact?:boolean;embedded?:boolean;expanded?:boolean;initialFilters?:FishDetailSelection|undefined;onOpenDetail?:(selection:FishDetailSelection)=>void;onReady?:()=>void;onError?:((error:unknown)=>void)|undefined;onConnect?:()=>void;onImport?:()=>void;
 }
 export function FishingBoard(props:Readonly<FishingBoardProps>){
   const [region,setRegion]=useState(props.initialFilters?.region??props.initialRegion??'cn');
   const [reload,setReload]=useState(0);
-  return <FishingBoardSession key={`${region}:${reload}:${props.data.operations.join(',')}`} {...props} region={region}
+  return <FishingBoardSession key={`${region}:${reload}:${Boolean(props.data.readProgress)+':'+Boolean(props.data.saveProgress)}`} {...props} region={region}
     onRegion={setRegion} onReload={()=>setReload(n=>n+1)}/>;
 }
 function useFishingBoardSessionState({data,region,hours=168,compact=false,embedded=false,expanded=false,initialFilters,onOpenDetail,onReady,onError,onConnect,onImport,onRegion,onReload,subscribeProgress,onNotificationSettings}:FishingBoardProps&{
@@ -375,7 +375,7 @@ function useFishingBoardSessionState({data,region,hours=168,compact=false,embedd
   const offerUndo=useRef(true);
   const mutationInFlight=useRef(false),undoChecking=useRef(false);
   // 首页默认排除已钓获，便于优先查看仍需完成的鱼窗；用户可自行取消筛选。
-  const [hideCaught,setHideCaught]=useState(initialFilters?.hideCaught??(embedded&&data.operations.includes('fish.progress.read')));
+  const [hideCaught,setHideCaught]=useState(initialFilters?.hideCaught??(embedded&&Boolean(data.readProgress)));
   // 时间范围控制首页的数据密度，绝不使用固定条数截断选定范围。
   const [windowHours,setWindowHours]=useState<WindowHours>(initialFilters?.windowHours??24);
   const [homeFiltersOpen,setHomeFiltersOpen]=useState(false);
@@ -395,12 +395,12 @@ function useFishingBoardSessionState({data,region,hours=168,compact=false,embedd
   const [progressReady,setProgressReady]=useState(false);
   const callbacks=useRef({onReady,onError});
   useEffect(()=>{callbacks.current={onReady,onError};});
-  const canEdit=data.operations.includes('fish.progress');
+  const canEdit=Boolean(data.saveProgress);
 
   useEffect(()=>{
     let alive=true;
-    const load=()=>{void data.call('fish.catalog',{region}).then(value=>{
-      const parsed=fishingCatalogSchema.parse(value);
+    const load=()=>{void data.loadCatalog(region).then(value=>{
+      const parsed=value;
       if(alive){setCatalog(parsed);callbacks.current.onReady?.();}
     }).catch((cause:unknown)=>{
       if(alive){setError('鱼类目录加载失败，请重试。');callbacks.current.onError?.(cause);}
@@ -443,10 +443,10 @@ function useFishingBoardSessionState({data,region,hours=168,compact=false,embedd
 
   useEffect(()=>{
     const current=++generation.current;let alive=true;progressWatermark.current=-1;
-    if(!data.operations.includes('fish.progress.read')){return()=>{alive=false;};}
+    if(!data.readProgress){return()=>{alive=false;};}
     const load=async()=>{
       try{
-        const result=fishProgressResponseSchema.parse(await data.call('fish.progress.read',{region}));
+        const result=fishProgressResponseSchema.parse(await data.readProgress!(region));
         if(alive&&current===generation.current&&result.watermark>=progressWatermark.current){progressWatermark.current=result.watermark;setFields(result.fields);setProgressReady(true);if(pendingIntent.current===null){setProgressError(null);}}
       }catch{if(alive){setProgressError('个人进度未能读取；暂时禁止修改，请刷新重试。');}}
     };
@@ -484,8 +484,8 @@ function useFishingBoardSessionState({data,region,hours=168,compact=false,embedd
     if(!pending){offerUndo.current=field==='caught'&&!forced?.undo;}
     const current=generation.current;setBusy(true);setPending(intent);pendingIntent.current=intent;
     try{
-      await data.call('fish.progress',{...intent,region});
-      const fresh=fishProgressResponseSchema.parse(await data.call('fish.progress.read',{region}));
+      await data.saveProgress!({...intent,region});
+      const fresh=fishProgressResponseSchema.parse(await data.readProgress!(region));
       if(current===generation.current&&fresh.watermark>=progressWatermark.current){progressWatermark.current=fresh.watermark;setFields(fresh.fields);setPending(null);pendingIntent.current=null;setProgressError(null);
         const saved=fresh.fields.find(f=>f.fishId===intent.fishId&&f.field===intent.field);
         if(offerUndo.current&&saved?.value===intent.value&&saved.revision===intent.expectedRevision+1){setUndo({fish,value:!intent.value,revision:saved.revision,operationId:crypto.randomUUID(),expiresAt:Date.now()+15000});}
@@ -508,7 +508,7 @@ function useFishingBoardSessionState({data,region,hours=168,compact=false,embedd
   const undoNotice=<output className="fish-board__feedback" style={{display:'block'}}>{feedback}{undo&&undo.expiresAt>now?<button type="button" disabled={busy||pending!==null} onClick={()=>{
     if(undoChecking.current||mutationInFlight.current){return;}undoChecking.current=true;
     void (async()=>{try{
-      const fresh=fishProgressResponseSchema.parse(await data.call('fish.progress.read',{region})),saved=fresh.fields.find(f=>f.fishId===undo.fish.id&&f.field==='caught');
+      const fresh=fishProgressResponseSchema.parse(await data.readProgress!(region)),saved=fresh.fields.find(f=>f.fishId===undo.fish.id&&f.field==='caught');
       if(saved?.revision!==undo.revision||saved.value===undo.value){setUndo(null);setFeedback('这条鱼已被其他页面或同步更新，未覆盖新记录。');return;}
       await write(undo.fish,'caught',{value:undo.value,expectedRevision:undo.revision,operationId:undo.operationId,undo:true});
     }catch{setFeedback('最新进度暂时无法读取，请重试撤销。');}finally{undoChecking.current=false;}})();

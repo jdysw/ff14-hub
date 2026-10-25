@@ -1,43 +1,6 @@
-/**
- * 活动契约测试（HUB-011 / ADR-0004 D8 · D9）。
- *
- * 这里测的是**唯一的判定实现**：阶段推导、区间校验、区服/文本/阶段筛选与排序，
- * 以及 Widget 配置契约与 Manifest 的一致性。服务端查询端点、前端 Widget 与
- * 本文件调用的是同一份代码，因此这些用例就是两端行为的共同基线。
- *
- * 相对导入 `../src/events-api` 而不是 `../src/index`：本文件要能独立验证新契约，
- * 不依赖 barrel（`index.ts`）是否已经接线。
- */
-import { describe, expect, it } from 'vitest';
-import {
-  EVENTS_MESSAGES,
-  EVENTS_MODULE_ID,
-  EVENTS_WIDGET_IDS,
-  EVENT_PHASES,
-  EVENT_REGIONS,
-  EVENT_VERIFICATION_STATUSES,
-  MAX_EVENT_DESCRIPTION_LENGTH,
-  MAX_EVENT_SOURCE_URL_LENGTH,
-  MAX_EVENT_TITLE_LENGTH,
-  createWorkspaceEventRequestSchema,
-  deleteWorkspaceEventRequestSchema,
-  eventListResponseSchema,
-  eventPhase,
-  eventSourceUrlSchema,
-  filterEvents,
-  isHttpsEventSourceUrl,
-  normalizeEventText,
-  publicEventListResponseSchema,
-  publicEventSchema,
-  sortEvents,
-  updateWorkspaceEventRequestSchema,
-  validateEventRange,
-  workspaceEventSchema,
-  type EventPhase,
-  type EventRegion,
-} from '../src/events-api';
+import {describe,expect,it} from 'vitest';
+import {EVENT_PHASES,MAX_EVENT_SOURCE_URL_LENGTH,eventPhase,eventSourceUrlSchema,filterEvents,isHttpsEventSourceUrl,normalizeEventText,publicEventListResponseSchema,publicEventSchema,sortEvents,type EventPhase,type EventRegion} from '../src/events-api';
 
-/** 一个可参与筛选/排序的最小行（只带这两个纯函数需要的字段）。 */
 interface TestEvent {
   readonly id: string;
   readonly region: EventRegion;
@@ -48,9 +11,8 @@ interface TestEvent {
 }
 
 const HOUR = 3_600_000;
-const T0 = 1_700_000_000_000;
 
-const OPERATION_ID = 'op-events-0001';
+const T0 = 1_700_000_000_000;
 
 function testEvent(overrides: Partial<TestEvent> & { readonly id: string }): TestEvent {
   return {
@@ -76,48 +38,6 @@ const publicEventRow = {
   createdAt: T0 - HOUR,
   updatedAt: T0 - HOUR,
 };
-
-const workspaceEventRow = {
-  id: 'evt-ws-1',
-  region: 'global',
-  title: '自记活动',
-  description: '',
-  startsAt: T0,
-  endsAt: T0 + HOUR,
-  sourceUrl: null,
-  verificationStatus: 'unverified',
-  revision: 3,
-  deletedAt: null,
-  createdAt: T0 - HOUR,
-  updatedAt: T0 - HOUR,
-};
-
-// ---------------------------------------------------------------------------
-
-describe('常量与迁移 0009 CHECK 一致', () => {
-  it('区服只有 cn / global，刻意没有 both（INV-08：不混用区服规则）', () => {
-    expect(EVENT_REGIONS).toEqual(['cn', 'global']);
-    expect(EVENT_REGIONS).not.toContain('both');
-  });
-
-  it('验证状态与阶段枚举与迁移 CHECK 一致', () => {
-    expect(EVENT_VERIFICATION_STATUSES).toEqual(['verified', 'unverified']);
-    expect(EVENT_PHASES).toEqual(['upcoming', 'active', 'ended']);
-  });
-
-  it('模块 ID / Widget ID / 长度上限取自同一份常量', () => {
-    expect(EVENTS_MODULE_ID).toBe('ff14.events');
-    expect(EVENTS_WIDGET_IDS).toEqual({ upcoming: 'events-upcoming', manage: 'events-manage', calendar: 'events-calendar' });
-    expect(MAX_EVENT_TITLE_LENGTH).toBe(120);
-    expect(MAX_EVENT_DESCRIPTION_LENGTH).toBe(1000);
-    expect(MAX_EVENT_SOURCE_URL_LENGTH).toBe(2048);
-  });
-
-  it('公共来源为空时有诚实文案（不编造数据）', () => {
-    expect(EVENTS_MESSAGES.publicEmpty.length).toBeGreaterThan(0);
-    expect(EVENTS_MESSAGES.manualOnly).toContain('人工维护');
-  });
-});
 
 describe('eventPhase：边界包含关系', () => {
   const range = { startsAt: T0, endsAt: T0 + HOUR };
@@ -152,33 +72,6 @@ describe('eventPhase：边界包含关系', () => {
     const broken = { startsAt: T0 + HOUR, endsAt: T0 };
     expect(EVENT_PHASES).toContain(eventPhase(broken, T0 + HOUR));
     expect(eventPhase(broken, T0)).toBe('upcoming');
-  });
-});
-
-describe('validateEventRange：唯一区间判定', () => {
-  it('合法区间（含零长度）通过', () => {
-    expect(validateEventRange({ startsAt: T0, endsAt: T0 + HOUR })).toEqual({ ok: true });
-    expect(validateEventRange({ startsAt: T0, endsAt: T0 })).toEqual({ ok: true });
-  });
-
-  it('endsAt 早于 startsAt → ends_before_starts', () => {
-    expect(validateEventRange({ startsAt: T0 + 1, endsAt: T0 })).toEqual({
-      ok: false,
-      reason: 'ends_before_starts',
-    });
-  });
-
-  it('非整数（小数 / NaN / Infinity）→ not_integer，且不因比较恒假而被当成合法', () => {
-    const bad = [
-      { startsAt: T0 + 0.5, endsAt: T0 + HOUR },
-      { startsAt: T0, endsAt: T0 + HOUR + 0.5 },
-      { startsAt: Number.NaN, endsAt: T0 + HOUR },
-      { startsAt: T0, endsAt: Number.POSITIVE_INFINITY },
-      { startsAt: T0, endsAt: Number.NEGATIVE_INFINITY },
-    ];
-    for (const range of bad) {
-      expect(validateEventRange(range)).toEqual({ ok: false, reason: 'not_integer' });
-    }
   });
 });
 
@@ -304,81 +197,16 @@ describe('来源链接只允许 https（ADR-0004 D3）', () => {
   });
 });
 
-describe('Schema：公共行 / 个人行 / 请求体都是 strict', () => {
-  it('公共活动行合法，缺来源链接或区服为 both 时被拒绝', () => {
+describe('公共活动响应',()=>{
+  it('拒绝缺失来源、错误区服和未知字段',()=>{
     expect(publicEventSchema.safeParse(publicEventRow).success).toBe(true);
-    expect(publicEventSchema.safeParse({ ...publicEventRow, sourceUrl: undefined }).success).toBe(false);
-    expect(publicEventSchema.safeParse({ ...publicEventRow, region: 'both' }).success).toBe(false);
-    expect(publicEventSchema.safeParse({ ...publicEventRow, extra: 1 }).success).toBe(false);
+    expect(publicEventSchema.safeParse({...publicEventRow,sourceUrl:undefined}).success).toBe(false);
+    expect(publicEventSchema.safeParse({...publicEventRow,region:'both'}).success).toBe(false);
+    expect(publicEventSchema.safeParse({...publicEventRow,extra:1}).success).toBe(false);
   });
-
-  it('个人活动行允许 sourceUrl=null 与墓碑，但拒绝未知字段与负 revision', () => {
-    expect(workspaceEventSchema.safeParse(workspaceEventRow).success).toBe(true);
-    expect(workspaceEventSchema.safeParse({ ...workspaceEventRow, deletedAt: T0 }).success).toBe(true);
-    expect(workspaceEventSchema.safeParse({ ...workspaceEventRow, sourceUrl: 'http://x.example' }).success).toBe(false);
-    expect(workspaceEventSchema.safeParse({ ...workspaceEventRow, revision: -1 }).success).toBe(false);
-    expect(workspaceEventSchema.safeParse({ ...workspaceEventRow, workspaceId: 'ws-1' }).success).toBe(false);
-  });
-
-  it('新建请求：合法最小体通过，非法区间/非 https 来源/未知字段被拒绝', () => {
-    const minimal = {
-      title: '新活动',
-      region: 'cn',
-      startsAt: T0,
-      endsAt: T0 + HOUR,
-      operationId: OPERATION_ID,
-    };
-    expect(createWorkspaceEventRequestSchema.safeParse(minimal).success).toBe(true);
-    expect(
-      createWorkspaceEventRequestSchema.safeParse({ ...minimal, description: '说明', sourceUrl: null }).success,
-    ).toBe(true);
-    expect(
-      createWorkspaceEventRequestSchema.safeParse({ ...minimal, startsAt: T0 + HOUR, endsAt: T0 }).success,
-    ).toBe(false);
-    expect(
-      createWorkspaceEventRequestSchema.safeParse({ ...minimal, sourceUrl: 'http://example.com' }).success,
-    ).toBe(false);
-    expect(createWorkspaceEventRequestSchema.safeParse({ ...minimal, region: 'both' }).success).toBe(false);
-    expect(createWorkspaceEventRequestSchema.safeParse({ ...minimal, extra: true }).success).toBe(false);
-    expect(createWorkspaceEventRequestSchema.safeParse({ ...minimal, operationId: 'short' }).success).toBe(false);
-  });
-
-  it('更新请求：必须带 expectedRevision + operationId 且至少一个待改字段', () => {
-    const base = { expectedRevision: 1, operationId: OPERATION_ID };
-    expect(updateWorkspaceEventRequestSchema.safeParse({ ...base, title: '改标题' }).success).toBe(true);
-    expect(updateWorkspaceEventRequestSchema.safeParse(base).success).toBe(false);
-    expect(updateWorkspaceEventRequestSchema.safeParse({ title: '改标题', operationId: OPERATION_ID }).success).toBe(
-      false,
-    );
-    expect(
-      updateWorkspaceEventRequestSchema.safeParse({ ...base, title: '改标题', startsAt: T0 + HOUR + 1, endsAt: T0 })
-        .success,
-    ).toBe(false);
-    expect(updateWorkspaceEventRequestSchema.safeParse({ ...base, title: '改标题', extra: 1 }).success).toBe(false);
-  });
-
-  it('删除请求：只有 expectedRevision + operationId，多字段即拒绝', () => {
-    expect(
-      deleteWorkspaceEventRequestSchema.safeParse({ expectedRevision: 2, operationId: OPERATION_ID }).success,
-    ).toBe(true);
-    expect(deleteWorkspaceEventRequestSchema.safeParse({ operationId: OPERATION_ID }).success).toBe(false);
-    expect(
-      deleteWorkspaceEventRequestSchema.safeParse({ expectedRevision: 2, operationId: OPERATION_ID, hard: true })
-        .success,
-    ).toBe(false);
-  });
-
-  it('列表响应形状（公共 / 个人）都带 serverTimeMs', () => {
-    expect(
-      publicEventListResponseSchema.safeParse({ events: [publicEventRow], serverTimeMs: T0 }).success,
-    ).toBe(true);
-    expect(publicEventListResponseSchema.safeParse({ events: [publicEventRow] }).success).toBe(false);
-    expect(
-      eventListResponseSchema.safeParse({ events: [workspaceEventRow], serverTimeMs: T0 }).success,
-    ).toBe(true);
-    expect(
-      eventListResponseSchema.safeParse({ events: [publicEventRow], serverTimeMs: T0 }).success,
-    ).toBe(false);
-    expect(eventListResponseSchema.safeParse({ events: [], serverTimeMs: T0, extra: 1 }).success).toBe(false);
+  it('要求服务端时间且拒绝额外响应字段',()=>{
+    expect(publicEventListResponseSchema.safeParse({events:[publicEventRow],serverTimeMs:T0}).success).toBe(true);
+    expect(publicEventListResponseSchema.safeParse({events:[publicEventRow]}).success).toBe(false);
+    expect(publicEventListResponseSchema.safeParse({events:[],serverTimeMs:T0,extra:1}).success).toBe(false);
   });
 });

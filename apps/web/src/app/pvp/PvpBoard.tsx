@@ -3,7 +3,7 @@ import {useGameData} from '../admin/game-data';
 import {
   beijingDate,beijingHour,crystallineAt,crystallineSchedule,
   formatPvpCountdown,frontlineAt,frontlineSchedule,
-} from './rotation';
+} from '@ff14-hub/shared/pvp-rotation';
 
 interface PvpBoardProps {
   readonly expanded?:boolean;

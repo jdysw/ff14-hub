@@ -6,7 +6,7 @@ import {LocalApp} from '../src/app/local/LocalApp';
 
 const {read,change}=vi.hoisted(()=>({read:vi.fn(),change:vi.fn()}));
 vi.mock('../src/app/local/store',()=>({createLocalStore:()=>({read,change,subscribe:()=>()=>{}})}));
-vi.mock('../src/app/local/fish-port',()=>({localFishPort:()=>({operations:[],call:vi.fn()})}));
+vi.mock('../src/app/local/fish-port',()=>({localFishingData:()=>({loadCatalog:vi.fn()})}));
 vi.mock('../src/app/fish/FishingBoard',()=>({FishingBoard:()=>null}));
 vi.mock('../src/app/shell/HomeOfficialEvents',()=>({HomeOfficialEvents:()=>null}));
 vi.mock('../src/app/fish/catalog',()=>({loadFishingCatalog:()=>Promise.resolve({fish:[]})}));

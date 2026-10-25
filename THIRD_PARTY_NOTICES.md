@@ -8,8 +8,9 @@ Changes: numeric UTC input, explicit supported range, pure function, no Date/loc
 The upstream acknowledges Rogueadyn's SaintCoinach calculation.
 
 Window enumeration, versioned adapters, API and UI integrate with this repository's existing code.
-No game CSV, icon pack or third party fish-rule dataset is bundled. Synthetic examples are visibly
-marked and unverified. Code permission and game-data provenance are recorded separately.
+Raw game CSV and game artwork are not bundled. Public fishing catalogs contain transformed
+factual records; their sources and revisions are described below. Code licensing and data
+redistribution rights are separate; see [data licensing status](docs/data-sources-and-licensing.md).
 
 The Worker uses npm `@block65/webcrypto-web-push` 2.0.0 (MIT, Copyright 2024 Block65 Pte Ltd)
 for Web Push encryption/VAPID. Upstream reviewed at commit `31b7c729f7d9945e66722a95bddead85aea1c43f`:

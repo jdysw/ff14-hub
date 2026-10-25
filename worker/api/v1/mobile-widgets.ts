@@ -19,7 +19,7 @@ export const mobileWidgetRoutes=new Hono<AppBindings>();
 mobileWidgetRoutes.get('/v1/summary',validateQuery(mobileWidgetQueryV1Schema),async(c)=>{
   const params=mobileWidgetQueryV1Schema.parse(Object.fromEntries(new URL(c.req.url).searchParams));
   const now=Date.now();
-  const rules=(await readGameData(c.env.DB)).data.pvp;
+  const gameData=await readGameData(c.env.DB),rules=gameData.data.pvp;
   const front=frontlineAt(now,rules),crystal=crystallineAt(now,rules);
   const pvp:MobileWidgetResponseV1['pvp']={
     frontline:{
@@ -37,7 +37,7 @@ mobileWidgetRoutes.get('/v1/summary',validateQuery(mobileWidgetQueryV1Schema),as
   if(params.fishIds?.length){
     try{
       const chosen=new Set(params.fishIds);
-      const records=(await readFish(c.env.DB,params.region)).filter(record=>chosen.has(record.id));
+      const records=(await readFish(c.env.DB,params.region,gameData)).filter(record=>chosen.has(record.id));
       const windows=records.flatMap(record=>
         fishWindows({region:params.region,rules:[record.rule],from:now,to:now+24*3_600_000})
           .filter(window=>!window.unrestricted&&window.endsAtUtcMs>now)

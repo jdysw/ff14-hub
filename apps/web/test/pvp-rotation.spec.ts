@@ -2,7 +2,7 @@ import {describe,expect,it} from 'vitest';
 import {
   beijingDate,crystallineAt,crystallineSchedule,CRYSTAL_MAPS,formatPvpCountdown,
   frontlineAt,frontlineSchedule,FRONTLINE_MAPS,
-} from '../src/app/pvp/rotation';
+} from '@ff14-hub/shared/pvp-rotation';
 
 describe('PVP fixed-map schedules (Beijing time)',()=>{
   const oct21_1010=Date.parse('2026-10-21T02:10:00Z');

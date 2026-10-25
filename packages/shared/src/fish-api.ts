@@ -5,8 +5,6 @@ export { fishWindows, eorzeaTime, forecastTarget, WEATHER_PERIOD_MS, ET_DAY_MS, 
 export { fishRuleSchema, regionSchema as fishRegionSchema };
 export type { FishRule, FishWindow, FishRegion, FishRecord } from '@ff14-hub/fish-engine';
 export { fishSourceSchema,fishRecordSchema,fishDataBundleSchema } from '@ff14-hub/fish-engine';
-export const FISH_MODULE_ID = 'ff14.fishing';
-export const FISH_WIDGET_ID = 'fishing-windows';
 export const fishCategorySchema = z.enum(['all','rare','normal','big','legendary']);
 export const fishListQuerySchema = z.object({ region: regionSchema, category:fishCategorySchema.default('all'), offset: z.coerce.number().int().min(0).max(100000).default(0),
   limit: z.coerce.number().int().min(1).max(50).default(30), text: z.string().max(100).default('') });
@@ -31,5 +29,3 @@ export const fishProgressResponseSchema = z.object({ fields: z.array(fishProgres
 export const fishProgressWriteSchema = z.object({ region: regionSchema, fishId: z.number().int().positive(), field: fishProgressFieldSchema,
   value: z.boolean(), expectedRevision: z.number().int().min(0), operationId: operationIdSchema }).strict();
 export type FishProgressWrite = z.infer<typeof fishProgressWriteSchema>;
-export const fishWidgetConfigSchema = z.object({ region: regionSchema.default('cn'), hours: z.number().int().min(1).max(168).default(72) }).strict();
-export const fishSnapshotQuerySchema = fishWidgetConfigSchema.extend({category:fishCategorySchema.default('all'),offset:z.number().int().min(0).max(100000).default(0),text:z.string().max(100).default('')});

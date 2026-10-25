@@ -67,7 +67,7 @@ return <section id="local-navigation" className="local-directory" aria-label="�
 }
 import type {Dispatch,SetStateAction,RefObject} from 'react';
 
-function LocalMainContent({view,setView,data,error,settingsTab,dataSection,store,openAdmin,adminSession,setSettingsTab,enabledSections,siteSettings,openModule,setError,dataPort,subscribeProgress,hasFilters,filteredLinks,allLinks,favorites,setFavorites,setVisibleLimit,clearFilters,category,setCategory,setSubcategory,groups,subgroups,subcategory,catalogError,reloadCatalog,catalogLoading,visibleLimit,saveFavorite}:Readonly<{view:LocalView;setView:Dispatch<SetStateAction<LocalView>>;data:LocalData | null;error:string | null;settingsTab:SettingsTab;dataSection:DataSection;store:ReturnType<typeof createLocalStore>;openAdmin:() => void;adminSession:ReturnType<typeof useCalendarAdminSession>;setSettingsTab:Dispatch<SetStateAction<SettingsTab>>;enabledSections:LocalData['configuration']['order'];siteSettings:ReturnType<typeof useSiteSettings>;openModule:(kind: LocalModuleKind, fishFilters?: FishDetailSelection, eventId?: string) => void;setError:Dispatch<SetStateAction<string | null>>;dataPort:ReturnType<typeof localFishPort>;subscribeProgress:(listener: () => void) => () => void;hasFilters:boolean;filteredLinks:ReturnType<typeof directoryLinks>;allLinks:ReturnType<typeof directoryLinks>;favorites:boolean;setFavorites:Dispatch<SetStateAction<boolean>>;setVisibleLimit:Dispatch<SetStateAction<number>>;clearFilters:() => void;category:string;setCategory:Dispatch<SetStateAction<string>>;setSubcategory:Dispatch<SetStateAction<string>>;groups:string[];subgroups:string[];subcategory:string;catalogError:boolean;reloadCatalog:() => void;catalogLoading:boolean;visibleLimit:number;saveFavorite:(link: ReturnType<typeof directoryLinks>[number]) => void}>){
+function LocalMainContent({view,setView,data,error,settingsTab,dataSection,store,openAdmin,adminSession,setSettingsTab,enabledSections,siteSettings,openModule,setError,fishingData,subscribeProgress,hasFilters,filteredLinks,allLinks,favorites,setFavorites,setVisibleLimit,clearFilters,category,setCategory,setSubcategory,groups,subgroups,subcategory,catalogError,reloadCatalog,catalogLoading,visibleLimit,saveFavorite}:Readonly<{view:LocalView;setView:Dispatch<SetStateAction<LocalView>>;data:LocalData | null;error:string | null;settingsTab:SettingsTab;dataSection:DataSection;store:ReturnType<typeof createLocalStore>;openAdmin:() => void;adminSession:ReturnType<typeof useCalendarAdminSession>;setSettingsTab:Dispatch<SetStateAction<SettingsTab>>;enabledSections:LocalData['configuration']['order'];siteSettings:ReturnType<typeof useSiteSettings>;openModule:(kind: LocalModuleKind, fishFilters?: FishDetailSelection, eventId?: string) => void;setError:Dispatch<SetStateAction<string | null>>;fishingData:ReturnType<typeof localFishingData>;subscribeProgress:(listener: () => void) => () => void;hasFilters:boolean;filteredLinks:ReturnType<typeof directoryLinks>;allLinks:ReturnType<typeof directoryLinks>;favorites:boolean;setFavorites:Dispatch<SetStateAction<boolean>>;setVisibleLimit:Dispatch<SetStateAction<number>>;clearFilters:() => void;category:string;setCategory:Dispatch<SetStateAction<string>>;setSubcategory:Dispatch<SetStateAction<string>>;groups:string[];subgroups:string[];subcategory:string;catalogError:boolean;reloadCatalog:() => void;catalogLoading:boolean;visibleLimit:number;saveFavorite:(link: ReturnType<typeof directoryLinks>[number]) => void}>){
 if(view==='admin'){return <Suspense fallback={<output style={{display:'block'}}>正在打开站点后台…</output>}><SiteAdminPage onClose={()=>setView('settings')}/></Suspense>;}
 if(!data){if(error){return <p role="alert">本机数据读取失败。<button type="button" onClick={()=>window.location.reload()}>重试</button></p>;}
 return <output style={{display:'block'}}>正在读取…</output>;}
@@ -82,7 +82,7 @@ return <div className="local-dashboard">
               {enabledSections.length===0?<p className="local-dashboard__empty">
                 <button type="button" onClick={()=>{setSettingsTab('home');setView('settings');}}>启用功能模块 ＋</button>
               </p>:enabledSections.map(section=><div className="local-dashboard__module" key={section} data-module={section}>
-                {<HomeModuleContent {...{section,openModule,store,setError,dataPort,subscribeProgress,data}}/>}
+                {<HomeModuleContent {...{section,openModule,store,setError,fishingData,subscribeProgress,data}}/>}
               </div>)}
             </ModuleGrid>
           </section>
@@ -91,10 +91,10 @@ return <div className="local-dashboard">
         </div>;
 }
 
-function ExpandedModuleContent({expanded,data,store,setExpanded,dataPort,subscribeProgress,setSettingsTab,setView,setDataSection}:Readonly<{expanded:{ kind: LocalModuleKind; origin: ModuleOrigin; fishFilters?: FishDetailSelection; eventId?: string; };data:LocalData;store:ReturnType<typeof createLocalStore>;setExpanded:Dispatch<SetStateAction<{ kind: LocalModuleKind; origin: ModuleOrigin; fishFilters?: FishDetailSelection; eventId?: string; } | null>>;dataPort:ReturnType<typeof localFishPort>;subscribeProgress:(listener: () => void) => () => void;setSettingsTab:Dispatch<SetStateAction<SettingsTab>>;setView:Dispatch<SetStateAction<LocalView>>;setDataSection:Dispatch<SetStateAction<DataSection>>}>){
+function ExpandedModuleContent({expanded,data,store,setExpanded,fishingData,subscribeProgress,setSettingsTab,setView,setDataSection}:Readonly<{expanded:{ kind: LocalModuleKind; origin: ModuleOrigin; fishFilters?: FishDetailSelection; eventId?: string; };data:LocalData;store:ReturnType<typeof createLocalStore>;setExpanded:Dispatch<SetStateAction<{ kind: LocalModuleKind; origin: ModuleOrigin; fishFilters?: FishDetailSelection; eventId?: string; } | null>>;fishingData:ReturnType<typeof localFishingData>;subscribeProgress:(listener: () => void) => () => void;setSettingsTab:Dispatch<SetStateAction<SettingsTab>>;setView:Dispatch<SetStateAction<LocalView>>;setDataSection:Dispatch<SetStateAction<DataSection>>}>){
 if(expanded.kind==='plan'){return <TodoBoard data={data} store={store} expanded/>;}
 if(expanded.kind==='events'){return <PublicCalendarPage overlay {...(expanded.eventId?{initialEventId:expanded.eventId}:{})} onBack={()=>setExpanded(null)}/>;}
-if(expanded.kind==='fishing'){return <FishingBoard data={dataPort} subscribeProgress={subscribeProgress} initialRegion={data.configuration.region} onNotificationSettings={()=>{setExpanded(null);setSettingsTab('notifications');setView('settings');}}
+if(expanded.kind==='fishing'){return <FishingBoard data={fishingData} subscribeProgress={subscribeProgress} initialRegion={data.configuration.region} onNotificationSettings={()=>{setExpanded(null);setSettingsTab('notifications');setView('settings');}}
           initialFilters={expanded.fishFilters} expanded onImport={()=>{
             setExpanded(null);setDataSection('fish');setSettingsTab('data');setView('settings');
           }}/>;}
@@ -108,10 +108,10 @@ if(catalogError){return '暂时无法读取公共目录';}
 return '还没有网站';
 }
 
-function HomeModuleContent({section,openModule,store,setError,dataPort,subscribeProgress,data}:Readonly<{section:"events" | "fishing" | "pvp" | "notes";openModule:(kind: LocalModuleKind, fishFilters?: FishDetailSelection, eventId?: string) => void;store:ReturnType<typeof createLocalStore>;setError:Dispatch<SetStateAction<string | null>>;dataPort:ReturnType<typeof localFishPort>;subscribeProgress:(listener: () => void) => () => void;data:LocalData}>){
+function HomeModuleContent({section,openModule,store,setError,fishingData,subscribeProgress,data}:Readonly<{section:"events" | "fishing" | "pvp" | "notes";openModule:(kind: LocalModuleKind, fishFilters?: FishDetailSelection, eventId?: string) => void;store:ReturnType<typeof createLocalStore>;setError:Dispatch<SetStateAction<string | null>>;fishingData:ReturnType<typeof localFishingData>;subscribeProgress:(listener: () => void) => () => void;data:LocalData}>){
 if(section==='events'){return <HomeOfficialEvents onOpenCalendar={()=>openModule('events')}
                   onHide={()=>{void store.change(document=>{document.data.configuration.visible.events=false;}).catch(()=>setError('设置未能保存到本机'));}}/>;}
-if(section==='fishing'){return <FishingBoard data={dataPort} subscribeProgress={subscribeProgress} initialRegion={data.configuration.region} embedded onOpenDetail={selection=>openModule('fishing',selection)}/>;}
+if(section==='fishing'){return <FishingBoard data={fishingData} subscribeProgress={subscribeProgress} initialRegion={data.configuration.region} embedded onOpenDetail={selection=>openModule('fishing',selection)}/>;}
 if(section==='pvp'){return <PvpBoard onOpenDetail={()=>openModule('pvp')}/>;}
 return <TodoBoard data={data} store={store} onExpand={()=>openModule('notes')}/>;
 }
@@ -131,7 +131,7 @@ import {parseFishLink} from '../fish/fish-link';
 import {PvpBoard} from '../pvp/PvpBoard';
 import {LocalModuleOverlay,type ModuleOrigin} from './LocalModuleOverlay';
 import {createLocalStore,type LocalData} from './store';
-import {localFishPort} from './fish-port';
+import {localFishingData} from './fish-port';
 import {LocalSettings,type SettingsTab} from './LocalSettings';
 import type {DataSection} from './DataManagementPanel';
 import {startLocalNotifications} from './local-notifications';
@@ -142,7 +142,7 @@ import {PwaStatusBar} from '../pwa/PwaStatusBar';
 import {useSiteSettings,type SiteSettings} from '../admin/site-settings';
 import {useCalendarAdminSession} from '../events/calendar-admin-session';
 import './local.css';
-import './site-discovery.css';
+import './local-tools.css';
 import './unified-search.css';
 import {GlobalSearch} from './GlobalSearch';
 import {TodoBoard} from './TodoBoard';
@@ -159,7 +159,7 @@ function siteDomain(url:string):string{
 export function LocalApp(){
   const [store]=useState(()=>createLocalStore());
   const subscribeProgress=useCallback((listener:()=>void)=>store.subscribe(listener),[store]);
-  const dataPort=useMemo(()=>localFishPort(store),[store]);
+  const fishingData=useMemo(()=>localFishingData(store),[store]);
   const [data,setData]=useState<LocalData|null>(null);
   const {catalog,catalogError,catalogLoading,reloadCatalog}=useNavigationCatalog();
   const [error,setError]=useState<string|null>(null);
@@ -262,14 +262,14 @@ export function LocalApp(){
       {data&&searchOpen?<GlobalSearch query={search} links={allLinks} linksLoading={catalogLoading} linksError={catalogError} onRetryLinks={reloadCatalog} initialRegion={data.configuration.region} onFish={openFish} onEvent={openEvent} onFeature={openFeature} onClose={closeSearch}/>:null}
       {siteSettings.announcementEnabled&&siteSettings.announcement.trim()?<aside className="site-public-announcement" aria-label="站点公告">{siteSettings.announcement}</aside>:null}
       {error?<p role="alert" className="notice notice--error">{error}</p>:null}
-      {<LocalMainContent {...{view,setView,data,error,settingsTab,dataSection,store,openAdmin,adminSession,setSettingsTab,enabledSections,siteSettings,openModule,setError,dataPort,subscribeProgress,hasFilters,filteredLinks,allLinks,favorites,setFavorites,setVisibleLimit,clearFilters,category,setCategory,setSubcategory,groups,subgroups,subcategory,catalogError,reloadCatalog,catalogLoading,visibleLimit,saveFavorite}}/>}
+      {<LocalMainContent {...{view,setView,data,error,settingsTab,dataSection,store,openAdmin,adminSession,setSettingsTab,enabledSections,siteSettings,openModule,setError,fishingData,subscribeProgress,hasFilters,filteredLinks,allLinks,favorites,setFavorites,setVisibleLimit,clearFilters,category,setCategory,setSubcategory,groups,subgroups,subcategory,catalogError,reloadCatalog,catalogLoading,visibleLimit,saveFavorite}}/>}
     </main>
     {expanded&&data&&view!=='admin'?<LocalModuleOverlay
       key={expanded.kind+':'+String(expanded.fishFilters?.fishId??'')+':'+String(expanded.fishFilters?.windowStartsAt??'')+':'+String(expanded.eventId??'')}
       title={{events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的待办',plan:'我的待办'}[expanded.kind]}
       origin={expanded.origin}
       onClose={()=>setExpanded(null)}>
-      {<ExpandedModuleContent {...{expanded,data,store,setExpanded,dataPort,subscribeProgress,setSettingsTab,setView,setDataSection}}/>}
+      {<ExpandedModuleContent {...{expanded,data,store,setExpanded,fishingData,subscribeProgress,setSettingsTab,setView,setDataSection}}/>}
     </LocalModuleOverlay>:null}
   </div>;
 }
