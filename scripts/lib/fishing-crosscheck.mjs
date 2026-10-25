@@ -1,6 +1,6 @@
 
 function auditAlternativeBaitRoutes({bait,fishcake,spotId,s}){
-if(!(bait.status==='conflict')){return;}
+if(bait.status!=='conflict'){return;}
 
           const valid=(steps,target,seen=new Set())=>{if(!target||!steps?.length){return false;}const last=steps.at(-1);if(steps.length===1){return last.some(id=>target.baitIds?.includes(id));}return last.some(id=>target.moochIds?.includes(id)&&!seen.has(id)&&valid(steps.slice(0,-1),fishcake.get(id)?.spots.find(p=>p.spotId===spotId),new Set([...seen,id])));};
           bait.status=s&&Object.values(bait.values).every(p=>valid(p,s))?'compatible-alternatives':'recommendation-difference';
@@ -84,7 +84,7 @@ return trackerTime;
 }
 
 function auditOceanConditions({item,s,conventions,additionalEvidence,spotId,node,fields,add,oceanStages,param}){
-if(!(item.method==='ocean')){return;}
+if(item.method!=='ocean'){return;}
 
         const times=s?.ocean?.ikdTimes?normalizedOceanTimes(s.ocean.ikdTimes.map(t=>t.id),conventions.fishcakeOceanTimes):null;
         const extra=Object.fromEntries(additionalEvidence.filter(e=>e.fishId===item.id&&e.spotId===spotId&&e.field==='oceanTime').map(e=>[e.source,e.value]));
@@ -98,7 +98,7 @@ if(!(item.method==='ocean')){return;}
 }
 
 function auditRodConditions({item,s,t,tracker,node,path,teamcraft,spotId,fields,add}){
-if(!(item.method==='rod')){return;}
+if(item.method!=='rod'){return;}
 
         const effective=s?.effectiveConditions??s;
         const trackerTime=trackerEffectiveTime({t,tracker});
@@ -116,7 +116,7 @@ if(!(item.method==='rod')){return;}
 }
 
 function auditRodTackle({item,spotId,t,s,path,fishcake,fields,add,node}){
-if(!(item.method!=='spear')){return;}
+if(item.method==='spear'){return;}
 
         const bait=compareBaitPathSources({item,spotId,t,s,path});
         auditAlternativeBaitRoutes({bait,fishcake,spotId,s});

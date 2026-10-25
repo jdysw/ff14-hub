@@ -34,6 +34,14 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
     try{await action();onSaved();}catch(cause){setError(localSettingsFailure({cause}));}
     finally{setBusy(false);}
   };
+  const applyRecognizedDescription=(link:LocalData['links'][number],metadata:Awaited<ReturnType<typeof fetchNavigationMetadata>>,onChanged:()=>void)=>store.change(document=>{
+    const current=document.data.links.find(item=>item.id===link.id);
+    if(current&&!current.description?.trim()&&current.url===link.url){
+      current.description=metadata.description;
+      if(metadata.iconUrl){current.faviconUrl=metadata.iconUrl;}
+      onChanged();
+    }
+  });
   const move=(section:HomeSection,delta:number)=>{void run(async()=>{
     await store.change(document=>{const order=document.data.configuration.order;const index=order.indexOf(section);const other=order[index+delta];if(other){order[index+delta]=section;order[index]=other;document.data.configuration.orderCustomized=true;}});
   });};
@@ -111,17 +119,11 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
             // 单次最多补齐 10 条，避免大规模抓取或突破服务端频率限制。
             const pending=data.links.filter(link=>!link.description?.trim()).slice(0,10);
             let updated=0;
+            const countUpdated=()=>{updated++;};
             await forEachSequential(pending,async (link)=>{
               const metadata=await fetchNavigationMetadata(link.url).catch(()=>null);
               if(!metadata?.description){return;}
-              await store.change(document=>{
-                const current=document.data.links.find(item=>item.id===link.id);
-                if(current&&!current.description?.trim()&&current.url===link.url){
-                  current.description=metadata.description;
-                  if(metadata.iconUrl){current.faviconUrl=metadata.iconUrl;}
-                  updated++;
-                }
-              });
+              await applyRecognizedDescription(link,metadata,countUpdated);
             });
             setNotice(`补全 ${updated} 条简介；未识别的网站仍可手动编辑。`);
           });}}>批量补全缺失简介（每次最多 10 条）</button>
