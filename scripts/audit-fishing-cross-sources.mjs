@@ -9,12 +9,12 @@ const [directory='.wrangler/fishing-sources',snapshotPath='.wrangler/full-fishca
 const read=name=>readFile(directory+'/'+name,'utf8'),digest=s=>createHash('sha256').update(s).digest('hex');
 const raw=await read('tracker.js'),tracker=JSON.parse(raw.replace(/^const DATA = /,'').replace(/^ {2}([A-Z_]+):/gm,'  "$1":'));
 const versions=JSON.parse(await readFile('data/fishing-sources.json','utf8')),accuracy=JSON.parse(await readFile('data/fishing-accuracy-audit.json','utf8'));
-if(digest(raw)!==accuracy.files['tracker.js'])throw new Error('Pinned tracker hash mismatch');
+if(digest(raw)!==accuracy.files['tracker.js']){throw new Error('Pinned tracker hash mismatch');}
 const snapshotText=await readFile(snapshotPath,'utf8'),snapshot=JSON.parse(snapshotText);
 const conventions=JSON.parse(await readFile('data/fishing-source-conventions.json','utf8'));
 const evidenceText=await readFile('data/fishing-additional-evidence.json','utf8'),additionalEvidence=JSON.parse(evidenceText).records;
-if(conventions.teamcraftRevision!==versions.teamcraft||conventions.fishcakeVersion!==snapshot.version)throw new Error('Source conventions need checking for these source versions');
-if(snapshot.source!=='https://fish.ffmomola.com'||!snapshot.version||new Set(snapshot.fish.map(f=>f.id)).size!==snapshot.fish.length)throw new Error('Invalid public snapshot');
+if(conventions.teamcraftRevision!==versions.teamcraft||conventions.fishcakeVersion!==snapshot.version){throw new Error('Source conventions need checking for these source versions');}
+if(snapshot.source!=='https://fish.ffmomola.com'||!snapshot.version||new Set(snapshot.fish.map(f=>f.id)).size!==snapshot.fish.length){throw new Error('Invalid public snapshot');}
 const inputFiles=['Item.csv','ItemUICategory.csv','EventItem.csv','FishParameter.csv','SpearfishingItem.csv','SpearfishingNotebook.csv','IKDSpot.csv','WKSItemInfo.csv','TerritoryType.csv','FishingSpot.csv','PlaceName.csv','teamcraft.json','tc-fishing-sources.json','tc-fishing-log.json','tc-fishing-spots.json'];
 // 固定文件名、结果按原顺序关联，不允许外部数据控制路径或结果顺序。
 const inputContents=await Promise.all(inputFiles.map(name=>read(name)));
@@ -45,7 +45,7 @@ const fishcake=new Map(snapshot.fish.map(f=>[f.id,f])),weatherAudit=new Map(accu
 const shadowEvidence=new Map();for(const rows of teamcraft.values())for(const node of rows){const p=node.predators??node.alarm?.predators;if(p?.length){const all=shadowEvidence.get(node.id)??[];all.push(p.map(p=>[p.id,p.amount]).sort((a,b)=>a[0]-b[0]));shadowEvidence.set(node.id,all);}}
 const oceanStages=new Map();for(const row of csvTable(inputs['IKDSpot.csv'])){if(Number(row.SpotMain)>0){oceanStages.set(Number(row.SpotMain),'normal');}
   if(Number(row.SpotSub)>0){oceanStages.set(Number(row.SpotSub),'spectral');}}
-const previous=await readFile('data/fishing-full-crosscheck.json','utf8').then(JSON.parse).catch(error=>{if(error.code==='ENOENT')return null;throw error;});
+const previous=await readFile('data/fishing-full-crosscheck.json','utf8').then(JSON.parse).catch(error=>{if(error.code==='ENOENT'){return null;}throw error;});
 const results=await Promise.all(['cn','global'].map(async region=>{
   const path=`apps/web/public/fishing/catalog-${region}.json`;
   const catalog=JSON.parse(await readFile(path,'utf8'));
@@ -62,4 +62,4 @@ const results=await Promise.all(['cn','global'].map(async region=>{
 const report={schemaVersion:1,generatedAt:new Date().toISOString(),meaning:'Every catalog identity and available source spot is checked. Checked means comparable facts have agreement or an explicit corroborated resolution; it does not mean every field has multiple independent sources. Source gaps, representation limits, alternate recommended routes, and raw disagreements are retained.',sources:{...versions,fishcake:snapshot.version,observedAt:snapshot.observedAt,fishcakeSha256:digest(snapshotText),additionalEvidenceSha256:digest(evidenceText),files:Object.fromEntries(Object.entries(inputs).map(([name,bytes])=>[name,digest(bytes)])),trackerSha256:digest(raw)},regions:results};
 await writeFile('data/fishing-full-crosscheck.json',JSON.stringify(report)+'\n');
 await writeFile('data/fishing-fishcake-observations.json',snapshotText);
-console.log(JSON.stringify(results.map(({records,changes,...summary})=>({...summary,changedFields:changes.length,conflictFields:records.flatMap(r=>r.conflicts).reduce((a,c)=>(a[c.field]=(a[c.field]??0)+1,a),{})})),null,2));
+console.log(JSON.stringify(results.map(({records,changes,...summary})=>({...summary,changedFields:changes.length,conflictFields:records.flatMap(r=>r.conflicts).reduce((a,c)=>{a[c.field]=(a[c.field]??0)+1;return a;},{})})),null,2));

@@ -1,3 +1,10 @@
+
+function localSettingsFailure({cause}:Readonly<{cause:unknown}>){
+if(cause instanceof ZodError){return '文件或输入格式不正确，请检查后重试；原有数据仍保留。';}
+if(cause instanceof Error){return cause.message;}
+return '操作失败，原有数据仍保留。';
+}
+import {forEachSequential} from "../../../../../packages/shared/src/sequential-tasks.mjs";
 import {useState} from 'react';
 import {ZodError} from 'zod';
 import type {FishRegion} from '@ff14-hub/shared';
@@ -12,7 +19,7 @@ import {clearSavedHomeLayout} from './ModuleGrid';
 
 const labels:Record<HomeSection,string>={events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的待办'};
 export type SettingsTab='home'|'links'|'notes'|'data'|'notifications';
-export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=false,initialTab='home',initialDataSection='sync'}:{store:LocalStore;data:LocalData;onSaved:()=>void;onAdmin?:()=>void;adminAuthenticated?:boolean;initialTab?:SettingsTab;initialDataSection?:DataSection}){
+export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=false,initialTab='home',initialDataSection='sync'}:Readonly<{store:LocalStore;data:LocalData;onSaved:()=>void;onAdmin?:()=>void;adminAuthenticated?:boolean;initialTab?:SettingsTab;initialDataSection?:DataSection}>){
   const [activeTab,setActiveTab]=useState<SettingsTab>(initialTab);
   const [busy,setBusy]=useState(false);
   const [notice,setNotice]=useState<string|null>(null);
@@ -23,10 +30,18 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
   const [recognizing,setRecognizing]=useState(false);
   usePrivateDraft(Boolean(title||url||description||busy||recognizing));
   const run=async(action:()=>Promise<void>)=>{
-    if(busy)return;setBusy(true);setError(null);setNotice(null);
-    try{await action();onSaved();}catch(cause){setError(cause instanceof ZodError?'文件或输入格式不正确，请检查后重试；原有数据仍保留。':cause instanceof Error?cause.message:'操作失败，原有数据仍保留。');}
+    if(busy){return;}setBusy(true);setError(null);setNotice(null);
+    try{await action();onSaved();}catch(cause){setError(localSettingsFailure({cause}));}
     finally{setBusy(false);}
   };
+  const applyRecognizedDescription=(link:LocalData['links'][number],metadata:Awaited<ReturnType<typeof fetchNavigationMetadata>>,onChanged:()=>void)=>store.change(document=>{
+    const current=document.data.links.find(item=>item.id===link.id);
+    if(current&&!current.description?.trim()&&current.url===link.url){
+      current.description=metadata.description;
+      if(metadata.iconUrl){current.faviconUrl=metadata.iconUrl;}
+      onChanged();
+    }
+  });
   const move=(section:HomeSection,delta:number)=>{void run(async()=>{
     await store.change(document=>{const order=document.data.configuration.order;const index=order.indexOf(section);const other=order[index+delta];if(other){order[index+delta]=section;order[index]=other;document.data.configuration.orderCustomized=true;}});
   });};
@@ -70,30 +85,26 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
         });
         await store.change(document=>{document.data.links.push(link);});
         setTitle('');setUrl('');setDescription('');setFaviconUrl(undefined);
-        if(!link.description)setNotice('已添加网站。自动识别暂未取得简介，可在下方手动补充。');
+        if(!link.description){setNotice('已添加网站。自动识别暂未取得简介，可在下方手动补充。');}
       });}}>
-        <label className="local-settings__field">网站名称
-          <input required value={title} onChange={event=>setTitle(event.target.value)} maxLength={100}/>
+        <label className="local-settings__field">网站名称{' '}<input required value={title} onChange={event=>setTitle(event.target.value)} maxLength={100}/>
         </label>
-        <label className="local-settings__field">HTTPS 地址
-          <input required type="url" value={url} onChange={event=>{
+        <label className="local-settings__field">HTTPS 地址{' '}<input required type="url" value={url} onChange={event=>{
             setUrl(event.target.value);setFaviconUrl(undefined);
           }}/>
         </label>
-        <label className="local-settings__field">分类
-          <input value={category} onChange={event=>setCategory(event.target.value)} maxLength={60}/>
+        <label className="local-settings__field">分类{' '}<input value={category} onChange={event=>setCategory(event.target.value)} maxLength={60}/>
         </label>
-        <label className="local-settings__field">网页简介
-          <textarea value={description} onChange={event=>setDescription(event.target.value)}
+        <label className="local-settings__field">网页简介{' '}<textarea value={description} onChange={event=>setDescription(event.target.value)}
             rows={3} maxLength={240} placeholder="可手动填写，留空将在添加时自动识别。"/>
         </label>
         <div className="local-settings__link-actions">
           <button type="button" disabled={busy||recognizing||!url.trim()} onClick={()=>{
             setRecognizing(true);setError(null);
             void fetchNavigationMetadata(url.trim()).then(metadata=>{
-              if(metadata.title&&!title.trim())setTitle(metadata.title);
-              if(metadata.description)setDescription(metadata.description);
-              if(metadata.iconUrl)setFaviconUrl(metadata.iconUrl);
+              if(metadata.title&&!title.trim()){setTitle(metadata.title);}
+              if(metadata.description){setDescription(metadata.description);}
+              if(metadata.iconUrl){setFaviconUrl(metadata.iconUrl);}
               setNotice(metadata.description?'已提取网站简介，可进一步修改后保存。':'网页没有提供可识别的简介，可自行填写。');
             }).catch(cause=>setError(cause instanceof Error?cause.message:'自动识别失败'))
               .finally(()=>setRecognizing(false));
@@ -108,18 +119,12 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
             // 单次最多补齐 10 条，避免大规模抓取或突破服务端频率限制。
             const pending=data.links.filter(link=>!link.description?.trim()).slice(0,10);
             let updated=0;
-            for(const link of pending){
+            const countUpdated=()=>{updated++;};
+            await forEachSequential(pending,async (link)=>{
               const metadata=await fetchNavigationMetadata(link.url).catch(()=>null);
-              if(!metadata?.description)continue;
-              await store.change(document=>{
-                const current=document.data.links.find(item=>item.id===link.id);
-                if(current&&!current.description?.trim()&&current.url===link.url){
-                  current.description=metadata.description;
-                  if(metadata.iconUrl)current.faviconUrl=metadata.iconUrl;
-                  updated++;
-                }
-              });
-            }
+              if(!metadata?.description){return;}
+              await applyRecognizedDescription(link,metadata,countUpdated);
+            });
             setNotice(`补全 ${updated} 条简介；未识别的网站仍可手动编辑。`);
           });}}>批量补全缺失简介（每次最多 10 条）</button>
       </div>

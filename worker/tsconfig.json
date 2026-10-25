@@ -2,6 +2,7 @@
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2022"],
+    "allowImportingTsExtensions": true,
     // cloudflare:test 的模块声明由 @cloudflare/vitest-pool-workers 的 ./types 子路径导出，
     // 而 @cloudflare/workers-types 提供 workerd 运行时全局（D1Database、Fetcher 等）。
     "types": ["@cloudflare/workers-types", "@cloudflare/vitest-pool-workers/types"]

@@ -18,7 +18,7 @@ export function SiteAdminPage({onClose}: {readonly onClose:()=>void}) {
   const session=useCalendarAdminSession();
   const [gate,setGate]=useState<Gate>('checking');
   const [tab,setTab]=useState<Tab>('overview');
-  const changeTab=(next:Tab)=>{if(next===tab)return;if(hasAnyPrivateDraft()&&!window.confirm('当前有未保存的输入，离开会丢弃这些修改。是否继续？'))return;setTab(next);};
+  const changeTab=(next:Tab)=>{if(next===tab){return;}if(hasAnyPrivateDraft()&&!window.confirm('当前有未保存的输入，离开会丢弃这些修改。是否继续？')){return;}setTab(next);};
   useEffect(()=>{
     const token=calendarAdminSession.get();
     if(!token){void Promise.resolve().then(()=>setGate('signedOut'));return;}
@@ -27,32 +27,32 @@ export function SiteAdminPage({onClose}: {readonly onClose:()=>void}) {
       credentials:'omit',cache:'no-store',signal:controller.signal,
       headers:{Authorization:'Bearer '+token},
     }).then(r=>{
-      if(controller.signal.aborted)return;
+      if(controller.signal.aborted){return;}
       if(r.status===401||r.status===403) {calendarAdminSession.clear();setGate('signedOut');}
-      else setGate(r.ok?'ready':'failed');
-    }).catch(()=>{if(!controller.signal.aborted)setGate('failed');});
+      else {setGate(r.ok?'ready':'failed');}
+    }).catch(()=>{if(!controller.signal.aborted){setGate('failed');}});
     return ()=>controller.abort();
   },[session.version]);
 
   function logout(){
-    if(hasAnyPrivateDraft()&&!window.confirm('有未保存的修改，确定退出并丢弃吗？'))return;
+    if(hasAnyPrivateDraft()&&!window.confirm('有未保存的修改，确定退出并丢弃吗？')){return;}
     const token=calendarAdminSession.get();
-    if(token)void fetch('/api/v1/admin/logout',{
+    if(token){void fetch('/api/v1/admin/logout',{
       method:'POST',credentials:'omit',headers:{Authorization:'Bearer '+token},
-    }).catch(()=>undefined);
+    }).catch(()=>undefined);}
     calendarAdminSession.clear();setTab('overview');setGate('signedOut');
   }
-  if(gate==='checking')return <output className="panel" style={{display:'block'}}>正在验证站点管理员会话…</output>;
-  if(gate==='failed')return <section className="panel" role="alert">
+  if(gate==='checking'){return <output className="panel" style={{display:'block'}}>正在验证站点管理员会话…</output>;}
+  if(gate==='failed'){return <section className="panel" role="alert">
     <h2>管理员服务暂时不可用</h2>
     <button className="text-button" onClick={onClose}>返回设置</button>
     <button className="text-button" onClick={logout}>清除本次会话</button>
-  </section>;
-  if(gate==='signedOut')return <CalendarAdminAccess onClose={onClose} onReady={()=>setGate('checking')}/>;
+  </section>;}
+  if(gate==='signedOut'){return <CalendarAdminAccess onClose={onClose} onReady={()=>setGate('checking')}/>;}
   return <section className="site-admin" aria-label="站点管理员后台">
     <header className="site-admin__header">
       <div>
-        <button type="button" className="text-button" onClick={()=>{if(!hasAnyPrivateDraft()||window.confirm('有未保存的修改，确定离开吗？'))onClose();}}>← 返回我的设置</button>
+        <button type="button" className="text-button" onClick={()=>{if(!hasAnyPrivateDraft()||window.confirm('有未保存的修改，确定离开吗？')){onClose();}}}>← 返回我的设置</button>
         <h2>站点管理</h2>
         <p>所有更改均在服务器授权执行；公开展示设置可直接保存到 D1，无需重新部署。</p>
       </div>

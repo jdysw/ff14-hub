@@ -15,10 +15,13 @@ export function planFish(fish:readonly CatalogFish[],fields:LocalData['fish']['c
       rows.push({fishId:id,region,name:item.name,location:item.location,startsAt:w.startsAtUtcMs,endsAt:w.endsAtUtcMs,candidate:w.candidateOnly});
     }}catch{unavailable++;}
   }
-  return {rows:rows.sort((a,b)=>Math.max(a.startsAt,now)-Math.max(b.startsAt,now)||a.endsAt-b.endsAt||a.fishId-b.fishId),watched:watched.length,limited:watched.length>50,unavailable,unrestricted};
+  rows.sort((a,b)=>Math.max(a.startsAt,now)-Math.max(b.startsAt,now)||a.endsAt-b.endsAt||a.fishId-b.fishId);
+  return {rows,watched:watched.length,limited:watched.length>50,unavailable,unrestricted};
 }
 export function planEvents(events:readonly EventCalendarItem[],now:number){
   const end=chinaDayEnd(now);
   const node=(e:EventCalendarItem)=>Math.min(e.startsAt!==null&&e.startsAt>=now?e.startsAt:Infinity,e.endsAt!==null&&e.endsAt>now?e.endsAt:Infinity);
-  return events.filter(e=>e.startsAt!==null&&(e.endsAt===null||e.endsAt>e.startsAt)&&((e.startsAt>=now&&e.startsAt<end)||(e.endsAt!==null&&e.endsAt>now&&e.endsAt<=end))).sort((a,b)=>node(a)-node(b));
+  const selected=events.filter(e=>e.startsAt!==null&&(e.endsAt===null||e.endsAt>e.startsAt)&&((e.startsAt>=now&&e.startsAt<end)||(e.endsAt!==null&&e.endsAt>now&&e.endsAt<=end)));
+  selected.sort((a,b)=>node(a)-node(b));
+  return selected;
 }

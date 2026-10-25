@@ -67,12 +67,10 @@ export function SiteSettingsPanel() {
   return <section className="site-admin__settings" aria-label="全站设置">
     <header><h3>全站设置</h3><p className="panel__muted">仅展示类配置可以在线修改。密钥、数据库、域名、CORS 与权限策略不能在网页中修改。</p></header>
     {loading?<output style={{display:'block'}}>正在读取站点设置…</output>:<>
-      <label>网站名称
-        <input type="text" required minLength={2} maxLength={48} value={draft.siteName}
+      <label>网站名称{' '}<input type="text" required minLength={2} maxLength={48} value={draft.siteName}
           onChange={e=>patch('siteName',e.target.value)} />
       </label>
-      <label>公开公告
-        <textarea rows={4} maxLength={500} value={draft.announcement}
+      <label>公开公告{' '}<textarea rows={4} maxLength={500} value={draft.announcement}
           placeholder="公告将显示在全站页首，可用于维护通知与活动说明" onChange={e=>patch('announcement',e.target.value)}/>
       </label>
       <label className="site-admin__check"><input type="checkbox" checked={draft.announcementEnabled}

@@ -92,45 +92,7 @@ class MainActivity: Activity() {
         }
         root.addView(fishSearch,LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.WRAP_CONTENT))
-        button("搜索鱼名并添加关注") {
-            val keyword=fishSearch.text.toString().trim()
-            if(keyword.isEmpty()||keyword.length>60){
-                status.text="请输入 1～60 字的鱼类名称"
-            }else{
-                status.text="正在读取公开鱼类目录…"
-                val selectedRegion=if(region.selectedItemPosition==0)"cn" else "global"
-                Thread {
-                    val result=runCatching{FishCatalogSearch.search(selectedRegion,keyword)}
-                    runOnUiThread {
-                        if(!isDestroyed){
-                            result.onSuccess { fish ->
-                                if(fish.isEmpty())status.text="未检索到匹配的鱼类"
-                                else {
-                                    val names=fish.map{ "${it.name}（ID ${it.id}）" }.toTypedArray()
-                                    AlertDialog.Builder(this@MainActivity)
-                                        .setTitle("选择关注鱼（最多 10 种）")
-                                        .setItems(names) { _,position ->
-                                            val selected=fish[position]
-                                            try {
-                                                val original=ids.text.toString().trim()
-                                                val next=if(original.isEmpty())selected.id.toString()
-                                                    else "$original,${selected.id}"
-                                                ids.setText(WidgetData.normalizeFishIds(next))
-                                                status.text="已选择 ${selected.name}，点击“保存设置并刷新”生效"
-                                            }catch(error:IllegalArgumentException){
-                                                status.text=error.message?:"关注鱼数量达到上限"
-                                            }
-                                        }.setNegativeButton("取消",null).show()
-                                    status.text="找到 ${fish.size} 种鱼，请选择"
-                                }
-                            }.onFailure { error ->
-                                status.text="鱼类搜索失败：${error.message?.take(80)?:"网络异常"}"
-                            }
-                        }
-                    }
-                }.start()
-            }
-        }
+        button("搜索鱼名并添加关注") { searchFish(fishSearch, region, ids, status) }
         button("保存设置并刷新"){ 
             try {
                 WidgetData.saveSettings(this,if(region.selectedItemPosition==0)"cn" else "global",
@@ -151,5 +113,46 @@ class MainActivity: Activity() {
         }
         label("PVP 首次离线也可使用内置国服规则，联网后自动校验更新；鱼窗及活动以缓存有效期为准。对于时间待核实的鱼和公告，不会编造准确提醒。",12f)
         label("本阶段仅提供桌面小部件；鱼窗推送、钓获记录 WebDAV 同步及精准通知尚未接入 Android。",12f)
+    }
+
+    private fun searchFish(input: EditText, region: Spinner, ids: EditText, status: TextView) {
+        val keyword = input.text.toString().trim()
+        if (keyword.isEmpty() || keyword.length > 60) {
+            status.text = "请输入 1～60 字的鱼类名称"
+            return
+        }
+        status.text = "正在读取公开鱼类目录…"
+        val selectedRegion = if (region.selectedItemPosition == 0) "cn" else "global"
+        Thread {
+            val result = runCatching { FishCatalogSearch.search(selectedRegion, keyword) }
+            runOnUiThread {
+                if (!isDestroyed) {
+                    result.onSuccess { fish -> showFishChoices(fish, ids, status) }
+                        .onFailure { error -> status.text = "鱼类搜索失败：" + (error.message?.take(80) ?: "网络异常") }
+                }
+            }
+        }.start()
+    }
+
+    private fun showFishChoices(fish: List<SearchFish>, ids: EditText, status: TextView) {
+        if (fish.isEmpty()) {
+            status.text = "未检索到匹配的鱼类"
+            return
+        }
+        val names = fish.map { it.name + "（ID " + it.id + "）" }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("选择关注鱼（最多 10 种）")
+            .setItems(names) { _, position ->
+                val selected = fish[position]
+                try {
+                    val original = ids.text.toString().trim()
+                    val next = if (original.isEmpty()) selected.id.toString() else original + "," + selected.id
+                    ids.setText(WidgetData.normalizeFishIds(next))
+                    status.text = "已选择 " + selected.name + "，点击“保存设置并刷新”生效"
+                } catch (error: IllegalArgumentException) {
+                    status.text = error.message ?: "关注鱼数量达到上限"
+                }
+            }.setNegativeButton("取消", null).show()
+        status.text = "找到 " + fish.size + " 种鱼，请选择"
     }
 }

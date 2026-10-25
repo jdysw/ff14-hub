@@ -37,7 +37,7 @@
     "smoke:local": "node scripts/smoke-local.mjs",
     "e2e:local-personal": "node scripts/e2e-local-personal.mjs",
     "ops:preflight": "node scripts/ops/preflight.mjs",
-    "test:ops": "node --test scripts/ops/ops.test.mjs scripts/ops/verify-live.test.mjs scripts/ops/snapshot-official-calendar.test.mjs scripts/ops/fish-import.test.mjs scripts/ops/fish-cn-import.test.mjs scripts/ops/fish-accuracy.test.mjs scripts/ops/fishcake-adapter.test.mjs scripts/ops/fish-intuition.test.mjs scripts/ops/fishing-crosscheck.test.mjs scripts/ops/release-worker.test.mjs scripts/ops/d1-readiness.test.mjs scripts/smoke-local.test.mjs",
+    "test:ops": "node --test scripts/ops/ops.test.mjs scripts/ops/verify-live.test.mjs scripts/ops/snapshot-official-calendar.test.mjs scripts/ops/fish-import.test.mjs scripts/ops/fish-cn-import.test.mjs scripts/ops/fish-accuracy.test.mjs scripts/ops/fishcake-adapter.test.mjs scripts/ops/fish-intuition.test.mjs scripts/ops/fishing-crosscheck.test.mjs scripts/ops/release-worker.test.mjs scripts/ops/d1-readiness.test.mjs scripts/smoke-local.test.mjs scripts/ops/navigation-source-text.test.mjs scripts/ops/fishcake-runtime.test.mjs",
     "audit:prod": "pnpm audit --prod --registry=https://registry.npmjs.org",
     "verify": "pnpm run check:fishcake-script && pnpm run check:android-pvp && pnpm run test:db-baseline && pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run test:ops && pnpm run build",
     "test:db-baseline": "node scripts/ops/check-d1-baseline.mjs",

@@ -138,8 +138,7 @@ export function PublicCalendarPage({ onBack, overlay = false,initialEventId }: {
       </div>
     </header>
     {state.status === 'loading' && <output className="home-state" style={{display:'block'}}>正在加载国服官方活动…</output>}
-    {state.status === 'failed' && <p className="notice notice--error" role="alert">国服活动暂时不可用。
-      <button type="button" className="text-button" onClick={() => {
+    {state.status === 'failed' && <p className="notice notice--error" role="alert">国服活动暂时不可用。{' '}<button type="button" className="text-button" onClick={() => {
         setState({ status: 'loading' }); setAttempt(i => i + 1);
       }}>重试</button></p>}
     {state.status === 'loaded' && <>
@@ -150,18 +149,16 @@ export function PublicCalendarPage({ onBack, overlay = false,initialEventId }: {
         {summary('24 小时内结束', overview.ending.length, 'ending')}
       </div>
       <div className="calendar-center__toolbar">
-        <div className="calendar-center__mode" role="group" aria-label="活动视图">
+        <fieldset className="calendar-center__mode" style={{border:0,margin:0,padding:0,minWidth:0}} aria-label="活动视图">
           <button type="button" aria-pressed={mode === 'month'} onClick={() => setMode('month')}>月历</button>
           <button type="button" aria-pressed={mode === 'list'} onClick={() => setMode('list')}>列表</button>
-        </div>
-        <label>活动类别
-          <select value={category} onChange={e => setCategory(e.target.value)}>
+        </fieldset>
+        <label>活动类别{' '}<select value={category} onChange={e => setCategory(e.target.value)}>
             <option value="all">全部类别</option>
             {categories.map(name => <option value={name} key={name}>{name}</option>)}
           </select>
         </label>
-        <label>搜索活动
-          <input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="名称、关键词"/>
+        <label>搜索活动{' '}<input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="名称、关键词"/>
         </label>
       </div>
       {mode === 'month' ? <div className="calendar-center__month-layout">
@@ -193,10 +190,10 @@ export function PublicCalendarPage({ onBack, overlay = false,initialEventId }: {
           {hasFilter && <p className="panel__muted">当前日期结果已应用搜索与类别筛选。</p>}
         </section>
       </div> : <section className="calendar-center__list" aria-label="国服活动列表">
-        <div className="calendar-center__phase-tabs" role="group" aria-label="活动状态筛选">
+        <fieldset className="calendar-center__phase-tabs" style={{border:0,margin:0,padding:0,minWidth:0}} aria-label="活动状态筛选">
           {PHASES.map(f => <button type="button" key={f.value} aria-pressed={phase === f.value}
             onClick={() => setPhase(f.value)}>{f.label}</button>)}
-        </div>
+        </fieldset>
         <h3>{phase === 'history' ? '历史已结束' : '已确认开始时间的活动'} · {knownList.length} 项</h3>
         {knownList.length ? <ul className="calendar-center__events">{knownList.map(x => <CalendarEvent key={x.id} event={x} now={now}/>)}</ul>
           : <p className="home-state">此筛选条件下暂无已确认日程。</p>}

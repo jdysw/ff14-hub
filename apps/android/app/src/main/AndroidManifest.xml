@@ -9,23 +9,23 @@
    <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
   </activity>
   <activity android:name=".PvpPreviewActivity" android:exported="false"/>
-  <receiver android:name=".widgets.FrontlineWidgetProvider" android:exported="true" android:label="@string/pvp_small_widget">
+  <receiver android:name=".widgets.FrontlineWidgetProvider" android:exported="false" android:label="@string/pvp_small_widget">
    <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
    <meta-data android:name="android.appwidget.provider" android:resource="@xml/frontline_widget_info"/>
   </receiver>
-  <receiver android:name=".widgets.CrystallineWidgetProvider" android:exported="true" android:label="@string/pvp_medium_widget">
+  <receiver android:name=".widgets.CrystallineWidgetProvider" android:exported="false" android:label="@string/pvp_medium_widget">
    <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
    <meta-data android:name="android.appwidget.provider" android:resource="@xml/crystalline_widget_info"/>
   </receiver>
-  <receiver android:name=".widgets.PvpLargeWidgetProvider" android:exported="true" android:label="@string/pvp_large_widget">
+  <receiver android:name=".widgets.PvpLargeWidgetProvider" android:exported="false" android:label="@string/pvp_large_widget">
    <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
    <meta-data android:name="android.appwidget.provider" android:resource="@xml/pvp_large_widget_info"/>
   </receiver>
-  <receiver android:name=".widgets.FishWidgetProvider" android:exported="true">
+  <receiver android:name=".widgets.FishWidgetProvider" android:exported="false">
    <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
    <meta-data android:name="android.appwidget.provider" android:resource="@xml/fish_widget_info"/>
   </receiver>
-  <receiver android:name=".widgets.EventsWidgetProvider" android:exported="true">
+  <receiver android:name=".widgets.EventsWidgetProvider" android:exported="false">
    <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
    <meta-data android:name="android.appwidget.provider" android:resource="@xml/events_widget_info"/>
   </receiver>
@@ -37,7 +37,7 @@
     <action android:name="android.intent.action.TIMEZONE_CHANGED"/>
    </intent-filter>
   </receiver>
-  <receiver android:name=".widgets.OverviewWidgetProvider" android:exported="true">
+  <receiver android:name=".widgets.OverviewWidgetProvider" android:exported="false">
    <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter>
    <meta-data android:name="android.appwidget.provider" android:resource="@xml/overview_widget_info"/>
   </receiver>

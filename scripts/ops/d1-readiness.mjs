@@ -11,12 +11,12 @@ const requiredTables=[
  'site_admin_settings_audit','nav_catalog_edits','nav_catalog_audit','local_push_devices','local_push_jobs',
  'admin_content_state','admin_content_audit','admin_sync_runs','site_game_data','site_game_data_history',
 ];
-export const READ_ONLY_QUERIES={
+export const READ_ONLY_QUERIES=Object.freeze({
  tables:"SELECT name FROM sqlite_master WHERE type='table'",
  migrations:"SELECT name FROM d1_migrations ORDER BY id",
  fish:"SELECT region,COUNT(*) AS entries FROM fish_catalog GROUP BY region",
  foreignKeys:"PRAGMA foreign_key_check",
-};
+});
 export function readResults(raw){
  const value=JSON.parse(raw);
  if(!Array.isArray(value)||value.length!==1||value[0]?.success!==true||!Array.isArray(value[0].results)){
@@ -29,7 +29,7 @@ export function assessReadiness({tables,migrations,fish,foreignKeys}){
  const missingTables=requiredTables.filter(name=>!known.has(name));
  const names=migrations.map(row=>row.name);
  const firstBaseline=names.includes('0001_core.sql');
- const oldChain=names.some(name=>/^00(?:0[2-9]|1[0-9]|2[01])_/.test(name));
+ const oldChain=names.some(name=>/^00(?:0[2-9]|1\d|2[01])_/.test(name));
  const partialLegacy=oldChain&&!names.some(name=>name.startsWith('0021_'));
  const fishCounts=Object.fromEntries(fish.map(row=>[row.region,Number(row.entries)]));
  const absentFish=['cn','global'].filter(region=>!Number.isSafeInteger(fishCounts[region])||fishCounts[region]<=0);
@@ -51,7 +51,10 @@ export function runReadOnlyQuery(environment,mode,sql,{runner=spawnSync}={}){
    throw new Error('非法 D1 只读查询参数');
  }
  const wrangler=path.join(root,'node_modules','wrangler','bin','wrangler.js');
- const args=[wrangler,'d1','execute','DB',...(environment==='development'?[]:['--env',environment]),mode,'--command',sql,'--json'];
+ const query=Object.values(READ_ONLY_QUERIES).find(allowed=>allowed===sql);
+ const target=environment==='production'?'production':'preview';
+ const location=mode==='--local'?'--local':'--remote';
+ const args=[wrangler,'d1','execute','DB',...(environment==='development'?[]:['--env',target]),location,'--command',query,'--json'];
  const response=runner(process.execPath,args,{cwd:root,encoding:'utf8',maxBuffer:4*1024*1024,timeout:45000});
  if(response.error||response.status!==0)throw new Error('D1 只读查询失败：检查 Wrangler 凭据、环境与迁移状态');
  return readResults(response.stdout);

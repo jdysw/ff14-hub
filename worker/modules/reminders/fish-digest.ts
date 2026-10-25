@@ -1,3 +1,4 @@
+import {forEachSequential} from "../../../packages/shared/src/sequential-tasks.mjs";
 import {z} from 'zod';
 import {fishDigestSchema,fishRuleSchema,fishWindows,type FishDigestSettings,type EventCalendarItem} from '@ff14-hub/shared';
 import type {Env} from '../../env';
@@ -62,10 +63,10 @@ export async function planDailyFishDigests(env:Env,now:number){
   const catalogs:Partial<Record<'cn'|'global',Catalog>>={};
   const rawCatalogs:Partial<Record<'cn'|'global',unknown[]>>={};
   let events:EventCalendarItem[]|undefined;
-  for(const row of rows.results){
+  await forEachSequential(rows.results,async (row)=>{
     const settings=fishDigestSchema.parse(JSON.parse(row.digest_json) as unknown);
-    if(!settings.enabled){continue;}
-    for(const region of new Set(settings.targets.map(target=>target.region))){
+    if(!settings.enabled){return;}
+    await forEachSequential(new Set(settings.targets.map(target=>target.region)),async (region)=>{
       if(!rawCatalogs[region]){
         const response=await env.ASSETS.fetch(new Request('https://assets.invalid/fishing/catalog-'+region+'.json'));
         if(!response.ok){throw new Error('digest_catalog_unavailable');}
@@ -74,19 +75,19 @@ export async function planDailyFishDigests(env:Env,now:number){
       }
       const wanted=new Set(settings.targets.filter(target=>target.region===region).map(target=>target.fishId));
       catalogs[region]={fish:rawCatalogs[region].filter((item):item is {id:number}=>item!==null&&typeof item==='object'&&'id' in item&&typeof item.id==='number'&&wanted.has(item.id)).map(item=>digestFishSchema.parse(item))};
-    }
+    });
     if(settings.eventEndDays.length&&events===undefined){
       let snapshot=await readOfficialCalendarSnapshot(env.DB);
       if(!snapshot||now-snapshot.source.checkedAtMs>=CN_CALENDAR_CACHE_MS){await refreshOfficialCalendarSnapshot(env.DB);snapshot=await readOfficialCalendarSnapshot(env.DB)??snapshot;}
       events=snapshot?(await applyCalendarEdits(env.DB,snapshot)).events:[];
     }
     const content=renderFishDigest(settings,now,catalogs,events??[]),day=Math.floor((now+OFFSET)/DAY);
-    if(!content.actionable){await env.DB.prepare('UPDATE local_push_devices SET digest_next_at=? WHERE id=? AND digest_next_at<=?').bind(nextDigestAt(now,settings.time),row.id,now).run();continue;}
+    if(!content.actionable){await env.DB.prepare('UPDATE local_push_devices SET digest_next_at=? WHERE id=? AND digest_next_at<=?').bind(nextDigestAt(now,settings.time),row.id,now).run();return;}
     // Daily job key deduplicates concurrent ticks. No per-fish background jobs.
     await env.DB.batch([
       env.DB.prepare(`INSERT INTO local_push_jobs(device_id,job_key,payload,due_at,expires_at) VALUES(?,?,?,?,?) ON CONFLICT(device_id,job_key) DO NOTHING`)
         .bind(row.id,'digest:'+day,JSON.stringify({key:'digest:'+day,...content,dueAt:now,expiresAt:now+6*3_600_000}),now,now+6*3_600_000),
       env.DB.prepare('UPDATE local_push_devices SET digest_next_at=? WHERE id=? AND digest_next_at<=?').bind(nextDigestAt(now,settings.time),row.id,now),
     ]);
-  }
+  });
 }

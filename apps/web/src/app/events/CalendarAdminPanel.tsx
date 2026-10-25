@@ -1,3 +1,8 @@
+function assertCalendarSaveResponse(response:Response):void{
+  if(response.status===409){throw new Error('版本冲突：这条活动已被修改，请刷新列表后重试');}
+  if(response.status===401||response.status===403){throw new Error('管理员身份不再有效');}
+  if(!response.ok){throw new Error('服务器拒绝保存，请检查内容格式与必填字段');}
+}
 /** 国服活动后台：通过独立管理员密码＋TOTP 认证签发的临时会话授权，不使用玩家设备令牌。 */
 import { eventCalendarItemSchema, type EventCalendarItem } from '@ff14-hub/shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -163,9 +168,7 @@ export function CalendarAdminPanel({ getToken, onClose, onSaved }: {
         headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (response.status === 409) throw new Error('版本冲突：这条活动已被修改，请刷新列表后重试');
-      if (response.status === 401 || response.status === 403) throw new Error('管理员身份不再有效');
-      if (!response.ok) throw new Error('服务器拒绝保存，请检查内容格式与必填字段');
+      assertCalendarSaveResponse(response);
       await fetchList();
       const saved = await response.json() as {id: string};
       setSelectedId(saved.id);

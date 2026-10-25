@@ -96,9 +96,9 @@ function layoutPositions(heights:readonly number[],columns:readonly number[],hol
 }
 
 /** 刷新时恢复上次模块位置与加载期占位；数据变化只调整高度，结构变化才重排。 */
-export function ModuleGrid({children,identity,mode='auto'}:{
+export function ModuleGrid({children,identity,mode='auto'}:Readonly<{
   children:ReactNode;identity:string;mode?:HomeLayoutMode
-}){
+}>){
   const root=useRef<HTMLDivElement>(null);
   const [positions,setPositions]=useState<ModulePosition[]>([]);
   useLayoutEffect(()=>{

@@ -5,7 +5,8 @@ import { navCatalogEntrySchema, type NavCatalogEntry } from './nav-api';
 export function canonicalNavUrl(raw: string): string {
   const url = new URL(raw);
   url.hostname = url.hostname.toLowerCase();
-  for (const key of [...url.searchParams.keys()]) {
+  const queryKeys=[...url.searchParams.keys()];
+  for (const key of queryKeys) {
     if (/^utm_/i.test(key) || /^(spm|from_spmid|vd_source|fbclid|gclid)$/i.test(key)) url.searchParams.delete(key);
   }
   url.searchParams.sort();

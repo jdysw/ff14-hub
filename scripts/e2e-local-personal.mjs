@@ -1,3 +1,4 @@
+import {forEachSequential} from "../packages/shared/src/sequential-tasks.mjs";
 import {chromium,expect} from '@playwright/test';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import assert from 'node:assert/strict';
@@ -48,15 +49,15 @@ try{
  await page.getByRole('button',{name:'返回首页',exact:true}).click();
  await page.getByRole('link',{name:'本地测试导航',exact:true}).waitFor();board=await search(page);
  await expect(board.getByRole('button',{name:'钓获 扎尔艾拉',exact:true})).toHaveAttribute('aria-pressed','true');
- for(const width of [390,320]){await page.setViewportSize({width,height:844});await board.scrollIntoViewIfNeeded();assert.equal(await page.evaluate('document.documentElement.scrollWidth > innerWidth'),false);await page.screenshot({path:`.wrangler/local-fishing-mobile-${width}.png`});}
+ await forEachSequential([390,320],async (width)=>{await page.setViewportSize({width,height:844});await board.scrollIntoViewIfNeeded();assert.equal(await page.evaluate('document.documentElement.scrollWidth > innerWidth'),false);await page.screenshot({path:`.wrangler/local-fishing-mobile-${width}.png`});});
  // Two tabs mutate the same real IndexedDB concurrently; neither link may be lost.
  const peer=await context.newPage();await peer.goto('http://127.0.0.1:8897/',{waitUntil:'domcontentloaded'});
  await page.getByRole('button',{name:'收起钓鱼完整页面',exact:true}).click();
  await page.getByRole('button',{name:'设置',exact:true}).click();await peer.getByRole('button',{name:'设置',exact:true}).click();
- for(const [tab,title,url] of [[page,'并发标签 A','https://example.com/concurrent-a'],[peer,'并发标签 B','https://example.com/concurrent-b']]){
+ await forEachSequential([[page,'并发标签 A','https://example.com/concurrent-a'],[peer,'并发标签 B','https://example.com/concurrent-b']],async ([tab,title,url])=>{
    await tab.getByRole('button',{name:'个人导航',exact:true}).click();
    await tab.getByLabel('网站名称',{exact:true}).fill(title);await tab.getByLabel('HTTPS 地址',{exact:true}).fill(url);
- }
+ });
  await Promise.all([page.getByRole('button',{name:'添加网站',exact:true}).click(),peer.getByRole('button',{name:'添加网站',exact:true}).click()]);
  await page.getByText('并发标签 A',{exact:true}).waitFor();await page.getByText('并发标签 B',{exact:true}).waitFor();
  await page.getByRole('button',{name:'数据管理',exact:true}).click();await page.getByRole('button',{name:'备份与恢复',exact:true}).click();
@@ -83,7 +84,7 @@ try{
  assert.equal(requests.some(r=>new URL(r.url).pathname.startsWith('/api/v1/me')||r.authorized),false);
  assert.equal(requests.some(r=>r.method!=='GET'),false);assert.deepEqual(errors,[]);
  // Keep the existing hidden site-owner login, separate from all personal data.
- for(let i=0;i<5;i++)await page.locator('.local-settings__heading-button').click();
+ await forEachSequential([0,1,2,3,4],()=>page.locator('.local-settings__heading-button').click());
  await page.getByRole('heading',{name:'站点管理员登录',exact:true}).waitFor();
  console.log(JSON.stringify({passed:true,importedIds:source.completed.length,checks:['no workspace or credentials','real IndexedDB persistence after reload','1754-entry Fishcake format import','empty favorites retained','Fishcake-compatible export','full backup and restore','navigation and custom notes persistence','concurrent tabs preserve both writes','offline reload and local write','storage denial fails visibly','320/390px layout','no private API or write requests','hidden site-owner login retained']}));
 }finally{await browser.close();}

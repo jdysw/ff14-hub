@@ -1,3 +1,5 @@
+import {forEachSequential} from '../../../packages/shared/src/sequential-tasks.mjs';
+import {readerResults} from '../../../packages/shared/src/reader-results.ts';
 /**
  * 盛趣国服活动资讯只读适配器。仅访问固定的官方新闻列表及详情接口。
  * 这是“官方公告 API”，并非官方活动日程 API：不能以发布时间推断活动起止。
@@ -18,7 +20,7 @@ async function boundedBody(response:Response):Promise<string>{
   const reader=response.body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
   const decoder=new TextDecoder();let bytes=0,text='';
   try{
-    while(true){const part=await reader.read();if(part.done)break;
+    for await(const part of readerResults<Uint8Array>(reader)){
       bytes+=part.value.byteLength;if(bytes>1_000_000)throw new Error('official_payload_too_large');
       text+=decoder.decode(part.value,{stream:true});
     }
@@ -107,9 +109,9 @@ export function extractOfficialActivityRange(html: string): { startsAt: number; 
   const plain = stripOfficialTags(stripOfficialExecutableBlocks(html))
     .replace(/&nbsp;|&#160;/gi, ' ')
     .replace(/&(?:mdash|ndash);/gi, '-').replace(/[\u3000\s]+/g, ' ').slice(0, 100_000);
-  const date = '(\\d{4}年\\d{1,2}月\\d{1,2}日\\s*\\d{1,2}:\\d{2}(?::\\d{2})?)';
-  const pattern = new RegExp('(?:活动时间|活动期间|举办时间|起止时间)\\s*[：:]?\\s*' + date +
-    '\\s*(?:至|到|~|～|—|－|-|–)\\s*' + date);
+  const date = String.raw`(\d{4}年\d{1,2}月\d{1,2}日\s*\d{1,2}:\d{2}(?::\d{2})?)`;
+  const pattern = new RegExp(String.raw`(?:活动时间|活动期间|举办时间|起止时间)\s*(?:[：:]\s*)?` + date +
+    String.raw`\s*[至到~～—－–-]\s*` + date);
   const m = pattern.exec(plain);
   if (!m) return null;
   const startsAt = chinaTimestamp(m[1] ?? '');
@@ -162,16 +164,16 @@ export function extractOfficialLandingRange(html: string): { startsAt: number; e
   const content = stripOfficialTags(stripOfficialExecutableBlocks(html))
     .replace(/&nbsp;|&#160;/gi, ' ')
     .replace(/[\u3000\s]+/g, ' ').slice(0, 100_000);
-  const start = '(\\d{4}年\\d{1,2}月\\d{1,2}日\\s*\\d{1,2}:\\d{2}(?::\\d{2})?)';
-  const end = '((?:\\d{4}年)?\\d{1,2}月\\d{1,2}日\\s*\\d{1,2}:\\d{2}(?::\\d{2})?)';
-  const pattern = new RegExp(start + '\\s*(?:至|到|~|～|—|－|-|–)\\s*' + end);
+  const start = String.raw`(\d{4}年\d{1,2}月\d{1,2}日\s*\d{1,2}:\d{2}(?::\d{2})?)`;
+  const end = String.raw`((?:\d{4}年)?\d{1,2}月\d{1,2}日\s*\d{1,2}:\d{2}(?::\d{2})?)`;
+  const pattern = new RegExp(start + String.raw`\s*[至到~～—－–-]\s*` + end);
   const match = pattern.exec(content);
   if (!match) return null;
   const startsAt = chinaTimestamp(match[1] ?? '');
   const rawEnd = match[2] ?? '';
-  const firstYear = match[1]?.match(/^\d{4}/)?.[0];
-  const firstMonth = Number(match[1]?.match(/年(\d{1,2})月/)?.[1]);
-  const lastMonth = Number(rawEnd.match(/(?:年|^)(\d{1,2})月/)?.[1]);
+  const firstYear = /^\d{4}/.exec(match[1]??'')?.[0];
+  const firstMonth = Number(/年(\d{1,2})月/.exec(match[1]??'')?.[1]);
+  const lastMonth = Number(/(?:年|^)(\d{1,2})月/.exec(rawEnd)?.[1]);
   let completedEnd = '';
   if (/^\d{4}年/.test(rawEnd)) completedEnd = rawEnd;
   else if (firstYear !== undefined && lastMonth >= firstMonth) completedEnd = firstYear + '年' + rawEnd;
@@ -324,7 +326,7 @@ async function refresh(signal?:AbortSignal): Promise<void> {
 
   const selected=entries.map((entry,index)=>({entry,event:events[index]!})).filter(({entry})=>detailKeys.has(entryKey(entry.title)));
   let landingBudget=8,detailFailures=0;
-  for (let i = 0; i < selected.length; i += 6) {
+  await forEachSequential(Array.from({length:Math.ceil(selected.length/6)},(_,index)=>index*6),async i=>{
     await Promise.all(selected.slice(i,i+6).map(async ({entry,event}) => {
       const content = await articleDetail(entry.detailId,signal);
       if(content===null)detailFailures++;
@@ -344,7 +346,7 @@ async function refresh(signal?:AbortSignal): Promise<void> {
         if('endCondition' in range&&range.endCondition)event.description=[event.description.slice(0,450),'活动结束条件：'+range.endCondition].filter(Boolean).join('\n');
       }
     }));
-  }
+  });
   signal?.throwIfAborted();
   console.info(JSON.stringify({event:'official_calendar_coverage',categories:successful.map(group=>({code:group.code,count:group.values.length})),discovered:events.length,detailsChecked:selected.length,detailFailures,scheduled:events.filter(e=>e.startsAt!==null&&e.endsAt!==null).length,startOnly:events.filter(e=>e.startsAt!==null&&e.endsAt===null).length,detailsDeferred:entries.length-selected.length}));
   cache = { checkedAtMs: Date.now(), events, partial: detailFailures>0||sources.some((value) => value.status === 'rejected') };

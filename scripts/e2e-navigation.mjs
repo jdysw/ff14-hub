@@ -1,3 +1,4 @@
+import {forEachSequential,STOP_SEQUENCE} from "../packages/shared/src/sequential-tasks.mjs";
 /** Real browser + local Worker/D1 acceptance; synthetic owner, no production credentials. */
 import {spawn,spawnSync} from 'node:child_process';
 import {randomBytes,createHash,createHmac,pbkdf2Sync} from 'node:crypto';
@@ -27,7 +28,7 @@ let output='';server.stdout.on('data',chunk=>{output=(output+chunk.toString()).s
 let browser;
 try{
   let ready=false;
-  for(let n=0;n<100;n++){try{const response=await fetch(base+'/api/v1/health');if(response.ok){ready=true;break;}}catch{/* wait for our local worker */}await new Promise(resolve=>setTimeout(resolve,200));}
+  await forEachSequential(Array.from({length:100},(_,index)=>index),async()=>{try{const response=await fetch(base+'/api/v1/health');if(response.ok){ready=true;return STOP_SEQUENCE;}}catch{/* wait for our local worker */}await new Promise(resolve=>setTimeout(resolve,200));});
   assert.equal(ready,true,'Local Worker failed to start: '+output);
   browser=await chromium.launch({headless:true,args:['--no-proxy-server']});
   const context=await browser.newContext({viewport:{width:1440,height:1000}});
@@ -47,7 +48,7 @@ try{
   assert.equal(observed.some(request=>request.method!=='GET'),false,'Personal favorites must stay local');
   const peer=await context.newPage();await peer.goto(base,{waitUntil:'domcontentloaded'});
   await page.getByRole('button',{name:'设置',exact:true}).click();
-  for(let n=0;n<5;n++)await page.locator('.local-settings__heading-button').click();
+  await forEachSequential([0,1,2,3,4],()=>page.locator('.local-settings__heading-button').click());
   await page.getByLabel('管理员账号').fill('e2e_owner');await page.getByLabel('管理员密码').fill(password);
   const counter=Buffer.alloc(8);counter.writeBigUInt64BE(BigInt(Math.floor(Date.now()/30000)));
   const digest=createHmac('sha1',seed).update(counter).digest(),offset=digest.at(-1)&15;
@@ -89,12 +90,12 @@ try{
   await expect(admin.getByRole('button',{name:'下架 修订后网站',exact:true})).toBeVisible();
   await peer.reload({waitUntil:'domcontentloaded'});await expect(peer.getByRole('link',{name:'修订后网站',exact:true})).toBeVisible();
   await admin.screenshot({path:'.wrangler/navigation-admin-desktop.png'});
-  for(const width of [390,320]){
+  await forEachSequential([390,320],async (width)=>{
     await page.setViewportSize({width,height:844});await peer.setViewportSize({width,height:844});
     await admin.scrollIntoViewIfNeeded();assert.equal(await page.evaluate('document.documentElement.scrollWidth>innerWidth'),false);
     await peer.locator('#local-navigation').scrollIntoViewIfNeeded();assert.equal(await peer.evaluate('document.documentElement.scrollWidth>innerWidth'),false);
     await peer.screenshot({path:`.wrangler/navigation-mobile-${width}.png`});
-  }
+  });
   // Inspect the durable record independently of the browser component state.
   const publicRecords=await (await fetch(base+'/api/v1/navigation/catalog')).json();
   const saved=publicRecords.entries.find(entry=>entry.title==='修订后网站');assert.ok(saved);
@@ -107,5 +108,5 @@ try{
   console.log(JSON.stringify({passed:true,publicEntries:publicRecords.entries.length,checks:['real password+TOTP owner login','all-region directory and category controls','aliases search','local favorites survive reload without uploads','create/edit/hide/restore persist in D1','second page sees backend changes','503 retains draft','320/390px layout','revoked owner session rejected'],state}));
 }finally{
   await browser?.close();
-  if(process.platform==='win32'&&server.pid)spawnSync('taskkill',['/PID',String(server.pid),'/T','/F'],{stdio:'ignore'});else server.kill('SIGTERM');
+  if(process.platform==='win32'&&server.pid)spawnSync(path.resolve('C:/Windows/System32/taskkill.exe'),['/PID',String(server.pid),'/T','/F'],{stdio:'ignore'});else server.kill('SIGTERM');
 }

@@ -1,16 +1,17 @@
+import {forEachSequential} from "../../../packages/shared/src/sequential-tasks.mjs";
 import {localNotificationJobsSchema,type LocalNotificationJob} from '@ff14-hub/shared';
 import type {Env} from '../../env';
 import {decryptChannel,sendChannel} from './notification-channel';
 import {planDailyFishDigests} from './fish-digest';
 export function checkedJobs(raw:unknown,now=Date.now()):LocalNotificationJob[]{
-  return localNotificationJobsSchema.parse(raw).filter(job=>job.expiresAt>now&&job.dueAt>=now-60_000&&job.dueAt<=now+(job.key.startsWith('todo:')?365*86400000:72*3600_000)&&job.expiresAt>job.dueAt&&job.expiresAt<=job.dueAt+15*60_000);
+  return localNotificationJobsSchema.parse(raw).filter(job=>job.expiresAt>now&&job.dueAt>=now-60_000&&job.dueAt<=now+(job.key.startsWith('todo:')?365*86400000:72*3_600_000)&&job.expiresAt>job.dueAt&&job.expiresAt<=job.dueAt+15*60_000);
 }
 export async function replaceLocalJobs(db:D1Database,device:string,jobs:LocalNotificationJob[],now=Date.now()){
   const statements=[db.prepare(`UPDATE local_push_jobs SET status='cancelled' WHERE device_id=? AND status IN('queued','leased') AND job_key NOT LIKE 'digest:%' AND job_key NOT IN(SELECT value FROM json_each(?))`).bind(device,JSON.stringify(jobs.map(job=>job.key))),
     ...jobs.map(job=>db.prepare(`INSERT INTO local_push_jobs(device_id,job_key,payload,due_at,expires_at) VALUES(?,?,?,?,?)
       ON CONFLICT(device_id,job_key) DO UPDATE SET payload=excluded.payload,due_at=excluded.due_at,expires_at=excluded.expires_at,status='queued',attempts=CASE WHEN local_push_jobs.status='cancelled' THEN 0 ELSE local_push_jobs.attempts END
       WHERE local_push_jobs.status IN('queued','cancelled')`).bind(device,job.key,JSON.stringify(job),job.dueAt,job.expiresAt)),
-    db.prepare('UPDATE local_push_devices SET expires_at=?,updated_at=? WHERE id=?').bind(now+90*86400_000,now,device)];
+    db.prepare('UPDATE local_push_devices SET expires_at=?,updated_at=? WHERE id=?').bind(now+90*86_400_000,now,device)];
   await db.batch(statements);
 }
 type Sender=(id:string,ciphertext:string,tag:string,content:{title:string;body:string})=>Promise<number>;
@@ -23,16 +24,16 @@ export async function runLocalNotifications(db:D1Database,now:number,send:Sender
       AND (d.sent_day<>? OR d.sent_count<d.daily_limit) GROUP BY j.device_id ORDER BY MIN(j.due_at) LIMIT 5`)
     .bind(now,now,now,now,day).all<{device_id:string}>();
   let count=0;
-  for(const device of devices.results){
+  await forEachSequential(devices.results,async (device)=>{
     const id=device.device_id,claim=crypto.randomUUID();
     const jobs=await db.prepare(`UPDATE local_push_jobs SET status='leased',lease_until=?,claim_token=?,attempts=attempts+1 WHERE device_id=? AND job_key IN(
       SELECT job_key FROM local_push_jobs WHERE device_id=? AND due_at<=? AND expires_at>? AND attempts<3 AND (status='queued' OR(status='leased' AND lease_until<=?)) ORDER BY due_at LIMIT 10) RETURNING job_key,payload`)
       .bind(now+120_000,claim,id,id,now,now,now).all<{job_key:string;payload:string}>();
-    if(jobs.results.length===0)continue;
+    if(jobs.results.length===0)return;
     const owner=await db.prepare(`UPDATE local_push_devices SET sent_count=CASE WHEN sent_day=? THEN sent_count+1 ELSE 1 END,sent_day=?
       WHERE id=? AND expires_at>? AND (sent_day<>? OR sent_count<daily_limit) RETURNING channel_ciphertext`)
       .bind(day,day,id,now,day).first<{channel_ciphertext:string}>();
-    if(!owner)continue;
+    if(!owner)return;
     const items=jobs.results.map(job=>JSON.parse(job.payload) as LocalNotificationJob);
     const title=items.length===1?items[0]!.title:`FF14 Hub · ${items.length} 项提醒`;
     const body=items.map(item=>item.title+'：'+item.body).join('\n');
@@ -59,10 +60,10 @@ export async function runLocalNotifications(db:D1Database,now:number,send:Sender
           WHERE id=? AND sent_day=? AND sent_count>0 AND changes()>0`).bind(id,day),
       ]);
     }
-  }
+  });
   if(Math.floor(now/60_000)%1440<5){
     await db.prepare('DELETE FROM local_push_devices WHERE id IN(SELECT id FROM local_push_devices WHERE expires_at<=? LIMIT 10)').bind(now).run();
-    await db.prepare('DELETE FROM local_push_jobs WHERE (device_id,job_key) IN(SELECT device_id,job_key FROM local_push_jobs WHERE expires_at<? LIMIT 100)').bind(now-7*86400_000).run();
+    await db.prepare('DELETE FROM local_push_jobs WHERE (device_id,job_key) IN(SELECT device_id,job_key FROM local_push_jobs WHERE expires_at<? LIMIT 100)').bind(now-7*86_400_000).run();
   }
   return count;
 }

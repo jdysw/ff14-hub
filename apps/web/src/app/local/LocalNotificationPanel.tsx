@@ -1,16 +1,26 @@
+
+function NotificationChannelFields({settings,sendKey,setSendKey,apiKey,setApiKey,from,setFrom,to,setTo}:Readonly<{settings:NotificationSettings;sendKey:string;setSendKey:React.Dispatch<React.SetStateAction<string>>;apiKey:string;setApiKey:React.Dispatch<React.SetStateAction<string>>;from:string;setFrom:React.Dispatch<React.SetStateAction<string>>;to:string;setTo:React.Dispatch<React.SetStateAction<string>>}>){
+if(settings.token){return <p>当前渠道已连接，凭证不会回显。提醒规则可以直接保存；切换接收渠道请先停用后重新配置。</p>;}
+if(settings.channel==='serverchan'){return <label className="local-settings__field">Server 酱 SendKey<input required type="password" autoComplete="new-password" value={sendKey} placeholder="SCT…" onChange={event=>setSendKey(event.target.value)}/><small>使用 Turbo 的 SCT 开头 SendKey。Server 酱³ 密钥不适用于此入口。</small></label>;}
+return <div className="personal-feature__fields">
+        <label className="local-settings__field">Resend API Key<input required type="password" autoComplete="new-password" value={apiKey} onChange={event=>setApiKey(event.target.value)}/></label>
+        <label className="local-settings__field">已验证域名的发件邮箱<input required type="email" value={from} onChange={event=>setFrom(event.target.value)}/></label>
+        <label className="local-settings__field">接收邮箱<input required type="email" value={to} onChange={event=>setTo(event.target.value)}/></label>
+      </div>;
+}
 import {useEffect,useState} from 'react';
 import {usePrivateDraft} from '../pwa/draft-registry';
 import type {LocalStore} from './store';
 import {readDeviceRecord,writeDeviceRecord} from './secure-storage';
 import {defaultNotificationSettings,digestSettings,buildTodoNotificationJobs,notificationRequest,registerNotifications,NOTIFICATION_SETTINGS_CHANGED,type NotificationSettings} from './local-notifications';
-export function LocalNotificationPanel({store}:{store:LocalStore}){
+export function LocalNotificationPanel({store}:Readonly<{store:LocalStore}>){
   const [settings,setSettings]=useState<NotificationSettings>(defaultNotificationSettings);
   const [sendKey,setSendKey]=useState(''),[apiKey,setApiKey]=useState(''),[from,setFrom]=useState(''),[to,setTo]=useState('');
   const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState('');
   const [status,setStatus]=useState<{jobs:{key:string;dueAt:number;status:string;attempts:number}[];device:{sentCount:number;sentDay:string;dailyLimit:number;expiresAt:number}}|null>(null);
   const [ready,setReady]=useState(false);
   usePrivateDraft(busy||Boolean(!settings.token&&(sendKey||apiKey||from||to)));
-  useEffect(()=>{let alive=true;void readDeviceRecord<NotificationSettings>('notifications').then(value=>{if(alive){if(value)setSettings(value);setReady(true);}}).catch(()=>{if(alive){setError('本机通知配置无法读取，请重新配置');setReady(true);}});return()=>{alive=false;};},[]);
+  useEffect(()=>{let alive=true;void readDeviceRecord<NotificationSettings>('notifications').then(value=>{if(alive){if(value){setSettings(value);}setReady(true);}}).catch(()=>{if(alive){setError('本机通知配置无法读取，请重新配置');setReady(true);}});return()=>{alive=false;};},[]);
   const run=async(action:()=>Promise<void>)=>{if(busy){return;}setBusy(true);setError('');setMessage('');try{await action();}catch(cause){setError(cause instanceof Error?cause.message:'通知操作失败');}finally{setBusy(false);}};
   const patch=(value:Partial<NotificationSettings>)=>setSettings(old=>({...old,...value}));
   return <section className="personal-feature" aria-label="通知设置">
@@ -22,11 +32,7 @@ export function LocalNotificationPanel({store}:{store:LocalStore}){
       const next=await registerNotifications(channel,settings,store);setSettings(next);setSendKey('');setApiKey('');setMessage('通知已启用。可发送测试消息检查是否收件。');
     });}}>
       <label className="local-settings__field">后台通知渠道<select value={settings.channel} disabled={busy||!!settings.token} onChange={event=>patch({channel:event.target.value as NotificationSettings['channel']})}><option value="serverchan">Server 酱 Turbo</option><option value="resend">邮件（Resend）</option></select></label>
-      {settings.token?<p>当前渠道已连接，凭证不会回显。提醒规则可以直接保存；切换接收渠道请先停用后重新配置。</p>:settings.channel==='serverchan'?<label className="local-settings__field">Server 酱 SendKey<input required type="password" autoComplete="new-password" value={sendKey} placeholder="SCT…" onChange={event=>setSendKey(event.target.value)}/><small>使用 Turbo 的 SCT 开头 SendKey。Server 酱³ 密钥不适用于此入口。</small></label>:<div className="personal-feature__fields">
-        <label className="local-settings__field">Resend API Key<input required type="password" autoComplete="new-password" value={apiKey} onChange={event=>setApiKey(event.target.value)}/></label>
-        <label className="local-settings__field">已验证域名的发件邮箱<input required type="email" value={from} onChange={event=>setFrom(event.target.value)}/></label>
-        <label className="local-settings__field">接收邮箱<input required type="email" value={to} onChange={event=>setTo(event.target.value)}/></label>
-      </div>}
+      {NotificationChannelFields({settings,sendKey,setSendKey,apiKey,setApiKey,from,setFrom,to,setTo})}
       <fieldset disabled={busy}><legend>提醒内容</legend>
         <label><input type="checkbox" checked={settings.events} onChange={event=>patch({events:event.target.checked})}/>后台活动临近结束汇总</label><br/>
         {settings.events?<div className="personal-feature__toolbar">{([3,1] as const).map(days=><label key={days}><input type="checkbox" checked={settings.eventEndDays.includes(days)} onChange={event=>patch({eventEndDays:event.target.checked?[...settings.eventEndDays,days]:settings.eventEndDays.filter(value=>value!==days)})}/>结束前 {days} 天提醒</label>)}</div>:null}
@@ -45,7 +51,7 @@ export function LocalNotificationPanel({store}:{store:LocalStore}){
       <button disabled={busy||!settings.token} onClick={()=>void run(async()=>{await notificationRequest('/subscription',settings.token!,'DELETE');const next={...settings,token:null,jobs:[],lastPlan:0};await writeDeviceRecord('notifications',next);setSettings(next);setStatus(null);window.dispatchEvent(new Event(NOTIFICATION_SETTINGS_CHANGED));setMessage('后台通知已停用，服务器中的渠道凭证和待发任务已删除');})}>停用后台通知</button>
     </div>
     <h4>网页内通知</h4><p>需要浏览器授权，仅网页打开时检查本机提醒，可与邮件或 Server 酱同时使用。</p>
-    <button disabled={busy} onClick={()=>void run(async()=>{if(!('Notification' in window))throw new Error('当前浏览器不支持通知');const permission=await Notification.requestPermission();if(permission!=='granted')throw new Error('未获得通知权限，请到浏览器站点设置中允许');const next={...settings,browser:!settings.browser};await writeDeviceRecord('notifications',next);setSettings(next);window.dispatchEvent(new Event(NOTIFICATION_SETTINGS_CHANGED));setMessage(next.browser?'网页内通知已启用':'网页内通知已停用');})}>{settings.browser?'关闭网页内通知':'授权并启用网页内通知'}</button>
+    <button disabled={busy} onClick={()=>void run(async()=>{if(!('Notification' in window)){throw new Error('当前浏览器不支持通知');}const permission=await Notification.requestPermission();if(permission!=='granted'){throw new Error('未获得通知权限，请到浏览器站点设置中允许');}const next={...settings,browser:!settings.browser};await writeDeviceRecord('notifications',next);setSettings(next);window.dispatchEvent(new Event(NOTIFICATION_SETTINGS_CHANGED));setMessage(next.browser?'网页内通知已启用':'网页内通知已停用');})}>{settings.browser?'关闭网页内通知':'授权并启用网页内通知'}</button>
     {settings.lastPlan?<p>上次登记 {new Date(settings.lastPlan).toLocaleString('zh-CN')}。鱼窗汇总在服务器每天生成，关闭网页后继续运行；关注列表按最近一次同步为准。活动临近提醒和网页内提示保留未来 72 小时内最近 30 条，每次访问或前台停留满 6 小时补充。订阅在 90 天不访问后过期。</p>:null}
     {status?<div className="personal-feature__preview"><h4>投递记录</h4><p>今日发送尝试 {status.device.sentDay===new Date().toISOString().slice(0,10)?status.device.sentCount:0} / {status.device.dailyLimit} 批（UTC 日界限）</p><ul>{status.jobs.map(job=><li key={job.key}>{new Date(job.dueAt).toLocaleString('zh-CN')} · {({queued:'待发送',leased:'发送中',sent:'渠道已接受',failed:'发送失败',cancelled:'已取消'} as Record<string,string>)[job.status]??job.status} · 尝试 {job.attempts} 次</li>)}</ul></div>:null}
     {settings.error?<p role="alert" className="notice notice--error">上次后台登记：{settings.error}。网页内提醒仍独立工作。</p>:null}

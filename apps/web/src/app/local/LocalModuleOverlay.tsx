@@ -121,8 +121,8 @@ export function LocalModuleOverlay({title,origin,onClose,children}:LocalModuleOv
   return createPortal(<dialog ref={dialogRef} className="local-module-overlay"
     aria-labelledby={headingId}
     onClose={event=>{if(!event.currentTarget.open)finishClose();}}
-    onCancel={event=>{event.preventDefault();requestClose();}}
-    onClick={event=>{if(event.target===event.currentTarget)requestClose();}}>
+    onCancel={event=>{event.preventDefault();requestClose();}}>
+    <button type="button" className="local-module-overlay__dismiss-surface" tabIndex={-1} aria-label="关闭展开页面" onClick={requestClose}/>
     <div ref={panelRef} className="local-module-overlay__panel">
       <header className="local-module-overlay__header">
         <h2 id={headingId}>{title}</h2>

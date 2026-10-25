@@ -34,7 +34,7 @@ localNotificationRoutes.post('/register',validateJsonBody(registration),async c=
   try{
     const result=await c.env.DB.prepare(`INSERT INTO local_push_devices(id,token_hash,endpoint_hash,channel_ciphertext,expires_at,updated_at,daily_limit)
       SELECT ?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM local_push_devices)<1000`)
-      .bind(id,await hashCredential(token),await hashCredential(body.channel.kind==='webpush'?body.channel.subscription.endpoint:id),await encryptChannel(body.channel,c.env.BOOTSTRAP_SECRET!,id),now+90*86400_000,now,body.dailyLimit).run();
+      .bind(id,await hashCredential(token),await hashCredential(body.channel.kind==='webpush'?body.channel.subscription.endpoint:id),await encryptChannel(body.channel,c.env.BOOTSTRAP_SECRET!,id),now+90*86_400_000,now,body.dailyLimit).run();
     if(result.meta.changes!==1)throw new Error('capacity');
   }catch{throw new ApiError('conflict','此设备已订阅或订阅额度已满，请停用后重新订阅');}
   await replaceLocalJobs(c.env.DB,id,checkedJobs(body.jobs,now),now);

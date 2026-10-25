@@ -147,10 +147,10 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
           aria-label="从首页隐藏国服活动模块">隐藏</button>
       </div>
     </header>
-    <div className="home-status-tabs" role="group" aria-label="首页活动切换">
+    <fieldset className="home-status-tabs" style={{border:0,margin:0,padding:0,minWidth:0}} aria-label="首页活动切换">
       <button type="button" aria-pressed={phase==='active'} onClick={()=>setPhase('active')}>进行中活动</button>
       <button type="button" aria-pressed={phase==='upcoming'} onClick={()=>setPhase('upcoming')}>未来活动</button>
-    </div>
+    </fieldset>
     {state.kind === 'loading' && <output className="home-state" style={{display:'block'}}>正在获取最新活动…</output>}
     {state.kind === 'error' && <div className="home-official__notice" role="alert">
       活动暂时无法加载。 <button className="text-button" type="button" onClick={reload}>重试</button>

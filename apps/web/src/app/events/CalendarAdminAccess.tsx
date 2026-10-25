@@ -43,14 +43,11 @@ export function CalendarAdminAccess({onReady,onClose}:{
     <h2>站点管理员登录</h2>
     <p className="panel__muted">仅现有站点管理员可以登录。账号密码与 30 秒动态验证码共同验证；不开放新管理员注册。</p>
     <form className="calendar-admin-access__form" onSubmit={event=>{event.preventDefault();void submit(event.currentTarget);}}>
-      <label>管理员账号
-        <input name="username" type="text" autoComplete="username" required minLength={3} maxLength={40} pattern="[A-Za-z0-9._-]+" />
+      <label>管理员账号{' '}<input name="username" type="text" autoComplete="username" required minLength={3} maxLength={40} pattern="[A-Za-z0-9._-]+" />
       </label>
-      <label>管理员密码
-        <input name="password" type="password" autoComplete="current-password" required minLength={14} maxLength={128}/>
+      <label>管理员密码{' '}<input name="password" type="password" autoComplete="current-password" required minLength={14} maxLength={128}/>
       </label>
-      <label>身份验证器（TOTP）
-        <input name="code" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required placeholder="6 位动态验证码"/>
+      <label>身份验证器（TOTP）{' '}<input name="code" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required placeholder="6 位动态验证码"/>
       </label>
       <button type="submit" className="button" disabled={busy}>{busy?'正在验证…':'安全登录'}</button>
     </form>

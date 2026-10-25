@@ -2,6 +2,7 @@
 export * from './api-contract';
 export * from './errors';
 export * from './html-text';
+export * from './reader-results';
 export * from './events-api';
 export * from './fish-api';
 export * from './fish-sync-api';

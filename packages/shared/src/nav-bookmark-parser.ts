@@ -50,9 +50,9 @@ function isSpaceCode(code: number): boolean {
 /** ASCII 大小写不敏感比较：等价于原正则的 `i` 标志（此处只涉及 ASCII 字母）。 */
 function matchesAsciiIgnoreCase(value: string, start: number, expected: string): boolean {
   for (let offset = 0; offset < expected.length; offset += 1) {
-    const code = value.charCodeAt(start + offset);
+    const code = (value.codePointAt(start + offset) ?? Number.NaN);
     const folded = code >= 0x41 && code <= 0x5a ? code + 0x20 : code;
-    if (folded !== expected.charCodeAt(offset)) {
+    if (folded !== (expected.codePointAt(offset) ?? Number.NaN)) {
       return false;
     }
   }
@@ -80,10 +80,10 @@ function isDigitCodeFor(code: number, radix: 10 | 16): boolean {
  */
 function decodeNumericEntityAt(value: string, digitStart: number, radix: 10 | 16): DecodedEntity | null {
   let end = digitStart;
-  while (end < value.length && isDigitCodeFor(value.charCodeAt(end), radix)) {
+  while (end < value.length && isDigitCodeFor((value.codePointAt(end) ?? Number.NaN), radix)) {
     end += 1;
   }
-  if (end === digitStart || value.charCodeAt(end) !== 0x3b /* ; */) {
+  if (end === digitStart || (value.codePointAt(end) ?? Number.NaN) !== 0x3b /* ; */) {
     return null;
   }
   const code = Number.parseInt(value.slice(digitStart, end), radix);
@@ -96,10 +96,10 @@ function decodeNumericEntityAt(value: string, digitStart: number, radix: 10 | 16
 /** 取 `<alpha>` 形态的命名实体；查不到就返回 `null`（原样保留 `&…;`）。 */
 function decodeNamedEntityAt(value: string, amp: number): DecodedEntity | null {
   let end = amp + 1;
-  while (end < value.length && isAsciiLetterCode(value.charCodeAt(end))) {
+  while (end < value.length && isAsciiLetterCode((value.codePointAt(end) ?? Number.NaN))) {
     end += 1;
   }
-  if (end === amp + 1 || value.charCodeAt(end) !== 0x3b /* ; */) {
+  if (end === amp + 1 || (value.codePointAt(end) ?? Number.NaN) !== 0x3b /* ; */) {
     return null;
   }
   // 与原实现逐字相同的查表（名称大小写不敏感）。
@@ -120,8 +120,8 @@ function decodeNamedEntityAt(value: string, amp: number): DecodedEntity | null {
  * - `<alpha>`：不要求单词边界、不做长度截断（超长名字必然查表失败，结果与原样保留相同）。
  */
 function decodeEntityAt(value: string, amp: number): DecodedEntity | null {
-  if (value.charCodeAt(amp + 1) === 0x23 /* # */) {
-    if (value.charCodeAt(amp + 2) === 0x78 /* x */) {
+  if ((value.codePointAt(amp + 1) ?? Number.NaN) === 0x23 /* # */) {
+    if ((value.codePointAt(amp + 2) ?? Number.NaN) === 0x78 /* x */) {
       return decodeNumericEntityAt(value, amp + 3, 16);
     }
     return decodeNumericEntityAt(value, amp + 2, 10);
@@ -203,14 +203,14 @@ function stripNonDataBlocks(html: string): string {
  * 因此这里同样返回 `null` 而不是把剩余文本当成值。裸值分支要求至少一个字符（原 `+`）。
  */
 function readHrefOperand(rawAttributes: string, start: number): string | null {
-  const opener = rawAttributes.charCodeAt(start);
+  const opener = (rawAttributes.codePointAt(start) ?? Number.NaN);
   if (opener === 0x22 /* " */ || opener === 0x27 /* ' */) {
     const closer = rawAttributes.indexOf(opener === 0x22 ? '"' : "'", start + 1);
     return closer < 0 ? null : rawAttributes.slice(start + 1, closer);
   }
   let end = start;
   while (end < rawAttributes.length) {
-    const code = rawAttributes.charCodeAt(end);
+    const code = (rawAttributes.codePointAt(end) ?? Number.NaN);
     if (isSpaceCode(code) || code === 0x22 /* " */ || code === 0x27 /* ' */ || code === 0x3e /* > */) {
       break;
     }
@@ -241,14 +241,14 @@ function readHrefValue(rawAttributes: string): string | null {
       continue;
     }
     let cursor = start + name.length;
-    while (cursor < rawAttributes.length && isSpaceCode(rawAttributes.charCodeAt(cursor))) {
+    while (cursor < rawAttributes.length && isSpaceCode((rawAttributes.codePointAt(cursor) ?? Number.NaN))) {
       cursor += 1;
     }
-    if (rawAttributes.charCodeAt(cursor) !== 0x3d /* = */) {
+    if ((rawAttributes.codePointAt(cursor) ?? Number.NaN) !== 0x3d /* = */) {
       continue;
     }
     cursor += 1;
-    while (cursor < rawAttributes.length && isSpaceCode(rawAttributes.charCodeAt(cursor))) {
+    while (cursor < rawAttributes.length && isSpaceCode((rawAttributes.codePointAt(cursor) ?? Number.NaN))) {
       cursor += 1;
     }
     const value = readHrefOperand(rawAttributes, cursor);
@@ -287,100 +287,95 @@ export function skipOf(
  * - 只把 `<a href>` 与 `<h3>`/`<dt>` 当数据读，其余标签一律忽略；script/style 整体丢弃。
  * - 每一项要么进 `items`，要么进 `skipped` 并带原因——不存在"静默丢弃"。
  */
-export function parseBookmarkHtmlWithDependencies(
-  html: unknown,
-  options: { readonly defaultRegion?: NavRegion } | undefined,
-  dependencies: BookmarkParseDependencies,
-): NavParseResult {
-  const {MAX_NAV_GROUP_NAME_LENGTH,MAX_NAV_TITLE_LENGTH,MAX_NAV_URL_LENGTH,MAX_NAV_IMPORT_ITEMS,validateNavUrl}=dependencies;
-  const region = options?.defaultRegion ?? 'cn';
-  const source = stripNonDataBlocks(typeof html === 'string' ? html.slice(0, 4 * 1024 * 1024) : '');
-  const lower = source.toLowerCase();
-  const items: NavImportItem[] = [];
-  const skipped: NavImportSkipped[] = [];
-  const seen = new Set<string>();
-
-  let cursor = 0;
-  let currentGroup: string | null = null;
-  while (cursor < source.length) {
-    const open = source.indexOf('<', cursor);
-    if (open < 0) {
-      break;
-    }
-    const close = source.indexOf('>', open);
-    if (close < 0) {
-      break;
-    }
-    const rawTag = source.slice(open + 1, close);
-    cursor = close + 1;
-    const tagName = (rawTag.trim().split(/[\s/]/, 1)[0] ?? '').toLowerCase();
-
-    // 只有 `<h3>` 是「文件夹名」的载体：它在真实导出里成对出现。
-    // `<dt>` 必须**单独当作无内容标签跳过**——真实浏览器导出的 `<DT>` 既不闭合、
-    // 又包裹着 `<A>`，把它当成"分组名直到 </DT>"会把整份文件吃掉（复核发现的真实缺陷：
-    // 之前对真实书签文件解析结果恒为空且静默丢弃）。
-    if (tagName === 'h3') {
-      const closeTag = '</h3>';
-      const end = lower.indexOf(closeTag, cursor);
-      const fragment = end < 0 ? '' : source.slice(cursor, end);
-      cursor = end < 0 ? source.length : end + closeTag.length;
-      const name = textOfFragment(fragment);
-      if (name.length > 0) {
-        currentGroup = name.slice(0, MAX_NAV_GROUP_NAME_LENGTH);
-      }
-      continue;
-    }
-
-    if (tagName !== 'a') {
-      continue;
-    }
-
-    const end = lower.indexOf('</a>', cursor);
-    const fragment = end < 0 ? '' : source.slice(cursor, end);
-    cursor = end < 0 ? source.length : end + 4;
-
-    const href = extractHref(rawTag);
-    const title = textOfFragment(fragment).slice(0, MAX_NAV_TITLE_LENGTH);
-    if (href === null) {
-      skipped.push(skipOf('invalid_url', '链接没有可用的 href', title.length > 0 ? title : null, null));
-      continue;
-    }
-    const validation = validateNavUrl(href);
-    if (!validation.ok) {
-      skipped.push(
-        skipOf(
-          validation.reason === 'scheme' ? 'unsupported_scheme' : 'invalid_url',
-          validation.reason === 'scheme'
-            ? '只允许 https:// 链接，已跳过非 https 地址'
-            : 'URL 形态不可用（缺少主机、含凭证或超长）',
-          title.length > 0 ? title : null,
-          href.slice(0, MAX_NAV_URL_LENGTH),
-        ),
-      );
-      continue;
-    }
-    if (title.length === 0) {
-      skipped.push(skipOf('missing_title', '链接没有标题，无法作为导航条目', null, validation.url));
-      continue;
-    }
-    const key = normalizeNavText(validation.url);
-    if (seen.has(key)) {
-      skipped.push(skipOf('duplicate', '同一 URL 已在本次导入中出现过', title, validation.url));
-      continue;
-    }
-    if (items.length >= MAX_NAV_IMPORT_ITEMS) {
-      skipped.push(skipOf('too_many_items', `单次导入上限为 ${String(MAX_NAV_IMPORT_ITEMS)} 条`, title, validation.url));
-      continue;
-    }
-    seen.add(key);
-    items.push({
-      title,
-      url: validation.url,
-      region,
-      ...(currentGroup === null ? {} : { groupName: currentGroup }),
-    });
-  }
-
-  return { items, skipped };
+interface BookmarkFragment {
+  readonly kind:'h3'|'a';
+  readonly rawTag:string;
+  readonly text:string;
 }
 
+/** Scan complete folder/link fragments once, preserving malformed closing-tag behavior. */
+function* bookmarkFragments(source:string):Generator<BookmarkFragment>{
+  const lower=source.toLowerCase();
+  let cursor=0;
+  while(cursor<source.length){
+    const open=source.indexOf('<',cursor);
+    if(open<0){break;}
+    const close=source.indexOf('>',open);
+    if(close<0){break;}
+    const rawTag=source.slice(open+1,close);
+    cursor=close+1;
+    const kind=(rawTag.trim().split(/[\s/]/,1)[0]??'').toLowerCase();
+    if(kind!=='h3'&&kind!=='a'){continue;}
+    const closing='</'+kind+'>';
+    const end=lower.indexOf(closing,cursor);
+    const text=end<0?'':source.slice(cursor,end);
+    cursor=end<0?source.length:end+closing.length;
+    yield {kind,rawTag,text};
+  }
+}
+
+interface BookmarkAccumulator {
+  readonly region:NavRegion;
+  readonly dependencies:BookmarkParseDependencies;
+  readonly items:NavImportItem[];
+  readonly skipped:NavImportSkipped[];
+  readonly seen:Set<string>;
+  readonly groupName:string|null;
+}
+
+function invalidBookmarkUrl(validation:Extract<NavUrlValidation,{readonly ok:false}>,title:string,href:string,max:number):NavImportSkipped{
+  if(validation.reason==='scheme'){
+    return skipOf('unsupported_scheme','只允许 https:// 链接，已跳过非 https 地址',title||null,href.slice(0,max));
+  }
+  return skipOf('invalid_url','URL 形态不可用（缺少主机、含凭证或超长）',title||null,href.slice(0,max));
+}
+
+function appendBookmarkLink(fragment:BookmarkFragment,state:BookmarkAccumulator):void{
+  const {dependencies,items,skipped,seen,region,groupName}=state;
+  const href=extractHref(fragment.rawTag);
+  const title=textOfFragment(fragment.text).slice(0,dependencies.MAX_NAV_TITLE_LENGTH);
+  if(href===null){
+    skipped.push(skipOf('invalid_url','链接没有可用的 href',title||null,null));
+    return;
+  }
+  const validation=dependencies.validateNavUrl(href);
+  if(!validation.ok){
+    skipped.push(invalidBookmarkUrl(validation,title,href,dependencies.MAX_NAV_URL_LENGTH));
+    return;
+  }
+  if(title.length===0){
+    skipped.push(skipOf('missing_title','链接没有标题，无法作为导航条目',null,validation.url));
+    return;
+  }
+  const key=normalizeNavText(validation.url);
+  if(seen.has(key)){
+    skipped.push(skipOf('duplicate','同一 URL 已在本次导入中出现过',title,validation.url));
+    return;
+  }
+  if(items.length>=dependencies.MAX_NAV_IMPORT_ITEMS){
+    skipped.push(skipOf('too_many_items','单次导入上限为 '+String(dependencies.MAX_NAV_IMPORT_ITEMS)+' 条',title,validation.url));
+    return;
+  }
+  seen.add(key);
+  items.push({title,url:validation.url,region,...(groupName===null?{}:{groupName})});
+}
+
+export function parseBookmarkHtmlWithDependencies(
+  html:unknown,
+  options:{readonly defaultRegion?:NavRegion}|undefined,
+  dependencies:BookmarkParseDependencies,
+):NavParseResult{
+  const region=options?.defaultRegion??'cn';
+  const source=stripNonDataBlocks(typeof html==='string'?html.slice(0,4*1024*1024):'');
+  const items:NavImportItem[]=[],skipped:NavImportSkipped[]=[],seen=new Set<string>();
+  let groupName:string|null=null;
+  for(const fragment of bookmarkFragments(source)){
+    if(fragment.kind==='h3'){
+      const name=textOfFragment(fragment.text);
+      if(name.length>0){groupName=name.slice(0,dependencies.MAX_NAV_GROUP_NAME_LENGTH);}
+    }else{
+      appendBookmarkLink(fragment,{region,dependencies,items,skipped,seen,groupName});
+    }
+  }
+  return {items,skipped};
+}

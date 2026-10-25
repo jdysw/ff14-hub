@@ -1,3 +1,82 @@
+
+function validateExportMembership({membership,seenPairs,problems,seenLinkIds,seenGroupIds}:Readonly<{membership:NavMembership;seenPairs:Set<string>;problems:string[];seenLinkIds:Set<string>;seenGroupIds:Set<string>}>){
+
+    const pair = `${membership.linkId}\u0000${membership.groupId}`;
+    if (seenPairs.has(pair)) {
+      problems.push(`成员关系重复：${membership.linkId} ↔ ${membership.groupId}`);
+    }
+    seenPairs.add(pair);
+    if (!seenLinkIds.has(membership.linkId)) {
+      problems.push(`成员关系指向不存在的链接：${membership.linkId}`);
+    }
+    if (!seenGroupIds.has(membership.groupId)) {
+      problems.push(`成员关系指向不存在的分组：${membership.groupId}`);
+    }
+
+}
+
+function jsonImportCandidate({title,validation,record}:Readonly<{title:string;validation:Extract<NavUrlValidation,{readonly ok:true}>;record:Record<string,unknown>}>){
+const candidate: Record<string, unknown> = {
+      title,
+      url: validation.url,
+      tags: normalizeNavTags(record['tags']),
+      aliases: normalizeNavAliases(record['aliases']),
+      ...(typeof record['description'] === 'string'
+        ? { description: record['description'].slice(0, MAX_NAV_DESCRIPTION_LENGTH) }
+        : {}),
+      ...(typeof record['icon'] === 'string' ? { icon: record['icon'].slice(0, MAX_NAV_ICON_LENGTH) } : {}),
+      ...(NAV_REGIONS.includes(record['region'] as NavRegion) ? { region: record['region'] } : {}),
+      ...(NAV_OPEN_MODES.includes(record['openMode'] as NavOpenMode) ? { openMode: record['openMode'] } : {}),
+      ...(typeof record['groupName'] === 'string' && record['groupName'].trim().length > 0
+        ? { groupName: record['groupName'].trim().slice(0, MAX_NAV_GROUP_NAME_LENGTH) }
+        : {}),
+    };
+return candidate;
+}
+
+function appendJsonImportEntry({entry,skipped,seen,items}:Readonly<{entry:unknown;skipped:NavImportSkipped[];seen:Set<string>;items:NavImportItem[]}>){
+
+    const record = asRecord(entry);
+    const title = typeof record['title'] === 'string' ? record['title'].trim().slice(0, MAX_NAV_TITLE_LENGTH) : '';
+    const urlValue = record['url'];
+    const validation = validateNavUrl(urlValue);
+    if (!validation.ok) {
+      skipped.push(
+        skipOf(
+          validation.reason === 'scheme' ? 'unsupported_scheme' : 'invalid_url',
+          validation.reason === 'scheme'
+            ? '只允许 https:// 链接，已跳过非 https 地址'
+            : 'URL 形态不可用（缺少主机、含凭证或超长）',
+          title.length > 0 ? title : null,
+          typeof urlValue === 'string' ? urlValue.slice(0, MAX_NAV_URL_LENGTH) : null,
+        ),
+      );
+      return;
+    }
+    if (title.length === 0) {
+      skipped.push(skipOf('missing_title', '条目缺少 title', null, validation.url));
+      return;
+    }
+    const key = normalizeNavText(validation.url);
+    if (seen.has(key)) {
+      skipped.push(skipOf('duplicate', '同一 URL 已在本次导入中出现过', title, validation.url));
+      return;
+    }
+    if (items.length >= MAX_NAV_IMPORT_ITEMS) {
+      skipped.push(skipOf('too_many_items', `单次导入上限为 ${String(MAX_NAV_IMPORT_ITEMS)} 条`, title, validation.url));
+      return;
+    }
+    seen.add(key);
+
+    const candidate=jsonImportCandidate({title,validation,record});
+    const parsedItem = navImportItemSchema.safeParse(candidate);
+    if (parsedItem.success) {
+      items.push(parsedItem.data);
+    } else {
+      skipped.push(skipOf('invalid_url', '条目字段不符合导入契约', title, validation.url));
+    }
+
+}
 /**
  * 自由导航契约（阶段 04：HUB-047 / HUB-048 / HUB-007 / HUB-008 / HUB-009）——前后端**共用**。
  *
@@ -123,7 +202,7 @@ export type NavUrlValidation =
 /** 控制字符与空白检测：逐码元判断，避免 `no-control-regex` 与正则回退歧义。 */
 function hasControlOrSpace(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
+    const code = (value.codePointAt(index) ?? Number.NaN);
     if (code <= 0x20 || code === 0x7f) {
       return true;
     }
@@ -743,61 +822,7 @@ export function parseNavImportJson(raw: unknown): NavParseResult {
   const skipped: NavImportSkipped[] = [];
   const seen = new Set<string>();
 
-  for (const entry of list) {
-    const record = asRecord(entry);
-    const title = typeof record['title'] === 'string' ? record['title'].trim().slice(0, MAX_NAV_TITLE_LENGTH) : '';
-    const urlValue = record['url'];
-    const validation = validateNavUrl(urlValue);
-    if (!validation.ok) {
-      skipped.push(
-        skipOf(
-          validation.reason === 'scheme' ? 'unsupported_scheme' : 'invalid_url',
-          validation.reason === 'scheme'
-            ? '只允许 https:// 链接，已跳过非 https 地址'
-            : 'URL 形态不可用（缺少主机、含凭证或超长）',
-          title.length > 0 ? title : null,
-          typeof urlValue === 'string' ? urlValue.slice(0, MAX_NAV_URL_LENGTH) : null,
-        ),
-      );
-      continue;
-    }
-    if (title.length === 0) {
-      skipped.push(skipOf('missing_title', '条目缺少 title', null, validation.url));
-      continue;
-    }
-    const key = normalizeNavText(validation.url);
-    if (seen.has(key)) {
-      skipped.push(skipOf('duplicate', '同一 URL 已在本次导入中出现过', title, validation.url));
-      continue;
-    }
-    if (items.length >= MAX_NAV_IMPORT_ITEMS) {
-      skipped.push(skipOf('too_many_items', `单次导入上限为 ${String(MAX_NAV_IMPORT_ITEMS)} 条`, title, validation.url));
-      continue;
-    }
-    seen.add(key);
-
-    const candidate: Record<string, unknown> = {
-      title,
-      url: validation.url,
-      tags: normalizeNavTags(record['tags']),
-      aliases: normalizeNavAliases(record['aliases']),
-      ...(typeof record['description'] === 'string'
-        ? { description: record['description'].slice(0, MAX_NAV_DESCRIPTION_LENGTH) }
-        : {}),
-      ...(typeof record['icon'] === 'string' ? { icon: record['icon'].slice(0, MAX_NAV_ICON_LENGTH) } : {}),
-      ...(NAV_REGIONS.includes(record['region'] as NavRegion) ? { region: record['region'] } : {}),
-      ...(NAV_OPEN_MODES.includes(record['openMode'] as NavOpenMode) ? { openMode: record['openMode'] } : {}),
-      ...(typeof record['groupName'] === 'string' && record['groupName'].trim().length > 0
-        ? { groupName: record['groupName'].trim().slice(0, MAX_NAV_GROUP_NAME_LENGTH) }
-        : {}),
-    };
-    const parsedItem = navImportItemSchema.safeParse(candidate);
-    if (parsedItem.success) {
-      items.push(parsedItem.data);
-    } else {
-      skipped.push(skipOf('invalid_url', '条目字段不符合导入契约', title, validation.url));
-    }
-  }
+  for (const entry of list) {appendJsonImportEntry({entry,skipped,seen,items});}
 
   return { items, skipped };
 }
@@ -872,19 +897,7 @@ export function validateNavExportIntegrity(document: NavExportDocument): {
     seenGroupIds.add(group.id);
   }
   const seenPairs = new Set<string>();
-  for (const membership of document.memberships) {
-    const pair = `${membership.linkId}\u0000${membership.groupId}`;
-    if (seenPairs.has(pair)) {
-      problems.push(`成员关系重复：${membership.linkId} ↔ ${membership.groupId}`);
-    }
-    seenPairs.add(pair);
-    if (!seenLinkIds.has(membership.linkId)) {
-      problems.push(`成员关系指向不存在的链接：${membership.linkId}`);
-    }
-    if (!seenGroupIds.has(membership.groupId)) {
-      problems.push(`成员关系指向不存在的分组：${membership.groupId}`);
-    }
-  }
+  for (const membership of document.memberships) {validateExportMembership({membership,seenPairs,problems,seenLinkIds,seenGroupIds});}
   if (document.links.length > MAX_NAV_LINKS_PER_WORKSPACE) {
     problems.push(`链接数量超过上限 ${String(MAX_NAV_LINKS_PER_WORKSPACE)}`);
   }

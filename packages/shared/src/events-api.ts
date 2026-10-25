@@ -247,7 +247,7 @@ export function filterEvents<T extends EventSearchableFields>(
 }
 
 /** 数值升序比较（不用减法：避免大时间戳相减时的精度损失）。 */
-function compareNumbers(a: number, b: number): number {
+function compareScalar<T extends number|string>(a:T,b:T):number {
   if (a === b) {
     return 0;
   }
@@ -255,12 +255,8 @@ function compareNumbers(a: number, b: number): number {
 }
 
 /** 字符串按 UTF-16 码元比较：**与 locale 无关**，因此跨设备/跨运行结果完全一致。 */
-function compareIds(a: string, b: string): number {
-  if (a === b) {
-    return 0;
-  }
-  return a < b ? -1 : 1;
-}
+const compareNumbers=compareScalar<number>;
+const compareIds=compareScalar<string>;
 
 /**
  * 按开始时间排序（**确定性**）。
@@ -301,7 +297,7 @@ const HTTPS_SCHEME_PATTERN = /^https:\/\//i;
  */
 function hasControlOrSpace(raw: string): boolean {
   for (let index = 0; index < raw.length; index += 1) {
-    const code = raw.charCodeAt(index);
+    const code = (raw.codePointAt(index) ?? Number.NaN);
     if (code <= 0x20 || code === 0x7f) {
       return true;
     }

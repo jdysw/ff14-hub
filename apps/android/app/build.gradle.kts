@@ -28,8 +28,10 @@ android {
     kotlinOptions { jvmTarget = "17" }
     testOptions { unitTests.isIncludeAndroidResources = true }
 }
+dependencyLocking { lockAllConfigurations() }
+
 dependencies {
-    implementation("androidx.work:work-runtime-ktx:2.10.1")
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("org.robolectric:robolectric:4.17")
+    implementation(libs.androidx.work.runtime.ktx)
+    testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
 }

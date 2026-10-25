@@ -83,7 +83,7 @@ export function collectLoadedAssetUrls(): readonly string[] {
 /** 把当前这版资源清单交给受控的 SW；没有受控 SW 或没有可缓存的资源时静默不做。 */
 export function reportLoadedAssetsToServiceWorker(): void {
   const container = readServiceWorkerContainer(currentNavigator());
-  if (container === null || container.controller === null || container.controller === undefined) {
+  if (container?.controller == null) {
     return;
   }
   const urls = collectLoadedAssetUrls();

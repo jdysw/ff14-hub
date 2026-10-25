@@ -1,9 +1,28 @@
+
+function readJavascriptNavigationSnapshot({text,source}){
+
+    const tree=ts.createSourceFile('source.js',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
+    const literal=node=>{
+      if(ts.isStringLiteral(node)||ts.isNoSubstitutionTemplateLiteral(node))return node.text;
+      if(ts.isArrayLiteralExpression(node))return node.elements.map(literal);
+      if(ts.isObjectLiteralExpression(node))return Object.fromEntries(node.properties.filter(ts.isPropertyAssignment).map(p=>[p.name.getText(tree).replaceAll(/^['"]|['"]$/g,''),literal(p.initializer)]));
+      return null;
+    };
+    let groups=null;
+    const visit=node=>{if(ts.isArrayLiteralExpression(node)){const first=node.elements[0];if(first?.getText(tree).startsWith('{id:"cn-official"'))groups=literal(node);}ts.forEachChild(node,visit);};
+    visit(tree);
+    if(!groups)throw new Error('咖啡厅结构已变化，请人工核对');
+    for(const group of groups)for(const link of group.links??[])if(link.name&&link.url)raw.push({title:link.name,url:link.url,section:group.name,source:source.url,sourceName:source.name});
+
+}
+import {forEachSequential} from "../packages/shared/src/sequential-tasks.mjs";
 /** Offline, reviewable importer. Run after fetching the three public source snapshots.
  * Only parses syntax and markup; never executes third-party JavaScript.
  */
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import ts from 'typescript';
+import {cleanNavigationSourceText as clean} from './lib/navigation-source-text.mjs';
 
 const input=process.argv[2]??'.wrangler/navigation-sources';
 const reviewedCategories=new Map(JSON.parse(await readFile('data/navigation/classification.json','utf8')).map(entry=>[entry.id,entry.category]));
@@ -12,24 +31,10 @@ const sources=[
   {file:'light.html',url:'https://ff14nav.tianbianyu.com/',name:'光之导航站'},
   {file:'wiki.html',url:'https://ff14.wiki/',name:'FF14.wiki'},
 ];
-const clean=text=>text.replace(/<[^>]*>/g,' ').replace(/&#(x[\da-f]+|\d+);/gi,(_,n)=>String.fromCodePoint(n[0]==='x'?parseInt(n.slice(1),16):Number(n))).replace(/&amp;/g,'&').replace(/&nbsp;/g,' ').replace(/&quot;/g,'"').replace(/\s+/g,' ').trim();
 const raw=[];
-for(const source of sources){
+await forEachSequential(sources,async (source)=>{
   const text=await readFile(`${input}/${source.file}`,'utf8');
-  if(source.file.endsWith('.js')){
-    const tree=ts.createSourceFile('source.js',text,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
-    const literal=node=>{
-      if(ts.isStringLiteral(node)||ts.isNoSubstitutionTemplateLiteral(node))return node.text;
-      if(ts.isArrayLiteralExpression(node))return node.elements.map(literal);
-      if(ts.isObjectLiteralExpression(node))return Object.fromEntries(node.properties.filter(ts.isPropertyAssignment).map(p=>[p.name.getText(tree).replace(/^['"]|['"]$/g,''),literal(p.initializer)]));
-      return null;
-    };
-    let groups=null;
-    const visit=node=>{if(ts.isArrayLiteralExpression(node)){const first=node.elements[0];if(first?.getText(tree).startsWith('{id:"cn-official"'))groups=literal(node);}ts.forEachChild(node,visit);};
-    visit(tree);
-    if(!groups)throw new Error('咖啡厅结构已变化，请人工核对');
-    for(const group of groups)for(const link of group.links??[])if(link.name&&link.url)raw.push({title:link.name,url:link.url,section:group.name,source:source.url,sourceName:source.name});
-  }else{
+  if(source.file.endsWith('.js')){readJavascriptNavigationSnapshot({text,source});}else{
     let section='';
     for(const match of text.matchAll(/<h([1-3])\b[^>]*>([\s\S]*?)<\/h\1>|<a\b([^>]*?)>([\s\S]*?)<\/a>/gi)){
       if(match[1]){section=clean(match[2]);continue;}
@@ -40,7 +45,7 @@ for(const source of sources){
       raw.push({title,url:clean(href),section,source:source.url,sourceName:source.name});
     }
   }
-}
+});
 // Explicit, reviewed aliases for the same homepage/function. Do not merge an entire host.
 const equivalents=new Map([
  ['https://ff.web.sdo.com/web8/index.html#/home','https://ff.web.sdo.com/'],
@@ -56,7 +61,8 @@ function normalize(raw){
   if(url.hostname==='www.weibo.com')url.hostname='weibo.com';
   if(['nga.178.com','ngabbs.com'].includes(url.hostname))url.hostname='bbs.nga.cn';
   if(url.hostname==='space.bilibili.com')url.pathname=url.pathname.replace(/\/video\/?$/,'');
-  for(const key of [...url.searchParams.keys()])if(/^utm_/i.test(key)||/^(spm|from_spmid|vd_source|fbclid|gclid|visit_id)$/i.test(key)||(url.hostname==='bbs.nga.cn'&&/^(rand|fav)$/.test(key)))url.searchParams.delete(key);
+  const queryKeys=[...url.searchParams.keys()];
+  for(const key of queryKeys)if(/^utm_/i.test(key)||/^(spm|from_spmid|vd_source|fbclid|gclid|visit_id)$/i.test(key)||(url.hostname==='bbs.nga.cn'&&/^(rand|fav)$/.test(key)))url.searchParams.delete(key);
   url.searchParams.sort();
   if(url.hash==='#'||url.hash==='#/')url.hash='';
   return equivalents.get(url.href)??url.href;
@@ -66,27 +72,6 @@ function category(row){
   if(reviewed)return reviewed;
   throw new Error('新入口需要先核对分类：'+row.title);
 }
-/* Historical keyword rules retained for audit only. */
-function legacyCategory(row){
-  const text=row.title;
-  if(/素素攻略站|加兰德数据库|Game8|Consolegameswiki|FF14 Online Wiki/i.test(text))return '新手与百科';
-  if(/艾欧泽亚售楼中心/i.test(text))return '住房装修';
-  if(/素素辣鸡排/i.test(text))return '开发与辅助工具';
-  if(/官网|官方|^道具商城$|^周边商城$|后勤补给|礼物站|招待|充值|积分|违规|莫古站|LodeStone|石之家/i.test(text))return '官方服务';
-  if(/房|住宅|家具|装修|Housing/i.test(text))return '住房装修';
-  if(/幻化|外观|染色|Model Viewer|捏|头像|mirapri/i.test(text))return '幻化与外观';
-  if(/物价|市场|Universalis|经济|罗薇娜/i.test(text))return '市场与经济';
-  if(/钓|鱼|生产|采集|配方|制作|天气|栽培|无人岛|俺Tools|Teamcraft|赐福|工坊|潜水艇|筹备/i.test(text))return '生产采集与钓鱼';
-  if(/狩猎|大型怪物|Fate/i.test(text))return '狩猎与探索';
-  if(/ACT|插件|卫月|XIVLauncher|画质|Reshade|GShade|API|文本检索/i.test(text))return '开发与辅助工具';
-  if(/金碟|仙|天书|幻巧|成就|九宫|演奏|音乐|娱乐|弹琴|休闲|时尚|萌宠|陆行鸟赛跑|大合奏/i.test(text))return '休闲与成就';
-  if(/新手|新人|新大陆|萌新|WIKI|wiki|数据库|资料库|综合|百科|Garland|ERIONES/i.test(text))return '新手与百科';
-  if(/副本|攻略|职业|战斗|配装|FFLogs|Logs|Analysis|警察|PVP|青魔|招募|高难|Raid|导随|绝|Strat|FFReplay/i.test(text))return '副本与战斗';
-  if(/Eureka|博兹雅|新月岛|探索笔记/i.test(text))return '狩猎与探索';
-  if(/科技|小开|工具插件/i.test(row.section))return '开发与辅助工具';
-  return '社区与创作';
-}
-void legacyCategory;
 function region(row){
   if(/国际服|日服|英文|外文|Reddit|Twitch|GamerEscape|Consolegameswiki|Game8|FF14 Online Wiki|mirapri|eorzeaCollection|ERIONES|Etro|Ariyala/i.test(row.title+' '+row.section))return 'global';
   if(/国服|简中|CN |NGA|百度|B站|微博|石之家|新大陆|鱼糕|素素|灰机|中文/i.test(row.title+' '+row.section)||new URL(row.url).hostname.endsWith('sdo.com'))return 'cn';
@@ -122,7 +107,7 @@ for(const row of raw){
 }
 const entries=[...items.values()].map((entry,index)=>({...entry,sortOrder:100+index,aliases:entry.aliases.slice(0,10)}));
 const report={checkedAt:'2026-10-20',sources:sources.map(source=>({url:source.url,name:source.name,sha256:null})),rawCount:raw.length,importedCount:entries.length,mergedCount:raw.length-skipped.length-entries.length,skippedCount:skipped.length,categories:Object.fromEntries([...new Set(entries.map(x=>x.category))].map(group=>[group,entries.filter(x=>x.category===group).length])),skipped};
-for(const source of report.sources){const file=sources.find(x=>x.url===source.url).file;source.sha256=createHash('sha256').update(await readFile(`${input}/${file}`)).digest('hex');}
+await forEachSequential(report.sources,async (source)=>{const file=sources.find(x=>x.url===source.url).file;source.sha256=createHash('sha256').update(await readFile(`${input}/${file}`)).digest('hex');});
 await mkdir('data/navigation',{recursive:true});
 await writeFile('data/navigation/catalog.json',JSON.stringify(entries,null,2)+'\n');
 await writeFile('data/navigation/import-report.json',JSON.stringify(report,null,2)+'\n');

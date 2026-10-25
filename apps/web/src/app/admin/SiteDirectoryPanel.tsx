@@ -1,3 +1,4 @@
+import {forEachSequential} from "../../../../../packages/shared/src/sequential-tasks.mjs";
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { directoryAdminResponseSchema, directoryItemSchema, directoryRecordSchema, matchesDirectorySearch,splitDirectoryCategory,DEFAULT_CATEGORIES, type DirectoryItem, type DirectoryRecord } from '@ff14-hub/shared';
 import { calendarAdminSession } from '../events/calendar-admin-session';
@@ -11,13 +12,13 @@ const BASE='/api/v1/admin/navigation/items';
 
 async function request(path:string,method='GET',body?:unknown):Promise<unknown> {
   const token=calendarAdminSession.get();
-  if(!token)throw new Error('管理员会话已结束，请重新登录');
+  if(!token){throw new Error('管理员会话已结束，请重新登录');}
   const response=await fetch(path,{method,credentials:'omit',cache:'no-store',redirect:'error',
     headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},
     ...(body?{body:JSON.stringify(body)}:{})});
   const result:unknown=await response.json();
   if(!response.ok){
-    if(response.status===401)calendarAdminSession.clear();
+    if(response.status===401){calendarAdminSession.clear();}
     const parsed=typeof result==='object'&&result!==null&&'error' in result?result.error:null;
     const message=typeof parsed==='object'&&parsed!==null&&'message' in parsed&&typeof parsed.message==='string'?parsed.message:'保存失败，请重试';
     throw new Error(message);
@@ -44,12 +45,12 @@ export function SiteDirectoryPanel(){
   const [tagsText,setTagsText]=useState('');
   const [aliasesText,setAliasesText]=useState('');
   const alertRef=useRef<HTMLParagraphElement>(null);
-  useEffect(()=>{if(error)alertRef.current?.focus();},[error]);
+  useEffect(()=>{if(error){alertRef.current?.focus();}},[error]);
   const load=useCallback(async()=>{
     const result=directoryAdminResponseSchema.parse(await request(BASE));
     setRecords(result.records);setLoaded(true);
   },[]);
-  useEffect(()=>{let alive=true;void request(BASE).then(value=>{if(alive){setRecords(directoryAdminResponseSchema.parse(value).records);setLoaded(true);}}).catch((cause:unknown)=>{if(alive)setError(cause instanceof Error?cause.message:'加载网站失败');});return()=>{alive=false;};},[]);
+  useEffect(()=>{let alive=true;void request(BASE).then(value=>{if(alive){setRecords(directoryAdminResponseSchema.parse(value).records);setLoaded(true);}}).catch((cause:unknown)=>{if(alive){setError(cause instanceof Error?cause.message:'加载网站失败');}});return()=>{alive=false;};},[]);
   const run=async(action:()=>Promise<void>)=>{
     setBusy(true);setError(null);setNotice(null);
     try{await action();}catch(cause){setError(cause instanceof Error?cause.message:'操作失败，草稿仍保留');}finally{setBusy(false);}
@@ -68,8 +69,8 @@ export function SiteDirectoryPanel(){
   return <section className="directory-admin" aria-label="网站目录管理">
     <header><h3>网站目录管理</h3><p>管理全站推荐网站。保存直接同步到服务器；玩家自己的导航和收藏保存在各自浏览器。</p></header>
     <div className="site-admin__actions">
-      <button type="button" disabled={busy||!selected.length} onClick={()=>void run(async()=>{let done=0;try{for(const id of selected){await content.change('navigation',id,'trash');done++;}}finally{setSelected([]);setNotice(`已删除 ${done} 个网站到回收站`);}})}>批量删除（{selected.length}）</button>
-      <button type="button" disabled={busy||!selected.length} onClick={()=>void run(async()=>{for(const record of records.filter(row=>selected.includes(row.entry.id))){accepted(directoryRecordSchema.parse(await request(`${BASE}/${encodeURIComponent(record.entry.id)}/hide`,'POST',{expectedRevision:record.revision})));}setSelected([]);setNotice('所选网站已下架');})}>批量下架</button>
+      <button type="button" disabled={busy||!selected.length} onClick={()=>void run(async()=>{let done=0;try{await forEachSequential(selected,async (id)=>{await content.change('navigation',id,'trash');done++;});}finally{setSelected([]);setNotice(`已删除 ${done} 个网站到回收站`);}})}>批量删除（{selected.length}）</button>
+      <button type="button" disabled={busy||!selected.length} onClick={()=>void run(async()=>{await forEachSequential(records.filter(row=>selected.includes(row.entry.id)),async (record)=>{accepted(directoryRecordSchema.parse(await request(`${BASE}/${encodeURIComponent(record.entry.id)}/hide`,'POST',{expectedRevision:record.revision})));});setSelected([]);setNotice('所选网站已下架');})}>批量下架</button>
       <button type="button" className="button" disabled={busy||draft!==null||!loaded} onClick={()=>{setDraft({id:null,revision:0,item:blank()});setTagsText('');setAliasesText('');setError(null);setNotice(null);}}>新增网站</button>
       <button type="button" className="button button--secondary" disabled={busy} onClick={()=>void run(async()=>{await load();setNotice(draft?'已重新读取列表；草稿已保留。请取消编辑后打开最新版本再保存。':'网站列表已更新。');})}>重新读取列表</button>
       <span>{records.filter(record=>!record.hidden).length} 个展示中 · {records.filter(record=>record.hidden).length} 个已下架</span>
@@ -77,16 +78,16 @@ export function SiteDirectoryPanel(){
     {error?<p ref={alertRef} tabIndex={-1} role="alert" className="notice notice--error">{error}</p>:null}
     {notice?<output className="notice notice--ok" style={{display:'block'}}>{notice}</output>:null}
     {content.error&&<p role="alert">{content.error}</p>}
-    <details><summary>批量分类、标签与导出</summary><div className="site-admin__actions"><button type="button" onClick={()=>setSelected(filtered.map(row=>row.entry.id))}>选择当前筛选结果</button><button type="button" onClick={()=>setSelected([])}>取消选择</button><label>迁移到分类<select value={bulkCategory} onChange={e=>setBulkCategory(e.target.value)}><option value="">选择分类…</option>{taxonomy.flatMap(group=>[group.name,...group.children.map(sub=>group.name+' / '+sub)]).map(group=><option key={group}>{group}</option>)}</select></label><button type="button" disabled={busy||!selected.length||!bulkCategory} onClick={()=>void run(async()=>{let count=0;try{for(const record of records.filter(row=>selected.includes(row.entry.id))){await saveItem(record,{...directoryItemSchema.strip().parse(record.entry),category:bulkCategory});count++;}}finally{setSelected([]);setNotice(`已迁移 ${count} 个网站；失败项可重新筛选处理`);}})}>迁移所选网站</button></div>
-      <label>原标签<input value={tagFrom} onChange={e=>setTagFrom(e.target.value)}/></label><label>替换为（留空则移除）<input value={tagTo} onChange={e=>setTagTo(e.target.value)}/></label><button type="button" disabled={busy||!tagFrom.trim()} onClick={()=>void run(async()=>{let count=0;for(const record of filtered.filter(row=>row.entry.tags.includes(tagFrom.trim()))){await saveItem(record,{...directoryItemSchema.strip().parse(record.entry),tags:[...new Set(record.entry.tags.filter(tag=>tag!==tagFrom.trim()).concat(tagTo.trim()?[tagTo.trim()]:[]))]});count++;}setNotice(`已更新 ${count} 个网站的标签`);})}>替换当前筛选结果中的标签</button>
+    <details><summary>批量分类、标签与导出</summary><div className="site-admin__actions"><button type="button" onClick={()=>setSelected(filtered.map(row=>row.entry.id))}>选择当前筛选结果</button><button type="button" onClick={()=>setSelected([])}>取消选择</button><label>迁移到分类<select value={bulkCategory} onChange={e=>setBulkCategory(e.target.value)}><option value="">选择分类…</option>{taxonomy.flatMap(group=>[group.name,...group.children.map(sub=>group.name+' / '+sub)]).map(group=><option key={group}>{group}</option>)}</select></label><button type="button" disabled={busy||!selected.length||!bulkCategory} onClick={()=>void run(async()=>{let count=0;try{await forEachSequential(records.filter(row=>selected.includes(row.entry.id)),async (record)=>{await saveItem(record,{...directoryItemSchema.strip().parse(record.entry),category:bulkCategory});count++;});}finally{setSelected([]);setNotice(`已迁移 ${count} 个网站；失败项可重新筛选处理`);}})}>迁移所选网站</button></div>
+      <label>原标签<input value={tagFrom} onChange={e=>setTagFrom(e.target.value)}/></label><label>替换为（留空则移除）<input value={tagTo} onChange={e=>setTagTo(e.target.value)}/></label><button type="button" disabled={busy||!tagFrom.trim()} onClick={()=>void run(async()=>{let count=0;await forEachSequential(filtered.filter(row=>row.entry.tags.includes(tagFrom.trim())),async (record)=>{await saveItem(record,{...directoryItemSchema.strip().parse(record.entry),tags:[...new Set(record.entry.tags.filter(tag=>tag!==tagFrom.trim()).concat(tagTo.trim()?[tagTo.trim()]:[]))]});count++;});setNotice(`已更新 ${count} 个网站的标签`);})}>替换当前筛选结果中的标签</button>
       <button type="button" onClick={()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(records.map(row=>row.entry),null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='navigation-directory.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}}>导出目录 JSON</button>
-      <label>导入目录 JSON（逐条校验，失败时保留已成功条目）<input type="file" accept="application/json,.json" disabled={busy} onChange={event=>{const file=event.target.files?.[0];if(!file)return;void run(async()=>{if(file.size>2000000)throw new Error('文件不能超过 2 MB');const raw:unknown=JSON.parse(await file.text());if(!Array.isArray(raw)||raw.length>500)throw new Error('每次最多导入 500 个网站');const items=raw.map(item=>directoryItemSchema.strip().parse(item));let count=0;try{for(const item of items){const old=records.find(row=>row.entry.url===item.url);if(old)await saveItem(old,item);else accepted(directoryRecordSchema.parse(await request(BASE,'POST',{expectedRevision:0,item})));count++;}}finally{setNotice(`已导入 ${count} 个网站`);}});}}/></label>
+      <label>导入目录 JSON（逐条校验，失败时保留已成功条目）<input type="file" accept="application/json,.json" disabled={busy} onChange={event=>{const file=event.target.files?.[0];if(!file){return;}void run(async()=>{if(file.size>2000000){throw new Error('文件不能超过 2 MB');}const raw:unknown=JSON.parse(await file.text());if(!Array.isArray(raw)||raw.length>500){throw new Error('每次最多导入 500 个网站');}const items=raw.map(item=>directoryItemSchema.strip().parse(item));let count=0;try{await forEachSequential(items,async (item)=>{const old=records.find(row=>row.entry.url===item.url);if(old){await saveItem(old,item);}else {accepted(directoryRecordSchema.parse(await request(BASE,'POST',{expectedRevision:0,item})));}count++;});}finally{setNotice(`已导入 ${count} 个网站`);}});}}/></label>
     </details>
     {!loaded&&!error?<output style={{display:'block'}}>正在读取网站目录…</output>:null}
     {draft?<form className="directory-admin__form" aria-label={draft.id?'编辑网站':'新增网站'} onSubmit={event=>{event.preventDefault();void run(async()=>{
       const split=(text:string)=>[...new Set(text.split(/[,，]/).map(value=>value.trim()).filter(Boolean))];
       const parsed=directoryItemSchema.safeParse({...draft.item,tags:split(tagsText),aliases:split(aliasesText)});
-      if(!parsed.success)throw new Error(parsed.error.issues.map(issue=>`${issue.path.join('.')}: ${issue.message}`).join('；'));
+      if(!parsed.success){throw new Error(parsed.error.issues.map(issue=>`${issue.path.join('.')}: ${issue.message}`).join('；'));}
       const result=directoryRecordSchema.parse(await request(draft.id?`${BASE}/${encodeURIComponent(draft.id)}`:BASE,draft.id?'PUT':'POST',{expectedRevision:draft.revision,item:parsed.data}));
       accepted(result);setDraft(null);setNotice('网站已保存到服务器，公开目录已同步。');
     });}}>

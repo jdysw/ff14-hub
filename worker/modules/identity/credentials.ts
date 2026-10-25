@@ -14,7 +14,7 @@ import { constantTimeEqualStrings } from '../../lib/util';
 export function toBase64Url(bytes: Uint8Array): string {
   let binary = '';
   for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
+    binary += String.fromCodePoint(byte);
   }
   const encoded = btoa(binary).replaceAll('+', '-').replaceAll('/', '_');
   const padding = encoded.indexOf('=');

@@ -1,3 +1,4 @@
+import {csvRows} from './lib/fish-csv.mjs';
 /**
  * 国服鱼类候选目录适配器：国际服社区规则 + 国服游戏表的 ID 交集。
  * 本脚本不执行下载的 JS，不声称两服最新规则相同；输出始终为候选规则。
@@ -14,21 +15,9 @@ if(![globalBundlePath,trackerPath,itemsPath,parametersPath,weatherPath,spotsPath
 
 /** 按 RFC4180 读取含 BOM、逗号、双引号、换行和 CRLF 的 CSV。 */
 function parseCsv(text){
-  const rows=[];let row=[];let field='';let quoted=false;
-  for(let i=0;i<text.length;i++){
-    const c=text[i];
-    if(quoted){
-      if(c==='"' && text[i+1]==='"'){field+='"';i++;}
-      else if(c==='"')quoted=false;
-      else field+=c;
-    }else if(c==='"' && field==='')quoted=true;
-    else if(c===','){row.push(field);field='';}
-    else if(c==='\n'){row.push(field);rows.push(row);row=[];field='';}
-    else if(c!=='\r')field+=c;
-  }
-  if(quoted)throw new Error('不完整的 CSV 引号');
-  if(row.length||field){row.push(field);rows.push(row);}
-  if(rows[0]?.[0]?.charCodeAt(0)===0xfeff)rows[0][0]=rows[0][0].slice(1);
+  let rows;
+  try{rows=csvRows(text);}catch{throw new Error('不完整的 CSV 引号');}
+  if(rows[0]?.[0]?.codePointAt(0)===0xfeff){rows[0][0]=rows[0][0].slice(1);}
   return rows;
 }
 function indexOfHeader(table,header,name){

@@ -32,7 +32,7 @@ export interface ZodIssueLike {
 /** 把 zod 问题列表转成安全的可读文本：只有路径与类别，没有值。 */
 export function describeIssues(issues: readonly ZodIssueLike[]): string {
   const parts = issues.slice(0, MAX_REPORTED_ISSUES).map((issue) => {
-    const path = issue.path.length > 0 ? issue.path.map((segment) => String(segment)).join('.') : '<root>';
+    const path = issue.path.length > 0 ? issue.path.map(String).join('.') : '<root>';
     // Object.hasOwn：issue.code 是字符串，不能让 Object.prototype 上的成员（如 'constructor'）
     // 被当成类别文案串进响应。
     const text = Object.hasOwn(ISSUE_TEXT, issue.code) ? ISSUE_TEXT[issue.code] : undefined;

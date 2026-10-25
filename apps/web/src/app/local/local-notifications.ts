@@ -1,3 +1,14 @@
+
+function notificationFailureDescription({response}:Readonly<{response:Response}>){
+if(response.status===401){return '通知订阅已失效，请重新启用';}
+if(response.status===429){return '通知操作过于频繁，请稍后再试';}
+return '通知服务暂不可用，请稍后重试';
+}
+
+function appendFishNotificationWindows({item,names,settings,region,add}:Readonly<{item:ReturnType<typeof forecastCatalog>[number];names:Map<number,Awaited<ReturnType<typeof loadFishingCatalog>>['fish'][number]>;settings:NotificationSettings;region:'cn'|'global';add:(key:string,title:string,body:string,time:number,advance?:number)=>void}>){
+for(const window of item.windows){if(!window.unrestricted){const record=names.get(item.id)!,override=settings.fishLeadMinutes?.[`${region}:${item.id}`],minutes=override&&[5,10,15,30,60].includes(override)?override:settings.leadMinutes;add(`fish:${region}:${item.id}:${window.startsAtUtcMs}`,record.name,`${region==='cn'?'国服':'国际服'} · ${record.location} · ${window.candidateOnly?'候选鱼窗即将开放，需满足鱼饵及鱼识等条件':'鱼窗即将开放'}`,window.startsAtUtcMs,minutes*60_000);}}
+}
+import {forEachSequential} from "../../../../../packages/shared/src/sequential-tasks.mjs";
 import {eventCalendarResponseSchema,fishDigestSchema,type LocalNotificationJob,type LocalNotificationChannel} from '@ff14-hub/shared';
 import {forecastCatalog} from '../fish/forecast';
 import {loadFishingCatalog} from '../fish/catalog';
@@ -12,31 +23,32 @@ export function digestSettings(data:LocalData,settings:NotificationSettings){
   return fishDigestSchema.parse({enabled:settings.fish||(settings.events&&settings.eventEndDays.length>0),time:settings.digestTime,eventEndDays:settings.events?settings.eventEndDays:[],targets:settings.fish?targets:[]});
 }
 export const NOTIFICATION_SETTINGS_CHANGED='ff14:local-notifications-changed';
-export function buildTodoNotificationJobs(data:LocalData,now=Date.now()):LocalNotificationJob[]{return data.notes.filter(note=>!note.completed&&note.remindAt!==undefined&&note.remindAt>now&&note.remindAt<=now+365*86400000).map(note=>({key:`todo:${note.id}:${note.remindAt!}`,title:note.title.slice(0,80),body:(note.text||'你设置的待办提醒已到时间').slice(0,200),dueAt:note.remindAt!,expiresAt:note.remindAt!+15*60000})).sort((a,b)=>a.dueAt-b.dueAt).slice(0,30);}
+export function buildTodoNotificationJobs(data:LocalData,now=Date.now()):LocalNotificationJob[]{const jobs=data.notes.filter(note=>!note.completed&&note.remindAt!==undefined&&note.remindAt>now&&note.remindAt<=now+365*86400000).map(note=>({key:`todo:${note.id}:${note.remindAt!}`,title:note.title.slice(0,80),body:(note.text||'你设置的待办提醒已到时间').slice(0,200),dueAt:note.remindAt!,expiresAt:note.remindAt!+15*60000}));jobs.sort((a,b)=>a.dueAt-b.dueAt);return jobs.slice(0,30);}
 let eventCache:{at:number;data:ReturnType<typeof eventCalendarResponseSchema.parse>}|null=null;
 export async function buildNotificationJobs(data:LocalData,settings:NotificationSettings,now=Date.now()):Promise<LocalNotificationJob[]>{
   const jobs:LocalNotificationJob[]=[],lead=settings.leadMinutes*60_000;
   jobs.push(...buildTodoNotificationJobs(data,now));
-  const add=(key:string,title:string,body:string,time:number,advance=lead)=>{if(time<=now){return;}const originalDue=time-advance,dueAt=Math.max(now,originalDue);if(dueAt<=now+72*3600_000)jobs.push({key:key+':'+originalDue,title:title.slice(0,80),body:body.slice(0,200),dueAt,expiresAt:Math.min(time+15*60_000,dueAt+15*60_000)});};
+  const add=(key:string,title:string,body:string,time:number,advance=lead)=>{if(time<=now){return;}const originalDue=time-advance,dueAt=Math.max(now,originalDue);if(dueAt<=now+72*3_600_000)jobs.push({key:key+':'+originalDue,title:title.slice(0,80),body:body.slice(0,200),dueAt,expiresAt:Math.min(time+15*60_000,dueAt+15*60_000)});};
   if(settings.events){
-    try{if(!eventCache||now-eventCache.at>=6*3600_000){const response=await fetch('/api/v1/events/calendar',{credentials:'omit',cache:'no-store',redirect:'error'});if(!response.ok){throw new Error('官方活动读取失败');}eventCache={at:now,data:eventCalendarResponseSchema.parse(await response.json())};}}catch{/* An unavailable event feed must not suppress independently computable fish reminders. */}
+    try{if(!eventCache||now-eventCache.at>=6*3_600_000){const response=await fetch('/api/v1/events/calendar',{credentials:'omit',cache:'no-store',redirect:'error'});if(!response.ok){throw new Error('官方活动读取失败');}eventCache={at:now,data:eventCalendarResponseSchema.parse(await response.json())};}}catch{/* An unavailable event feed must not suppress independently computable fish reminders. */}
     for(const item of eventCache?.data.events??[]){if(item.startsAt!==null&&item.endsAt!==null){add('event-start:'+item.id,item.title,'活动即将开始',item.startsAt);add('event-end:'+item.id,item.title,'活动即将结束',item.endsAt);}}
   }
-  if(settings.fish)for(const region of ['cn','global'] as const){
+  if(settings.fish)await forEachSequential(['cn','global'] as const,async (region)=>{
     const fields=data.fish[region],caught=new Set(fields.filter(f=>f.field==='caught'&&f.value).map(f=>f.fishId));
     const wanted=new Set(fields.filter(f=>f.field==='alarm'&&f.value&&!caught.has(f.fishId)).map(f=>f.fishId));
-    if(wanted.size===0){continue;}
+    if(wanted.size===0){return;}
     const catalog=await loadFishingCatalog(region);
     const fish=catalog.fish.filter(f=>wanted.has(f.id)&&f.method==='rod'&&f.rule&&!f.rule.conditions.some(c=>c.kind==='unknown'));
     const names=new Map(fish.map(f=>[f.id,f]));
-    for(const item of forecastCatalog(fish,region,now,72))for(const window of item.windows){if(!window.unrestricted){const record=names.get(item.id)!,override=settings.fishLeadMinutes?.[`${region}:${item.id}`],minutes=override&&[5,10,15,30,60].includes(override)?override:settings.leadMinutes;add(`fish:${region}:${item.id}:${window.startsAtUtcMs}`,record.name,`${region==='cn'?'国服':'国际服'} · ${record.location} · ${window.candidateOnly?'候选鱼窗即将开放，需满足鱼饵及鱼识等条件':'鱼窗即将开放'}`,window.startsAtUtcMs,minutes*60_000);}}
-  }
-  return jobs.sort((a,b)=>a.dueAt-b.dueAt||a.key.localeCompare(b.key)).slice(0,30);
+    for(const item of forecastCatalog(fish,region,now,72)){appendFishNotificationWindows({item,names,settings,region,add});}
+  });
+  jobs.sort((a,b)=>a.dueAt-b.dueAt||a.key.localeCompare(b.key));
+  return jobs.slice(0,30);
 }
 export async function notificationRequest(path:string,token:string,method='GET',body?:unknown){
   const response=await fetch('/api/v1/local-notifications'+path,{method,credentials:'omit',cache:'no-store',redirect:'error',headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
   if(method==='DELETE'&&response.status===401)return {removed:true};
-  if(!response.ok)throw new Error(response.status===401?'通知订阅已失效，请重新启用':response.status===429?'通知操作过于频繁，请稍后再试':'通知服务暂不可用，请稍后重试');
+  if(!response.ok)throw new Error(notificationFailureDescription({response}));
   return response.json() as Promise<unknown>;
 }
 export async function registerNotifications(channel:LocalNotificationChannel,settings:NotificationSettings,store:LocalStore){
@@ -55,11 +67,13 @@ export function startLocalNotifications(store:LocalStore){
     try{const settings=await readDeviceRecord<NotificationSettings>('notifications');if(!settings||(!settings.token&&!settings.browser)||(localOnly&&!settings.browser))return;
       const data=await store.read(),jobs=await buildNotificationJobs(data,settings);
       const latest=await readDeviceRecord<NotificationSettings>('notifications');
-      if(stopped||!latest||latest.token!==settings.token||latest.browser!==settings.browser||latest.digestTime!==settings.digestTime||(await store.read()).revision!==data.revision)return;
+      if(stopped||latest===null){return;}
+      if(latest.token!==settings.token||latest.browser!==settings.browser||latest.digestTime!==settings.digestTime||(await store.read()).revision!==data.revision){return;}
       let error='';
       if(settings.token&&!localOnly)try{await notificationRequest('/plan',settings.token,'PUT',{jobs:buildTodoNotificationJobs(data),digest:digestSettings(data,settings),targetsOnly:true});}catch(cause){error=cause instanceof Error?cause.message:'后台提醒登记失败，请检查通知设置';}
       await updateDeviceRecord<NotificationSettings>('notifications',current=>{
-        if(stopped||!current||current.token!==settings.token||current.browser!==settings.browser){return undefined;}
+        if(stopped||current===null){return undefined;}
+        if(current.token!==settings.token||current.browser!==settings.browser){return undefined;}
         return {...current,jobs,lastPlan:localOnly||error?current.lastPlan:Date.now(),error:localOnly?current.error:error};
       });
     }catch{/* A failed refresh preserves the durable server plan; status is available in settings. */}finally{running=false;}
@@ -67,16 +81,16 @@ export function startLocalNotifications(store:LocalStore){
   const changed=()=>{window.clearTimeout(timer);timer=window.setTimeout(()=>void renew(),2000);};
   const unsubscribe=store.subscribe(changed);
   window.addEventListener(NOTIFICATION_SETTINGS_CHANGED,changed);
-  const periodic=window.setInterval(()=>{if(document.visibilityState!=='hidden'){void renew();}},6*3600_000);
+  const periodic=window.setInterval(()=>{if(document.visibilityState!=='hidden'){void renew();}},6*3_600_000);
   const localPeriodic=window.setInterval(()=>void renew(true),15*60_000);
   const seen=new Set<string>();
   const browserTimer=window.setInterval(()=>{void (async()=>{
     const settings=await readDeviceRecord<NotificationSettings>('notifications');
     if(stopped||!settings?.browser||!('Notification' in window)||Notification.permission!=='granted')return;
-    for(const job of settings.jobs){if(job.dueAt<=Date.now()&&job.expiresAt>Date.now()&&!seen.has(job.key)){
+    await forEachSequential(settings.jobs,async (job)=>{if(job.dueAt<=Date.now()&&job.expiresAt>Date.now()&&!seen.has(job.key)){
       seen.add(job.key);const registration=await navigator.serviceWorker.ready;
       await registration.showNotification(job.title,{body:job.body,tag:job.key,data:{fish:fishLinkFromJob(job.key)}});
-    }}
+    }});
   })().catch(()=>{});},30_000);
   void renew();
   return()=>{stopped=true;unsubscribe();window.clearTimeout(timer);window.clearInterval(periodic);window.clearInterval(localPeriodic);window.clearInterval(browserTimer);window.removeEventListener(NOTIFICATION_SETTINGS_CHANGED,changed);};

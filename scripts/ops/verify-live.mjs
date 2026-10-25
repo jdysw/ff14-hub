@@ -1,3 +1,4 @@
+import {forEachSequential,retrySequential} from "../../packages/shared/src/sequential-tasks.mjs";
 import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
@@ -27,10 +28,10 @@ export async function verifyLive(environment,{fetcher=fetch,readAsset=(asset)=>r
   const html=await response.text();
   const assets=[...new Set([...html.matchAll(/(?:src|href)="(\/assets\/[A-Za-z0-9_.-]+)"/g)].map((match)=>match[1]))];
   if(assets.length<2)throw new Error('Missing frontend asset references');
-  for(const asset of assets){
+  await forEachSequential(assets,async (asset)=>{
     const [local,remote]=await Promise.all([readAsset(asset),request(asset).then((assetResponse)=>assetResponse.arrayBuffer())]);
     if(sha256(local)!==sha256(remote))throw new Error('Live frontend differs from verified build');
-  }
+  });
   return {environment,baseUrl:base,assetsVerified:assets.length};
   };
   try{return {...await verifyAt(targets[environment]),customDomainVerified:true};}
@@ -44,16 +45,12 @@ export async function verifyLive(environment,{fetcher=fetch,readAsset=(asset)=>r
 }
 
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
-  let passed=false;
-  for(let attempt=1;attempt<=5;attempt++){
-    try{
-      const report=await verifyLive(process.argv[2]);
-      console.log(JSON.stringify(report));
-      if(!report.customDomainVerified)console.warn(report.warning);
-      passed=true;break;
-    }
-    catch(error){console.error(`Public deployment verification attempt ${attempt}/5 failed: ${error instanceof Error?error.message:'unknown error'}`);}
-    if(attempt<5)await new Promise((resolve)=>setTimeout(resolve,5000));
-  }
-  if(!passed)process.exitCode=1;
+  try{
+    const report=await retrySequential(5,async attempt=>{
+      try{return await verifyLive(process.argv[2]);}
+      catch(error){console.error('Public deployment verification attempt '+(attempt+1)+'/5 failed');throw error;}
+    },()=>new Promise(resolve=>setTimeout(resolve,5000)));
+    console.log(JSON.stringify(report));
+    if(!report.customDomainVerified){console.warn(report.warning);}
+  }catch{process.exitCode=1;}
 }

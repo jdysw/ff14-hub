@@ -5,13 +5,13 @@ import {readDeviceRecord,updateDeviceRecord} from '../local/secure-storage';
 import {defaultNotificationSettings,NOTIFICATION_SETTINGS_CHANGED,type NotificationSettings} from '../local/local-notifications';
 import {usePrivateDraft} from '../pwa/draft-registry';
 
-export function FishReminderPanel({fish,region,enabled,caught,onSave,onClose,onSettings}:{fish:CatalogFish;region:FishRegion;enabled:boolean;caught:boolean;onSave:(value:boolean)=>Promise<boolean>;onClose:()=>void;onSettings?:()=>void}){
+export function FishReminderPanel({fish,region,enabled,caught,onSave,onClose,onSettings}:Readonly<{fish:CatalogFish;region:FishRegion;enabled:boolean;caught:boolean;onSave:(value:boolean)=>Promise<boolean>;onClose:()=>void;onSettings?:()=>void}>){
   const [settings,setSettings]=useState<NotificationSettings|null>(null),[lead,setLead]=useState(10),[error,setError]=useState(''),[busy,setBusy]=useState(false);
   const key=`${region}:${fish.id}`;
   usePrivateDraft(busy||Boolean(settings&&lead!==(settings.fishLeadMinutes?.[key]??settings.leadMinutes)));
-  useEffect(()=>{let alive=true;void readDeviceRecord<NotificationSettings>('notifications').then(saved=>{if(alive){const s=saved??defaultNotificationSettings;setSettings(s);setLead(s.fishLeadMinutes?.[key]??s.leadMinutes);}}).catch(()=>{if(alive)setError('提醒配置读取失败，请关闭后重试');});return()=>{alive=false;};},[key]);
+  useEffect(()=>{let alive=true;void readDeviceRecord<NotificationSettings>('notifications').then(saved=>{if(alive){const s=saved??defaultNotificationSettings;setSettings(s);setLead(s.fishLeadMinutes?.[key]??s.leadMinutes);}}).catch(()=>{if(alive){setError('提醒配置读取失败，请关闭后重试');}});return()=>{alive=false;};},[key]);
   const save=async()=>{
-    if(busy||!settings)return;setBusy(true);setError('');
+    if(busy||!settings){return;}setBusy(true);setError('');
     try{
       await updateDeviceRecord<NotificationSettings>('notifications',current=>{const s=current??defaultNotificationSettings;return {...s,fish:true,fishLeadMinutes:{...s.fishLeadMinutes,[key]:lead}};});
       if(await onSave(true)){window.dispatchEvent(new Event(NOTIFICATION_SETTINGS_CHANGED));onClose();}
@@ -22,13 +22,13 @@ export function FishReminderPanel({fish,region,enabled,caught,onSave,onClose,onS
     // Permission must be requested directly from the user's click.
     const permission=Notification.requestPermission();setBusy(true);setError('');
     void permission.then(async value=>{
-      if(value!=='granted')throw new Error('请在浏览器的站点设置中允许通知，标记提醒仍可保存');
+      if(value!=='granted'){throw new Error('请在浏览器的站点设置中允许通知，标记提醒仍可保存');}
       const next=await updateDeviceRecord<NotificationSettings>('notifications',current=>({... (current??defaultNotificationSettings),browser:true,fish:true}));
       setSettings(next);window.dispatchEvent(new Event(NOTIFICATION_SETTINGS_CHANGED));
     }).catch((cause:unknown)=>setError(cause instanceof Error?cause.message:'通知授权失败')).finally(()=>setBusy(false));
   };
   const rule=fish.rule;
-  const unrestricted=rule&&rule.startHour===0&&rule.endHour===24&&
+  const unrestricted=rule?.startHour===0&&rule.endHour===24&&
     (!rule.currentWeather.length||rule.weatherRates.every(r=>rule.currentWeather.includes(r.weather)))&&
     (!rule.previousWeather.length||rule.weatherRates.every(r=>rule.previousWeather.includes(r.weather)));
   const finite=rule&&fish.method==='rod'&&!unrestricted&&!rule.conditions.some(c=>c.kind==='unknown');
@@ -41,7 +41,7 @@ export function FishReminderPanel({fish,region,enabled,caught,onSave,onClose,onS
     <output style={{display:'block'}}>{settings?.browser&&'Notification' in window&&Notification.permission==='granted'?'网页内通知已启用':'网页内通知尚未启用'} · {settings?.token?'后台渠道已连接':'后台渠道未连接'}</output>
     <div className="fish-reminder-panel__actions"><button type="button" disabled={busy||!settings} onClick={()=>{void save();}}>{enabled?'保存这条鱼的提醒':'保存提醒标记'}</button>
       <button type="button" disabled={busy||!settings} onClick={authorize}>授权并启用网页通知</button>
-      {enabled?<button type="button" disabled={busy||!settings} onClick={()=>{setBusy(true);void onSave(false).then(ok=>{if(ok)onClose();}).catch(()=>setError('取消提醒失败')).finally(()=>setBusy(false));}}>取消这条鱼的提醒</button>:null}
+      {enabled?<button type="button" disabled={busy||!settings} onClick={()=>{setBusy(true);void onSave(false).then(ok=>{if(ok){onClose();}}).catch(()=>setError('取消提醒失败')).finally(()=>setBusy(false));}}>取消这条鱼的提醒</button>:null}
       {onSettings?<button type="button" onClick={onSettings} disabled={busy}>通知设置</button>:null}</div>
     {error?<p role="alert">{error}</p>:null}
   </section>;
