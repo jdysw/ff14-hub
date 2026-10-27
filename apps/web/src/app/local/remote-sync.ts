@@ -121,10 +121,13 @@ export function mergePersonalData(base:LocalData|null,local:LocalData,remote:Loc
     if(key.startsWith('note:')){data.notes.push(value as LocalData['notes'][number]);}
     if(key.startsWith('fish:')){const [,region,id,field]=key.split(':') as [string,'cn'|'global',string,'caught'|'pinned'|'alarm'];
       const old=local.fish[region].find(f=>f.fishId===Number(id)&&f.field===field);
-      data.fish[region].push({region,fishId:Number(id),field,value:value as boolean,revision:(old?.revision??0)+1,updatedAt:Date.now()});}
+      data.fish[region].push(old&&old.value===value?old:{region,fishId:Number(id),field,value:value as boolean,revision:(old?.revision??0)+1,updatedAt:Date.now()});}
   }
   return {data:localDataSchema.parse(data),conflicts};
 }
+export function personalDataFingerprint(data:LocalData):string{
+  return canonical([...entries(data)].sort(([a],[b])=>a.localeCompare(b)));
+}
 export async function applyPersonalSync(store:LocalStore,expectedRevision:number,data:LocalData){
-  await store.change(document=>{if(document.data.revision!==expectedRevision){throw new Error('本机数据已变化，请重新预览；远端同步结果已保留');}document.data=localDataSchema.parse(data);document.operations=[];});
+  await store.change(document=>{if(document.data.revision!==expectedRevision){throw new Error('本机数据已变化，请重新预览；远端同步结果已保留');}document.data=localDataSchema.parse(data);});
 }
