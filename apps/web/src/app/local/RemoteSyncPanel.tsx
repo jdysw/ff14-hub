@@ -59,7 +59,15 @@ export function RemoteSyncPanel({store}:Readonly<{store:LocalStore}>){
   const [autoStatus,setAutoStatus]=useState(automaticSyncStatus);
   useEffect(()=>{
     let alive=true,initialized=false;
-    const refresh=()=>{void readRemoteSession().then(value=>{if(alive){setSaved(value);if(!initialized){if(value)setConfig(value.config);initialized=true;}setReady(true);}}).catch(()=>{if(alive){setError('本机同步配置无法读取，请重新保存配置');setReady(true);}});};
+    const refresh=()=>{void readRemoteSession().then(value=>{
+      if(!alive)return;
+      setSaved(value);
+      if(!initialized){
+        if(value){setConfig(value.config);}
+        initialized=true;
+      }
+      setReady(true);
+    }).catch(()=>{if(alive){setError('本机同步配置无法读取，请重新保存配置');setReady(true);}});};
     const status=()=>setAutoStatus(automaticSyncStatus());
     refresh();window.addEventListener(REMOTE_SYNC_CHANGED,refresh);window.addEventListener(AUTO_SYNC_STATUS,status);
     return()=>{alive=false;window.removeEventListener(REMOTE_SYNC_CHANGED,refresh);window.removeEventListener(AUTO_SYNC_STATUS,status);};

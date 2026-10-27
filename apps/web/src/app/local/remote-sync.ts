@@ -116,11 +116,12 @@ export function mergePersonalData(base:LocalData|null,local:LocalData,remote:Loc
   const b=base?entries(base):new Map<string,unknown>(),l=entries(local),r=entries(remote),out=new Map<string,unknown>(),conflicts:SyncConflict[]=[];
   for(const key of new Set([...b.keys(),...l.keys(),...r.keys()])){mergePersonalEntry({b,key,l,r,base,choices,conflicts,out});}
   const data:LocalData={...local,links:[],notes:[],fish:{cn:[],global:[]},configuration:out.get('configuration') as LocalData['configuration']};
+  const localFish=new Map([...local.fish.cn,...local.fish.global].map(field=>[`fish:${field.region}:${field.fishId}:${field.field}`,field]));
   for(const [key,value] of out){
     if(key.startsWith('link:')){data.links.push(value as LocalData['links'][number]);}
     if(key.startsWith('note:')){data.notes.push(value as LocalData['notes'][number]);}
     if(key.startsWith('fish:')){const [,region,id,field]=key.split(':') as [string,'cn'|'global',string,'caught'|'pinned'|'alarm'];
-      const old=local.fish[region].find(f=>f.fishId===Number(id)&&f.field===field);
+      const old=localFish.get(key);
       data.fish[region].push(old&&old.value===value?old:{region,fishId:Number(id),field,value:value as boolean,revision:(old?.revision??0)+1,updatedAt:Date.now()});}
   }
   return {data:localDataSchema.parse(data),conflicts};
