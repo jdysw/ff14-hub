@@ -85,7 +85,7 @@ export async function automaticRemoteSync(store:LocalStore,current:()=>boolean=(
     if(saved.needsReview||!saved.baseline||!saved.lastSync)return 'review' as const;
     const key=configKey(saved.config),client=createRemoteClient(saved.config);
     try{
-      const local=await store.read(),remote=await client.read();
+      const remote=await client.read(),local=await store.read();
       if(!remote.data)throw new RemoteSyncError('format','远端文件已不存在，请重新读取预览，自动同步未重新创建它');
       await commitRemoteMerge(store,saved,{local,remote:remote.data,etag:remote.etag,configKey:key},{},client,current);
       return 'synced' as const;

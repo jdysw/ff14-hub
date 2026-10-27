@@ -71,6 +71,13 @@ it('keeps offline changes durable and uploads after connectivity returns',async(
   expect((memory.saved as RemoteSyncSession).needsReview).not.toBe(true);expect(device.read().notes).toHaveLength(1);
   await automaticRemoteSync(device.store);expect(remote.read().notes).toEqual(device.read().notes);
 });
+it('includes local edits committed while downloading the remote snapshot',async()=>{
+  const device=localStore(),remote=remoteObject(),fetcher=remote.fetcher.getMockImplementation()!;
+  let edited=false;
+  remote.fetcher.mockImplementation(async(url,init)=>{const response=await fetcher(url,init);if(init?.method==='GET'&&!edited){edited=true;device.edit(data=>data.notes.push(note('下载期间提交')));}return response;});
+  expect(await automaticRemoteSync(device.store)).toBe('synced');
+  expect(remote.read().notes[0]?.title).toBe('下载期间提交');expect((memory.saved as RemoteSyncSession).needsReview).toBe(false);
+});
 it('does not overwrite a newer remote ETag and re-reads before retry',async()=>{
   const device=localStore(),remote=remoteObject();device.edit(data=>data.notes.push(note('本机')));
   const fetcher=remote.fetcher.getMockImplementation()!;let raced=false;
