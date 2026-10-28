@@ -27,6 +27,17 @@ Homepage controls use Bootstrap Icons 1.13.2 (MIT, Copyright 2019-2024 The Boots
 bundled from the npm package rather than a remote script. License retained at
 `third_party/bootstrap-icons-LICENSE.txt`. Source: https://github.com/twbs/icons.
 
+## Weather maps
+
+The time/weather module reuses the existing fish-engine time and weather calculations.
+Its 70-map Chinese snapshot is transformed from the public TerritoryType/WeatherRate
+records served by `https://xivapi-v2.xivcdn.com/api`, version `20261013-1e14140`.
+Only ordinary towns, fields and residential districts with complete 100-percent tables
+are included; scripted and instance weather is excluded. Incomplete source rows are
+recorded in the snapshot rather than normalized into invented probabilities.
+Refresh explicitly with `pnpm run generate:weather`; regular builds use the checked-in
+snapshot. Weather symbols use the existing Bootstrap Icons dependency.
+
 ## Market data
 
 Market snapshots are requested from the public [Universalis API](https://docs.universalis.app/).

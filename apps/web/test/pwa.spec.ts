@@ -68,6 +68,14 @@ const SW_SOURCE = readFileSync(swPath, 'utf8');
 
 const APP_ORIGIN = 'https://ff14-hub.test';
 
+it('caches only the public weather snapshot and removes the previous public cache version',()=>{
+  expect(PUBLIC_STATIC_EXACT_PATHS).toContain('/weather/catalog-cn.json');
+  expect(shouldCacheRequest(requestDescriptor('/weather/catalog-cn.json'))).toBe(true);
+  expect(shouldCacheRequest(requestDescriptor('/weather/private.json'))).toBe(false);
+  expect(shouldCacheRequest(requestDescriptor('/weather/catalog-cn.json',{hasAuthorizationHeader:true}))).toBe(false);
+  expect(selectCachesToClear(['ff14-hub-public-v2','ff14-hub-public-v3'])).toEqual(['ff14-hub-public-v2']);
+});
+
 function requestDescriptor(path: string, overrides: Partial<CacheRequestDescriptor> = {}): CacheRequestDescriptor {
   return {
     url: `${APP_ORIGIN}${path}`,
@@ -229,14 +237,14 @@ describe('cache-policy：shouldCacheResponse', () => {
 
 describe('cache-policy：缓存名与清理选择', () => {
   it('公开缓存名带版本号', () => {
-    expect(PUBLIC_CACHE_NAME).toBe('ff14-hub-public-v2');
-    expect(isPublicCacheName('ff14-hub-public-v2')).toBe(true);
+    expect(PUBLIC_CACHE_NAME).toBe('ff14-hub-public-v3');
+    expect(isPublicCacheName('ff14-hub-public-v3')).toBe(true);
     expect(isPublicCacheName('ff14-hub-public-v0')).toBe(false);
     expect(isNonPublicCacheName('ff14-hub-private')).toBe(true);
   });
 
   it('selectCachesToClear 只保留当前公开缓存', () => {
-    const existing = ['ff14-hub-public-v2', 'ff14-hub-public-v0', 'ff14-hub-private', 'ff14-hub-me'];
+    const existing = ['ff14-hub-public-v3', 'ff14-hub-public-v0', 'ff14-hub-private', 'ff14-hub-me'];
     expect(selectCachesToClear(existing)).toEqual(['ff14-hub-public-v0', 'ff14-hub-private', 'ff14-hub-me']);
     expect(selectCachesToClear([])).toEqual([]);
   });
@@ -298,7 +306,7 @@ async function loadServiceWorker(): Promise<SwSandbox> {
   const handlers = new Map<string, ((event: unknown) => void)[]>();
   const notifications:{title:string;options:Record<string,unknown>}[]=[];const openedUrls:string[]=[];
   const deletedCaches: string[] = [];
-  const cacheKeys = ['ff14-hub-public-v2', 'ff14-hub-public-v0', 'ff14-hub-private'];
+  const cacheKeys = ['ff14-hub-public-v3', 'ff14-hub-public-v0', 'ff14-hub-private'];
   let skipWaitingCalls = 0;
   let claimCalls = 0;
 

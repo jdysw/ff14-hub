@@ -25,7 +25,7 @@
 
 /* --- BEGIN CACHE POLICY MIRROR（与 apps/web/src/app/pwa/cache-policy.ts 的 CACHE_POLICY 逐字节相同） --- */
 const CACHE_POLICY_JSON =
-  '{"version":"v2","cacheNamePrefix":"ff14-hub-public","offlineFallbackPath":"/index.html","cacheableStatus":200,"publicStaticExactPaths":["/","/index.html","/manifest.webmanifest","/favicon.svg","/fishing/catalog-cn.json","/fishing/catalog-global.json"],"publicStaticPathPrefixes":["/assets/","/icons/"],"publicApiPaths":["/api/v1/health","/api/v1/modules/catalog","/api/v1/navigation/catalog","/api/v1/events"],"privatePathPrefixes":["/api/v1/me/","/api/v1/me"],"cacheableResponseContentTypes":["text/html","text/css","text/plain","text/javascript","application/javascript","application/json","application/manifest+json","image/","font/"],"sensitiveResponseContentTypes":["application/x-pem-file","application/pkcs8","application/x-pkcs12","application/pgp-keys","application/octet-stream","multipart/form-data","application/x-www-form-urlencoded"],"forbiddenCacheControlDirectives":["no-store","private"]}';
+  '{"version":"v3","cacheNamePrefix":"ff14-hub-public","offlineFallbackPath":"/index.html","cacheableStatus":200,"publicStaticExactPaths":["/","/index.html","/manifest.webmanifest","/favicon.svg","/fishing/catalog-cn.json","/fishing/catalog-global.json","/weather/catalog-cn.json"],"publicStaticPathPrefixes":["/assets/","/icons/"],"publicApiPaths":["/api/v1/health","/api/v1/modules/catalog","/api/v1/navigation/catalog","/api/v1/events"],"privatePathPrefixes":["/api/v1/me/","/api/v1/me"],"cacheableResponseContentTypes":["text/html","text/css","text/plain","text/javascript","application/javascript","application/json","application/manifest+json","image/","font/"],"sensitiveResponseContentTypes":["application/x-pem-file","application/pkcs8","application/x-pkcs12","application/pgp-keys","application/octet-stream","multipart/form-data","application/x-www-form-urlencoded"],"forbiddenCacheControlDirectives":["no-store","private"]}';
 /* --- END CACHE POLICY MIRROR --- */
 
 const CACHE_POLICY = JSON.parse(CACHE_POLICY_JSON);
@@ -201,7 +201,7 @@ async function respondWithPublicStrategy(request) {
 
   // 首页 HTML 不是带哈希的不可变资源，必须网络优先。
   // 缓存优先会令发布后用户持续读到上个版本的首页（例如旧的「连接工作空间」提示）。
-  if (isPublicApiPath(pathname) || pathname === '/' || pathname === '/index.html' || pathname === '/fishing/catalog-cn.json' || pathname === '/fishing/catalog-global.json') {
+  if (isPublicApiPath(pathname) || pathname === '/' || pathname === '/index.html' || pathname === '/fishing/catalog-cn.json' || pathname === '/fishing/catalog-global.json' || pathname === '/weather/catalog-cn.json') {
     try {
       const response = await fetch(request);
       await putIfPolicyAllows(cache, request, response.clone());

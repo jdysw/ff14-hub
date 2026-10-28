@@ -1,5 +1,5 @@
 import {it,expect} from 'vitest';
-import {managedHomeSchema,withMarketModule} from '@ff14-hub/shared';
+import {managedHomeSchema,withMarketModule,withHomeModules} from '@ff14-hub/shared';
 it('adds market to display order without rewriting old data or overriding hidden settings',()=>{
   const legacy=empty();
   expect(localDataSchema.parse(legacy).configuration.order).toEqual(legacy.configuration.order);
@@ -13,6 +13,15 @@ it('adds market to display order without rewriting old data or overriding hidden
 });
 import {createLocalStore,localDataSchema,localBackupSchema,type LocalData} from '../src/app/local/store';
 const empty=():LocalData=>({version:1,revision:0,fish:{cn:[],global:[]},configuration:{order:['events','fishing','pvp','notes'],visible:{events:true,fishing:true,pvp:true,notes:false},region:'cn'},links:[],notes:[]});
+it('preserves old orders and explicit weather visibility while completing new home modules',()=>{
+  const legacy=empty();
+  expect(withHomeModules(legacy.configuration.order)).toEqual(['events','fishing','pvp','notes','market','weather']);
+  const config={...legacy.configuration,order:['weather','events','fishing','pvp','notes','market'],visible:{...legacy.configuration.visible,weather:false,market:false}};
+  const value=localDataSchema.parse({...legacy,configuration:config});
+  expect(withHomeModules(value.configuration.order)[0]).toBe('weather');
+  expect(value.configuration.visible.weather).toBe(false);
+  expect(managedHomeSchema.parse({enabled:config.visible,order:config.order,layout:'auto'}).enabled.weather).toBe(false);
+});
 it('rejects identity credentials and unknown configuration keys in personal backups',()=>{
   expect(()=>localBackupSchema.parse({format:'ff14-hub-local',version:1,exportedAt:'now',data:{...empty(),deviceToken:'must-not-be-imported'}})).toThrow();
   expect(()=>localDataSchema.parse({...empty(),configuration:{...empty().configuration,workspaceId:'unused'}})).toThrow();

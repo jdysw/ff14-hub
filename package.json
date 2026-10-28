@@ -15,6 +15,7 @@
     "release:preview": "node scripts/ops/release-worker.mjs preview",
     "generate:fishcake-script": "node scripts/build-fishcake-userscript.mjs",
     "check:fishcake-script": "node scripts/build-fishcake-userscript.mjs --check",
+    "generate:weather": "node scripts/generate-weather-catalog.mjs --refresh",
     "generate:android-pvp": "node --experimental-strip-types scripts/generate-android-pvp-rules.mjs",
     "check:android-pvp": "node --experimental-strip-types scripts/generate-android-pvp-rules.mjs --check",
     "e2e:navigation": "node scripts/e2e-navigation.mjs",

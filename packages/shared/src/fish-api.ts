@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { fishRuleSchema, regionSchema, utcSchema, verificationSchema, fishRecordSchema } from '@ff14-hub/fish-engine';
 import { operationIdSchema } from './operation-id';
-export { fishWindows, eorzeaTime, forecastTarget, WEATHER_PERIOD_MS, ET_DAY_MS, ET_HOUR_MS } from '@ff14-hub/fish-engine';
+export { fishWindows, eorzeaTime, weatherAt, weatherRatesSchema, forecastTarget, WEATHER_PERIOD_MS, ET_DAY_MS, ET_HOUR_MS } from '@ff14-hub/fish-engine';
 export { fishRuleSchema, regionSchema as fishRegionSchema };
 export type { FishRule, FishWindow, FishRegion, FishRecord } from '@ff14-hub/fish-engine';
 export { fishSourceSchema,fishRecordSchema,fishDataBundleSchema } from '@ff14-hub/fish-engine';
