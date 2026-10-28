@@ -1,6 +1,6 @@
 import {z} from 'zod';
-import {fishProgressSchema,parseFishDocument,fieldsToDocument,validateNavUrl,type FishDocument,type FishProgress,type FishRegion,type FishProgressWrite} from '@ff14-hub/shared';
-export const sectionSchema=z.enum(['events','fishing','pvp','notes']);
+import {homeSectionSchema,homeOrderSchema,fishProgressSchema,parseFishDocument,fieldsToDocument,validateNavUrl,type FishDocument,type FishProgress,type FishRegion,type FishProgressWrite} from '@ff14-hub/shared';
+export const sectionSchema=homeSectionSchema;
 export type HomeSection=z.infer<typeof sectionSchema>;
 export const localLinkSchema=z.object({
   id:z.uuid(),title:z.string().min(1).max(100),
@@ -34,8 +34,8 @@ const configurationSchema=z.preprocess(value=>{
   if(!visible||typeof visible!=='object'||Array.isArray(visible)){return value;}
   return {...record,order:[...order,'pvp'],visible:{...visible,pvp:true}};
 },z.object({
-  order:z.array(sectionSchema).length(4).refine(v=>new Set(v).size===4),
-  visible:z.object({events:z.boolean(),fishing:z.boolean(),pvp:z.boolean(),notes:z.boolean()}).strict(),
+  order:homeOrderSchema,
+  visible:z.object({events:z.boolean(),fishing:z.boolean(),pvp:z.boolean(),notes:z.boolean(),market:z.boolean().optional()}).strict(),
   region:z.enum(['cn','global']),
   orderCustomized:z.boolean().optional(),
 }).strict());

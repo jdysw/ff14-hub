@@ -1,11 +1,12 @@
 import type {EventCalendarItem,FishRegion} from '@ff14-hub/shared';
 import type {CatalogFish} from '../fish/catalog';
 import type {BrowserLink} from './directory-links';
-export type FeatureTarget='plan'|'events'|'pvp'|'notes'|'sync'|'backup'|'notifications';
+export type FeatureTarget='plan'|'events'|'pvp'|'notes'|'market'|'sync'|'backup'|'notifications';
 export const SEARCH_FEATURES:readonly {id:FeatureTarget;title:string;description:string}[]=[
   {id:'notes',title:'我的待办',description:'备忘 笔记 今日计划 任务 提醒 截止时间 倒计时'},
   {id:'events',title:'活动日历',description:'国服 官方 进行中 未来 活动 ICS'},
   {id:'pvp',title:'PVP 地图轮换',description:'纷争前线 水晶冲突 战场 地图'},
+  {id:'market',title:'市场行情',description:'Universalis 物价 物品搜索 跨服比价 市场板 交易 在售 成交 HQ NQ'},
   {id:'sync',title:'数据同步',description:'鱼糕 WebDAV S3 跨设备 云端同步'},
   {id:'backup',title:'备份与恢复',description:'导出 导入 本机个人数据'},
   {id:'notifications',title:'通知设置',description:'提醒 邮件 Server 酱 权限'},

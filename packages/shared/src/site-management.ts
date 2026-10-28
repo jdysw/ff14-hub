@@ -20,11 +20,16 @@ export const DEFAULT_CATEGORIES=[
   {name:'插件与开发',children:['插件与启动器','开发与数据']},
 ];
 export function splitDirectoryCategory(value:string){const [main,...sub]=value.split(' / ');return {main:main||'个人网站',sub:sub.join(' / ')};}
+export const homeSectionSchema=z.enum(['events','fishing','pvp','notes','market']);
+const coreSections=['events','fishing','pvp','notes'] as const;
+export const homeOrderSchema=z.array(homeSectionSchema).min(4).max(5).refine(items=>new Set(items).size===items.length&&coreSections.every(key=>items.includes(key)));
+/** Older documents keep their chosen order; the new module is appended once. */
+export function withMarketModule(order:readonly z.infer<typeof homeSectionSchema>[]){return order.includes('market')?[...order]:[...order,'market' as const];}
 export const managedHomeSchema=z.object({
-  enabled:z.object({events:z.boolean(),fishing:z.boolean(),pvp:z.boolean(),notes:z.boolean()}).strict(),
+  enabled:z.object({events:z.boolean(),fishing:z.boolean(),pvp:z.boolean(),notes:z.boolean(),market:z.boolean().optional()}).strict(),
   layout:z.enum(['auto','balanced','rows']),
-  order:z.array(z.enum(['events','fishing','pvp','notes'])).length(4).refine(items=>new Set(items).size===4).default(['events','fishing','pvp','notes']),
+  order:homeOrderSchema.default(['events','fishing','pvp','notes']),
 }).strict();
-export const DEFAULT_HOME={enabled:{events:true,fishing:true,pvp:true,notes:true},layout:'auto' as const,order:['events','fishing','pvp','notes'] as ('events'|'fishing'|'pvp'|'notes')[]};
+export const DEFAULT_HOME={enabled:{events:true,fishing:true,pvp:true,notes:true,market:true},layout:'auto' as const,order:['events','fishing','pvp','notes','market'] as z.infer<typeof homeSectionSchema>[]};
 export const managedPresentationSchema=z.object({categories:z.array(categoryGroupSchema).max(30).refine(groups=>new Set(groups.map(g=>g.name)).size===groups.length,'主分类名称不能重复'),home:managedHomeSchema,categoryAliases:z.record(z.string().max(80),z.string().min(1).max(80)).default({})}).strict();
 export function resolveDirectoryCategory(value:string,aliases:Record<string,string>={}){const mappings:Record<string,string>={官方服务:'官方与账号',官方:'官方与账号',新手与百科:'入门与资料',数据工具:'入门与资料',副本与战斗:'职业与副本',生产采集与钓鱼:'生产与采集',市场与经济:'生产与采集 / 市场与物价',休闲与成就:'日常与收藏',幻化与外观:'幻化与摄影',住房装修:'住房与经营',开发与辅助工具:'插件与开发',...aliases};const seen=new Set<string>();let result=value;while(!seen.has(result)){seen.add(result);const {main,sub}=splitDirectoryCategory(result);const next=mappings[result]??(mappedDirectoryCategory({mappings,main,sub}));if(!next){break;}result=next;}return result;}
