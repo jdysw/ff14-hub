@@ -100,8 +100,8 @@ if(expanded.kind==='fishing'){return <FishingBoard data={fishingData} subscribeP
             setExpanded(null);setDataSection('fish');setSettingsTab('data');setView('settings');
           }}/>;}
 if(expanded.kind==='pvp'){return <PvpBoard expanded/>;}
-if(expanded.kind==='market'){return <Suspense fallback={<p role="status">正在打开市场…</p>}><MarketBoard initialQuery={expanded.marketQuery??''}/></Suspense>;}
-if(expanded.kind==='weather'){return <Suspense fallback={<p role="status">正在打开天气…</p>}><WeatherBoard {...(expanded.weatherZoneId?{initialZoneId:expanded.weatherZoneId}:{})}/></Suspense>;}
+if(expanded.kind==='market'){return <Suspense fallback={<output style={{display:'block'}}>正在打开市场…</output>}><MarketBoard initialQuery={expanded.marketQuery??''}/></Suspense>;}
+if(expanded.kind==='weather'){return <Suspense fallback={<output style={{display:'block'}}>正在打开天气…</output>}><WeatherBoard {...(expanded.weatherZoneId?{initialZoneId:expanded.weatherZoneId}:{})}/></Suspense>;}
 return <TodoBoard data={data} store={store} expanded/>;
 }
 
@@ -154,6 +154,7 @@ import './unified-search.css';
 import {GlobalSearch} from './GlobalSearch';
 import {TodoBoard} from './TodoBoard';
 import {ModuleGrid} from './ModuleGrid';
+import {startAutomaticSync} from './automatic-sync';
 import type {FeatureTarget,FishSearchTarget} from './site-search';
 
 const SiteAdminPage=lazy(()=>import('../admin/SiteAdminPage').then(module=>({default:module.SiteAdminPage})));
@@ -219,6 +220,7 @@ export function LocalApp(){
   };
   useEffect(()=>startLocalNotifications(store),[store]);
   useEffect(()=>startFishcakeSync(store),[store]);
+  useEffect(()=>startAutomaticSync(store),[store]);
   const [category,setCategory]=useState('all');
   const [subcategory,setSubcategory]=useState('all');
   const siteSettings=useSiteSettings();

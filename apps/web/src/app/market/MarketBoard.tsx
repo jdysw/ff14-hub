@@ -1,6 +1,6 @@
 import {useEffect,useState} from 'react';
 import {UiIcon} from '../local/UiIcon';
-import {loadMarketCenters,searchMarketItems,loadMarketData,marketSummary,type MarketCenter,type MarketItem,type MarketData,type Quality} from './universalis';
+import {loadMarketCenters,searchMarketItems,loadMarketData,marketSummary,keyedMarketRows,type MarketCenter,type MarketItem,type MarketData,type Quality} from './universalis';
 import './market.css';
 
 function preferences():{scope:string;quality:Quality}{
@@ -40,7 +40,7 @@ function PriceTable({data,view,scopeLabel}:Readonly<{data:MarketData;view:PriceV
     <div className="market-table-scroll"><table>
       <caption className="visually-hidden">{view==='listings'?'按单价从低到高排列的在售快照':'按成交时间从新到旧排列的成交记录'}，时间为北京时间，金额未含购买税费</caption>
       <thead><tr><th scope="col">{view==='listings'?'服务器 / 品质':'成交时间 / 品质'}</th><th scope="col">单价 <span>Gil</span></th><th scope="col">数量</th><th scope="col">合计 <span>Gil</span></th></tr></thead>
-      <tbody>{rows.slice(0,limit).map((row,index)=><tr key={index}>
+      <tbody>{keyedMarketRows(rows).slice(0,limit).map(({row,key})=><tr key={key}>
         <td><div className="market-row-label"><span>{'timestamp' in row?time(row.timestamp*1000):row.worldName??scopeLabel}</span><span className={row.hq?'market-quality market-quality--hq':'market-quality'}>{row.hq?'HQ':'NQ'}</span></div>{'lastReviewTime' in row&&row.lastReviewTime?<small className="market-row-time">记录于 {time(row.lastReviewTime*1000)}</small>:null}</td>
         <td className="market-unit-price">{number.format(row.pricePerUnit)}</td><td>{number.format(row.quantity)}</td><td>{number.format(row.pricePerUnit*row.quantity)}</td>
       </tr>)}</tbody>
@@ -63,14 +63,46 @@ function MarketResults({item,data,scopeLabel,onRefresh}:Readonly<{item:MarketIte
       <div><span>近期成交中位单价</span><strong>{summary.median===null?'暂无成交':number.format(summary.median)}{summary.median===null?null:<small> Gil</small>}</strong><small>参考实际成交，避免只看挂牌价</small></div>
     </div>
     <div className="market-source"><span>最近上传：{time(data.lastUploadTime)} · 北京时间</span><a href={'https://universalis.app/market/'+item.id+'?server='+encodeURIComponent(scopeLabel)} target="_blank" rel="noopener noreferrer">Universalis 原站 ↗</a></div>
-    {old?<p className="market-warning" role="status">快照已超过两小时或尚无上传时间，价格可能已变化。</p>:null}
-    <div className="market-table-tabs" role="group" aria-label="行情记录类型">
+    {old?<output className="market-warning">快照已超过两小时或尚无上传时间，价格可能已变化。</output>:null}
+    <fieldset className="market-table-tabs"><legend className="visually-hidden">行情记录类型</legend>
       <button type="button" aria-pressed={view==='listings'} onClick={()=>setView('listings')}>当前在售 <span>{data.listings.length}</span></button>
       <button type="button" aria-pressed={view==='sales'} onClick={()=>setView('sales')}>近期成交 <span>{data.recentHistory.length}</span></button>
-    </div>
+    </fieldset>
     <PriceTable key={view} data={data} view={view} scopeLabel={scopeLabel}/>
     <p className="market-footnote">最多读取 40 条在售、30 条成交。单价和合计均未含购买税费；数据由玩家上传，可能存在延迟。</p>
   </div>;
+}
+
+function useMarketSearch(query:string,retry:number){
+  const key=JSON.stringify([query,retry]);
+  const [result,setResult]=useState<{key:string;items:MarketItem[];error:string}>({key:'',items:[],error:''});
+  useEffect(()=>{
+    const controller=new AbortController();
+    if(query.trim()){
+      void searchMarketItems(query,controller.signal).then(items=>{
+        if(!controller.signal.aborted){setResult({key,items,error:''});}
+      }).catch(error=>{if(!controller.signal.aborted){setResult({key,items:[],error:failure(error)});}});
+    }
+    return()=>controller.abort();
+  },[query,key]);
+  const current=result.key===key,hasQuery=Boolean(query.trim());
+  return {items:current?result.items:[],searching:hasQuery&&!current,
+    searched:hasQuery&&current&&!result.error,error:current?result.error:''};
+}
+function useMarketSnapshot(selected:MarketItem|null,scope:string,quality:Quality,refresh:number){
+  const key=JSON.stringify([selected?.id,scope,quality,refresh]);
+  const [result,setResult]=useState<{key:string;data:MarketData|null;error:string}>({key:'',data:null,error:''});
+  useEffect(()=>{
+    const controller=new AbortController();
+    if(selected&&scope){
+      void loadMarketData(scope,selected.id,quality,controller.signal,refresh>0).then(data=>{
+        if(!controller.signal.aborted){setResult({key,data,error:''});}
+      }).catch(error=>{if(!controller.signal.aborted){setResult({key,data:null,error:failure(error)});}});
+    }
+    return()=>controller.abort();
+  },[selected,scope,quality,refresh,key]);
+  const current=result.key===key;
+  return {data:current?result.data:null,error:current?result.error:'',loading:Boolean(selected&&scope)&&!current};
 }
 
 export function MarketBoard({initialQuery=''}:Readonly<{initialQuery?:string}>){
@@ -81,23 +113,14 @@ export function MarketBoard({initialQuery=''}:Readonly<{initialQuery?:string}>){
   const centers=metadata.centers;
   const metadataError=metadata.key===metadataRetry?metadata.error:'';
   const [input,setInput]=useState(initialQuery),[query,setQuery]=useState(initialQuery),[searchRetry,setSearchRetry]=useState(0);
-  const searchKey=JSON.stringify([query,searchRetry]);
-  const [searchResult,setSearchResult]=useState<{key:string;items:MarketItem[];error:string}>({key:'',items:[],error:''});
-  const items=searchResult.key===searchKey?searchResult.items:[];
-  const searching=Boolean(query.trim())&&searchResult.key!==searchKey;
-  const searched=Boolean(query.trim())&&searchResult.key===searchKey&&!searchResult.error;
-  const searchError=searchResult.key===searchKey?searchResult.error:'';
-  const [selection,setSelected]=useState<MarketItem|null>(null);
+  const {items,searching,searched,error:searchError}=useMarketSearch(query,searchRetry);
+  const [selection,setSelection]=useState<MarketItem|null>(null);
   const selected=items.find(item=>item.id===selection?.id)??items.find(item=>item.name===query.trim())??(items.length===1?items[0]!:null);
   const [refresh,setRefresh]=useState(0);
   const activeCenter=centers.find(center=>center.name===scope||center.worlds.some(world=>String(world.id)===scope))??centers.find(center=>center.region==='中国')??centers[0];
   const activeScope=activeCenter?.worlds.some(world=>String(world.id)===scope)?scope:activeCenter?.name??'';
   const scopeLabel=activeCenter?.worlds.find(world=>String(world.id)===activeScope)?.name??activeScope;
-  const dataKey=JSON.stringify([selected?.id,activeScope,quality,refresh]);
-  const [marketResult,setMarketResult]=useState<{key:string;data:MarketData|null;error:string}>({key:'',data:null,error:''});
-  const data=marketResult.key===dataKey?marketResult.data:null;
-  const dataError=marketResult.key===dataKey?marketResult.error:'';
-  const loading=Boolean(selected&&activeScope)&&marketResult.key!==dataKey;
+  const {data,error:dataError,loading}=useMarketSnapshot(selected,activeScope,quality,refresh);
   const chooseScope=(next:string)=>{setScope(next);remember(next,quality);};
   useEffect(()=>{
     const controller=new AbortController();
@@ -105,27 +128,9 @@ export function MarketBoard({initialQuery=''}:Readonly<{initialQuery?:string}>){
       .catch(error=>{if(!controller.signal.aborted){setMetadata({key:metadataRetry,centers:[],error:failure(error)});}});
     return()=>controller.abort();
   },[metadataRetry]);
-  useEffect(()=>{
-    const controller=new AbortController();
-    if(query.trim()){
-      void searchMarketItems(query,controller.signal).then(found=>{
-        if(!controller.signal.aborted){setSearchResult({key:searchKey,items:found,error:''});}
-      }).catch(error=>{if(!controller.signal.aborted){setSearchResult({key:searchKey,items:[],error:failure(error)});}});
-    }
-    return()=>controller.abort();
-  },[query,searchKey]);
-  useEffect(()=>{
-    const controller=new AbortController();
-    if(selected&&activeScope){
-      void loadMarketData(activeScope,selected.id,quality,controller.signal,refresh>0).then(result=>{
-        if(!controller.signal.aborted){setMarketResult({key:dataKey,data:result,error:''});}
-      }).catch(error=>{if(!controller.signal.aborted){setMarketResult({key:dataKey,data:null,error:failure(error)});}});
-    }
-    return()=>controller.abort();
-  },[selected,activeScope,quality,refresh,dataKey]);
   return <section className="market-board" aria-label="Universalis 市场行情">
     <header className="market-board__intro"><h3>物品查价</h3><p>输入简体中文物品名，查本服价格或跨服比价。</p></header>
-    <form className="market-search" role="search" aria-label="物品搜索" aria-busy={searching} onSubmit={event=>{event.preventDefault();setSelected(null);setQuery(input.trim());setSearchRetry(value=>value+1);}}>
+    <form className="market-search" role="search" aria-label="物品搜索" aria-busy={searching} onSubmit={event=>{event.preventDefault();setSelection(null);setQuery(input.trim());setSearchRetry(value=>value+1);}}>
       <label className="visually-hidden" htmlFor="market-detail-query">物品名称</label>
       <div className="market-search__input"><UiIcon name="search"/><input id="market-detail-query" type="search" value={input} maxLength={80} required onChange={event=>setInput(event.target.value)} placeholder="输入物品名称，例如：火之碎晶" autoComplete="off"/></div>
       <button type="submit" disabled={searching||!input.trim()}>{searching?'搜索中…':'查价格'}</button>
@@ -139,9 +144,9 @@ export function MarketBoard({initialQuery=''}:Readonly<{initialQuery?:string}>){
     </div>
     {metadataError?<p className="market-error" role="alert">{metadataError} <button type="button" onClick={()=>setMetadataRetry(value=>value+1)}>重新读取服务器</button></p>:null}
     {searchError?<p className="market-error" role="alert">{searchError} <button type="button" onClick={()=>setSearchRetry(value=>value+1)}>重试搜索</button></p>:null}
-    {searched&&!items.length?<div className="market-empty" role="status"><h4>没有找到这件物品</h4><p>请使用游戏内的简体中文名称，或缩短关键词。</p></div>:null}
-    {items.length>1?<section className="market-search-matches" aria-label="选择物品"><header><h4>找到 {items.length} 件物品</h4><span>点击名称查看行情</span></header><div className="market-search-results">{items.map(item=><button type="button" aria-pressed={selected?.id===item.id} key={item.id} onClick={()=>setSelected(item)}>{item.icon?<img src={item.icon} alt="" width="30" height="30" loading="lazy" referrerPolicy="no-referrer" onError={event=>{event.currentTarget.hidden=true;}}/>:null}<span>{item.name}</span>{selected?.id===item.id?<small>已选</small>:null}</button>)}</div></section>:null}
-    {loading?<div className="market-loading" role="status"><span className="market-loading__dot" aria-hidden="true"/>正在查询 {scopeLabel} 的市场快照…</div>:null}
+    {searched&&!items.length?<output className="market-empty"><strong>没有找到这件物品</strong><span>请使用游戏内的简体中文名称，或缩短关键词。</span></output>:null}
+    {items.length>1?<section className="market-search-matches" aria-label="选择物品"><header><h4>找到 {items.length} 件物品</h4><span>点击名称查看行情</span></header><div className="market-search-results">{items.map(item=><button type="button" aria-pressed={selected?.id===item.id} key={item.id} onClick={()=>setSelection(item)}>{item.icon?<img src={item.icon} alt="" width="30" height="30" loading="lazy" referrerPolicy="no-referrer" onError={event=>{event.currentTarget.hidden=true;}}/>:null}<span>{item.name}</span>{selected?.id===item.id?<small>已选</small>:null}</button>)}</div></section>:null}
+    {loading?<output className="market-loading"><span className="market-loading__dot" aria-hidden="true"/>正在查询 {scopeLabel} 的市场快照…</output>:null}
     {dataError?<p className="market-error" role="alert">{dataError} <button type="button" onClick={()=>setRefresh(value=>value+1)}>重试行情</button></p>:null}
     {selected&&data?<MarketResults item={selected} data={data} scopeLabel={scopeLabel} onRefresh={()=>setRefresh(value=>value+1)}/>:null}
     {!query&&!selected?<div className="market-welcome"><UiIcon name="search"/><h4>想查什么物品？</h4><p>输入名称后，选择物品即可查看行情。</p><div>{['火之碎晶','冰之碎晶','风之碎晶'].map(name=><button type="button" key={name} onClick={()=>{setInput(name);setQuery(name);setSearchRetry(value=>value+1);}}>{name}</button>)}</div><a href="https://universalis.app/" target="_blank" rel="noopener noreferrer">数据来自 Universalis ↗</a></div>:null}
