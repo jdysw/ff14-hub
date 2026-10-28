@@ -7,7 +7,6 @@ import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.graphics.Color
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -38,7 +37,7 @@ class MainActivity: Activity() {
         fun label(text: String, size: Float = 15f): TextView = TextView(this).apply {
             this.text = text
             textSize = size
-            setTextColor(Color.rgb(39,58,80))
+            setTextColor(getColor(R.color.pvp_text))
             setPadding(0,(8*dp).toInt(),0,(8*dp).toInt())
             root.addView(this)
         }
@@ -61,7 +60,7 @@ class MainActivity: Activity() {
         button("添加 PVP 战场 · 小（2×1）") { pin(FrontlineWidgetProvider::class.java) }
         button("添加 PVP 战场 · 中（4×2）") { pin(CrystallineWidgetProvider::class.java) }
         button("添加 PVP 战场 · 大（4×4）") { pin(PvpLargeWidgetProvider::class.java) }
-        button("预览三种尺寸") { startActivity(Intent(this, PvpPreviewActivity::class.java)) }
+        button("预览小组件与尺寸") { startActivity(Intent(this, PvpPreviewActivity::class.java)) }
         button("小米负一屏添加说明") {
             AlertDialog.Builder(this).setTitle("负一屏与桌面组件")
                 .setMessage("当前安装包提供原生 Android 小组件。可从负一屏右上角“+”或桌面编辑中的小部件中心，查找“安卓小部件 / FF14 Hub”；若系统支持，可尝试将桌面组件拖向负一屏。\n\n小米专属小部件中心及负一屏卡片还涉及小米开发者接入、应用发布和组件审核。当前调试包尚未完成小米平台上架，无法保证出现在负一屏列表，也不能由应用强制放置。不同澎湃版本的入口可能不同。")

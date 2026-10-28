@@ -8,9 +8,6 @@ import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
-import android.text.SpannableString
-import android.text.Spanned
-import android.text.style.RelativeSizeSpan
 import android.util.SizeF
 import android.util.TypedValue
 import android.view.View
@@ -63,8 +60,7 @@ object PvpWidgetRenderer {
 
     fun build(context: Context, density: PvpDensity, snapshot: JSONObject, now: Long, id: Int = 0, stacked: Boolean = false): RemoteViews {
         val layout = when (density) {
-            PvpDensity.MINI -> R.layout.pvp_widget_mini
-            PvpDensity.SMALL -> R.layout.pvp_widget_compact
+            PvpDensity.MINI, PvpDensity.SMALL -> R.layout.pvp_widget_mini
             PvpDensity.MEDIUM -> if (stacked) R.layout.pvp_widget_vertical else R.layout.pvp_widget_wide
             PvpDensity.LARGE -> R.layout.pvp_widget_schedule
         }
@@ -93,44 +89,17 @@ object PvpWidgetRenderer {
         views.setContentDescription(R.id.widget_root,
             "国服 PVP。纷争前线 ${front.current}，下轮 ${front.next}，北京时间 ${at(front.changesAtMs, true)} 换图。" +
             "水晶冲突 ${crystal.current}，下张 ${crystal.next}，北京时间 ${at(crystal.changesAtMs)} 换图。")
-        if (compact && (largeText || density == PvpDensity.MINI)) {
-            views.setViewVisibility(R.id.pvp_heading, View.GONE)
-            views.setViewVisibility(R.id.pvp_status, View.GONE)
-            views.setViewVisibility(R.id.pvp_front_label, View.GONE)
-            views.setViewVisibility(R.id.pvp_crystal_label, View.GONE)
-            fun readable(label: String, name: String): SpannableString =
-                SpannableString("$label $name").apply {
-                    setSpan(RelativeSizeSpan(0.65f), 0, label.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                }
-            views.setTextViewText(R.id.pvp_front_current, readable("前线", currentFront))
-            views.setTextViewText(R.id.pvp_crystal_current, readable("水晶", currentCrystal))
-            val readableSize = if (density == PvpDensity.MINI) minOf(12f, 12.5f / context.resources.configuration.fontScale)
-                else minOf(13f, 15.5f / context.resources.configuration.fontScale)
-            views.setTextViewTextSize(R.id.pvp_front_current, TypedValue.COMPLEX_UNIT_SP, readableSize)
-            views.setTextViewTextSize(R.id.pvp_crystal_current, TypedValue.COMPLEX_UNIT_SP, readableSize)
-        }
         if (!compact) {
+            configureDetails(context, views, density, stacked, largeText)
             views.setTextViewText(R.id.pvp_front_next, "下轮 ${PvpPresentation.shortMap(front.next)}")
             views.setTextViewText(R.id.pvp_crystal_next, "下张 ${PvpPresentation.shortMap(crystal.next)}")
             views.setTextViewText(R.id.pvp_front_boundary, "${at(front.changesAtMs)} 换图")
             views.setTextViewText(R.id.pvp_crystal_boundary, "${at(crystal.changesAtMs)} 换图")
             countdown(views, R.id.pvp_front_countdown, front.changesAtMs, now)
             countdown(views, R.id.pvp_crystal_countdown, crystal.changesAtMs, now)
-            if (largeText) views.setViewVisibility(R.id.pvp_heading, View.GONE)
         }
         if (density == PvpDensity.LARGE) {
-            val frontTimes = intArrayOf(R.id.pvp_front_slot_1_time, R.id.pvp_front_slot_2_time, R.id.pvp_front_slot_3_time)
-            val frontMaps = intArrayOf(R.id.pvp_front_slot_1_map, R.id.pvp_front_slot_2_map, R.id.pvp_front_slot_3_map)
-            val crystalTimes = intArrayOf(R.id.pvp_crystal_slot_1_time, R.id.pvp_crystal_slot_2_time, R.id.pvp_crystal_slot_3_time)
-            val crystalMaps = intArrayOf(R.id.pvp_crystal_slot_1_map, R.id.pvp_crystal_slot_2_map, R.id.pvp_crystal_slot_3_map)
-            for (i in 0..2) {
-                val frontAt = front.changesAtMs + i * rules.getJSONObject("frontline").getLong("periodMs")
-                val crystalAt = crystal.changesAtMs + i * rules.getJSONObject("crystalline").getLong("periodMs")
-                views.setTextViewText(frontTimes[i], at(frontAt, true))
-                views.setTextViewText(frontMaps[i], PvpPresentation.shortMap(SnapshotValidator.rotation(rules.getJSONObject("frontline"), frontAt).current))
-                views.setTextViewText(crystalTimes[i], at(crystalAt, true))
-                views.setTextViewText(crystalMaps[i], PvpPresentation.shortMap(SnapshotValidator.rotation(rules.getJSONObject("crystalline"), crystalAt).current))
-            }
+            bindSchedule(views, rules, front.changesAtMs, crystal.changesAtMs)
         }
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(WidgetData.SITE)).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK }
         views.setOnClickPendingIntent(R.id.widget_root, PendingIntent.getActivity(context, id, intent,
@@ -138,9 +107,41 @@ object PvpWidgetRenderer {
         return views
     }
 
+    private fun configureDetails(context: Context, views: RemoteViews, density: PvpDensity, stacked: Boolean, largeText: Boolean) {
+            // Large cards list the next rotation below; avoid repeating the same map and time.
+            for (field in intArrayOf(R.id.pvp_front_next, R.id.pvp_crystal_next)) {
+                views.setViewVisibility(field, if (density == PvpDensity.LARGE) View.GONE else View.VISIBLE)
+            }
+            // At large font sizes retain the next map and countdown; TalkBack still has the exact boundary.
+            for (field in intArrayOf(R.id.pvp_front_boundary, R.id.pvp_crystal_boundary)) {
+                views.setViewVisibility(field, if (density == PvpDensity.LARGE || largeText || stacked) View.GONE else View.VISIBLE)
+            }
+            if ((stacked || largeText) && density == PvpDensity.MEDIUM) {
+                val inset = (6 * context.resources.displayMetrics.density).toInt()
+                for (field in intArrayOf(R.id.pvp_front_label, R.id.pvp_crystal_label,
+                    R.id.pvp_front_countdown, R.id.pvp_crystal_countdown)) {
+                    views.setViewPadding(field, inset, 0, inset, 0)
+                }
+            }
+    }
+
+    private fun bindSchedule(views: RemoteViews, rules: JSONObject, frontBoundary: Long, crystalBoundary: Long) {
+            val frontTimes = intArrayOf(R.id.pvp_front_slot_1_time, R.id.pvp_front_slot_2_time, R.id.pvp_front_slot_3_time)
+            val frontMaps = intArrayOf(R.id.pvp_front_slot_1_map, R.id.pvp_front_slot_2_map, R.id.pvp_front_slot_3_map)
+            val crystalTimes = intArrayOf(R.id.pvp_crystal_slot_1_time, R.id.pvp_crystal_slot_2_time, R.id.pvp_crystal_slot_3_time)
+            val crystalMaps = intArrayOf(R.id.pvp_crystal_slot_1_map, R.id.pvp_crystal_slot_2_map, R.id.pvp_crystal_slot_3_map)
+            for (i in 0..2) {
+                val frontAt = frontBoundary + i * rules.getJSONObject("frontline").getLong("periodMs")
+                val crystalAt = crystalBoundary + i * rules.getJSONObject("crystalline").getLong("periodMs")
+                views.setTextViewText(frontTimes[i], at(frontAt, true))
+                views.setTextViewText(frontMaps[i], PvpPresentation.shortMap(SnapshotValidator.rotation(rules.getJSONObject("frontline"), frontAt).current))
+                views.setTextViewText(crystalTimes[i], at(crystalAt, true))
+                views.setTextViewText(crystalMaps[i], PvpPresentation.shortMap(SnapshotValidator.rotation(rules.getJSONObject("crystalline"), crystalAt).current))
+            }
+    }
+
     private fun contentPadding(density: PvpDensity) = when (density) {
-        PvpDensity.MINI -> 6
-        PvpDensity.SMALL -> 8
+        PvpDensity.MINI, PvpDensity.SMALL -> 6
         else -> 10
     }
 

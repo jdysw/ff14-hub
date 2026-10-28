@@ -2,7 +2,7 @@
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
  android:initialLayout="@layout/pvp_widget_wide"
  android:minWidth="220dp" android:minHeight="120dp"
- android:minResizeWidth="120dp" android:minResizeHeight="88dp"
+ android:minResizeWidth="109dp" android:minResizeHeight="56dp"
  android:targetCellWidth="4" android:targetCellHeight="2"
  android:resizeMode="horizontal|vertical" android:widgetCategory="home_screen"
  android:description="@string/pvp_medium_description"
