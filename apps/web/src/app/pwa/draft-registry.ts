@@ -27,8 +27,9 @@ export function registerPrivateDraftSource(source: PrivateDraftSource): () => vo
 }
 
 /** 当前是否有任何未保存的私有草稿。保守：来源抛错也算有草稿。 */
-export function hasAnyPrivateDraft(): boolean {
+export function hasAnyPrivateDraft(except?:PrivateDraftSource): boolean {
   for (const source of sources) {
+    if(source===except)continue;
     try {
       if (source()) {
         return true;

@@ -151,6 +151,7 @@ import './unified-search.css';
 import {GlobalSearch} from './GlobalSearch';
 import {TodoBoard} from './TodoBoard';
 import {ModuleGrid} from './ModuleGrid';
+import {startAutomaticSync} from './automatic-sync';
 import type {FeatureTarget,FishSearchTarget} from './site-search';
 
 const SiteAdminPage=lazy(()=>import('../admin/SiteAdminPage').then(module=>({default:module.SiteAdminPage})));
@@ -213,6 +214,7 @@ export function LocalApp(){
   };
   useEffect(()=>startLocalNotifications(store),[store]);
   useEffect(()=>startFishcakeSync(store),[store]);
+  useEffect(()=>startAutomaticSync(store),[store]);
   const [category,setCategory]=useState('all');
   const [subcategory,setSubcategory]=useState('all');
   const siteSettings=useSiteSettings();
