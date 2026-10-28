@@ -105,6 +105,11 @@ function useMarketSnapshot(selected:MarketItem|null,scope:string,quality:Quality
   return {data:current?result.data:null,error:current?result.error:'',loading:Boolean(selected&&scope)&&!current};
 }
 
+function resolveMarketScope(centers:readonly MarketCenter[],scope:string){
+  const center=centers.find(item=>item.name===scope||item.worlds.some(world=>String(world.id)===scope))??centers.find(item=>item.region==='中国')??centers[0];
+  const active=center?.worlds.some(world=>String(world.id)===scope)?scope:center?.name??'';
+  return {center,scope:active,label:center?.worlds.find(world=>String(world.id)===active)?.name??active};
+}
 export function MarketBoard({initialQuery=''}:Readonly<{initialQuery?:string}>){
   const [saved]=useState(preferences);
   const [scope,setScope]=useState(saved.scope),[quality,setQuality]=useState<Quality>(saved.quality);
@@ -117,9 +122,7 @@ export function MarketBoard({initialQuery=''}:Readonly<{initialQuery?:string}>){
   const [selection,setSelection]=useState<MarketItem|null>(null);
   const selected=items.find(item=>item.id===selection?.id)??items.find(item=>item.name===query.trim())??(items.length===1?items[0]!:null);
   const [refresh,setRefresh]=useState(0);
-  const activeCenter=centers.find(center=>center.name===scope||center.worlds.some(world=>String(world.id)===scope))??centers.find(center=>center.region==='中国')??centers[0];
-  const activeScope=activeCenter?.worlds.some(world=>String(world.id)===scope)?scope:activeCenter?.name??'';
-  const scopeLabel=activeCenter?.worlds.find(world=>String(world.id)===activeScope)?.name??activeScope;
+  const {center:activeCenter,scope:activeScope,label:scopeLabel}=resolveMarketScope(centers,scope);
   const {data,error:dataError,loading}=useMarketSnapshot(selected,activeScope,quality,refresh);
   const chooseScope=(next:string)=>{setScope(next);remember(next,quality);};
   useEffect(()=>{

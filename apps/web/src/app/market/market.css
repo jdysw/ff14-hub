@@ -79,7 +79,7 @@
 .market-quality--hq{color:#886011;background:#fbf0d3;font-weight:650}
 .market-table-footer{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:11px;color:#51684d;margin-top:10px}
 .market-table-footer button{border:1px solid #d5e0d0;background:#f6f9f1;border-radius:6px;color:#487143;font-size:12px;padding:7px 14px}
-.market-empty{display:block;text-align:center;color:#6c7d70;padding:32px 16px;background:#f7f9f4;border:1px dashed #d7e2d3;border-radius:8px}
+.market-empty{display:block;text-align:center;color:#4e6553;padding:32px 16px;background:#f7f9f4;border:1px dashed #d7e2d3;border-radius:8px}
 .market-empty>.ui-icon{font-size:24px;color:#85a083}
 .market-empty h4,.market-empty>strong{display:block;font-size:16px;font-weight:500;color:#3e5c40;margin:10px 0 6px}
 .market-empty p,.market-empty>span{display:block;font-size:12px;margin:0}
