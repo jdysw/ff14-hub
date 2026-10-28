@@ -10,7 +10,7 @@ export function WeatherHome({onOpenDetail}:Readonly<{onOpenDetail:(zoneId?:numbe
     <header className="weather-heading"><h2>时间与天气</h2><button type="button" onClick={()=>onOpenDetail()}>查看天气 ↗</button></header>
     <WeatherClock now={now}/>
     {error?<p className="weather-notice" role="alert">{error} <button type="button" onClick={retry}>重试</button></p>:null}
-    {!data&&!error?<p role="status" className="weather-muted">正在读取地图天气…</p>:null}
+    {!data&&!error?<output className="weather-muted">正在读取地图天气…</output>:null}
     {data?<div className="weather-home__places">{zones.map(zone=>{
       const current=weatherPeriods(zone,now,1)[0]!;
       return <button type="button" key={zone.id} onClick={()=>onOpenDetail(zone.id)} aria-label={'查看'+zone.name+'天气'}><span>{zone.name}</span><span><WeatherIcon weather={current.weather}/>{current.weather}</span></button>;

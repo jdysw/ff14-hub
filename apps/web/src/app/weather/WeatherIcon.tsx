@@ -17,6 +17,7 @@ export function weatherSymbol(weather:string):keyof typeof icons{
   return 'cloud';
 }
 export function WeatherIcon({weather,night=false}:Readonly<{weather?:string;night?:boolean}>){
-  const symbol=weather?weatherSymbol(weather):night?'moon':'sun';
+  let symbol:keyof typeof icons=night?'moon':'sun';
+  if(weather){symbol=weatherSymbol(weather);}
   return <span className={'weather-icon weather-icon--'+symbol} aria-hidden="true" style={{maskImage:'url("'+icons[symbol]+'")'}}/>;
 }

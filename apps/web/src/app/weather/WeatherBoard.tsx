@@ -32,9 +32,9 @@ function MapWeather({catalog,now,initialZoneId}:Readonly<{catalog:WeatherCatalog
       {!selectedVisible?<option value="" disabled>{filtered.length?'请选择搜索结果中的地图':'没有匹配地图'}</option>:null}
       {filtered.map(item=><option key={item.id} value={item.id}>{item.name} · {item.region}</option>)}
     </select><span>{filtered.length} 张地图{onlyFavorites?' · 仅显示关注':''}</span></label>
-    {!filtered.length?<p className="weather-notice" role="status">没有找到匹配地图。<button type="button" onClick={()=>{setSearch('');setOnlyFavorites(false);}}>查看全部地图</button></p>:null}
+    {!filtered.length?<output className="weather-notice">没有找到匹配地图。<button type="button" onClick={()=>{setSearch('');setOnlyFavorites(false);}}>查看全部地图</button></output>:null}
     <header className="weather-map__heading"><div><span>{zone.expansion} · {zone.region}</span><h3>{zone.name}</h3></div><button type="button" aria-pressed={favorite} onClick={toggleFavorite} aria-label={(favorite?'取消关注':'关注')+zone.name}><UiIcon name={favorite?'starFill':'star'}/>{favorite?'已关注':'关注地图'}</button></header>
-    {notice?<p className="weather-notice" role="status">{notice}</p>:null}
+    {notice?<output className="weather-notice">{notice}</output>:null}
     <div className="weather-current"><div><WeatherIcon weather={current.weather}/><div><span>当前天气</span><strong>{current.weather}</strong></div></div><div><span>距下个时段</span><strong>{weatherCountdown(current.endsAt,now)}</strong><small>现实时间 · 下期{next.weather}</small></div></div>
     <section className="weather-forecast" aria-label="当前及后续八个天气时段">
       <header><h4>天气时段</h4><span>ET 00:00 / 08:00 / 16:00 切换</span></header>
@@ -50,5 +50,5 @@ function MapWeather({catalog,now,initialZoneId}:Readonly<{catalog:WeatherCatalog
 }
 export function WeatherBoard({initialZoneId}:Readonly<{initialZoneId?:number}>){
   const now=useEorzeaClock(),{data,error,retry}=useWeatherCatalog();
-  return <div className="weather-board"><header className="weather-board__intro"><h3>艾欧泽亚时间与天气</h3><p>找地图、看天气，把握下一个时段。</p></header><div className="weather-board__layout"><aside><WeatherClock now={now}/><p className="weather-board__clock-note">艾欧泽亚一天 = 现实 70 分钟<br/>昼夜时段：ET 06:00 / 18:00</p></aside>{data?<MapWeather catalog={data} now={now} {...(initialZoneId?{initialZoneId}:{})}/>:<section>{error?<p className="weather-notice" role="alert">{error}<button type="button" onClick={retry}>重试</button></p>:<p role="status">正在读取地图天气表…</p>}</section>}</div></div>;
+  return <div className="weather-board"><header className="weather-board__intro"><h3>艾欧泽亚时间与天气</h3><p>找地图、看天气，把握下一个时段。</p></header><div className="weather-board__layout"><aside><WeatherClock now={now}/><p className="weather-board__clock-note">艾欧泽亚一天 = 现实 70 分钟<br/>昼夜时段：ET 06:00 / 18:00</p></aside>{data?<MapWeather catalog={data} now={now} {...(initialZoneId?{initialZoneId}:{})}/>:<section>{error?<p className="weather-notice" role="alert">{error}<button type="button" onClick={retry}>重试</button></p>:<output style={{display:'block'}}>正在读取地图天气表…</output>}</section>}</div></div>;
 }
