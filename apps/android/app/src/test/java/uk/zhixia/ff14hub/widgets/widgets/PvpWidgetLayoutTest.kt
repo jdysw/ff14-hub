@@ -35,10 +35,109 @@ class PvpWidgetLayoutTest {
 
     @Test fun compactShowsBothCurrentMapsWithoutNextOrSchedule() {
         val view = render(PvpDensity.SMALL)
+        assertEquals("战场", view.findViewById<TextView>(R.id.pvp_front_label).text.toString())
+        assertEquals("55", view.findViewById<TextView>(R.id.pvp_crystal_label).text.toString())
         assertEquals("尘封秘岩", view.findViewById<TextView>(R.id.pvp_front_current).text.toString())
         assertEquals("赤土红沙", view.findViewById<TextView>(R.id.pvp_crystal_current).text.toString())
         assertNull(view.findViewById<View>(R.id.pvp_front_next))
         assertNull(view.findViewById<View>(R.id.pvp_schedule_section))
+    }
+    @Test fun miniUsesApprovedShortLabelsAndKeepsFullAccessibleModeNames() {
+        val view = render(PvpDensity.MINI)
+        assertEquals("战场", view.findViewById<TextView>(R.id.pvp_front_label).text.toString())
+        assertEquals("55", view.findViewById<TextView>(R.id.pvp_crystal_label).text.toString())
+        assertEquals("尘封秘岩", view.findViewById<TextView>(R.id.pvp_front_current).text.toString())
+        assertTrue(view.contentDescription.contains("纷争前线"))
+        assertTrue(view.contentDescription.contains("水晶冲突"))
+    }
+    @Test fun compactRowsKeepEqualLabelColumnsAndMapInsets() {
+        val directory = java.io.File("build/outputs/widget-gallery").apply { mkdirs() }
+        for (night in listOf(false, true)) for (font in listOf(1f, 2f)) {
+            for ((width, height) in listOf(109 to 56, 140 to 72, 140 to 100)) {
+                verifyAlignedCompact(night, font, width, height, directory)
+            }
+        }
+    }
+
+    private fun verifyAlignedCompact(night: Boolean, font: Float, width: Int, height: Int, directory: java.io.File) {
+            val using = context.createConfigurationContext(Configuration(context.resources.configuration).apply {
+                fontScale = font
+                uiMode = (if (night) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO) or Configuration.UI_MODE_TYPE_NORMAL
+            })
+                val tier = PvpPresentation.density(width.toFloat(), height.toFloat())
+                val payload = PvpWidgetRenderer.build(context, tier, WidgetData.cached(context)!!, 1792548600000L)
+                val root = payload.apply(using, FrameLayout(using))
+                val w = (width * using.resources.displayMetrics.density).toInt()
+                val h = (height * using.resources.displayMetrics.density).toInt()
+                root.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
+                root.layout(0, 0, w, h)
+                val frontLabel = root.findViewById<TextView>(R.id.pvp_front_label)
+                val crystalLabel = root.findViewById<TextView>(R.id.pvp_crystal_label)
+                val frontMap = root.findViewById<TextView>(R.id.pvp_front_current)
+                val crystalMap = root.findViewById<TextView>(R.id.pvp_crystal_current)
+                assertEquals(frontLabel.width, crystalLabel.width)
+                assertEquals(frontMap.left, crystalMap.left)
+                assertEquals(frontMap.baseline, crystalMap.baseline)
+                assertTrue(kotlin.math.abs(frontMap.height - crystalMap.height) <= 1)
+                for (text in listOf(frontLabel, crystalLabel, frontMap, crystalMap)) {
+                    assertEquals(View.VISIBLE, text.visibility)
+                    assertTrue("compact clips ${text.text} at $width x $height font=$font", text.layout.height <= text.height)
+                }
+                inspectVisibleBounds(root, 0, h, "aligned compact $width x $height font=$font")
+                if (font == 1f) {
+                    val image = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                    try { root.draw(Canvas(image)); java.io.File(directory, "${if (night) "dark" else "light"}-pvp-aligned-${width}x$height.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+                    finally { image.recycle() }
+                }
+    }
+
+    @Test fun cachedMiniFitsAfterHostFontScaleChangesWithoutProviderRefresh() {
+        val payload = PvpWidgetRenderer.build(context, PvpDensity.MINI, WidgetData.cached(context)!!, 1792548600000L)
+        val using = context.createConfigurationContext(Configuration(context.resources.configuration).apply { fontScale = 2f })
+        val root = payload.apply(using, FrameLayout(using))
+        val w = (109 * using.resources.displayMetrics.density).toInt()
+        val h = (56 * using.resources.displayMetrics.density).toInt()
+        root.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
+        root.layout(0, 0, w, h)
+        inspectVisibleBounds(root, 0, h, "cached MINI 109x56 at font=2")
+    }
+
+    @Test fun cachedCountdownsFitOneLineAfterHostFontScaleChanges() {
+        val using = context.createConfigurationContext(Configuration(context.resources.configuration).apply { fontScale = 2f })
+        for (density in listOf(PvpDensity.MEDIUM, PvpDensity.LARGE)) {
+            val payload = PvpWidgetRenderer.build(context, density, WidgetData.cached(context)!!, 1792548600000L)
+            val root = payload.apply(using, FrameLayout(using))
+            val timers = listOf(R.id.pvp_front_countdown, R.id.pvp_crystal_countdown).map { root.findViewById<TextView>(it) }
+            timers.forEach { it.text = "23:59:59" }
+            val w = (260 * using.resources.displayMetrics.density).toInt()
+            val h = (340 * using.resources.displayMetrics.density).toInt()
+            root.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
+            root.layout(0, 0, w, h)
+            for (timer in timers) {
+                assertEquals("$density countdown wraps", 1, timer.layout.lineCount)
+                assertTrue("$density countdown clips horizontally", timer.layout.getLineWidth(0) <= timer.width - timer.paddingLeft - timer.paddingRight)
+                assertTrue("$density countdown clips vertically", timer.layout.height <= timer.height - timer.paddingTop - timer.paddingBottom)
+                assertEquals("$density countdown truncates", 0, timer.layout.getEllipsisCount(0))
+            }
+        }
+    }
+
+    @Test fun cachedScheduleKeepsAllThreeRoundsAfterHostFontScaleChanges() {
+        val using = context.createConfigurationContext(Configuration(context.resources.configuration).apply { fontScale = 2f })
+        val payload = PvpWidgetRenderer.build(context, PvpDensity.LARGE, WidgetData.cached(context)!!, 1792548600000L)
+        val root = payload.apply(using, FrameLayout(using))
+        val w = (280 * using.resources.displayMetrics.density).toInt()
+        val h = (260 * using.resources.displayMetrics.density).toInt()
+        root.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
+        root.layout(0, 0, w, h)
+        inspectVisibleBounds(root, 0, h, "cached schedule at font=2")
+        for (id in listOf(R.id.pvp_front_slot_1_time, R.id.pvp_front_slot_1_map,
+            R.id.pvp_front_slot_2_time, R.id.pvp_front_slot_2_map, R.id.pvp_front_slot_3_time, R.id.pvp_front_slot_3_map,
+            R.id.pvp_crystal_slot_1_time, R.id.pvp_crystal_slot_1_map, R.id.pvp_crystal_slot_2_time,
+            R.id.pvp_crystal_slot_2_map, R.id.pvp_crystal_slot_3_time, R.id.pvp_crystal_slot_3_map)) {
+            val text = root.findViewById<TextView>(id)
+            assertTrue("cached schedule clips ${text.text}: layout=${text.layout.height}, height=${text.height}, size=${text.textSize}", text.layout.height <= text.height - text.paddingTop - text.paddingBottom)
+        }
     }
 
     @Test fun mediumAddsBothNextMapsAndCountdowns() {
@@ -62,7 +161,7 @@ class PvpWidgetLayoutTest {
 
     @Test fun everyVisibleFieldFitsItsDesignedSize() {
         for (fontScale in listOf(1f, 1.15f, 1.3f, 2f)) {
-            for ((width, height) in listOf(120 to 88, 140 to 100, 220 to 120, 280 to 140, 120 to 220, 280 to 260)) {
+            for ((width, height) in listOf(109 to 56, 140 to 72, 120 to 88, 140 to 100, 220 to 120, 280 to 140, 120 to 220, 260 to 240, 280 to 260)) {
                 for (now in listOf(1792548600000L, java.time.Instant.parse("2026-10-23T02:10:00Z").toEpochMilli())) {
                     assertDesignedSize(fontScale, width, height, now)
                 }
@@ -141,19 +240,19 @@ class PvpWidgetLayoutTest {
         assertEquals(PvpDensity.MEDIUM, PvpPresentation.density(320f, 340f, 2f))
     }
 
-    @Test fun reusedCompactViewRestoresLabelsAfterLargeFontMode() {
+    @Test fun reusedCompactViewKeepsAlignedLabelsAcrossFontModes() {
         val largeFont = context.createConfigurationContext(Configuration(context.resources.configuration).apply { fontScale = 2f })
         val snapshot = WidgetData.cached(context)!!
         val view = PvpWidgetRenderer.build(largeFont, PvpDensity.SMALL, snapshot, 1792548600000L)
             .apply(largeFont, FrameLayout(largeFont))
-        assertEquals(View.GONE, view.findViewById<View>(R.id.pvp_front_label).visibility)
+        assertEquals(View.VISIBLE, view.findViewById<View>(R.id.pvp_front_label).visibility)
         assertEquals(View.GONE, view.findViewById<View>(R.id.pvp_status).visibility)
         PvpWidgetRenderer.build(context, PvpDensity.SMALL, snapshot, 1792548600000L).reapply(context, view)
         assertEquals(View.VISIBLE, view.findViewById<View>(R.id.pvp_front_label).visibility)
         assertEquals(View.VISIBLE, view.findViewById<View>(R.id.pvp_crystal_label).visibility)
         assertEquals(View.GONE, view.findViewById<View>(R.id.pvp_status).visibility)
         assertEquals("尘封秘岩", view.findViewById<TextView>(R.id.pvp_front_current).text.toString())
-        assertEquals((8 * context.resources.displayMetrics.density).toInt(), view.findViewById<View>(R.id.pvp_content).paddingLeft)
+        assertEquals((6 * context.resources.displayMetrics.density).toInt(), view.findViewById<View>(R.id.pvp_content).paddingLeft)
     }
 
     @Test fun unsupportedSizesStillHaveOpaqueSurfaceEvenIfHostClearsRootBackground() {
