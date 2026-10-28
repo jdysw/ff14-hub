@@ -19,7 +19,7 @@
 export const CACHE_NAME_PREFIX = 'ff14-hub-public';
 
 /** 缓存策略版本：清单语义变化时必须同步提升，从而让旧缓存被 `activate` 清掉。 */
-export const CACHE_VERSION = 'v2';
+export const CACHE_VERSION = 'v3';
 
 /** 当前公开缓存名（`activate` 只保留这一个，其余名字一律删除）。 */
 export const PUBLIC_CACHE_NAME = `${CACHE_NAME_PREFIX}-${CACHE_VERSION}`;
@@ -35,6 +35,7 @@ export const PUBLIC_STATIC_EXACT_PATHS: readonly string[] = [
   '/favicon.svg',
   '/fishing/catalog-cn.json',
   '/fishing/catalog-global.json',
+  '/weather/catalog-cn.json',
 ];
 
 /** 前缀匹配的公开静态资源目录。 */

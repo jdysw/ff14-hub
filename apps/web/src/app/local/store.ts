@@ -35,7 +35,7 @@ const configurationSchema=z.preprocess(value=>{
   return {...record,order:[...order,'pvp'],visible:{...visible,pvp:true}};
 },z.object({
   order:homeOrderSchema,
-  visible:z.object({events:z.boolean(),fishing:z.boolean(),pvp:z.boolean(),notes:z.boolean(),market:z.boolean().optional()}).strict(),
+  visible:z.object({events:z.boolean(),fishing:z.boolean(),pvp:z.boolean(),notes:z.boolean(),market:z.boolean().optional(),weather:z.boolean().optional()}).strict(),
   region:z.enum(['cn','global']),
   orderCustomized:z.boolean().optional(),
 }).strict());

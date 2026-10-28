@@ -34,7 +34,7 @@ import type {BrowserLink} from './directory-links';
 import {SiteIcon} from './SiteIcon';
 
 type Scope='all'|'links'|'fish'|'events'|'features';
-const featureHint:Record<FeatureTarget,string>={plan:'安排今天的待办、关注鱼窗与活动节点',events:'查看活动日程和开始、结束时间',pvp:'纷争前线与水晶冲突地图轮换',market:'物品搜索、跨服在售价格与近期成交',notes:'记录自己的游戏备忘',sync:'连接鱼糕与跨设备同步',backup:'导出、恢复本机个人数据',notifications:'管理提醒方式与通知权限'};
+const featureHint:Record<FeatureTarget,string>={plan:'安排今天的待办、关注鱼窗与活动节点',events:'查看活动日程和开始、结束时间',pvp:'纷争前线与水晶冲突地图轮换',market:'物品搜索、跨服在售价格与近期成交',weather:'艾欧泽亚时钟、昼夜与地图天气预报',notes:'记录自己的游戏备忘',sync:'连接鱼糕与跨设备同步',backup:'导出、恢复本机个人数据',notifications:'管理提醒方式与通知权限'};
 export function GlobalSearch({query,links,linksLoading=false,linksError=false,onRetryLinks,initialRegion,onFish,onEvent,onFeature,onClose}:Readonly<{query:string;links:readonly BrowserLink[];linksLoading?:boolean;linksError?:boolean;onRetryLinks?:()=>void;initialRegion:FishRegion;onFish:(target:FishSearchTarget)=>void;onEvent:(id:string)=>void;onFeature:(target:FeatureTarget)=>void;onClose:()=>void}>){
   const [region,setRegion]=useState(initialRegion),[fish,setFish]=useState<CatalogFish[]>([]),[events,setEvents]=useState<EventCalendarItem[]>([]);
   const [fishError,setFishError]=useState(''),[eventError,setEventError]=useState(''),[loading,setLoading]=useState(true),[eventLoading,setEventLoading]=useState(true),[retry,setRetry]=useState(0),[limit,setLimit]=useState(6),[scope,setScope]=useState<Scope>('all');
