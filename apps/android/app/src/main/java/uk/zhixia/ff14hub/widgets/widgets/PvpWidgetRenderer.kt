@@ -8,9 +8,6 @@ import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
-import android.text.SpannableString
-import android.text.Spanned
-import android.text.style.RelativeSizeSpan
 import android.util.SizeF
 import android.util.TypedValue
 import android.view.View
@@ -63,8 +60,7 @@ object PvpWidgetRenderer {
 
     fun build(context: Context, density: PvpDensity, snapshot: JSONObject, now: Long, id: Int = 0, stacked: Boolean = false): RemoteViews {
         val layout = when (density) {
-            PvpDensity.MINI -> R.layout.pvp_widget_mini
-            PvpDensity.SMALL -> R.layout.pvp_widget_compact
+            PvpDensity.MINI, PvpDensity.SMALL -> R.layout.pvp_widget_mini
             PvpDensity.MEDIUM -> if (stacked) R.layout.pvp_widget_vertical else R.layout.pvp_widget_wide
             PvpDensity.LARGE -> R.layout.pvp_widget_schedule
         }
@@ -93,22 +89,6 @@ object PvpWidgetRenderer {
         views.setContentDescription(R.id.widget_root,
             "国服 PVP。纷争前线 ${front.current}，下轮 ${front.next}，北京时间 ${at(front.changesAtMs, true)} 换图。" +
             "水晶冲突 ${crystal.current}，下张 ${crystal.next}，北京时间 ${at(crystal.changesAtMs)} 换图。")
-        if (compact && (largeText || density == PvpDensity.MINI)) {
-            views.setViewVisibility(R.id.pvp_heading, View.GONE)
-            views.setViewVisibility(R.id.pvp_status, View.GONE)
-            views.setViewVisibility(R.id.pvp_front_label, View.GONE)
-            views.setViewVisibility(R.id.pvp_crystal_label, View.GONE)
-            fun readable(label: String, name: String): SpannableString =
-                SpannableString("$label $name").apply {
-                    setSpan(RelativeSizeSpan(0.65f), 0, label.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                }
-            views.setTextViewText(R.id.pvp_front_current, readable(context.getString(R.string.pvp_short_frontline), currentFront))
-            views.setTextViewText(R.id.pvp_crystal_current, readable(context.getString(R.string.pvp_short_crystalline), currentCrystal))
-            val readableSize = if (density == PvpDensity.MINI) minOf(13f, 14f / context.resources.configuration.fontScale)
-                else minOf(13f, 15.5f / context.resources.configuration.fontScale)
-            views.setTextViewTextSize(R.id.pvp_front_current, TypedValue.COMPLEX_UNIT_SP, readableSize)
-            views.setTextViewTextSize(R.id.pvp_crystal_current, TypedValue.COMPLEX_UNIT_SP, readableSize)
-        }
         if (!compact) {
             // Large cards list the next rotation below; avoid repeating the same map and time.
             for (field in intArrayOf(R.id.pvp_front_next, R.id.pvp_crystal_next)) {
@@ -154,8 +134,7 @@ object PvpWidgetRenderer {
     }
 
     private fun contentPadding(density: PvpDensity) = when (density) {
-        PvpDensity.MINI -> 6
-        PvpDensity.SMALL -> 8
+        PvpDensity.MINI, PvpDensity.SMALL -> 6
         else -> 10
     }
 

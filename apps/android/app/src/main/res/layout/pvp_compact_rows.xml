@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/pvp_content"
+ android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="6dp">
+ <TextView android:id="@+id/pvp_heading" style="@style/PvpHeading" android:visibility="gone"/>
+ <LinearLayout style="@style/PvpCompactRow" android:background="@drawable/widget_front_lane">
+  <TextView android:id="@+id/pvp_front_label" style="@style/PvpCompactBadge" android:text="@string/pvp_short_frontline" android:contentDescription="@string/pvp_picker_frontline_description" android:textColor="@color/pvp_surface" android:background="@drawable/widget_front_badge"/>
+  <TextView android:id="@+id/pvp_front_current" style="@style/PvpCompactMap" android:text="@string/pvp_picker_map"/>
+ </LinearLayout>
+ <LinearLayout style="@style/PvpCompactRow" android:layout_marginTop="4dp" android:background="@drawable/widget_crystal_lane">
+  <TextView android:id="@+id/pvp_crystal_label" style="@style/PvpCompactBadge" android:text="@string/pvp_short_crystalline" android:contentDescription="@string/pvp_picker_crystalline_description" android:textColor="@color/pvp_surface" android:background="@drawable/widget_crystal_badge"/>
+  <TextView android:id="@+id/pvp_crystal_current" style="@style/PvpCompactMap" android:text="@string/pvp_picker_map"/>
+ </LinearLayout>
+ <TextView android:id="@+id/pvp_status" style="@style/PvpLabel" android:visibility="gone"/>
+</LinearLayout>

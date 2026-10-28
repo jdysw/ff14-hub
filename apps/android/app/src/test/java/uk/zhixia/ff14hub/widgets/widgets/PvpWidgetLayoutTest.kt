@@ -44,11 +44,49 @@ class PvpWidgetLayoutTest {
     }
     @Test fun miniUsesApprovedShortLabelsAndKeepsFullAccessibleModeNames() {
         val view = render(PvpDensity.MINI)
-        assertTrue(view.findViewById<TextView>(R.id.pvp_front_current).text.startsWith("战场 "))
-        assertTrue(view.findViewById<TextView>(R.id.pvp_crystal_current).text.startsWith("55 "))
+        assertEquals("战场", view.findViewById<TextView>(R.id.pvp_front_label).text.toString())
+        assertEquals("55", view.findViewById<TextView>(R.id.pvp_crystal_label).text.toString())
+        assertEquals("尘封秘岩", view.findViewById<TextView>(R.id.pvp_front_current).text.toString())
         assertTrue(view.contentDescription.contains("纷争前线"))
         assertTrue(view.contentDescription.contains("水晶冲突"))
     }
+    @Test fun compactRowsKeepEqualLabelColumnsAndMapInsets() {
+        val directory = java.io.File("build/outputs/widget-gallery").apply { mkdirs() }
+        for (night in listOf(false, true)) for (font in listOf(1f, 2f)) {
+            val using = context.createConfigurationContext(Configuration(context.resources.configuration).apply {
+                fontScale = font
+                uiMode = (if (night) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO) or Configuration.UI_MODE_TYPE_NORMAL
+            })
+            for ((width, height) in listOf(109 to 56, 140 to 72, 140 to 100)) {
+                val tier = PvpPresentation.density(width.toFloat(), height.toFloat())
+                val payload = PvpWidgetRenderer.build(context, tier, WidgetData.cached(context)!!, 1792548600000L)
+                val root = payload.apply(using, FrameLayout(using))
+                val w = (width * using.resources.displayMetrics.density).toInt()
+                val h = (height * using.resources.displayMetrics.density).toInt()
+                root.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
+                root.layout(0, 0, w, h)
+                val frontLabel = root.findViewById<TextView>(R.id.pvp_front_label)
+                val crystalLabel = root.findViewById<TextView>(R.id.pvp_crystal_label)
+                val frontMap = root.findViewById<TextView>(R.id.pvp_front_current)
+                val crystalMap = root.findViewById<TextView>(R.id.pvp_crystal_current)
+                assertEquals(frontLabel.width, crystalLabel.width)
+                assertEquals(frontMap.left, crystalMap.left)
+                assertEquals(frontMap.baseline, crystalMap.baseline)
+                assertTrue(kotlin.math.abs(frontMap.height - crystalMap.height) <= 1)
+                for (text in listOf(frontLabel, crystalLabel, frontMap, crystalMap)) {
+                    assertEquals(View.VISIBLE, text.visibility)
+                    assertTrue("compact clips ${text.text} at $width x $height font=$font", text.layout.height <= text.height)
+                }
+                inspectVisibleBounds(root, 0, h, "aligned compact $width x $height font=$font")
+                if (font == 1f) {
+                    val image = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                    try { root.draw(Canvas(image)); java.io.File(directory, "${if (night) "dark" else "light"}-pvp-aligned-${width}x$height.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+                    finally { image.recycle() }
+                }
+            }
+        }
+    }
+
     @Test fun cachedMiniFitsAfterHostFontScaleChangesWithoutProviderRefresh() {
         val payload = PvpWidgetRenderer.build(context, PvpDensity.MINI, WidgetData.cached(context)!!, 1792548600000L)
         val using = context.createConfigurationContext(Configuration(context.resources.configuration).apply { fontScale = 2f })
@@ -198,19 +236,19 @@ class PvpWidgetLayoutTest {
         assertEquals(PvpDensity.MEDIUM, PvpPresentation.density(320f, 340f, 2f))
     }
 
-    @Test fun reusedCompactViewRestoresLabelsAfterLargeFontMode() {
+    @Test fun reusedCompactViewKeepsAlignedLabelsAcrossFontModes() {
         val largeFont = context.createConfigurationContext(Configuration(context.resources.configuration).apply { fontScale = 2f })
         val snapshot = WidgetData.cached(context)!!
         val view = PvpWidgetRenderer.build(largeFont, PvpDensity.SMALL, snapshot, 1792548600000L)
             .apply(largeFont, FrameLayout(largeFont))
-        assertEquals(View.GONE, view.findViewById<View>(R.id.pvp_front_label).visibility)
+        assertEquals(View.VISIBLE, view.findViewById<View>(R.id.pvp_front_label).visibility)
         assertEquals(View.GONE, view.findViewById<View>(R.id.pvp_status).visibility)
         PvpWidgetRenderer.build(context, PvpDensity.SMALL, snapshot, 1792548600000L).reapply(context, view)
         assertEquals(View.VISIBLE, view.findViewById<View>(R.id.pvp_front_label).visibility)
         assertEquals(View.VISIBLE, view.findViewById<View>(R.id.pvp_crystal_label).visibility)
         assertEquals(View.GONE, view.findViewById<View>(R.id.pvp_status).visibility)
         assertEquals("尘封秘岩", view.findViewById<TextView>(R.id.pvp_front_current).text.toString())
-        assertEquals((8 * context.resources.displayMetrics.density).toInt(), view.findViewById<View>(R.id.pvp_content).paddingLeft)
+        assertEquals((6 * context.resources.displayMetrics.density).toInt(), view.findViewById<View>(R.id.pvp_content).paddingLeft)
     }
 
     @Test fun unsupportedSizesStillHaveOpaqueSurfaceEvenIfHostClearsRootBackground() {

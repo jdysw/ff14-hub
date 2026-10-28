@@ -41,6 +41,33 @@
   <item name="android:maxLines">1</item>
   <item name="android:ellipsize">end</item>
  </style>
+ <style name="PvpCompactRow">
+  <item name="android:layout_width">match_parent</item>
+  <item name="android:layout_height">0dp</item>
+  <item name="android:layout_weight">1</item>
+  <item name="android:gravity">center_vertical</item>
+  <item name="android:paddingLeft">2dp</item>
+  <item name="android:paddingRight">4dp</item>
+ </style>
+ <style name="PvpCompactBadge" parent="PvpLabel">
+  <item name="android:layout_width">24dp</item>
+  <item name="android:layout_height">20dp</item>
+  <item name="android:gravity">center</item>
+  <item name="android:fontFamily">sans-serif-medium</item>
+  <item name="android:maxLines">1</item>
+  <item name="android:autoSizeTextType">uniform</item>
+  <item name="android:autoSizeMinTextSize">5sp</item>
+  <item name="android:autoSizeMaxTextSize">9sp</item>
+  <item name="android:autoSizeStepGranularity">0.5sp</item>
+ </style>
+ <style name="PvpCompactMap" parent="PvpMap">
+  <item name="android:layout_width">0dp</item>
+  <item name="android:layout_height">match_parent</item>
+  <item name="android:layout_weight">1</item>
+  <item name="android:layout_marginLeft">4dp</item>
+  <item name="android:layout_marginTop">0dp</item>
+  <item name="android:autoSizeMaxTextSize">14sp</item>
+ </style>
  <style name="PvpModeLabel" parent="PvpLabel">
   <item name="android:layout_height">20dp</item>
   <item name="android:gravity">center_vertical</item>
@@ -132,8 +159,7 @@
  <string name="pvp_small_widget">PVP 战场 · 小</string>
  <string name="pvp_short_frontline">战场</string>
  <string name="pvp_short_crystalline">55</string>
- <string name="pvp_picker_frontline">战场 · 当前地图</string>
- <string name="pvp_picker_crystalline">55 · 当前地图</string>
+ <string name="pvp_picker_map">当前地图</string>
  <string name="pvp_picker_frontline_description">纷争前线当前地图</string>
  <string name="pvp_picker_crystalline_description">水晶冲突当前地图</string>
  <string name="pvp_medium_widget">PVP 战场 · 中</string>
