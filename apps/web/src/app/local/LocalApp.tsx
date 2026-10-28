@@ -100,7 +100,7 @@ if(expanded.kind==='fishing'){return <FishingBoard data={fishingData} subscribeP
             setExpanded(null);setDataSection('fish');setSettingsTab('data');setView('settings');
           }}/>;}
 if(expanded.kind==='pvp'){return <PvpBoard expanded/>;}
-if(expanded.kind==='market'){return <Suspense fallback={<p role="status">正在打开市场…</p>}><MarketBoard initialQuery={expanded.marketQuery??''}/></Suspense>;}
+if(expanded.kind==='market'){return <Suspense fallback={<output style={{display:'block'}}>正在打开市场…</output>}><MarketBoard initialQuery={expanded.marketQuery??''}/></Suspense>;}
 return <TodoBoard data={data} store={store} expanded/>;
 }
 

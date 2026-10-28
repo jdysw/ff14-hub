@@ -52,6 +52,16 @@ it('distinguishes service throttling and malformed price payloads from missing p
   await expect(loadMarketData('1167',2,'all',signal())).rejects.toThrow('查询过于频繁');
   await expect(loadMarketData('1167',2,'all',signal())).rejects.toThrow('数据格式');
 });
+it('keeps record keys stable across insertion and price sorting while distinguishing duplicate records',async()=>{
+  const {keyedMarketRows}=await import('../src/app/market/universalis');
+  const first={listingID:'listing-1',pricePerUnit:80,quantity:2,hq:false};
+  const second={pricePerUnit:40,quantity:3,hq:false,worldName:'红玉海',lastReviewTime:100};
+  const before=keyedMarketRows([first,second,second]);
+  const after=keyedMarketRows([{...first,pricePerUnit:90},second,second]);
+  expect(after.map(item=>item.key)).toEqual(before.map(item=>item.key));
+  expect(new Set(before.map(item=>item.key)).size).toBe(3);
+  expect(keyedMarketRows([{...second,pricePerUnit:20},second,second]).slice(1).map(item=>item.key)).toEqual(before.slice(1).map(item=>item.key));
+});
 it('shows absence as unavailable and calculates the median from the returned sales only',async()=>{
   const {marketSummary}=await import('../src/app/market/universalis');
   expect(marketSummary({itemID:2,lastUploadTime:0,listings:[],recentHistory:[]})).toEqual({minimum:null,median:null});
