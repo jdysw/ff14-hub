@@ -6,7 +6,7 @@ return target;
 }
 import {useState} from 'react';
 import type {managedPresentationSchema} from '@ff14-hub/shared';
-import {DEFAULT_CATEGORIES,DEFAULT_HOME} from '@ff14-hub/shared';
+import {withMarketModule,DEFAULT_CATEGORIES,DEFAULT_HOME} from '@ff14-hub/shared';
 import type {SiteSettings} from './site-settings';
 type Presentation=ReturnType<typeof managedPresentationSchema.parse>;
 export function PresentationEditor({value,onChange}:Readonly<{value:SiteSettings['presentation'];onChange:(next:Presentation)=>void}>){
@@ -21,10 +21,10 @@ export function PresentationEditor({value,onChange}:Readonly<{value:SiteSettings
     balanced:'模块分别排列在左右两列，不再让 PVP 通栏。',
     rows:'模块按照当前顺序逐行排列，不采用特殊通栏。',
   };
-  return <section className="presentation-editor"><h3>首页展示</h3><div className="site-admin__actions">{(['events','fishing','pvp','notes'] as const).map(key=><label key={key}><input type="checkbox" checked={current.home.enabled[key]} onChange={e=>onChange({...current,home:{...current.home,enabled:{...current.home.enabled,[key]:e.target.checked}}})}/>{{events:'活动',fishing:'钓鱼',pvp:'PVP',notes:'待办'}[key]}</label>)}</div>
+  return <section className="presentation-editor"><h3>首页展示</h3><div className="site-admin__actions">{(['events','fishing','pvp','notes','market'] as const).map(key=><label key={key}><input type="checkbox" checked={current.home.enabled[key]??true} onChange={e=>onChange({...current,home:{...current.home,enabled:{...current.home.enabled,[key]:e.target.checked}}})}/>{{events:'活动',fishing:'钓鱼',pvp:'PVP',notes:'待办',market:'市场行情'}[key]}</label>)}</div>
     <label>模块布局<select value={current.home.layout} onChange={e=>onChange({...current,home:{...current.home,layout:e.target.value as Presentation['home']['layout']}})}><option value="auto">智能布局（活动＋钓鱼并列，PVP 通栏）</option><option value="balanced">双列均衡（模块不跨列）</option><option value="rows">按行排列（保留设置顺序）</option></select></label>
     <output className="panel__muted" style={{display:'block'}}>{layoutDescription[current.home.layout]}</output>
-    <ol>{current.home.order.map((module,index)=><li key={module}><span>{{events:'活动',fishing:'钓鱼',pvp:'PVP',notes:'待办'}[module]}</span> <button type="button" disabled={index===0} onClick={()=>{const order=[...current.home.order];[order[index-1],order[index]]=[order[index]!,order[index-1]!];onChange({...current,home:{...current.home,order}});}}>上移</button></li>)}</ol><p>默认顺序不覆盖用户已经自定义的模块顺序。</p>
+    <ol>{withMarketModule(current.home.order).map((module,index)=><li key={module}><span>{{events:'活动',fishing:'钓鱼',pvp:'PVP',notes:'待办',market:'市场行情'}[module]}</span> <button type="button" disabled={index===0} onClick={()=>{const order=withMarketModule(current.home.order);[order[index-1],order[index]]=[order[index]!,order[index-1]!];onChange({...current,home:{...current.home,order}});}}>上移</button></li>)}</ol><p>默认顺序不覆盖用户已经自定义的模块顺序。</p>
     <h3>主分类与子分类</h3><p>顺序控制前台分类栏；改名和合并通过映射立即作用于已有目录，不需要重新导入。</p>
     {message&&<output style={{display:'block'}}>{message}</output>}
     <ol>{current.categories.map((group,index)=><li key={group.name}><div className="site-admin__actions"><strong>{group.name}</strong><button type="button" disabled={index===0} onClick={()=>{const categories=[...current.categories];[categories[index-1],categories[index]]=[categories[index]!,categories[index-1]!];onChange({...current,categories});}}>上移</button><button type="button" disabled={index===current.categories.length-1} onClick={()=>{const categories=[...current.categories];[categories[index+1],categories[index]]=[categories[index]!,categories[index+1]!];onChange({...current,categories});}}>下移</button></div>

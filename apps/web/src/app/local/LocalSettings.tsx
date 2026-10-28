@@ -7,7 +7,7 @@ return '操作失败，原有数据仍保留。';
 import {forEachSequential} from "../../../../../packages/shared/src/sequential-tasks.mjs";
 import {useState} from 'react';
 import {ZodError} from 'zod';
-import type {FishRegion} from '@ff14-hub/shared';
+import {withMarketModule,type FishRegion} from '@ff14-hub/shared';
 import {type LocalData,type LocalStore,type HomeSection,localLinkSchema} from './store';
 import {usePrivateDraft} from '../pwa/draft-registry';
 import {fetchNavigationMetadata} from './nav-metadata';
@@ -17,7 +17,7 @@ import {LocalNotificationPanel} from './LocalNotificationPanel';
 import {TodoBoard} from './TodoBoard';
 import {clearSavedHomeLayout} from './ModuleGrid';
 
-const labels:Record<HomeSection,string>={events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的待办'};
+const labels:Record<HomeSection,string>={events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的待办',market:'市场行情'};
 export type SettingsTab='home'|'links'|'notes'|'data'|'notifications';
 export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=false,initialTab='home',initialDataSection='sync'}:Readonly<{store:LocalStore;data:LocalData;onSaved:()=>void;onAdmin?:()=>void;adminAuthenticated?:boolean;initialTab?:SettingsTab;initialDataSection?:DataSection}>){
   const [activeTab,setActiveTab]=useState<SettingsTab>(initialTab);
@@ -43,7 +43,7 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
     }
   });
   const move=(section:HomeSection,delta:number)=>{void run(async()=>{
-    await store.change(document=>{const order=document.data.configuration.order;const index=order.indexOf(section);const other=order[index+delta];if(other){order[index+delta]=section;order[index]=other;document.data.configuration.orderCustomized=true;}});
+    await store.change(document=>{const order=withMarketModule(document.data.configuration.order);document.data.configuration.order=order;const index=order.indexOf(section);const other=order[index+delta];if(other){order[index+delta]=section;order[index]=other;document.data.configuration.orderCustomized=true;}});
   });};
   return <div className="local-settings">
     <header className="local-settings__sidebar">
@@ -60,9 +60,9 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
     {activeTab==='notifications'?<LocalNotificationPanel store={store}/>:null}
     {error?<p role="alert" className="notice notice--error">{error}</p>:null}{notice?<output className="notice notice--ok" style={{display:'block'}}>{notice}</output>:null}
     <section hidden={activeTab!=='home'}><h3>首页模块</h3>
-      {data.configuration.order.map((section,index)=><div className="local-settings__module" key={section}>
-        <label><input type="checkbox" checked={data.configuration.visible[section]} disabled={busy} onChange={event=>{const checked=event.target.checked;void run(async()=>{await store.change(document=>{document.data.configuration.visible[section]=checked;});});}}/>{labels[section]}</label>
-        <div><button type="button" disabled={busy||index===0} aria-label={`上移${labels[section]}`} onClick={()=>move(section,-1)}>上移</button><button type="button" disabled={busy||index===data.configuration.order.length-1} aria-label={`下移${labels[section]}`} onClick={()=>move(section,1)}>下移</button></div>
+      {withMarketModule(data.configuration.order).map((section,index)=><div className="local-settings__module" key={section}>
+        <label><input type="checkbox" checked={data.configuration.visible[section]??true} disabled={busy} onChange={event=>{const checked=event.target.checked;void run(async()=>{await store.change(document=>{document.data.configuration.visible[section]=checked;});});}}/>{labels[section]}</label>
+        <div><button type="button" disabled={busy||index===0} aria-label={`上移${labels[section]}`} onClick={()=>move(section,-1)}>上移</button><button type="button" disabled={busy||index===withMarketModule(data.configuration.order).length-1} aria-label={`下移${labels[section]}`} onClick={()=>move(section,1)}>下移</button></div>
       </div>)}
       <div className="local-settings__field">
         <p>布局会在本机记住上次的列位置；刷新或更新倒计时不会重新交换模块。调整模块顺序、显示项或屏幕宽度后自动适配。</p>

@@ -1,4 +1,16 @@
 import {it,expect} from 'vitest';
+import {managedHomeSchema,withMarketModule} from '@ff14-hub/shared';
+it('adds market to display order without rewriting old data or overriding hidden settings',()=>{
+  const legacy=empty();
+  expect(localDataSchema.parse(legacy).configuration.order).toEqual(legacy.configuration.order);
+  expect(withMarketModule(legacy.configuration.order)).toEqual(['events','fishing','pvp','notes','market']);
+  const upgraded={...legacy,configuration:{...legacy.configuration,order:['market','notes','pvp','events','fishing'],visible:{...legacy.configuration.visible,market:false}}};
+  expect(localDataSchema.parse(upgraded).configuration.visible.market).toBe(false);
+  expect(withMarketModule(localDataSchema.parse(upgraded).configuration.order)[0]).toBe('market');
+  const oldHome={enabled:{events:true,fishing:true,pvp:false,notes:true},layout:'auto',order:legacy.configuration.order};
+  expect(managedHomeSchema.parse(oldHome).enabled.pvp).toBe(false);
+  expect(()=>localDataSchema.parse({...upgraded,configuration:{...upgraded.configuration,order:['market','notes','pvp','events','events']}})).toThrow();
+});
 import {createLocalStore,localDataSchema,localBackupSchema,type LocalData} from '../src/app/local/store';
 const empty=():LocalData=>({version:1,revision:0,fish:{cn:[],global:[]},configuration:{order:['events','fishing','pvp','notes'],visible:{events:true,fishing:true,pvp:true,notes:false},region:'cn'},links:[],notes:[]});
 it('rejects identity credentials and unknown configuration keys in personal backups',()=>{

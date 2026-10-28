@@ -1,7 +1,8 @@
 type LocalView='home'|'settings'|'admin';
-type LocalModuleKind='events'|'fishing'|'pvp'|'notes'|'plan';
+type LocalModuleKind='events'|'fishing'|'pvp'|'notes'|'plan'|'market';
+type OpenModule=(kind:LocalModuleKind,fishFilters?:FishDetailSelection,eventId?:string,marketQuery?:string)=>void;
 
-function LocalHeader({setView,view,siteSettings,setSearchOpen,focusSearchResult,searchOpen,showSearch,searchRef,search,setSearch,closeSearch,data,openModule}:Readonly<{setView:Dispatch<SetStateAction<LocalView>>;view:LocalView;siteSettings:SiteSettings;setSearchOpen:Dispatch<SetStateAction<boolean>>;focusSearchResult:() => void;searchOpen:boolean;showSearch:() => void;searchRef:RefObject<HTMLInputElement | null>;search:string;setSearch:Dispatch<SetStateAction<string>>;closeSearch:() => void;data:{ version: 1; revision: number; fish: { cn: { region: "cn" | "global"; fishId: number; field: "caught" | "pinned" | "alarm"; value: boolean; revision: number; updatedAt: number; }[]; global: { region: "cn" | "global"; fishId: number; field: "caught" | "pinned" | "alarm"; value: boolean; revision: number; updatedAt: number; }[]; }; configuration: { order: ("events" | "fishing" | "pvp" | "notes")[]; visible: { events: boolean; fishing: boolean; pvp: boolean; notes: boolean; }; region: "cn" | "global"; orderCustomized?: boolean | undefined; }; links: { id: string; title: string; url: string; category: string; favorite: boolean; categoryCustomized?: boolean | undefined; description?: string | undefined; faviconUrl?: string | undefined; }[]; notes: { id: string; title: string; text: string; completed?: boolean | undefined; startsAt?: number | undefined; endsAt?: number | undefined; remindAt?: number | undefined; }[]; } | null;openModule:(kind: LocalModuleKind, fishFilters?: FishDetailSelection, eventId?: string) => void}>){
+function LocalHeader({setView,view,siteSettings,setSearchOpen,focusSearchResult,searchOpen,showSearch,searchRef,search,setSearch,closeSearch,data,openModule}:Readonly<{setView:Dispatch<SetStateAction<LocalView>>;view:LocalView;siteSettings:SiteSettings;setSearchOpen:Dispatch<SetStateAction<boolean>>;focusSearchResult:() => void;searchOpen:boolean;showSearch:() => void;searchRef:RefObject<HTMLInputElement | null>;search:string;setSearch:Dispatch<SetStateAction<string>>;closeSearch:() => void;data:LocalData|null;openModule:OpenModule}>){
 return <header className="shell__header shell__header--unified">
       <button className="brand__home" type="button" onClick={()=>setView('home')} aria-current={view==='home'?'page':undefined} aria-label={siteSettings.siteName+' 首页'}>
         <img className="brand__aetheryte" src="/icons/aetheryte.svg" alt="" width="38" height="38"/>
@@ -67,7 +68,7 @@ return <section id="local-navigation" className="local-directory" aria-label="�
 }
 import type {Dispatch,SetStateAction,RefObject} from 'react';
 
-function LocalMainContent({view,setView,data,error,settingsTab,dataSection,store,openAdmin,adminSession,setSettingsTab,enabledSections,siteSettings,openModule,setError,fishingData,subscribeProgress,hasFilters,filteredLinks,allLinks,favorites,setFavorites,setVisibleLimit,clearFilters,category,setCategory,setSubcategory,groups,subgroups,subcategory,catalogError,reloadCatalog,catalogLoading,visibleLimit,saveFavorite}:Readonly<{view:LocalView;setView:Dispatch<SetStateAction<LocalView>>;data:LocalData | null;error:string | null;settingsTab:SettingsTab;dataSection:DataSection;store:ReturnType<typeof createLocalStore>;openAdmin:() => void;adminSession:ReturnType<typeof useCalendarAdminSession>;setSettingsTab:Dispatch<SetStateAction<SettingsTab>>;enabledSections:LocalData['configuration']['order'];siteSettings:ReturnType<typeof useSiteSettings>;openModule:(kind: LocalModuleKind, fishFilters?: FishDetailSelection, eventId?: string) => void;setError:Dispatch<SetStateAction<string | null>>;fishingData:ReturnType<typeof localFishingData>;subscribeProgress:(listener: () => void) => () => void;hasFilters:boolean;filteredLinks:ReturnType<typeof directoryLinks>;allLinks:ReturnType<typeof directoryLinks>;favorites:boolean;setFavorites:Dispatch<SetStateAction<boolean>>;setVisibleLimit:Dispatch<SetStateAction<number>>;clearFilters:() => void;category:string;setCategory:Dispatch<SetStateAction<string>>;setSubcategory:Dispatch<SetStateAction<string>>;groups:string[];subgroups:string[];subcategory:string;catalogError:boolean;reloadCatalog:() => void;catalogLoading:boolean;visibleLimit:number;saveFavorite:(link: ReturnType<typeof directoryLinks>[number]) => void}>){
+function LocalMainContent({view,setView,data,error,settingsTab,dataSection,store,openAdmin,adminSession,setSettingsTab,enabledSections,siteSettings,openModule,setError,fishingData,subscribeProgress,hasFilters,filteredLinks,allLinks,favorites,setFavorites,setVisibleLimit,clearFilters,category,setCategory,setSubcategory,groups,subgroups,subcategory,catalogError,reloadCatalog,catalogLoading,visibleLimit,saveFavorite}:Readonly<{view:LocalView;setView:Dispatch<SetStateAction<LocalView>>;data:LocalData | null;error:string | null;settingsTab:SettingsTab;dataSection:DataSection;store:ReturnType<typeof createLocalStore>;openAdmin:() => void;adminSession:ReturnType<typeof useCalendarAdminSession>;setSettingsTab:Dispatch<SetStateAction<SettingsTab>>;enabledSections:LocalData['configuration']['order'];siteSettings:ReturnType<typeof useSiteSettings>;openModule:OpenModule;setError:Dispatch<SetStateAction<string | null>>;fishingData:ReturnType<typeof localFishingData>;subscribeProgress:(listener: () => void) => () => void;hasFilters:boolean;filteredLinks:ReturnType<typeof directoryLinks>;allLinks:ReturnType<typeof directoryLinks>;favorites:boolean;setFavorites:Dispatch<SetStateAction<boolean>>;setVisibleLimit:Dispatch<SetStateAction<number>>;clearFilters:() => void;category:string;setCategory:Dispatch<SetStateAction<string>>;setSubcategory:Dispatch<SetStateAction<string>>;groups:string[];subgroups:string[];subcategory:string;catalogError:boolean;reloadCatalog:() => void;catalogLoading:boolean;visibleLimit:number;saveFavorite:(link: ReturnType<typeof directoryLinks>[number]) => void}>){
 if(view==='admin'){return <Suspense fallback={<output style={{display:'block'}}>正在打开站点后台…</output>}><SiteAdminPage onClose={()=>setView('settings')}/></Suspense>;}
 if(!data){if(error){return <p role="alert">本机数据读取失败。<button type="button" onClick={()=>window.location.reload()}>重试</button></p>;}
 return <output style={{display:'block'}}>正在读取…</output>;}
@@ -91,7 +92,7 @@ return <div className="local-dashboard">
         </div>;
 }
 
-function ExpandedModuleContent({expanded,data,store,setExpanded,fishingData,subscribeProgress,setSettingsTab,setView,setDataSection}:Readonly<{expanded:{ kind: LocalModuleKind; origin: ModuleOrigin; fishFilters?: FishDetailSelection; eventId?: string; };data:LocalData;store:ReturnType<typeof createLocalStore>;setExpanded:Dispatch<SetStateAction<{ kind: LocalModuleKind; origin: ModuleOrigin; fishFilters?: FishDetailSelection; eventId?: string; } | null>>;fishingData:ReturnType<typeof localFishingData>;subscribeProgress:(listener: () => void) => () => void;setSettingsTab:Dispatch<SetStateAction<SettingsTab>>;setView:Dispatch<SetStateAction<LocalView>>;setDataSection:Dispatch<SetStateAction<DataSection>>}>){
+function ExpandedModuleContent({expanded,data,store,setExpanded,fishingData,subscribeProgress,setSettingsTab,setView,setDataSection}:Readonly<{expanded:{ kind: LocalModuleKind; origin: ModuleOrigin; fishFilters?: FishDetailSelection; eventId?: string; marketQuery?: string; };data:LocalData;store:ReturnType<typeof createLocalStore>;setExpanded:Dispatch<SetStateAction<{ kind: LocalModuleKind; origin: ModuleOrigin; fishFilters?: FishDetailSelection; eventId?: string; } | null>>;fishingData:ReturnType<typeof localFishingData>;subscribeProgress:(listener: () => void) => () => void;setSettingsTab:Dispatch<SetStateAction<SettingsTab>>;setView:Dispatch<SetStateAction<LocalView>>;setDataSection:Dispatch<SetStateAction<DataSection>>}>){
 if(expanded.kind==='plan'){return <TodoBoard data={data} store={store} expanded/>;}
 if(expanded.kind==='events'){return <PublicCalendarPage overlay {...(expanded.eventId?{initialEventId:expanded.eventId}:{})} onBack={()=>setExpanded(null)}/>;}
 if(expanded.kind==='fishing'){return <FishingBoard data={fishingData} subscribeProgress={subscribeProgress} initialRegion={data.configuration.region} onNotificationSettings={()=>{setExpanded(null);setSettingsTab('notifications');setView('settings');}}
@@ -99,6 +100,7 @@ if(expanded.kind==='fishing'){return <FishingBoard data={fishingData} subscribeP
             setExpanded(null);setDataSection('fish');setSettingsTab('data');setView('settings');
           }}/>;}
 if(expanded.kind==='pvp'){return <PvpBoard expanded/>;}
+if(expanded.kind==='market'){return <Suspense fallback={<p role="status">正在打开市场…</p>}><MarketBoard initialQuery={expanded.marketQuery??''}/></Suspense>;}
 return <TodoBoard data={data} store={store} expanded/>;
 }
 
@@ -108,11 +110,12 @@ if(catalogError){return '暂时无法读取公共目录';}
 return '还没有网站';
 }
 
-function HomeModuleContent({section,openModule,store,setError,fishingData,subscribeProgress,data}:Readonly<{section:"events" | "fishing" | "pvp" | "notes";openModule:(kind: LocalModuleKind, fishFilters?: FishDetailSelection, eventId?: string) => void;store:ReturnType<typeof createLocalStore>;setError:Dispatch<SetStateAction<string | null>>;fishingData:ReturnType<typeof localFishingData>;subscribeProgress:(listener: () => void) => () => void;data:LocalData}>){
+function HomeModuleContent({section,openModule,store,setError,fishingData,subscribeProgress,data}:Readonly<{section:HomeSection;openModule:OpenModule;store:ReturnType<typeof createLocalStore>;setError:Dispatch<SetStateAction<string | null>>;fishingData:ReturnType<typeof localFishingData>;subscribeProgress:(listener: () => void) => () => void;data:LocalData}>){
 if(section==='events'){return <HomeOfficialEvents onOpenCalendar={()=>openModule('events')}
                   onHide={()=>{void store.change(document=>{document.data.configuration.visible.events=false;}).catch(()=>setError('设置未能保存到本机'));}}/>;}
 if(section==='fishing'){return <FishingBoard data={fishingData} subscribeProgress={subscribeProgress} initialRegion={data.configuration.region} embedded onOpenDetail={selection=>openModule('fishing',selection)}/>;}
 if(section==='pvp'){return <PvpBoard onOpenDetail={()=>openModule('pvp')}/>;}
+if(section==='market'){return <MarketHome onOpenDetail={query=>openModule('market',undefined,undefined,query)}/>;}
 return <TodoBoard data={data} store={store} onExpand={()=>openModule('notes')}/>;
 }
 
@@ -121,7 +124,7 @@ if(document.activeElement instanceof HTMLElement){return document.activeElement;
 return null;
 }
 import {lazy,Suspense,useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import {canonicalNavUrl,splitDirectoryCategory,resolveDirectoryCategory,DEFAULT_CATEGORIES} from '@ff14-hub/shared';
+import {withMarketModule,canonicalNavUrl,splitDirectoryCategory,resolveDirectoryCategory,DEFAULT_CATEGORIES} from '@ff14-hub/shared';
 import {directoryLinks,type BrowserLink} from './directory-links';
 import {useNavigationCatalog} from './use-navigation-catalog';
 import {HomeOfficialEvents} from '../shell/HomeOfficialEvents';
@@ -129,8 +132,9 @@ import {PublicCalendarPage} from '../events/PublicCalendarPage';
 import {FishingBoard,type FishDetailSelection} from '../fish/FishingBoard';
 import {parseFishLink} from '../fish/fish-link';
 import {PvpBoard} from '../pvp/PvpBoard';
+import {MarketHome} from '../market/MarketHome';
 import {LocalModuleOverlay,type ModuleOrigin} from './LocalModuleOverlay';
-import {createLocalStore,type LocalData} from './store';
+import {createLocalStore,type LocalData,type HomeSection} from './store';
 import {localFishingData} from './fish-port';
 import {LocalSettings,type SettingsTab} from './LocalSettings';
 import type {DataSection} from './DataManagementPanel';
@@ -150,6 +154,7 @@ import {ModuleGrid} from './ModuleGrid';
 import type {FeatureTarget,FishSearchTarget} from './site-search';
 
 const SiteAdminPage=lazy(()=>import('../admin/SiteAdminPage').then(module=>({default:module.SiteAdminPage})));
+const MarketBoard=lazy(()=>import('../market/MarketBoard').then(module=>({default:module.MarketBoard})));
 
 function siteDomain(url:string):string{
   try{return new URL(url).hostname.replace(/^www\./,'');}
@@ -173,9 +178,10 @@ export function LocalApp(){
     origin:ModuleOrigin;
     fishFilters?:FishDetailSelection;
     eventId?:string;
+    marketQuery?:string;
   }>(null);
   // 共用一个从模块位置展开的详情层；关闭后保留首页的筛选和滚动位置。
-  const openModule=useCallback((kind:LocalModuleKind,fishFilters?:FishDetailSelection,eventId?:string)=>{
+  const openModule=useCallback((kind:LocalModuleKind,fishFilters?:FishDetailSelection,eventId?:string,marketQuery?:string)=>{
     const active=moduleReturnFocus();
     const source=active?.closest('#global-search-results')?active:document.querySelector<HTMLElement>(`[data-module="${kind}"]`);
     const {top,left,width,height}=source?.getBoundingClientRect()??{top:80,left:window.innerWidth/2,width:0,height:0};
@@ -183,6 +189,7 @@ export function LocalApp(){
       kind,origin:{rect:{top,left,width,height},...(source?{element:source}:{}),returnFocus:active?.closest('dialog')?document.querySelector<HTMLElement>('button[aria-label="全站搜索"]'):active},
       ...(fishFilters?{fishFilters}:{}),
       ...(eventId?{eventId}:{}),
+      ...(marketQuery?{marketQuery}:{}),
     });
   },[]);
   const dataReady=data!==null;
@@ -244,8 +251,8 @@ export function LocalApp(){
   const filteredLinks=useMemo(()=>links.filter(link=>{const group=splitDirectoryCategory(link.category);return (category==='all'||group.main===category)&&(subcategory==='all'||group.sub===subcategory);}),[links,category,subcategory]);
   const hasFilters=Boolean(favorites||category!=='all');
   const clearFilters=()=>{setCategory('all');setSubcategory('all');setFavorites(false);setVisibleLimit(36);};
-  const sectionOrder=data&&(data.configuration.orderCustomized||data.configuration.order.join(',')!=='events,fishing,pvp,notes')?data.configuration.order:siteSettings.presentation?.home.order??data?.configuration.order??[];
-  const enabledSections=sectionOrder.filter(section=>data?.configuration.visible[section]&&(siteSettings.presentation?.home.enabled[section]??true)&&(section!=='events'||siteSettings.homeCalendarEnabled));
+  const sectionOrder=withMarketModule(data&&(data.configuration.orderCustomized||data.configuration.order.join(',')!=='events,fishing,pvp,notes')?data.configuration.order:siteSettings.presentation?.home.order??data?.configuration.order??[]);
+  const enabledSections=sectionOrder.filter(section=>(data?.configuration.visible[section]??true)&&(siteSettings.presentation?.home.enabled[section]??true)&&(section!=='events'||siteSettings.homeCalendarEnabled));
   const saveFavorite=(link:typeof links[number])=>{
     void store.change(document=>{
       const old=document.data.links.find(item=>canonicalNavUrl(item.url)===canonicalNavUrl(link.url));
@@ -266,7 +273,7 @@ export function LocalApp(){
     </main>
     {expanded&&data&&view!=='admin'?<LocalModuleOverlay
       key={expanded.kind+':'+String(expanded.fishFilters?.fishId??'')+':'+String(expanded.fishFilters?.windowStartsAt??'')+':'+String(expanded.eventId??'')}
-      title={{events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的待办',plan:'我的待办'}[expanded.kind]}
+      title={{events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的待办',plan:'我的待办',market:'市场行情'}[expanded.kind]}
       origin={expanded.origin}
       onClose={()=>setExpanded(null)}>
       {<ExpandedModuleContent {...{expanded,data,store,setExpanded,fishingData,subscribeProgress,setSettingsTab,setView,setDataSection}}/>}

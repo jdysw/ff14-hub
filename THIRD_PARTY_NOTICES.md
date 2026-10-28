@@ -27,6 +27,14 @@ Homepage controls use Bootstrap Icons 1.13.2 (MIT, Copyright 2019-2024 The Boots
 bundled from the npm package rather than a remote script. License retained at
 `third_party/bootstrap-icons-LICENSE.txt`. Source: https://github.com/twbs/icons.
 
+## Market data
+
+Market snapshots are requested from the public [Universalis API](https://docs.universalis.app/).
+Simplified Chinese item names use the XIVAPI-compatible endpoint used by Universalis,
+`https://xivapi-v2.xivcdn.com/api`; icons are loaded on demand from
+[XIVAPI](https://v2.xivapi.com/). The integration does not bundle their website code,
+game artwork, or a full item catalog. Prices are player-uploaded snapshots and may be delayed.
+
 ## Fishing sources
 
 The public fishing snapshots reference the MIT-licensed projects
