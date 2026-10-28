@@ -1,18 +1,24 @@
 import {useState} from 'react';
+import {usePrivateDraft} from '../pwa/draft-registry';
 import {localLinkSchema,type LocalData,type LocalStore} from './store';
 import {fetchNavigationMetadata} from './nav-metadata';
 import {SiteIcon} from './SiteIcon';
 
 type SavedLink=LocalData['links'][number];
+const editableLink=(link:SavedLink)=>JSON.stringify([link.url,link.title,link.category,link.description??'',link.faviconUrl??'']);
 
 /** 个人网站可直接调整简介，自动识别只是草稿，只有用户按保存才更新本机。 */
 export function LocalLinkEditor({link,store}: Readonly<{link:SavedLink;store:LocalStore}>){
+  const [source,setSource]=useState(link);
   const [title,setTitle]=useState(link.title);
   const [category,setCategory]=useState(link.category);
   const [description,setDescription]=useState(link.description??'');
   const [faviconUrl,setFaviconUrl]=useState(link.faviconUrl);
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState('');
+  const dirty=title!==source.title||category!==source.category||description!==(source.description??'')||faviconUrl!==source.faviconUrl;
+  usePrivateDraft(dirty||busy);
+  if(!dirty&&source!==link){setTitle(link.title);setCategory(link.category);setDescription(link.description??'');setFaviconUrl(link.faviconUrl);setSource(link);}
 
   const run=async(task:()=>Promise<void>)=>{
     if(busy)return;
@@ -34,12 +40,14 @@ export function LocalLinkEditor({link,store}: Readonly<{link:SavedLink;store:Loc
     });
     await store.change(document=>{
       const current=document.data.links.find(item=>item.id===link.id);
+      if(!current||editableLink(current)!==editableLink(source))throw new Error('此网站已被同步更新或删除，请重新打开个人导航核对；当前输入尚未保存。');
       if(current){current.title=next.title;current.category=next.category;
         if(next.category!==link.category)current.categoryCustomized=true;
         if(next.description!==undefined)current.description=next.description;
         else delete current.description;
         if(next.faviconUrl)current.faviconUrl=next.faviconUrl;else delete current.faviconUrl;}
     });
+    setSource(next);
     setMessage('已保存到本机。');
   });
   const remove=()=>void run(async()=>{
