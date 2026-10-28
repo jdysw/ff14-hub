@@ -53,11 +53,17 @@ class PvpWidgetLayoutTest {
     @Test fun compactRowsKeepEqualLabelColumnsAndMapInsets() {
         val directory = java.io.File("build/outputs/widget-gallery").apply { mkdirs() }
         for (night in listOf(false, true)) for (font in listOf(1f, 2f)) {
+            for ((width, height) in listOf(109 to 56, 140 to 72, 140 to 100)) {
+                verifyAlignedCompact(night, font, width, height, directory)
+            }
+        }
+    }
+
+    private fun verifyAlignedCompact(night: Boolean, font: Float, width: Int, height: Int, directory: java.io.File) {
             val using = context.createConfigurationContext(Configuration(context.resources.configuration).apply {
                 fontScale = font
                 uiMode = (if (night) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO) or Configuration.UI_MODE_TYPE_NORMAL
             })
-            for ((width, height) in listOf(109 to 56, 140 to 72, 140 to 100)) {
                 val tier = PvpPresentation.density(width.toFloat(), height.toFloat())
                 val payload = PvpWidgetRenderer.build(context, tier, WidgetData.cached(context)!!, 1792548600000L)
                 val root = payload.apply(using, FrameLayout(using))
@@ -83,8 +89,6 @@ class PvpWidgetLayoutTest {
                     try { root.draw(Canvas(image)); java.io.File(directory, "${if (night) "dark" else "light"}-pvp-aligned-${width}x$height.png").outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) } }
                     finally { image.recycle() }
                 }
-            }
-        }
     }
 
     @Test fun cachedMiniFitsAfterHostFontScaleChangesWithoutProviderRefresh() {

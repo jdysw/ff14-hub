@@ -90,6 +90,24 @@ object PvpWidgetRenderer {
             "国服 PVP。纷争前线 ${front.current}，下轮 ${front.next}，北京时间 ${at(front.changesAtMs, true)} 换图。" +
             "水晶冲突 ${crystal.current}，下张 ${crystal.next}，北京时间 ${at(crystal.changesAtMs)} 换图。")
         if (!compact) {
+            configureDetails(context, views, density, stacked, largeText)
+            views.setTextViewText(R.id.pvp_front_next, "下轮 ${PvpPresentation.shortMap(front.next)}")
+            views.setTextViewText(R.id.pvp_crystal_next, "下张 ${PvpPresentation.shortMap(crystal.next)}")
+            views.setTextViewText(R.id.pvp_front_boundary, "${at(front.changesAtMs)} 换图")
+            views.setTextViewText(R.id.pvp_crystal_boundary, "${at(crystal.changesAtMs)} 换图")
+            countdown(views, R.id.pvp_front_countdown, front.changesAtMs, now)
+            countdown(views, R.id.pvp_crystal_countdown, crystal.changesAtMs, now)
+        }
+        if (density == PvpDensity.LARGE) {
+            bindSchedule(views, rules, front.changesAtMs, crystal.changesAtMs)
+        }
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(WidgetData.SITE)).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK }
+        views.setOnClickPendingIntent(R.id.widget_root, PendingIntent.getActivity(context, id, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+        return views
+    }
+
+    private fun configureDetails(context: Context, views: RemoteViews, density: PvpDensity, stacked: Boolean, largeText: Boolean) {
             // Large cards list the next rotation below; avoid repeating the same map and time.
             for (field in intArrayOf(R.id.pvp_front_next, R.id.pvp_crystal_next)) {
                 views.setViewVisibility(field, if (density == PvpDensity.LARGE) View.GONE else View.VISIBLE)
@@ -105,32 +123,21 @@ object PvpWidgetRenderer {
                     views.setViewPadding(field, inset, 0, inset, 0)
                 }
             }
-            views.setTextViewText(R.id.pvp_front_next, "下轮 ${PvpPresentation.shortMap(front.next)}")
-            views.setTextViewText(R.id.pvp_crystal_next, "下张 ${PvpPresentation.shortMap(crystal.next)}")
-            views.setTextViewText(R.id.pvp_front_boundary, "${at(front.changesAtMs)} 换图")
-            views.setTextViewText(R.id.pvp_crystal_boundary, "${at(crystal.changesAtMs)} 换图")
-            countdown(views, R.id.pvp_front_countdown, front.changesAtMs, now)
-            countdown(views, R.id.pvp_crystal_countdown, crystal.changesAtMs, now)
-            if (largeText) views.setViewVisibility(R.id.pvp_heading, View.GONE)
-        }
-        if (density == PvpDensity.LARGE) {
+    }
+
+    private fun bindSchedule(views: RemoteViews, rules: JSONObject, frontBoundary: Long, crystalBoundary: Long) {
             val frontTimes = intArrayOf(R.id.pvp_front_slot_1_time, R.id.pvp_front_slot_2_time, R.id.pvp_front_slot_3_time)
             val frontMaps = intArrayOf(R.id.pvp_front_slot_1_map, R.id.pvp_front_slot_2_map, R.id.pvp_front_slot_3_map)
             val crystalTimes = intArrayOf(R.id.pvp_crystal_slot_1_time, R.id.pvp_crystal_slot_2_time, R.id.pvp_crystal_slot_3_time)
             val crystalMaps = intArrayOf(R.id.pvp_crystal_slot_1_map, R.id.pvp_crystal_slot_2_map, R.id.pvp_crystal_slot_3_map)
             for (i in 0..2) {
-                val frontAt = front.changesAtMs + i * rules.getJSONObject("frontline").getLong("periodMs")
-                val crystalAt = crystal.changesAtMs + i * rules.getJSONObject("crystalline").getLong("periodMs")
+                val frontAt = frontBoundary + i * rules.getJSONObject("frontline").getLong("periodMs")
+                val crystalAt = crystalBoundary + i * rules.getJSONObject("crystalline").getLong("periodMs")
                 views.setTextViewText(frontTimes[i], at(frontAt, true))
                 views.setTextViewText(frontMaps[i], PvpPresentation.shortMap(SnapshotValidator.rotation(rules.getJSONObject("frontline"), frontAt).current))
                 views.setTextViewText(crystalTimes[i], at(crystalAt, true))
                 views.setTextViewText(crystalMaps[i], PvpPresentation.shortMap(SnapshotValidator.rotation(rules.getJSONObject("crystalline"), crystalAt).current))
             }
-        }
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(WidgetData.SITE)).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK }
-        views.setOnClickPendingIntent(R.id.widget_root, PendingIntent.getActivity(context, id, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
-        return views
     }
 
     private fun contentPadding(density: PvpDensity) = when (density) {

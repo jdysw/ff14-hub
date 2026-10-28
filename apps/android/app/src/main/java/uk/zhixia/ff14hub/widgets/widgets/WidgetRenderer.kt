@@ -85,15 +85,19 @@ object WidgetRenderer {
             val begins = item.getLong("startsAtMs")
             val ends = item.getLong("endsAtMs")
             if (ends <= now) continue
-            return WidgetText("国服活动", item.getString("title"),
-                if (begins <= now) "进行中 · ${formatAt(ends)} 结束"
-                else "${formatAt(begins)} 开始",
-                if (status == "stale") "官方快照已过期，待刷新" else "北京时间",
-                compactSecondary = if (status == "stale") "官方快照待刷新" else
-                    formatAt(if (begins <= now) ends else begins) + if (begins <= now) " 截止" else " 开始")
+            return eventText(item, status, begins, ends, now)
         }
         return WidgetText("国服活动", "暂无已确认时间的近期活动",
             if (status == "stale") "官方快照已过期，待刷新" else "可进入网页查看待确认公告")
+    }
+
+    private fun eventText(item: JSONObject, status: String, begins: Long, ends: Long, now: Long): WidgetText {
+        val ongoing = begins <= now
+        val secondary = if (ongoing) "进行中 · ${formatAt(ends)} 结束" else "${formatAt(begins)} 开始"
+        val compact = formatAt(if (ongoing) ends else begins) + if (ongoing) " 截止" else " 开始"
+        return WidgetText("国服活动", item.getString("title"), secondary,
+            if (status == "stale") "官方快照已过期，待刷新" else "北京时间",
+            compactSecondary = if (status == "stale") "官方快照待刷新" else compact)
     }
 
     private fun overview(snapshot: JSONObject, now: Long): WidgetText {
@@ -167,26 +171,29 @@ object WidgetRenderer {
         if (ids.isEmpty()) return
         val now = System.currentTimeMillis()
         ids.forEach { id ->
-            if (kind in listOf(WidgetKind.FRONTLINE, WidgetKind.CRYSTALLINE, WidgetKind.PVP_LARGE)) {
-                val snapshot = WidgetData.cached(context)
-                if (snapshot != null) {
-                    val preset = when (kind) {
-                        WidgetKind.FRONTLINE -> PvpDensity.SMALL
-                        WidgetKind.CRYSTALLINE -> PvpDensity.MEDIUM
-                        else -> PvpDensity.LARGE
-                    }
-                    manager.updateAppWidget(id, PvpWidgetRenderer.responsive(context, manager, id, snapshot, now, preset))
-                    return@forEach
-                }
-            }
+            val views = pvpView(context, manager, id, kind, now) ?: tileForWidget(context, manager, id, kind, now)
+            manager.updateAppWidget(id, views)
+        }
+    }
+
+    private fun pvpView(context: Context, manager: AppWidgetManager, id: Int, kind: WidgetKind, now: Long): RemoteViews? {
+        val preset = when (kind) {
+            WidgetKind.FRONTLINE -> PvpDensity.SMALL
+            WidgetKind.CRYSTALLINE -> PvpDensity.MEDIUM
+            WidgetKind.PVP_LARGE -> PvpDensity.LARGE
+            else -> return null
+        }
+        val snapshot = WidgetData.cached(context) ?: return null
+        return PvpWidgetRenderer.responsive(context, manager, id, snapshot, now, preset)
+    }
+
+    private fun tileForWidget(context: Context, manager: AppWidgetManager, id: Int, kind: WidgetKind, now: Long): RemoteViews {
             val options = manager.getAppWidgetOptions(id)
             val landscape = context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
             val width = options.getInt(if (landscape) AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH else AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, if (kind == WidgetKind.OVERVIEW) 250 else 180)
             val height = options.getInt(if (landscape) AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT else AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT,
                 options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, if (kind == WidgetKind.OVERVIEW) 170 else 110))
-            val views = buildTile(context, kind, WidgetData.cached(context), now, id, width, height)
-            manager.updateAppWidget(id, views)
-        }
+            return buildTile(context, kind, WidgetData.cached(context), now, id, width, height)
     }
 
     /** The launcher and the in-app preview inflate the same adaptive native layout. */
@@ -205,11 +212,18 @@ object WidgetRenderer {
         }
         views.setImageViewResource(R.id.widget_icon, icon)
         views.setTextViewText(R.id.widget_title, content.title)
+        bindTileContent(views, content, kind, width, height, largeFont)
+        bindCountdown(views, content.changesAtMs, now)
+        bindTileAction(context, views, kind, snapshot, id)
+        return views
+    }
+
+    private fun bindTileContent(views: RemoteViews, content: WidgetText, kind: WidgetKind, width: Int, height: Int, largeFont: Boolean) {
         val brief = height < 170 || largeFont
         val primary = if (brief && kind == WidgetKind.OVERVIEW) content.primary.substringBefore('（') else content.primary
         views.setTextViewText(R.id.widget_primary, primary)
         views.setTextViewTextSize(R.id.widget_primary, TypedValue.COMPLEX_UNIT_SP, if (height < 140) 16f else 18f)
-        views.setInt(R.id.widget_primary, "setMaxLines", if ((width < 200 && height < 160) || (largeFont && height < 200)) 1 else 2)
+        views.setInt(R.id.widget_primary, "setMaxLines", primaryLineCount(width, height, largeFont))
         val showDetails = height >= (if (largeFont) 300 else 200)
         views.setTextViewText(R.id.widget_secondary, if (showDetails) content.secondary else content.compactSecondary)
         views.setInt(R.id.widget_secondary, "setMaxLines", if (showDetails) 2 else 1)
@@ -217,19 +231,27 @@ object WidgetRenderer {
         views.setViewVisibility(R.id.widget_tertiary, if (showDetails) View.VISIBLE else View.GONE)
         views.setViewVisibility(R.id.widget_header, if (largeFont && height < 180) View.GONE else View.VISIBLE)
         views.setViewVisibility(R.id.widget_secondary, View.VISIBLE)
+        views.setContentDescription(R.id.widget_root, listOf(content.title, content.primary, content.secondary, content.tertiary).filter { it.isNotBlank() }.joinToString("。"))
+    }
+
+    private fun primaryLineCount(width: Int, height: Int, largeFont: Boolean): Int =
+        if ((width < 200 && height < 160) || (largeFont && height < 200)) 1 else 2
+
+    private fun bindCountdown(views: RemoteViews, changesAtMs: Long, now: Long) {
         views.setViewVisibility(R.id.widget_countdown, View.GONE)
-        if (content.changesAtMs > now) {
+        if (changesAtMs > now) {
             views.setViewVisibility(R.id.widget_countdown, View.VISIBLE)
-            views.setChronometer(R.id.widget_countdown, SystemClock.elapsedRealtime() + content.changesAtMs - now, null, true)
+            views.setChronometer(R.id.widget_countdown, SystemClock.elapsedRealtime() + changesAtMs - now, null, true)
             views.setChronometerCountDown(R.id.widget_countdown, true)
         }
-        views.setContentDescription(R.id.widget_root, listOf(content.title, content.primary, content.secondary, content.tertiary).filter { it.isNotBlank() }.joinToString("。"))
+    }
+
+    private fun bindTileAction(context: Context, views: RemoteViews, kind: WidgetKind, snapshot: JSONObject?, id: Int) {
         val needsSelection = kind == WidgetKind.FISH && snapshot?.optJSONObject("fish")?.optString("status") == "selection_required"
         val intent = if (needsSelection) Intent(context, MainActivity::class.java) else Intent(Intent.ACTION_VIEW, Uri.parse(WidgetData.SITE))
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
         views.setOnClickPendingIntent(R.id.widget_root, PendingIntent.getActivity(context, id, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
-        return views
     }
 
 }
