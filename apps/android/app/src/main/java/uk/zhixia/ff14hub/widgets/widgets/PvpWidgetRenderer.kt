@@ -102,14 +102,29 @@ object PvpWidgetRenderer {
                 SpannableString("$label $name").apply {
                     setSpan(RelativeSizeSpan(0.65f), 0, label.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
-            views.setTextViewText(R.id.pvp_front_current, readable("前线", currentFront))
-            views.setTextViewText(R.id.pvp_crystal_current, readable("水晶", currentCrystal))
-            val readableSize = if (density == PvpDensity.MINI) minOf(12f, 12.5f / context.resources.configuration.fontScale)
+            views.setTextViewText(R.id.pvp_front_current, readable(context.getString(R.string.pvp_short_frontline), currentFront))
+            views.setTextViewText(R.id.pvp_crystal_current, readable(context.getString(R.string.pvp_short_crystalline), currentCrystal))
+            val readableSize = if (density == PvpDensity.MINI) minOf(13f, 14f / context.resources.configuration.fontScale)
                 else minOf(13f, 15.5f / context.resources.configuration.fontScale)
             views.setTextViewTextSize(R.id.pvp_front_current, TypedValue.COMPLEX_UNIT_SP, readableSize)
             views.setTextViewTextSize(R.id.pvp_crystal_current, TypedValue.COMPLEX_UNIT_SP, readableSize)
         }
         if (!compact) {
+            // Large cards list the next rotation below; avoid repeating the same map and time.
+            for (field in intArrayOf(R.id.pvp_front_next, R.id.pvp_crystal_next)) {
+                views.setViewVisibility(field, if (density == PvpDensity.LARGE) View.GONE else View.VISIBLE)
+            }
+            // At large font sizes retain the next map and countdown; TalkBack still has the exact boundary.
+            for (field in intArrayOf(R.id.pvp_front_boundary, R.id.pvp_crystal_boundary)) {
+                views.setViewVisibility(field, if (density == PvpDensity.LARGE || largeText || stacked) View.GONE else View.VISIBLE)
+            }
+            if ((stacked || largeText) && density == PvpDensity.MEDIUM) {
+                val inset = (6 * context.resources.displayMetrics.density).toInt()
+                for (field in intArrayOf(R.id.pvp_front_label, R.id.pvp_crystal_label,
+                    R.id.pvp_front_countdown, R.id.pvp_crystal_countdown)) {
+                    views.setViewPadding(field, inset, 0, inset, 0)
+                }
+            }
             views.setTextViewText(R.id.pvp_front_next, "下轮 ${PvpPresentation.shortMap(front.next)}")
             views.setTextViewText(R.id.pvp_crystal_next, "下张 ${PvpPresentation.shortMap(crystal.next)}")
             views.setTextViewText(R.id.pvp_front_boundary, "${at(front.changesAtMs)} 换图")

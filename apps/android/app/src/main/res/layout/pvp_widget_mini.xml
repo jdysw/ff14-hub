@@ -5,9 +5,9 @@
  <LinearLayout android:id="@+id/pvp_content" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="6dp" android:gravity="center_vertical">
   <TextView android:id="@+id/pvp_heading" style="@style/PvpHeading" android:visibility="gone"/>
   <TextView android:id="@+id/pvp_front_label" style="@style/PvpLabel" android:visibility="gone"/>
-  <TextView android:id="@+id/pvp_front_current" style="@style/PvpMap" android:textSize="12sp" android:maxLines="1" android:layout_marginTop="0dp"/>
+  <TextView android:id="@+id/pvp_front_current" style="@style/PvpMap" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical" android:textSize="13sp" android:maxLines="1" android:autoSizeTextType="uniform" android:autoSizeMinTextSize="6sp" android:autoSizeMaxTextSize="14sp" android:autoSizeStepGranularity="1sp" android:layout_marginTop="0dp"/>
   <TextView android:id="@+id/pvp_crystal_label" style="@style/PvpLabel" android:visibility="gone"/>
-  <TextView android:id="@+id/pvp_crystal_current" style="@style/PvpMap" android:textSize="12sp" android:maxLines="1" android:layout_marginTop="4dp"/>
+  <TextView android:id="@+id/pvp_crystal_current" style="@style/PvpMap" android:layout_height="0dp" android:layout_weight="1" android:gravity="center_vertical" android:textSize="13sp" android:maxLines="1" android:autoSizeTextType="uniform" android:autoSizeMinTextSize="6sp" android:autoSizeMaxTextSize="14sp" android:autoSizeStepGranularity="1sp" android:layout_marginTop="4dp"/>
   <TextView android:id="@+id/pvp_status" style="@style/PvpLabel" android:visibility="gone"/>
  </LinearLayout>
 </FrameLayout>

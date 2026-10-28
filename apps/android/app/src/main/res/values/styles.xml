@@ -3,8 +3,8 @@
  <style name="Theme.FF14Widgets" parent="android:style/Theme.Material.Light.NoActionBar">
   <item name="android:fontFamily">sans</item>
   <item name="android:windowLightStatusBar">true</item>
-  <item name="android:statusBarColor">#EEF3F9</item>
-  <item name="android:navigationBarColor">#EEF3F9</item>
-  <item name="android:windowBackground">#F5F7FA</item>
+  <item name="android:statusBarColor">@color/widget_preview_surface</item>
+  <item name="android:navigationBarColor">@color/widget_preview_surface</item>
+  <item name="android:windowBackground">@color/widget_preview_surface</item>
  </style>
 </resources>

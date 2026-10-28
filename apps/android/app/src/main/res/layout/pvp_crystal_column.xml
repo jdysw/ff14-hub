@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
  android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
- <TextView android:id="@+id/pvp_crystal_label" style="@style/PvpLabel" android:text="水晶冲突" android:textColor="@color/pvp_crystal"/>
+ <TextView android:id="@+id/pvp_crystal_label" style="@style/PvpModeLabel" android:background="@drawable/widget_crystal_label" android:text="水晶冲突" android:textColor="@color/pvp_crystal"/>
  <TextView android:id="@+id/pvp_crystal_current" style="@style/PvpMap"/>
  <TextView android:id="@+id/pvp_crystal_next" style="@style/PvpNext"/>
  <Chronometer android:id="@+id/pvp_crystal_countdown" style="@style/PvpCountdown" android:textColor="@color/pvp_crystal"/>

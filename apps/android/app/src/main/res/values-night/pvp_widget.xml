@@ -1,9 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
- <color name="pvp_surface">#182431</color>
+ <color name="pvp_surface">#182630</color>
  <color name="pvp_text">#F0F4F8</color>
  <color name="pvp_muted">#B8C6D5</color>
- <color name="pvp_line">#354657</color>
+ <color name="pvp_line">#344A56</color>
+ <color name="pvp_front_tint">#223E53</color>
+ <color name="pvp_crystal_tint">#493B25</color>
+ <color name="widget_accent">#9DD6CE</color>
+ <color name="widget_timer_surface">#243C40</color>
+ <color name="widget_preview_surface">#0D171E</color>
  <color name="pvp_frontline">#A7C9EB</color>
  <color name="pvp_crystal">#EAC68F</color>
  <color name="pvp_ripple">#40B8C6D5</color>
