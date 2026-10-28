@@ -50,5 +50,8 @@ function MapWeather({catalog,now,initialZoneId}:Readonly<{catalog:WeatherCatalog
 }
 export function WeatherBoard({initialZoneId}:Readonly<{initialZoneId?:number}>){
   const now=useEorzeaClock(),{data,error,retry}=useWeatherCatalog();
-  return <div className="weather-board"><header className="weather-board__intro"><h3>艾欧泽亚时间与天气</h3><p>找地图、看天气，把握下一个时段。</p></header><div className="weather-board__layout"><aside><WeatherClock now={now}/><p className="weather-board__clock-note">艾欧泽亚一天 = 现实 70 分钟<br/>昼夜时段：ET 06:00 / 18:00</p></aside>{data?<MapWeather catalog={data} now={now} {...(initialZoneId?{initialZoneId}:{})}/>:<section>{error?<p className="weather-notice" role="alert">{error}<button type="button" onClick={retry}>重试</button></p>:<output style={{display:'block'}}>正在读取地图天气表…</output>}</section>}</div></div>;
+  let content=<section><output style={{display:'block'}}>正在读取地图天气表…</output></section>;
+  if(error){content=<section><p className="weather-notice" role="alert">{error}<button type="button" onClick={retry}>重试</button></p></section>;}
+  if(data){content=<MapWeather catalog={data} now={now} {...(initialZoneId?{initialZoneId}:{})}/>;}
+  return <div className="weather-board"><header className="weather-board__intro"><h3>艾欧泽亚时间与天气</h3><p>找地图、看天气，把握下一个时段。</p></header><div className="weather-board__layout"><aside><WeatherClock now={now}/><p className="weather-board__clock-note">艾欧泽亚一天 = 现实 70 分钟<br/>昼夜时段：ET 06:00 / 18:00</p></aside>{content}</div></div>;
 }

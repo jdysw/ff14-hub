@@ -12,7 +12,7 @@ export function weatherSymbol(weather:string):keyof typeof icons{
   if(/雪/.test(weather)){return 'snow';}
   if(/雨/.test(weather)){return 'rain';}
   if(/风/.test(weather)){return 'wind';}
-  if(/雾|尘|烟/.test(weather)){return 'fog';}
+  if(/[雾尘烟]/.test(weather)){return 'fog';}
   if(/晴|碧空|热浪/.test(weather)){return 'sun';}
   return 'cloud';
 }

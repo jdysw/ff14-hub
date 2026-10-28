@@ -24,7 +24,7 @@
 .weather-home footer{display:flex;align-items:center;gap:8px;font-size:11px;color:#4e697b;margin-top:12px}
 .weather-home footer strong{font-variant-numeric:tabular-nums;font-weight:500;color:#456a80}
 .weather-home footer>span{margin-left:auto;font-size:10px}
-.weather-home__add{color:#537c8c!important;font-size:12px!important}
+.weather-home__places>.weather-home__add{color:#49697a;font-size:12px}
 .weather-board{padding:4px 8px 16px}
 .weather-board__intro h3{font-family:var(--field-serif,serif);font-size:26px;margin:0 0 6px}
 .weather-board__intro>p{font-size:13px;color:#4b6570;margin:0 0 24px}
@@ -37,7 +37,7 @@
 .weather-search{position:relative;flex:1;min-width:0}
 .weather-search>.ui-icon{position:absolute;top:50%;left:12px;transform:translateY(-50%);color:#4b6d7d}
 .weather-search input{width:100%;min-height:44px;border:1px solid #c7d7dc;background:#fcfdfd;border-radius:8px;color:#365663;padding:10px 12px 10px 36px;font-size:13px}
-.weather-favorites-filter{display:flex;align-items:center;justify-content:center;gap:5px;flex-shrink:0;border:1px solid #d6e0df;border-radius:7px;background:#fff;color:#496670;min-height:44px;padding:8px 10px;font-size:12px!important;cursor:pointer}
+.weather-map .weather-favorites-filter{display:flex;align-items:center;justify-content:center;gap:5px;flex-shrink:0;border:1px solid #d6e0df;border-radius:7px;background:#fff;color:#496670;min-height:44px;padding:8px 10px;font-size:12px;cursor:pointer}
 .weather-favorites-filter[aria-pressed=true]{background:#edf4f7;border-color:#7fa2b7;color:#365f78}
 .weather-select{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;margin-top:12px;font-size:12px;color:#47616d}
 .weather-select select{width:100%;min-width:0;min-height:44px;border:1px solid #ccdadd;border-radius:7px;background:#fff;color:#365664;padding:8px 10px}

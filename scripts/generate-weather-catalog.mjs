@@ -58,6 +58,6 @@ async function main(){
  const target=new URL('../apps/web/public/weather/catalog-cn.json',import.meta.url);
  await mkdir(new URL('.',target),{recursive:true});
  await writeFile(target,JSON.stringify(catalog,null,2)+'\n');
- console.log('Weather snapshot:',catalog.zones.length,'maps;',catalog.excluded.length,'excluded;',catalog.version);
+ console.log('Weather snapshot:',catalog.zones.length,'maps;',catalog.excluded.length,'excluded; source version is recorded in catalog-cn.json');
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){await main();}
