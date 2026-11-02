@@ -39,6 +39,15 @@ describe('官方活动持久快照', () => {
     expect(result?.events[0]?.title).toBe('守护天节');
     expect(result?.source.stale).toBe(true);
   });
+  it('旧快照里的月卡延期公告合入原活动，不刷新来源时间或等待下一次抓取',()=>{
+    const feed=officialPayload(at),sample=feed.events[0]!;
+    feed.events=[{...sample,id:'official:391233',title:'月卡启航计划现已开启',endsAt:at+100_000},
+      {...sample,id:'official:395032',title:'月卡启航计划活动时间延长公告',endsAt:at+200_000}];
+    const result=parseOfficialCalendarSnapshot({checked_at_ms:at,payload:JSON.stringify(feed)},at+1);
+    expect(result?.events).toHaveLength(1);
+    expect(result?.events[0]?.id).toBe('official:391233');expect(result?.events[0]?.endsAt).toBe(at+200_000);
+    expect(result?.source.checkedAtMs).toBe(at);expect(result?.serverTimeMs).toBe(at+1);
+  });
   it('拒绝损坏、伪造来源、不一致或未来时间的数据', () => {
     expect(parseOfficialCalendarSnapshot({ checked_at_ms: at, payload: '{' }, at)).toBeNull();
     expect(parseOfficialCalendarSnapshot(row(at + 60 * 60_000), at)).toBeNull();
