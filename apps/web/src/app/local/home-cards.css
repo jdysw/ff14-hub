@@ -89,6 +89,7 @@
 .local-app .personal-module-grid .fish-glance__heading .fish-glance__link:hover,
 .local-app .personal-module-grid .pvp-board__expand:hover{background:var(--field-tint);}
 .local-app .personal-module-grid .home-status-tabs{
+  flex-wrap:wrap;
   margin:0;
   border-bottom:1px solid var(--field-line);
   justify-content:flex-start;

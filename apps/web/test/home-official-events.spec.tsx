@@ -23,6 +23,32 @@ const response = {
 } as const;
 
 describe('首页公开活动', () => {
+  it('未定结束日期的活动在开始后进入进行中，保留结束条件且不显示虚假的结束倒计时',async()=>{
+    vi.useFakeTimers();
+    try{
+      const now=Date.UTC(2026,9,28,8)-1000;vi.setSystemTime(now);
+      const entry={...response.events[0],title:'魔光键影跨日回归',startsAt:now+1000,endsAt:null,description:'活动结束条件：8.0版本更新维护前'};
+      const fetcher=vi.fn(()=>Promise.resolve(Response.json({...response,serverTimeMs:now,events:[entry]})));
+      vi.stubGlobal('fetch',fetcher);render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
+      await act(async()=>{await Promise.resolve();});
+      fireEvent.click(screen.getByRole('button',{name:'未来活动'}));expect(screen.getByText(entry.title)).toBeTruthy();
+      await act(async()=>{await vi.advanceTimersByTimeAsync(1000);});
+      expect(screen.queryByText(entry.title)).toBeNull();
+      fireEvent.click(screen.getByRole('button',{name:'进行中活动'}));expect(screen.getByText(entry.title)).toBeTruthy();
+      expect(screen.getByText('已开始 · 结束待确认')).toBeTruthy();expect(screen.queryByText('距结束')).toBeNull();
+      expect(screen.getByText('结束：8.0版本更新维护前')).toBeTruthy();
+      vi.setSystemTime(now+2*86400000);await act(()=>window.dispatchEvent(new Event('focus')));
+      expect(screen.getByText(entry.title)).toBeTruthy();expect(fetcher).toHaveBeenCalledTimes(1);
+    }finally{vi.useRealTimers();}
+  });
+  it('未确认日期的公告能从首页单独查看，且不会混入进行中列表',async()=>{
+    const entry={...response.events[0],title:'未定日期公告',startsAt:null,endsAt:null};
+    vi.stubGlobal('fetch',vi.fn(()=>Promise.resolve(Response.json({...response,events:[entry]}))));
+    render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
+    await screen.findByRole('button',{name:'时间待确认（1）'});
+    expect(screen.queryByText(entry.title)).toBeNull();
+    fireEvent.click(screen.getByRole('button',{name:'时间待确认（1）'}));expect(screen.getByText(entry.title)).toBeTruthy();
+  });
   it('未来活动显示官方确认的开始倒计时，同时保留维护前结束的原始条件',async()=>{
     const now=Date.UTC(2026,9,24),entry={...response.events[0],id:'official:394486',title:'魔光键影',startsAt:Date.UTC(2026,9,28,8),endsAt:null,description:'活动结束条件：8.0版本更新维护前'};
     vi.stubGlobal('fetch',vi.fn(()=>Promise.resolve(Response.json({...response,serverTimeMs:now,events:[entry]}))));
@@ -144,7 +170,7 @@ describe('首页公开活动', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
-  it('requests activity data at most once per six hours automatically, including visibility changes',async()=>{
+  it('requests activity data at most once per fifteen minutes automatically, including visibility changes',async()=>{
     vi.useFakeTimers();
     try{
       const intervals=vi.spyOn(window,'setInterval');
@@ -157,7 +183,7 @@ describe('首页公开活动', () => {
       render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
       await act(async()=>{await Promise.resolve();});
       expect(screen.getByText('官方测试活动')).toBeTruthy();
-      expect(HOME_CALENDAR_POLL_MS).toBe(21_600_000);
+      expect(HOME_CALENDAR_POLL_MS).toBe(900_000);
       await act(async()=>{document.dispatchEvent(new Event('visibilitychange'));await Promise.resolve();});
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       vi.setSystemTime(started+HOME_CALENDAR_POLL_MS-1);

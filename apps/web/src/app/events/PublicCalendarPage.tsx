@@ -25,10 +25,11 @@ const ICAL_URL = '/api/v1/events/calendar.ics';
 
 function CalendarEvent({ event, now }: { readonly event: EventCalendarItem; readonly now: number }) {
   const status = eventStatus(event, now);
-  const label = {
+  const phaseLabel = {
     active: '进行中', upcoming: '即将开始', ending: '即将结束',
     ended: '已结束', unscheduled: '时间待确认',
   }[status];
+  const label=status==='active'&&event.endsAt===null?'已开始 · 结束待确认':phaseLabel;
   const content = <>
     <span className="calendar-center__event-category">{event.category || '官方公告'} · {label}</span>
     <strong>{displayCalendarTitle(event.title)}</strong>

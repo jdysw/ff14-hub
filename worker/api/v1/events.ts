@@ -18,6 +18,7 @@ import { CN_CALENDAR_CACHE_MS } from '../../modules/events/calendar-feed';
 import { createOfficialCalendarIcs } from '../../modules/events/calendar-ics';
 import { readOfficialCalendarSnapshot } from '../../modules/events/calendar-snapshot';
 import { applyCalendarEdits } from '../../modules/events/calendar-editor';
+import {withGoldTrial} from '../../modules/events/gold-trial';
 import { refreshOfficialCalendarSnapshot } from '../../modules/events/calendar-refresh';
 import type { AppBindings } from '../../types';
 
@@ -72,7 +73,7 @@ publicEventRoutes.get('/', validateQuery(publicEventQuerySchema), async (c) => {
   );
 });
 
-async function calendarForPublic(db: D1Database) {
+async function readCalendarForPublic(db: D1Database) {
   let snapshot = await readOfficialCalendarSnapshot(db);
   if(snapshot){
     const expired=Date.now()-snapshot.source.checkedAtMs>=CN_CALENDAR_CACHE_MS;
@@ -80,12 +81,17 @@ async function calendarForPublic(db: D1Database) {
     // Otherwise that reader would keep the old snapshot for another six hours.
     if(expired&&await refreshOfficialCalendarSnapshot(db))snapshot=await readOfficialCalendarSnapshot(db)??snapshot;
     const stale=Date.now()-snapshot.source.checkedAtMs>=CN_CALENDAR_CACHE_MS;
-    return await applyCalendarEdits(db,stale?{...snapshot,source:{...snapshot.source,stale:true}}:snapshot);
+    return stale?{...snapshot,source:{...snapshot.source,stale:true}}:snapshot;
   }
   await refreshOfficialCalendarSnapshot(db);
   const live=await readOfficialCalendarSnapshot(db);
   if(!live)throw new Error('official_calendar_unavailable');
-  return await applyCalendarEdits(db,live);
+  return live;
+}
+
+async function calendarForPublic(db:D1Database){
+  const calendar=await readCalendarForPublic(db);
+  return applyCalendarEdits(db,await withGoldTrial(calendar));
 }
 
 /** Public official calendar, with durable fallback and bounded revalidation. */
