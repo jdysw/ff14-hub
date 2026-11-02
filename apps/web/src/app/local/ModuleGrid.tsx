@@ -1,5 +1,6 @@
 import {Children,useLayoutEffect,useRef,useState,type CSSProperties,type ReactNode} from 'react';
 import './personal-tools.css';
+import './module-width.css';
 
 type HomeLayoutMode='auto'|'balanced'|'rows';
 type ModulePosition={column:number;row:number;height:number;holding:boolean};
@@ -15,7 +16,8 @@ const MODULE_GAP=18;
 /** 保留原有 48px 稳定阈值：微小高度差优先复用上次的列位置。 */
 function chooseModuleColumn(totals:readonly number[],previous:number|undefined):number{
   if(Math.abs(totals[0]!-totals[1]!)>48)return totals[0]!<totals[1]!?0:1;
-  return previous??(totals[0]!<=totals[1]!?0:1);
+  if(previous===0||previous===1)return previous;
+  return totals[0]!<=totals[1]!?0:1;
 }
 
 /** 只有跨栏能显著缩小奇数模块造成的高度差时，才使用通栏布局。 */
@@ -40,15 +42,27 @@ export function planModules(heights:readonly number[],previous:readonly number[]
 
 /** 智能布局默认使用「活动｜钓鱼」首行、「PVP 通栏」次行；其他组合保留自由排版。 */
 export function planHomeModules(
-  heights:readonly number[],identity:string,mode:HomeLayoutMode,previous:readonly number[]=[]
+  heights:readonly number[],identity:string,mode:HomeLayoutMode,previous:readonly number[]=[],forced:readonly boolean[]=[]
 ):number[]{
+  if(forced.some(Boolean))return planExplicitWidths(heights,previous,forced);
   return mode==='auto'&&identity==='events,fishing,pvp'&&heights.length===3
     ?[0,1,2]:planModules(heights,previous,mode==='auto');
 }
 
+function planExplicitWidths(heights:readonly number[],previous:readonly number[],forced:readonly boolean[]){
+  const totals=[0,0],columns:number[]=[];
+  for(let i=0;i<heights.length;i++){
+    const column=forced[i]?2:chooseModuleColumn(totals,previous[i]);
+    columns.push(column);
+    if(column===2)totals.fill(Math.max(...totals)+(heights[i]??0)+MODULE_GAP);
+    else totals[column]!+=(heights[i]??0)+MODULE_GAP;
+  }
+  return columns;
+}
+
 /** 同一模块组合、布局设置及近似视口下才允许重用布局；损坏的持久数据一律丢弃。 */
 function readSavedHomeLayout(
-  identity:string,mode:HomeLayoutMode,width:number,viewportWidth:number,count:number
+  identity:string,mode:HomeLayoutMode,width:number,viewportWidth:number,count:number,allowSpanning=false
 ):SavedModuleLayout|null{
   try{
     const raw=window.localStorage.getItem(HOME_MODULE_LAYOUT_KEY);
@@ -59,7 +73,7 @@ function readSavedHomeLayout(
       ||typeof saved.viewportWidth!=='number'||Math.abs(saved.viewportWidth-viewportWidth)>16
       ||!Array.isArray(saved.columns)||saved.columns.length!==count
       ||saved.columns.some(column=>column!==0&&column!==1&&column!==2)
-      ||mode==='balanced'&&saved.columns.includes(2)
+      ||mode==='balanced'&&!allowSpanning&&saved.columns.includes(2)
       ||!Array.isArray(saved.heights)||saved.heights.length!==count
       ||saved.heights.some(height=>typeof height!=='number'||!Number.isFinite(height)||height<0||height>20_000))return null;
     return {...saved,version:HOME_MODULE_LAYOUT_VERSION,identity,mode,width,viewportWidth,
@@ -96,16 +110,20 @@ function layoutPositions(heights:readonly number[],columns:readonly number[],hol
 }
 
 /** 刷新时恢复上次模块位置与加载期占位；数据变化只调整高度，结构变化才重排。 */
-export function ModuleGrid({children,identity,mode='auto'}:Readonly<{
-  children:ReactNode;identity:string;mode?:HomeLayoutMode
+export function ModuleGrid({children,identity,mode='auto',wideSections=[]}:Readonly<{
+  children:ReactNode;identity:string;mode?:HomeLayoutMode;wideSections?:readonly string[]
 }>){
+  const wideKey=[...new Set(wideSections.filter(section=>identity.split(',').includes(section)))].sort((a,b)=>a.localeCompare(b)).join(',');
   const root=useRef<HTMLDivElement>(null);
   const [positions,setPositions]=useState<ModulePosition[]>([]);
   useLayoutEffect(()=>{
     const element=root.current;if(!element||typeof ResizeObserver==='undefined')return;
+    const selected=new Set(wideKey.split(','));
+    const forced=identity.split(',').map(section=>selected.has(section));
+    const cacheIdentity=wideKey?identity+'|wide:'+wideKey:identity;
     let columns:number[]=[],width=0,settled=false,settleTimer=0,lastSaved='';
     let remembered:SavedModuleLayout|null=null;
-    const featured=mode==='auto'&&identity==='events,fishing,pvp';
+    const featured=!wideKey&&mode==='auto'&&identity==='events,fishing,pvp';
     const measure=()=>{
       const items=Array.from(element.children) as HTMLElement[];
       const nextWidth=element.clientWidth;
@@ -114,8 +132,8 @@ export function ModuleGrid({children,identity,mode='auto'}:Readonly<{
       if(nextWidth<800||mode==='rows'){window.clearTimeout(settleTimer);setPositions([]);return;}
       if(!columns.length||Math.abs(nextWidth-width)>16){
         width=nextWidth;
-        remembered=readSavedHomeLayout(identity,mode,width,window.innerWidth,items.length);
-        columns=remembered?[...remembered.columns]:planHomeModules(heights,identity,mode,columns);
+        remembered=readSavedHomeLayout(cacheIdentity,mode,width,window.innerWidth,items.length,forced.some(Boolean));
+        columns=remembered?[...remembered.columns]:planHomeModules(heights,identity,mode,columns,forced);
         settled=remembered!==null||featured;
         lastSaved=remembered===null?'':JSON.stringify({width,columns,heights:remembered.heights});
       }
@@ -126,7 +144,7 @@ export function ModuleGrid({children,identity,mode='auto'}:Readonly<{
             settled=true;
             columns=planHomeModules(
               Array.from(element.children).map(item=>Math.ceil((item.firstElementChild??item).getBoundingClientRect().height)),
-              identity,mode,columns
+              identity,mode,columns,forced
             );
             measure();
           },550);
@@ -142,7 +160,7 @@ export function ModuleGrid({children,identity,mode='auto'}:Readonly<{
       if(!loading.some(Boolean)){
         const signature=JSON.stringify({width,columns,heights});
         if(signature!==lastSaved){
-          remembered={version:HOME_MODULE_LAYOUT_VERSION,identity,mode,width,viewportWidth:window.innerWidth,
+          remembered={version:HOME_MODULE_LAYOUT_VERSION,identity:cacheIdentity,mode,width,viewportWidth:window.innerWidth,
             columns:[...columns],heights:[...heights]};
           saveHomeLayout(remembered);
           lastSaved=signature;
@@ -165,8 +183,8 @@ export function ModuleGrid({children,identity,mode='auto'}:Readonly<{
       observer.disconnect();contentObserver?.disconnect();window.clearTimeout(settleTimer);
       window.removeEventListener('ff14hub:home-layout-reset',reset);
     };
-  },[identity,mode]);
-  const featured=mode==='auto'&&identity==='events,fishing,pvp';
+  },[identity,mode,wideKey]);
+  const featured=!wideKey&&mode==='auto'&&identity==='events,fishing,pvp';
   return <div className={`local-dashboard__module-grid personal-module-grid ${positions.length?'is-packed':''} ${featured?'is-featured':''}`} data-layout-mode={mode} ref={root}>
     {Children.map(children,(child,i)=>{
       const position=positions[i];
@@ -176,6 +194,7 @@ export function ModuleGrid({children,identity,mode='auto'}:Readonly<{
         ...(position.holding?{'--home-reserved-height':`${position.height}px`}:{}),
       } as CSSProperties:undefined;
       return <div className="personal-module-slot" data-column={position?.column}
+        data-wide={wideSections.includes(identity.split(',')[i]??'')||mode==='rows'||position?.column===2?'true':undefined}
         data-restoring-height={position?.holding?'true':undefined} style={style}>{child}</div>;
     })}
   </div>;

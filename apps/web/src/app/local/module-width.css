@@ -1,0 +1,23 @@
+.local-settings__module{flex-wrap:wrap;gap:12px}
+.local-settings__module-width{display:inline-flex;align-items:center;gap:6px;min-height:44px;font-size:12px;color:var(--field-muted,#526858)}
+.personal-module-slot[data-wide=true]{grid-column:1/-1}
+@media(min-width:1000px){
+ .local-app .personal-module-grid .personal-module-slot[data-wide=true] .home-official__list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}
+ .local-app .personal-module-grid .personal-module-slot[data-wide=true] .fish-glance__list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}
+ .local-app .personal-module-grid .personal-module-slot[data-wide=true] .fish-glance__columns{display:none}
+ .local-app .personal-module-grid .personal-module-slot[data-wide=true] .pvp-board__current{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+ .local-app .personal-module-grid .personal-module-slot[data-wide=true] .pvp-home-row{padding-block:0;border-top:0}
+ .local-app .personal-module-grid .personal-module-slot[data-wide=true] .pvp-home-row+.pvp-home-row{border-top:0;padding-top:0}
+ .local-app .personal-module-grid .personal-module-slot[data-wide=true] .todo-board>ul{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}
+ .local-app .personal-module-grid .personal-module-slot[data-wide=true] .weather-home{display:grid;grid-template-columns:minmax(240px,.65fr) minmax(0,1fr);gap:0 28px}
+ .local-app .personal-module-grid .personal-module-slot[data-wide=true] .weather-home>.weather-heading{grid-column:1/-1}
+ .local-app .personal-module-grid .personal-module-slot[data-wide=true] .weather-home>.weather-clock{grid-column:1;grid-row:2}
+ .local-app .personal-module-grid .personal-module-slot[data-wide=true] .weather-home>.weather-home__places{grid-column:2;grid-row:2/span 2;margin-top:0}
+ .local-app .personal-module-grid .personal-module-slot[data-wide=true] .weather-home>footer{grid-column:1;grid-row:3;align-self:start}
+ .local-app .personal-module-grid .personal-module-slot[data-wide=true] .market-home{display:grid;grid-template-columns:minmax(180px,.5fr) minmax(0,1fr);gap:0 28px;align-items:center}
+ .local-app .personal-module-grid .personal-module-slot[data-wide=true] .market-home>.market-home__heading{grid-column:1/-1}
+ .local-app .personal-module-grid .personal-module-slot[data-wide=true] .market-home>p{grid-column:1;grid-row:2;margin:0}
+ .local-app .personal-module-grid .personal-module-slot[data-wide=true] .market-home>form{grid-column:2;grid-row:2}
+ .local-app .personal-module-grid .personal-module-slot[data-wide=true] .market-home>.market-home__examples{grid-column:2;grid-row:3}
+ .local-app .personal-module-grid .personal-module-slot[data-wide=true] .market-home>footer{grid-column:1;grid-row:3}
+}
