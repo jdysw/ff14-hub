@@ -42,6 +42,12 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
       onChanged();
     }
   });
+  const changeModuleWidth=(section:HomeSection,checked:boolean)=>{void run(async()=>{
+    await store.change(document=>{
+      const selected=document.data.configuration.fullWidth??[];
+      document.data.configuration.fullWidth=checked?[...new Set([...selected,section])]:selected.filter(item=>item!==section);
+    });
+  });};
   const move=(section:HomeSection,delta:number)=>{void run(async()=>{
     await store.change(document=>{const order=withHomeModules(document.data.configuration.order);document.data.configuration.order=order;const index=order.indexOf(section);const other=order[index+delta];if(other){order[index+delta]=section;order[index]=other;document.data.configuration.orderCustomized=true;}});
   });};
@@ -62,7 +68,7 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
     <section hidden={activeTab!=='home'}><h3>首页模块</h3>
       {withHomeModules(data.configuration.order).map((section,index)=><div className="local-settings__module" key={section}>
         <label><input type="checkbox" checked={data.configuration.visible[section]??true} disabled={busy} onChange={event=>{const checked=event.target.checked;void run(async()=>{await store.change(document=>{document.data.configuration.visible[section]=checked;});});}}/>{labels[section]}</label>
-        <label className="local-settings__module-width"><input type="checkbox" checked={data.configuration.fullWidth?.includes(section)??false} disabled={busy} aria-label={labels[section]+'单独占一行'} onChange={event=>{const checked=event.target.checked;void run(async()=>{await store.change(document=>{const selected=document.data.configuration.fullWidth??[];document.data.configuration.fullWidth=checked?[...new Set([...selected,section])]:selected.filter(item=>item!==section);});});}}/>单独占一行</label>
+        <label className="local-settings__module-width"><input type="checkbox" checked={data.configuration.fullWidth?.includes(section)??false} disabled={busy} aria-label={labels[section]+'单独占一行'} onChange={event=>changeModuleWidth(section,event.target.checked)}/>单独占一行</label>
         <div><button type="button" disabled={busy||index===0} aria-label={`上移${labels[section]}`} onClick={()=>move(section,-1)}>上移</button><button type="button" disabled={busy||index===withHomeModules(data.configuration.order).length-1} aria-label={`下移${labels[section]}`} onClick={()=>move(section,1)}>下移</button></div>
       </div>)}
       <div className="local-settings__field">

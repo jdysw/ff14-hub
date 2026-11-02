@@ -113,7 +113,7 @@ function layoutPositions(heights:readonly number[],columns:readonly number[],hol
 export function ModuleGrid({children,identity,mode='auto',wideSections=[]}:Readonly<{
   children:ReactNode;identity:string;mode?:HomeLayoutMode;wideSections?:readonly string[]
 }>){
-  const wideKey=[...new Set(wideSections.filter(section=>identity.split(',').includes(section)))].sort().join(',');
+  const wideKey=[...new Set(wideSections.filter(section=>identity.split(',').includes(section)))].sort((a,b)=>a.localeCompare(b)).join(',');
   const root=useRef<HTMLDivElement>(null);
   const [positions,setPositions]=useState<ModulePosition[]>([]);
   useLayoutEffect(()=>{
