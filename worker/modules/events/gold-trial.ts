@@ -36,14 +36,14 @@ let cached:{events:EventCalendarItem[];at:number}|undefined;
 let failedAt=0;
 async function readGoldTrial(){
   const now=Date.now();
-  if(cached&&now-cached.at<TTL)return {events:cached.events,stale:false};
-  if(failedAt!==0&&now-failedAt<RETRY_MS)return {events:cached?.events??[],stale:true};
-    try{
-      const response=await fetch(ENDPOINT,{redirect:'error',headers:{Accept:'application/json'},signal:AbortSignal.timeout(10000)});
-      if(!response.ok)throw new Error('gold_trial_unavailable');
-      const events=parseGoldTrial(JSON.parse(await boundedBody(response)) as unknown);
-      cached={events,at:Date.now()};return {events,stale:false};
-    }catch{failedAt=Date.now();return {events:cached?.events??[],stale:true};}
+  if(cached&&now-cached.at<TTL){return {events:cached.events,stale:false};}
+  if(failedAt!==0&&now-failedAt<RETRY_MS){return {events:cached?.events??[],stale:true};}
+  try{
+    const response=await fetch(ENDPOINT,{redirect:'error',headers:{Accept:'application/json'},signal:AbortSignal.timeout(10000)});
+    if(!response.ok)throw new Error('gold_trial_unavailable');
+    const events=parseGoldTrial(JSON.parse(await boundedBody(response)) as unknown);
+    cached={events,at:Date.now()};return {events,stale:false};
+  }catch{failedAt=Date.now();return {events:cached?.events??[],stale:true};}
 }
 export async function withGoldTrial(calendar:EventCalendarResponse):Promise<EventCalendarResponse>{
   const supplement=await readGoldTrial();
