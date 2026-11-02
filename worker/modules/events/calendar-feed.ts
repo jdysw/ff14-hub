@@ -14,7 +14,7 @@ type NewsCode='5310'|'5311'|'5203';
 let cache: { checkedAtMs: number; events: EventCalendarItem[]; partial: boolean } | null = null;
 const requestSignal=(signal?:AbortSignal)=>signal?AbortSignal.any([signal,AbortSignal.timeout(10_000)]):AbortSignal.timeout(10_000);
 
-async function boundedBody(response:Response):Promise<string>{
+export async function boundedBody(response:Response):Promise<string>{
   if(!response.body)return '';
   if(Number(response.headers.get('content-length')??0)>1_000_000)throw new Error('official_payload_too_large');
   const reader=response.body.getReader() as ReadableStreamDefaultReader<Uint8Array>;

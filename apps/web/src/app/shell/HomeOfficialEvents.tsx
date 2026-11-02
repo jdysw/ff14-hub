@@ -3,12 +3,12 @@ import { eventCalendarResponseSchema, type EventCalendarItem, type EventCalendar
 import { useEffect, useMemo, useState } from 'react';
 import {readCachedPublicCalendar,saveCachedPublicCalendar} from '../local/public-calendar-cache';
 import {
-  calendarOverview, calendarTimeLabel, calendarEndCondition,chinaDateTime,displayCalendarTitle, eventStatus, isScheduled, SOON_MS,calendarCountdown,
+  calendarOverview, calendarTimeLabel, calendarEndCondition,chinaDateTime,displayCalendarTitle, eventStatus, SOON_MS,calendarCountdown,
   type CalendarPhase,
 } from '../events/public-calendar-utils';
 
 export const HOME_EVENT_LIMIT = 4;
-export const HOME_CALENDAR_POLL_MS = 6 * 60 * 60_000;
+export const HOME_CALENDAR_POLL_MS = 15 * 60_000;
 
 /**
  * 列表包含全部有效日程；界面最多同时显示 4 项，其余在列表内滚动。
@@ -23,12 +23,12 @@ export function homeEventHighlights(items: readonly EventCalendarItem[], now: nu
     return 3;
   };
   return items
-    .filter(item => eventStatus(item,now)==='upcoming'||isScheduled(item) && item.endsAt! >= now)
+    .filter(item => ['upcoming','active','ending'].includes(eventStatus(item,now)))
     .sort((a, b) => {
       const diff = rank(a) - rank(b);
       if (diff) return diff;
-      const targetA = a.startsAt! > now ? a.startsAt! : a.endsAt!;
-      const targetB = b.startsAt! > now ? b.startsAt! : b.endsAt!;
+      const targetA = a.startsAt! > now ? a.startsAt! : a.endsAt??Number.POSITIVE_INFINITY;
+      const targetB = b.startsAt! > now ? b.startsAt! : b.endsAt??Number.POSITIVE_INFINITY;
       return targetA - targetB || a.id.localeCompare(b.id);
     });
 }
@@ -41,13 +41,14 @@ type ViewState =
 const EVENT_PHASE_LABELS:Record<CalendarPhase,string>={
   ending:'即将结束',active:'进行中',upcoming:'即将开始',ended:'已结束',unscheduled:'待核实公告',
 };
+const EMPTY_PHASE_LABELS={active:'目前没有已确认时间的进行中活动，可切换“未来活动”查看。',upcoming:'目前没有已确认时间的未来活动。',unscheduled:'目前没有时间待确认的公告。'};
 function eventCountdownTarget(status:CalendarPhase,item:EventCalendarItem):number|null{
   if(status==='upcoming')return item.startsAt;
   if(status==='active'||status==='ending')return item.endsAt;
   return null;
 }
 function eventCountdownHeading(status:CalendarPhase,target:number|null):string{
-  if(target===null)return '时间待确认';
+  if(target===null)return status==='active'?'结束待确认':'时间待确认';
   return status==='upcoming'?'距开始':'距结束';
 }
 function OfficialEventEndTime({item}:{readonly item:EventCalendarItem}){
@@ -57,7 +58,7 @@ function OfficialEventEndTime({item}:{readonly item:EventCalendarItem}){
 function OfficialEventSummary({ item, now }: { readonly item: EventCalendarItem; readonly now: number }) {
   const status = eventStatus(item, now);
   const target = eventCountdownTarget(status,item);
-  const label = EVENT_PHASE_LABELS[status];
+  const label = status==='active'&&item.endsAt===null?'已开始 · 结束待确认':EVENT_PHASE_LABELS[status];
   return <li className="home-official-event">
     <div className="home-official-event__main">
       <span className="home-official-event__category">{item.category || '官方公告'}</span>
@@ -84,11 +85,13 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
   const [state, setState] = useState<ViewState>({ kind: 'loading' });
   const [refresh, setRefresh] = useState(0);
   const [clock, setClock] = useState(Date.now);
-  const [phase,setPhase]=useState<'active'|'upcoming'>('active');
+  const [phase,setPhase]=useState<'active'|'upcoming'|'unscheduled'>('active');
 
   useEffect(() => {
-    const id = window.setInterval(() => setClock(Date.now()), 1_000);
-    return () => window.clearInterval(id);
+    const update=()=>setClock(Date.now());
+    const id = window.setInterval(update, 1_000);
+    window.addEventListener('focus',update);document.addEventListener('visibilitychange',update);
+    return () => {window.clearInterval(id);window.removeEventListener('focus',update);document.removeEventListener('visibilitychange',update);};
   }, []);
   useEffect(() => {
     const controller = new AbortController();
@@ -134,7 +137,7 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
   const allEvents = state.kind === 'ready' ? state.value.events : [];
   const unknownCount = allEvents.filter(item => eventStatus(item,now)==='unscheduled').length;
   const highlights=homeEventHighlights(allEvents,now);
-  const important=highlights.filter(item=>phase==='active'?item.startsAt!<=now&&item.endsAt!>now:item.startsAt!>now);
+  const important=phase==='unscheduled'?allEvents.filter(item=>eventStatus(item,now)==='unscheduled'):highlights.filter(item=>phase==='active'?item.startsAt!<=now:item.startsAt!>now);
   const reload = () => { setRefresh(value => value + 1); };
 
   return <section className="home-official" aria-label="国服官方活动">
@@ -150,6 +153,7 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
     <fieldset className="home-status-tabs" style={{border:0,margin:0,padding:0,minWidth:0}} aria-label="首页活动切换">
       <button type="button" aria-pressed={phase==='active'} onClick={()=>setPhase('active')}>进行中活动</button>
       <button type="button" aria-pressed={phase==='upcoming'} onClick={()=>setPhase('upcoming')}>未来活动</button>
+      <button type="button" aria-pressed={phase==='unscheduled'} onClick={()=>setPhase('unscheduled')}>时间待确认（{unknownCount}）</button>
     </fieldset>
     {state.kind === 'loading' && <output className="home-state" style={{display:'block'}}>正在获取最新活动…</output>}
     {state.kind === 'error' && <div className="home-official__notice" role="alert">
@@ -163,7 +167,7 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
         <button type="button" onClick={onOpenCalendar}><strong>{overview.upcoming.length}</strong><span>未来 7 天开始</span></button>
         <button type="button" onClick={onOpenCalendar}><strong>{overview.ending.length}</strong><span>24 小时内结束</span></button>
       </div>
-      {important.length === 0 && <p className="home-state">{phase==='active'?'目前没有已确认时间的进行中活动，可切换“未来活动”查看。':'目前没有已确认时间的未来活动。'}{unknownCount > 0 ? '待核实公告可在完整日历查看。' : ''}</p>}
+      {important.length === 0 && <p className="home-state">{EMPTY_PHASE_LABELS[phase]}{unknownCount > 0&&phase!=='unscheduled' ? '未定日期的公告可切换“时间待确认”查看。' : ''}</p>}
       {important.length > 0 && <ul key={phase} className="home-official__list" tabIndex={0} aria-label="国服活动列表">
         {important.map(item => <OfficialEventSummary key={item.id} item={item} now={now}/>)}
       </ul>}

@@ -49,7 +49,7 @@ export function eventsForChinaDay(events: readonly EventCalendarItem[], day: str
   const start = Date.parse(day + 'T00:00:00.000Z') - CN_OFFSET;
   if (!Number.isFinite(start) || chinaDayKey(start) !== day) return [];
   const end = start + DAY_MS;
-  return events.filter(item => isScheduled(item) ? item.startsAt! < end && item.endsAt! >= start : hasKnownStart(item)&&item.startsAt!>=start&&item.startsAt!<end)
+  return events.filter(item => isScheduled(item) ? item.startsAt! < end && item.endsAt! > start : hasKnownStart(item)&&item.startsAt!<end)
     .sort((a, b) => a.startsAt! - b.startsAt!);
 }
 
@@ -57,8 +57,9 @@ export type CalendarPhase = 'active' | 'upcoming' | 'ending' | 'ended' | 'unsche
 
 export function eventStatus(item: EventCalendarItem, nowMs: number): CalendarPhase {
   if(hasKnownStart(item)&&item.startsAt!>nowMs)return 'upcoming';
+  if(hasKnownStart(item)&&item.endsAt===null)return 'active';
   if (!isScheduled(item)) return 'unscheduled';
-  if (item.endsAt! < nowMs) return 'ended';
+  if (item.endsAt! <= nowMs) return 'ended';
   if (item.startsAt! > nowMs) return 'upcoming';
   return item.endsAt! - nowMs <= ENDING_MS ? 'ending' : 'active';
 }
@@ -67,10 +68,10 @@ export function calendarOverview(events: readonly EventCalendarItem[], nowMs: nu
   const scheduled = events.filter(isScheduled);
   return {
     today: eventsForChinaDay(events, chinaToday(nowMs)),
-    active: scheduled.filter(x => x.startsAt! <= nowMs && x.endsAt! >= nowMs),
+    active: events.filter(x => eventStatus(x,nowMs)==='active'||eventStatus(x,nowMs)==='ending'),
     upcoming: events.filter(x => eventStatus(x,nowMs)==='upcoming' && x.startsAt! <= nowMs + SOON_MS)
       .sort((a, b) => a.startsAt! - b.startsAt!),
-    ending: scheduled.filter(x => x.startsAt! <= nowMs && x.endsAt! >= nowMs && x.endsAt! <= nowMs + ENDING_MS)
+    ending: scheduled.filter(x => x.startsAt! <= nowMs && x.endsAt! > nowMs && x.endsAt! <= nowMs + ENDING_MS)
       .sort((a, b) => a.endsAt! - b.endsAt!),
     unscheduled: events.filter(x => eventStatus(x,nowMs)==='unscheduled'),
   };

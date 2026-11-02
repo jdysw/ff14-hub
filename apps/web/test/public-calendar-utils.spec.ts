@@ -14,13 +14,13 @@ function event(id: string, startsAt: number | null, endsAt: number | null): Even
 }
 
 describe('国服公开月历纯逻辑', () => {
-  it('已确认开始但结束为维护条件的活动可进入未来与开始日，不虚构长期进行中或截止时间',()=>{
+  it('已确认开始的活动跨日后仍可查看，保留未定结束条件而不虚构截止时间',()=>{
     const startsAt=Date.UTC(2026,9,28,8),item={...event('keybound',startsAt,null),description:'活动结束条件：8.0版本更新维护前'};
     const now=Date.UTC(2026,9,24);
     expect(eventStatus(item,now)).toBe('upcoming');expect(isScheduled(item)).toBe(false);
     expect(calendarOverview([item],now).upcoming).toEqual([item]);
-    expect(eventsForChinaDay([item],'2026-10-28')).toEqual([item]);expect(eventsForChinaDay([item],'2026-10-29')).toEqual([]);
-    expect(eventStatus(item,startsAt+1)).toBe('unscheduled');expect(calendarOverview([item],startsAt+1).active).toEqual([]);
+    expect(eventsForChinaDay([item],'2026-10-28')).toEqual([item]);expect(eventsForChinaDay([item],'2026-10-29')).toEqual([item]);
+    expect(eventStatus(item,startsAt)).toBe('active');expect(calendarOverview([item],startsAt+1).active).toEqual([item]);
     expect(calendarTimeLabel(item)).toContain('8.0版本更新维护前（结束日期待确认）');
   });
   it('按北京时间而非浏览器时区生成日期键', () => {
