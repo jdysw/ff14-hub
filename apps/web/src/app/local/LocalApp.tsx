@@ -79,7 +79,7 @@ return <div className="local-dashboard">
               <h2>常用功能</h2>
               <button type="button" className="local-dashboard__manage" onClick={()=>{setSettingsTab('home');setView('settings');}}>自定义 <span aria-hidden="true">↗</span></button>
             </header>
-            <ModuleGrid identity={enabledSections.join(',')} mode={siteSettings.presentation?.home.layout??'auto'}>
+            <ModuleGrid identity={enabledSections.join(',')} mode={siteSettings.presentation?.home.layout??'auto'} wideSections={data.configuration.fullWidth??[]}>
               {enabledSections.length===0?<p className="local-dashboard__empty">
                 <button type="button" onClick={()=>{setSettingsTab('home');setView('settings');}}>启用功能模块 ＋</button>
               </p>:enabledSections.map(section=><div className="local-dashboard__module" key={section} data-module={section}>

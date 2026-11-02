@@ -62,10 +62,11 @@ export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=fal
     <section hidden={activeTab!=='home'}><h3>首页模块</h3>
       {withHomeModules(data.configuration.order).map((section,index)=><div className="local-settings__module" key={section}>
         <label><input type="checkbox" checked={data.configuration.visible[section]??true} disabled={busy} onChange={event=>{const checked=event.target.checked;void run(async()=>{await store.change(document=>{document.data.configuration.visible[section]=checked;});});}}/>{labels[section]}</label>
+        <label className="local-settings__module-width"><input type="checkbox" checked={data.configuration.fullWidth?.includes(section)??false} disabled={busy} aria-label={labels[section]+'单独占一行'} onChange={event=>{const checked=event.target.checked;void run(async()=>{await store.change(document=>{const selected=document.data.configuration.fullWidth??[];document.data.configuration.fullWidth=checked?[...new Set([...selected,section])]:selected.filter(item=>item!==section);});});}}/>单独占一行</label>
         <div><button type="button" disabled={busy||index===0} aria-label={`上移${labels[section]}`} onClick={()=>move(section,-1)}>上移</button><button type="button" disabled={busy||index===withHomeModules(data.configuration.order).length-1} aria-label={`下移${labels[section]}`} onClick={()=>move(section,1)}>下移</button></div>
       </div>)}
       <div className="local-settings__field">
-        <p>布局会在本机记住上次的列位置；刷新或更新倒计时不会重新交换模块。调整模块顺序、显示项或屏幕宽度后自动适配。</p>
+        <p>勾选“单独占一行”后，该模块在大屏占满整行，内容会横向展开；手机上仍按屏幕宽度纵排。布局会记住上次位置，刷新和倒计时不会重新交换模块。</p>
         <button type="button" disabled={busy} onClick={()=>{clearSavedHomeLayout();setNotice('已清除本机布局记忆，下次打开首页将重新计算排布。');}}>重新计算首页布局</button>
       </div>
       <label className="local-settings__field">默认钓鱼区服<select value={data.configuration.region} disabled={busy} onChange={event=>{const next=event.target.value as FishRegion;void run(async()=>{await store.change(document=>{document.data.configuration.region=next;});});}}><option value="cn">国服</option><option value="global">国际服</option></select></label>
