@@ -22,7 +22,12 @@ it('rejects bad dates and failed upstream responses',()=>{
 });
 it('caches anonymous public phases and preserves primary data and last known phases on failure',async()=>{
  const payload={result:'1',currentActive:active,configURL:'https://untrusted.invalid/private',PlayerAccount:'not-for-clients'};
- const fetcher=vi.fn().mockImplementation(()=>Promise.resolve(Response.json(payload)));
+ const fetcher=vi.fn().mockImplementation((input:RequestInfo,init?:RequestInit)=>{
+  // Exercise workerd's Request validation even when the upstream is mocked.
+  const request=new Request(input,init);
+  expect(request.redirect).toBe('manual');
+  return Promise.resolve(Response.json(payload));
+ });
  vi.stubGlobal('fetch',fetcher);
  const base:EventCalendarResponse={events:[],serverTimeMs:1,source:{name:'官方公告',homeUrl:'https://ff.web.sdo.com/',checkedAtMs:1,stale:false}};
  try{
@@ -30,6 +35,11 @@ it('caches anonymous public phases and preserves primary data and last known pha
   expect(JSON.stringify(initial)).not.toContain('not-for-clients');expect(JSON.stringify(initial)).not.toContain('untrusted.invalid');
   await withGoldTrial(base);expect(fetcher).toHaveBeenCalledTimes(1);
   const now=Date.now();vi.spyOn(Date,'now').mockReturnValue(now+16*60_000);
+  fetcher.mockResolvedValue(new Response(null,{status:302,headers:{Location:'https://untrusted.invalid/redirect'}}));
+  const redirected=await withGoldTrial(base);
+  expect(redirected.events).toHaveLength(2);expect(redirected.source.stale).toBe(true);
+  await withGoldTrial(base);expect(fetcher).toHaveBeenCalledTimes(2);
+  vi.spyOn(Date,'now').mockReturnValue(now+18*60_000);
   fetcher.mockRejectedValue(new Error('offline'));
   const fallback=await withGoldTrial({...base,events:[initial.events[0]!]});
   expect(fallback.events).toHaveLength(2);expect(fallback.source.stale).toBe(true);

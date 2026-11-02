@@ -39,7 +39,8 @@ async function readGoldTrial(){
   if(cached&&now-cached.at<TTL){return {events:cached.events,stale:false};}
   if(failedAt!==0&&now-failedAt<RETRY_MS){return {events:cached?.events??[],stale:true};}
   try{
-    const response=await fetch(ENDPOINT,{redirect:'error',headers:{Accept:'application/json'},signal:AbortSignal.timeout(10000)});
+    // Workers supports manual/follow only; manual keeps redirects outside the fixed source rejected.
+    const response=await fetch(ENDPOINT,{redirect:'manual',headers:{Accept:'application/json'},signal:AbortSignal.timeout(10000)});
     if(!response.ok)throw new Error('gold_trial_unavailable');
     const events=parseGoldTrial(JSON.parse(await boundedBody(response)) as unknown);
     cached={events,at:Date.now()};return {events,stale:false};
