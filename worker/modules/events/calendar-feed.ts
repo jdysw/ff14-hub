@@ -5,6 +5,7 @@ import {readerResults} from '../../../packages/shared/src/reader-results.ts';
  * 这是“官方公告 API”，并非官方活动日程 API：不能以发布时间推断活动起止。
  */
 import type { EventCalendarItem, EventCalendarResponse } from '@ff14-hub/shared';
+import {mergeOfficialActivityUpdates} from './calendar-activities.ts';
 
 const HOST = 'https://cqnews.web.sdo.com';
 const NEWS_INDEX = 'https://ff.web.sdo.com/web8/index.html#/newstab/newslist';
@@ -363,7 +364,7 @@ export async function readCnCalendar(nowMs = Date.now(),signal?:AbortSignal,forc
   }
   if (!cache) throw new Error('国服官方活动 API 暂不可用');
   return {
-    events: cache.events,
+    events: mergeOfficialActivityUpdates(cache.events),
     serverTimeMs: nowMs,
     source: { name: '盛趣游戏 · FF14 国服官方公告', homeUrl: NEWS_INDEX, checkedAtMs: cache.checkedAtMs, stale: stale || cache.partial },
   };

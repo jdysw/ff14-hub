@@ -139,6 +139,24 @@ describe('盛趣官方活动 API 适配器', () => {
 });
 
 describe('官方专题时间与两个栏目去重', () => {
+  it('将同一月卡活动的延期公告合并，保留原标识并使用延期后的官方时间和来源',async()=>{
+    vi.stubGlobal('fetch',vi.fn((url:string)=>{
+      const uri=String(url);
+      if(uri.includes('newsDetail'))return Promise.resolve(Response.json({Code:'0',Data:{Content:uri.includes('id=395032')
+        ?'<p>活动时间：2026年7月25日18:00-2027年3月1日14:00</p>'
+        :'<p>活动时间：2026年7月25日18:00-2027年2月1日14:00</p>'}}));
+      return Promise.resolve(Response.json({Code:'0',Data:[
+        {Id:395032,Title:'特惠专享 畅玩无忧！月卡启航计划活动时间延长公告',PublishDate:'2026/10/30'},
+        {Id:391233,Title:'特惠专享 畅玩无忧！月卡启航计划现已开启！',PublishDate:'2026/07/25'},
+      ]}));
+    }));
+    const value=await readCnCalendar();
+    expect(value.events).toHaveLength(1);
+    expect(value.events[0]?.id).toBe('official:391233');
+    expect(value.events[0]?.startsAt).toBe(Date.UTC(2026,6,25,10));
+    expect(value.events[0]?.endsAt).toBe(Date.UTC(2027,2,1,6));
+    expect(value.events[0]?.sourceUrl).toContain('/newscont/395032');
+  });
   it('发现新闻栏独有的魔光键影，并在繁忙新闻栏下保留较早的长期活动详情预算',async()=>{
     const calls:string[]=[];
     vi.stubGlobal('fetch',vi.fn((url:string)=>{

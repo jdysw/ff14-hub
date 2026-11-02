@@ -6,6 +6,7 @@
  * 失效快照明确标 stale；不把网络故障伪装成“暂无活动”。
  */
 import { eventCalendarResponseSchema, type EventCalendarResponse } from '@ff14-hub/shared';
+import {mergeOfficialActivityUpdates} from './calendar-activities.ts';
 
 export const OFFICIAL_CALENDAR_SNAPSHOT_STALE_MS = 6 * 60 * 60_000;
 
@@ -27,6 +28,7 @@ export function parseOfficialCalendarSnapshot(row: SnapshotRow, nowMs = Date.now
 
   return {
     ...parsed.data,
+    events: mergeOfficialActivityUpdates(parsed.data.events),
     serverTimeMs: nowMs,
     source: {
       ...parsed.data.source,
