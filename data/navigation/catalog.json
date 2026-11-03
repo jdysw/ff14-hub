@@ -233,7 +233,7 @@
   {
     "id": "catalog.import.b85cf22befff09452364",
     "title": "萌新招待",
-    "url": "https://actff1.web.sdo.com/20190315Zhaodai/index.html#/index",
+    "url": "https://actff1.web.sdo.com/20250713_ZhaoDaiNew/index.html#/index",
     "description": "游戏账号及官方服务入口",
     "category": "官方与账号 / 账号与服务",
     "tags": [],
@@ -264,7 +264,9 @@
     "description": "游戏资讯与公告入口",
     "category": "官方与账号 / 官网与公告",
     "tags": [],
-    "aliases": [],
+    "aliases": [
+      "石之家"
+    ],
     "icon": "🔗",
     "openMode": "new_tab",
     "region": "cn",
@@ -274,6 +276,12 @@
         "name": "背水咖啡厅",
         "title": "石之家",
         "section": "国服官方"
+      },
+      {
+        "url": "https://ff14.wiki/",
+        "name": "FF14.wiki",
+        "title": "石之家",
+        "section": "官方网站 / Official Site"
       }
     ],
     "sortOrder": 110
@@ -400,12 +408,14 @@
   },
   {
     "id": "catalog.import.d1906d09a222b70c18e1",
-    "title": "LodeStone",
+    "title": "Lodestone 官方数据库（日文）",
     "url": "https://jp.finalfantasyxiv.com/lodestone/playguide/db/",
     "description": "游戏资料检索与百科查询",
     "category": "入门与资料 / 百科与数据库",
     "tags": [],
-    "aliases": [],
+    "aliases": [
+      "LodeStone"
+    ],
     "icon": "🔗",
     "openMode": "new_tab",
     "region": "global",
@@ -442,12 +452,14 @@
   },
   {
     "id": "catalog.import.45246960d0d358df4bab",
-    "title": "官方推特",
-    "url": "https://twitter.com/ff_xiv_jp",
+    "title": "官方 X（日服）",
+    "url": "https://x.com/ff_xiv_jp",
     "description": "游戏资讯与公告入口",
     "category": "官方与账号 / 官网与公告",
     "tags": [],
-    "aliases": [],
+    "aliases": [
+      "官方推特"
+    ],
     "icon": "🔗",
     "openMode": "new_tab",
     "region": "global",
@@ -463,12 +475,14 @@
   },
   {
     "id": "catalog.import.c7fa72af16776676c86c",
-    "title": "道具商城",
+    "title": "国际服道具商城（日文）",
     "url": "https://store.finalfantasyxiv.com/ffxivstore/ja-jp/",
-    "description": "充值、商品或奖励兑换入口",
+    "description": "国际服外观道具商城，日文界面。",
     "category": "官方与账号 / 充值与商城",
     "tags": [],
-    "aliases": [],
+    "aliases": [
+      "道具商城"
+    ],
     "icon": "🔗",
     "openMode": "new_tab",
     "region": "global",
@@ -767,14 +781,17 @@
   },
   {
     "id": "catalog.import.6c4bc12da8ddace67ae2",
-    "title": "百度FF14贴吧",
-    "url": "https://tieba.baidu.com/f?ie=utf-8&kw=ff14&tp=0",
+    "title": "FF14 百度贴吧",
+    "url": "https://tieba.baidu.com/f?kw=ff14",
     "description": "玩家交流与社区内容",
     "category": "社区与创作 / 论坛与社区",
     "tags": [
       "玩家交流"
     ],
-    "aliases": [],
+    "aliases": [
+      "FF14百度贴吧",
+      "百度FF14贴吧"
+    ],
     "icon": "🔗",
     "openMode": "new_tab",
     "region": "cn",
@@ -784,6 +801,12 @@
         "name": "背水咖啡厅",
         "title": "百度FF14贴吧",
         "section": "玩家交流"
+      },
+      {
+        "url": "https://ff14nav.tianbianyu.com/",
+        "name": "光之导航站",
+        "title": "FF14百度贴吧",
+        "section": "玩家社区"
       }
     ],
     "sortOrder": 130
@@ -896,14 +919,16 @@
   },
   {
     "id": "catalog.import.6bef5c3b5616d5471d94",
-    "title": "MMW",
+    "title": "小光_女神候补",
     "url": "https://space.bilibili.com/1578887",
-    "description": "玩家创作、资讯或直播入口",
+    "description": "FF14 玩家视频与创作主页。",
     "category": "社区与创作 / 创作者与直播",
     "tags": [
       "视频UP主"
     ],
-    "aliases": [],
+    "aliases": [
+      "MMW"
+    ],
     "icon": "🔗",
     "openMode": "new_tab",
     "region": "both",
@@ -1047,7 +1072,7 @@
   {
     "id": "catalog.import.0c764420247e84f381e5",
     "title": "洒金笺",
-    "url": "https://b23.tv/WA0Osni",
+    "url": "https://space.bilibili.com/644724",
     "description": "玩家创作、资讯或直播入口",
     "category": "社区与创作 / 创作者与直播",
     "tags": [
@@ -1071,12 +1096,14 @@
     "id": "catalog.import.3926e250ad5708868a24",
     "title": "XivStrat攻略站",
     "url": "https://xivstrat.cn/",
-    "description": "副本机制与通关资料",
+    "description": "国服副本攻略、机制说明与战术资料。",
     "category": "职业与副本 / 副本攻略",
     "tags": [
       "常规副本"
     ],
-    "aliases": [],
+    "aliases": [
+      "XivStrat"
+    ],
     "icon": "🔗",
     "openMode": "new_tab",
     "region": "both",
@@ -1086,6 +1113,12 @@
         "name": "背水咖啡厅",
         "title": "XivStrat攻略站",
         "section": "常规副本"
+      },
+      {
+        "url": "https://ff14.wiki/",
+        "name": "FF14.wiki",
+        "title": "XivStrat",
+        "section": "实用工具 / Simplified Chinese Only"
       }
     ],
     "sortOrder": 142
@@ -1921,7 +1954,7 @@
     "id": "catalog.import.83644f9752c74893abcf",
     "title": "Universalis",
     "url": "https://universalis.app/",
-    "description": "国际服市场板价格与交易记录查询。",
+    "description": "市场板价格、交易记录与跨服务器物价查询。",
     "category": "生产与采集 / 市场与物价",
     "tags": [
       "生产采集"
@@ -2060,15 +2093,16 @@
   },
   {
     "id": "catalog.import.151f45745e759855aed0",
-    "title": "susu采集时钟",
-    "url": "https://caiji.ffxiv.cn/",
-    "description": "采集或天气相关查询",
+    "title": "素素采集时钟",
+    "url": "https://caiji.ffsusu.com/",
+    "description": "采集点、刷新时刻与材料查询。",
     "category": "生产与采集 / 采集与天气",
     "tags": [
       "生产采集"
     ],
     "aliases": [
-      "素素采集时钟"
+      "素素采集时钟",
+      "susu采集时钟"
     ],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -2138,8 +2172,8 @@
   {
     "id": "catalog.import.bb40b8876f7c99c478c2",
     "title": "素素无人岛",
-    "url": "https://wrd.ffxiv.cn/",
-    "description": "无人岛建设与经营资料",
+    "url": "https://wrd.ffsusu.com/",
+    "description": "无人岛工坊排产与经营查询工具。",
     "category": "住房与经营 / 无人岛",
     "tags": [
       "生产采集"
@@ -2517,14 +2551,16 @@
   },
   {
     "id": "catalog.import.f1900d277fd8d4976b1f",
-    "title": "光之收藏家",
+    "title": "光之收藏家（石之家幻化）",
     "url": "https://ff14risingstones.web.sdo.com/pc/index.html#/glamour",
-    "description": "成就、奖励与收藏查询",
-    "category": "日常与收藏 / 成就与收藏",
+    "description": "光之收藏家迁移后的官方幻化社区入口。",
+    "category": "幻化与摄影 / 幻化与染色",
     "tags": [
       "摄影幻化"
     ],
-    "aliases": [],
+    "aliases": [
+      "光之收藏家"
+    ],
     "icon": "🔗",
     "openMode": "new_tab",
     "region": "cn",
@@ -2534,6 +2570,18 @@
         "name": "背水咖啡厅",
         "title": "光之收藏家",
         "section": "摄影幻化"
+      },
+      {
+        "url": "https://ff14nav.tianbianyu.com/",
+        "name": "光之导航站",
+        "title": "光之收藏家",
+        "section": "幻化相关"
+      },
+      {
+        "url": "https://ff14.wiki/",
+        "name": "FF14.wiki",
+        "title": "光之收藏家",
+        "section": "实用工具 / Simplified Chinese Only"
       }
     ],
     "sortOrder": 198
@@ -2571,7 +2619,7 @@
   },
   {
     "id": "catalog.import.911f3d110bbfb19f295c",
-    "title": "mirapi snap",
+    "title": "mirapri 幻化分享（日文）",
     "url": "https://mirapri.com/",
     "description": "装备外观、幻化或染色资料",
     "category": "幻化与摄影 / 幻化与染色",
@@ -2579,7 +2627,8 @@
       "摄影幻化"
     ],
     "aliases": [
-      "mirapri"
+      "mirapri",
+      "mirapi snap"
     ],
     "icon": "🔗",
     "openMode": "new_tab",
@@ -2763,13 +2812,15 @@
   {
     "id": "catalog.import.c646b67f067024af6f26",
     "title": "素素辣鸡排",
-    "url": "https://tools.ffxiv.cn/lajipai/index.html",
-    "description": "风脉、藏宝图、坐骑与宠物等日常查询工具。",
+    "url": "https://tools.ffsusu.com/lajipai/",
+    "description": "风脉、藏宝图、坐骑和宠物等实用查询。",
     "category": "入门与资料 / 综合工具",
     "tags": [
       "实用小工具"
     ],
-    "aliases": [],
+    "aliases": [
+      "素素辣鸡排"
+    ],
     "icon": "🔗",
     "openMode": "new_tab",
     "region": "cn",
@@ -2785,6 +2836,12 @@
         "name": "光之导航站",
         "title": "素素辣鸡排",
         "section": "工具插件"
+      },
+      {
+        "url": "https://ff14.wiki/",
+        "name": "FF14.wiki",
+        "title": "素素辣鸡排",
+        "section": "实用工具 / Simplified Chinese Only"
       }
     ],
     "sortOrder": 207
@@ -2930,14 +2987,17 @@
   },
   {
     "id": "catalog.import.3ce91445819fd48c7e54",
-    "title": "咖啡ACT",
+    "title": "咖啡 ACT（国服）",
     "url": "https://www.ffcafe.cn/act/",
-    "description": "客户端插件或相关工具资料",
+    "description": "肥肥咖啡维护的国服 ACT 整合与使用说明。",
     "category": "插件与开发 / 插件与启动器",
     "tags": [
       "科技"
     ],
-    "aliases": [],
+    "aliases": [
+      "ACT.Cafe版",
+      "咖啡ACT"
+    ],
     "icon": "🔗",
     "openMode": "new_tab",
     "region": "both",
@@ -2947,6 +3007,12 @@
         "name": "背水咖啡厅",
         "title": "咖啡ACT",
         "section": "科技"
+      },
+      {
+        "url": "https://ff14nav.tianbianyu.com/",
+        "name": "光之导航站",
+        "title": "ACT.Cafe版",
+        "section": "工具插件"
       }
     ],
     "sortOrder": 213
@@ -2976,17 +3042,19 @@
   },
   {
     "id": "catalog.import.faf732f6a6222d56db4a",
-    "title": "XIVLauncher",
+    "title": "XIVLauncher（国服）",
     "url": "https://ottercorp.github.io/",
-    "description": "客户端插件或相关工具资料",
+    "description": "OtterCorp 维护的国服启动器与插件使用说明。",
     "category": "插件与开发 / 插件与启动器",
     "tags": [
       "科技"
     ],
-    "aliases": [],
+    "aliases": [
+      "XIVLauncher"
+    ],
     "icon": "🔗",
     "openMode": "new_tab",
-    "region": "both",
+    "region": "cn",
     "sources": [
       {
         "url": "https://www.ff14.cafe/",
@@ -3001,8 +3069,8 @@
     "id": "catalog.import.21076af1ccc24983994b",
     "title": "零的库链",
     "url": "https://wiki.ask0.cc/",
-    "description": "多种游戏查询与实用工具入口",
-    "category": "入门与资料 / 综合工具",
+    "description": "卫月、ACT 插件与相关工具索引。",
+    "category": "插件与开发 / 插件与启动器",
     "tags": [
       "科技"
     ],
@@ -3293,29 +3361,6 @@
     "sortOrder": 228
   },
   {
-    "id": "catalog.import.691bddb6cb7e96954eac",
-    "title": "FF14百度贴吧",
-    "url": "https://tieba.baidu.com/f?kw=ff14",
-    "description": "玩家交流与社区内容",
-    "category": "社区与创作 / 论坛与社区",
-    "tags": [
-      "玩家社区"
-    ],
-    "aliases": [],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "cn",
-    "sources": [
-      {
-        "url": "https://ff14nav.tianbianyu.com/",
-        "name": "光之导航站",
-        "title": "FF14百度贴吧",
-        "section": "玩家社区"
-      }
-    ],
-    "sortOrder": 229
-  },
-  {
     "id": "catalog.import.cb190ca98a8183126efc",
     "title": "官方叨鱼圈子",
     "url": "https://www.daoyu8.com/#/circle?circleId=854696",
@@ -3365,8 +3410,8 @@
     "id": "catalog.import.3c38e8a2b5fb1c0412b0",
     "title": "萨雷安の迦巴勒幻想大图书馆",
     "url": "https://bbs.tggfl.com/",
-    "description": "游戏资料检索与百科查询",
-    "category": "入门与资料 / 百科与数据库",
+    "description": "FF14 玩家论坛与攻略讨论，含旧版本研究资料。",
+    "category": "社区与创作 / 论坛与社区",
     "tags": [
       "玩家社区"
     ],
@@ -3387,8 +3432,8 @@
   {
     "id": "catalog.import.096c15ab0e575b486df2",
     "title": "国际服招募板共享",
-    "url": "https://xivpf.com/",
-    "description": "战术规划或队伍招募相关工具",
+    "url": "https://xivpf.com/listings",
+    "description": "国际服队伍招募列表与筛选。",
     "category": "职业与副本 / 战术与招募",
     "tags": [
       "玩家社区"
@@ -3478,14 +3523,16 @@
   },
   {
     "id": "catalog.import.1f6cbbaa3502061a6d14",
-    "title": "eriones国际服数据库",
+    "title": "ERIONES 数据库（简体中文）",
     "url": "https://cn.eriones.com/",
-    "description": "游戏资料检索与百科查询",
+    "description": "ERIONES 简体中文界面的物品与配方资料。",
     "category": "入门与资料 / 百科与数据库",
     "tags": [
       "攻略数据"
     ],
-    "aliases": [],
+    "aliases": [
+      "eriones国际服数据库"
+    ],
     "icon": "🔗",
     "openMode": "new_tab",
     "region": "global",
@@ -3571,8 +3618,8 @@
   {
     "id": "catalog.import.9ee97975a62809ee67f1",
     "title": "XIV API",
-    "url": "https://xivapi.com/",
-    "description": "游戏数据接口与开发资料",
+    "url": "https://v2.xivapi.com/",
+    "description": "FF14 游戏数据 API v2 与开发文档。",
     "category": "插件与开发 / 开发与数据",
     "tags": [
       "攻略数据"
@@ -3615,38 +3662,17 @@
     "sortOrder": 242
   },
   {
-    "id": "catalog.import.61002995932b4c0d2cb6",
-    "title": "ACT.Cafe版",
-    "url": "https://ffcafe.org/act/",
-    "description": "客户端插件或相关工具资料",
-    "category": "插件与开发 / 插件与启动器",
-    "tags": [
-      "工具插件"
-    ],
-    "aliases": [],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "both",
-    "sources": [
-      {
-        "url": "https://ff14nav.tianbianyu.com/",
-        "name": "光之导航站",
-        "title": "ACT.Cafe版",
-        "section": "工具插件"
-      }
-    ],
-    "sortOrder": 243
-  },
-  {
     "id": "catalog.import.9f9386641203579f90c9",
-    "title": "FF14文本检索数据",
-    "url": "https://strings.wakingsands.com/",
-    "description": "游戏资料检索与百科查询",
+    "title": "FF14 文本检索（旧版）",
+    "url": "https://strings-legacy.ffcafe.cn/",
+    "description": "肥肥咖啡保留的中英日文游戏文本检索。",
     "category": "入门与资料 / 百科与数据库",
     "tags": [
       "工具插件"
     ],
-    "aliases": [],
+    "aliases": [
+      "FF14文本检索数据"
+    ],
     "icon": "🔗",
     "openMode": "new_tab",
     "region": "both",
@@ -3820,52 +3846,6 @@
       }
     ],
     "sortOrder": 251
-  },
-  {
-    "id": "catalog.import.10d57dc72b8fe356cdd2",
-    "title": "幻巧拼图计算器",
-    "url": "https://nephren_ruq.gitee.io/fauxhollowsprobabilisticsolver/",
-    "description": "休闲玩法与金碟相关攻略",
-    "category": "日常与收藏 / 金碟与休闲",
-    "tags": [
-      "工具插件"
-    ],
-    "aliases": [],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "both",
-    "sources": [
-      {
-        "url": "https://ff14nav.tianbianyu.com/",
-        "name": "光之导航站",
-        "title": "幻巧拼图计算器",
-        "section": "工具插件"
-      }
-    ],
-    "sortOrder": 252
-  },
-  {
-    "id": "catalog.import.77d42262c9fbe396bca1",
-    "title": "陆行鸟染色计算器",
-    "url": "https://mo_n.gitee.io/ffxivchocobo/",
-    "description": "装备外观、幻化或染色资料",
-    "category": "幻化与摄影 / 幻化与染色",
-    "tags": [
-      "工具插件"
-    ],
-    "aliases": [],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "both",
-    "sources": [
-      {
-        "url": "https://ff14nav.tianbianyu.com/",
-        "name": "光之导航站",
-        "title": "陆行鸟染色计算器",
-        "section": "工具插件"
-      }
-    ],
-    "sortOrder": 253
   },
   {
     "id": "catalog.import.13e016d5c24112bbcdf9",
@@ -4121,29 +4101,6 @@
     "sortOrder": 264
   },
   {
-    "id": "catalog.import.31d9ea239daec8c88aef",
-    "title": "宅爷自制弹琴达人",
-    "url": "https://zhaijifu67.gitee.io/ffxivplay/",
-    "description": "玩家音乐与作品展示",
-    "category": "社区与创作 / 音乐与作品",
-    "tags": [
-      "工具插件"
-    ],
-    "aliases": [],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "both",
-    "sources": [
-      {
-        "url": "https://ff14nav.tianbianyu.com/",
-        "name": "光之导航站",
-        "title": "宅爷自制弹琴达人",
-        "section": "工具插件"
-      }
-    ],
-    "sortOrder": 265
-  },
-  {
     "id": "catalog.import.3fe918a96c44c6d3292e",
     "title": "无人岛动物时钟",
     "url": "https://next.ffmomola.com/",
@@ -4280,35 +4237,6 @@
       }
     ],
     "sortOrder": 271
-  },
-  {
-    "id": "catalog.import.2a19387f27f0283ca705",
-    "title": "光之收藏家",
-    "url": "https://www.ffxivsc.cn/",
-    "description": "成就、奖励与收藏查询",
-    "category": "日常与收藏 / 成就与收藏",
-    "tags": [
-      "幻化相关"
-    ],
-    "aliases": [],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "both",
-    "sources": [
-      {
-        "url": "https://ff14nav.tianbianyu.com/",
-        "name": "光之导航站",
-        "title": "光之收藏家",
-        "section": "幻化相关"
-      },
-      {
-        "url": "https://ff14.wiki/",
-        "name": "FF14.wiki",
-        "title": "光之收藏家",
-        "section": "实用工具 / Simplified Chinese Only"
-      }
-    ],
-    "sortOrder": 272
   },
   {
     "id": "catalog.import.15518a8b43830a4a4c86",
@@ -4545,12 +4473,14 @@
   },
   {
     "id": "catalog.import.01091aad2010fd6b4ae9",
-    "title": "Consolegameswiki",
+    "title": "FFXIV Online Wiki（英文）",
     "url": "https://ffxiv.consolegameswiki.com/wiki/Final_Fantasy_XIV",
     "description": "游戏资料检索与百科查询",
     "category": "入门与资料 / 百科与数据库",
     "tags": [],
-    "aliases": [],
+    "aliases": [
+      "Consolegameswiki"
+    ],
     "icon": "🔗",
     "openMode": "new_tab",
     "region": "global",
@@ -4566,12 +4496,14 @@
   },
   {
     "id": "catalog.import.3dea6248ffbc318f1221",
-    "title": "Game8",
+    "title": "Game8 攻略（英文）",
     "url": "https://game8.co/games/Final-Fantasy-XIV",
     "description": "游戏资料检索与百科查询",
     "category": "入门与资料 / 百科与数据库",
     "tags": [],
-    "aliases": [],
+    "aliases": [
+      "Game8"
+    ],
     "icon": "🔗",
     "openMode": "new_tab",
     "region": "global",
@@ -4587,12 +4519,14 @@
   },
   {
     "id": "catalog.import.89d70b46c1376ff63cdb",
-    "title": "Game8",
+    "title": "Game8 攻略（日文）",
     "url": "https://game8.jp/ff14",
     "description": "游戏资料检索与百科查询",
     "category": "入门与资料 / 百科与数据库",
     "tags": [],
-    "aliases": [],
+    "aliases": [
+      "Game8"
+    ],
     "icon": "🔗",
     "openMode": "new_tab",
     "region": "global",
@@ -4608,12 +4542,14 @@
   },
   {
     "id": "catalog.import.01bc52ca24bb95306642",
-    "title": "FF14 Online Wiki",
+    "title": "FF14 Online Wiki（日文）",
     "url": "https://ff14wiki.info/",
     "description": "游戏资料检索与百科查询",
     "category": "入门与资料 / 百科与数据库",
     "tags": [],
-    "aliases": [],
+    "aliases": [
+      "FF14 Online Wiki"
+    ],
     "icon": "🔗",
     "openMode": "new_tab",
     "region": "global",
@@ -4626,27 +4562,6 @@
       }
     ],
     "sortOrder": 287
-  },
-  {
-    "id": "catalog.import.733dfca9348c9715353c",
-    "title": "石之家",
-    "url": "https://ff14risingstones.web.sdo.com/pc/index.html",
-    "description": "游戏资讯与公告入口",
-    "category": "官方与账号 / 官网与公告",
-    "tags": [],
-    "aliases": [],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "cn",
-    "sources": [
-      {
-        "url": "https://ff14.wiki/",
-        "name": "FF14.wiki",
-        "title": "石之家",
-        "section": "官方网站 / Official Site"
-      }
-    ],
-    "sortOrder": 288
   },
   {
     "id": "catalog.import.1b79577f844ac9383bdc",
@@ -4671,15 +4586,17 @@
   },
   {
     "id": "catalog.import.35e0e34da5592fe812fe",
-    "title": "XIVLauncher / 卫月",
+    "title": "XIVLauncher（国际服）",
     "url": "https://goatcorp.github.io/",
-    "description": "客户端插件或相关工具资料",
+    "description": "Goatcorp 维护的国际服启动器与插件使用说明。",
     "category": "插件与开发 / 插件与启动器",
     "tags": [],
-    "aliases": [],
+    "aliases": [
+      "XIVLauncher / 卫月"
+    ],
     "icon": "🔗",
     "openMode": "new_tab",
-    "region": "both",
+    "region": "global",
     "sources": [
       {
         "url": "https://ff14.wiki/",
@@ -4689,27 +4606,6 @@
       }
     ],
     "sortOrder": 290
-  },
-  {
-    "id": "catalog.import.b208de208a99eab7a221",
-    "title": "XivStrat",
-    "url": "https://xivstrat.com/",
-    "description": "战术规划或队伍招募相关工具",
-    "category": "职业与副本 / 战术与招募",
-    "tags": [],
-    "aliases": [],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "both",
-    "sources": [
-      {
-        "url": "https://ff14.wiki/",
-        "name": "FF14.wiki",
-        "title": "XivStrat",
-        "section": "实用工具 / Simplified Chinese Only"
-      }
-    ],
-    "sortOrder": 291
   },
   {
     "id": "catalog.import.f220abfc16a77a8a1170",
@@ -4731,27 +4627,6 @@
       }
     ],
     "sortOrder": 292
-  },
-  {
-    "id": "catalog.import.81ce25d60e05754bc8db",
-    "title": "素素辣鸡排",
-    "url": "https://tools.ffsusu.com/lajipai/",
-    "description": "风脉、藏宝图、坐骑与宠物等日常查询工具。",
-    "category": "入门与资料 / 综合工具",
-    "tags": [],
-    "aliases": [],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "cn",
-    "sources": [
-      {
-        "url": "https://ff14.wiki/",
-        "name": "FF14.wiki",
-        "title": "素素辣鸡排",
-        "section": "实用工具 / Simplified Chinese Only"
-      }
-    ],
-    "sortOrder": 293
   },
   {
     "id": "catalog.import.678ba05e7d0e8cd94cbb",
@@ -4797,12 +4672,14 @@
   },
   {
     "id": "catalog.import.12fd1592e83eab55f439",
-    "title": "本站画廊",
+    "title": "FF14 Wiki 导航",
     "url": "https://www.ff14.wiki/",
-    "description": "玩家音乐与作品展示",
-    "category": "社区与创作 / 音乐与作品",
+    "description": "维基、攻略、工具和直播网站的社区导航。",
+    "category": "入门与资料 / 综合工具",
     "tags": [],
-    "aliases": [],
+    "aliases": [
+      "本站画廊"
+    ],
     "icon": "🔗",
     "openMode": "new_tab",
     "region": "both",

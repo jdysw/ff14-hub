@@ -1,12 +1,33 @@
 import {SELF,env} from 'cloudflare:test';
 import {beforeEach,describe,expect,it} from 'vitest';
 import {navCatalogEntrySchema} from '@ff14-hub/shared';
-import {NAV_CATALOG_SEED,applyCatalogSeed} from '../modules/nav/catalog';
+import {NAV_CATALOG_SEED,applyCatalogSeed,readCatalog,RETIRED_NAVIGATION_IDS} from '../modules/nav/catalog';
 const BASE='https://hub.test/api/v1/navigation/catalog';
 
 beforeEach(async()=>{await applyCatalogSeed({db:env.DB,now:Date.now()});});
 
 describe('public navigation directory without legacy workspaces',()=>{
+  it('applies reviewed descriptions and regions without losing the stable legacy ID',()=>{
+    const market=NAV_CATALOG_SEED.find(entry=>entry.id==='catalog.universalis');
+    expect(market?.region).toBe('both');expect(market?.description).toContain('跨服务器');
+    expect(NAV_CATALOG_SEED.some(entry=>RETIRED_NAVIGATION_IDS.has(entry.id))).toBe(false);
+    expect(NAV_CATALOG_SEED.find(entry=>entry.url==='https://wiki.ask0.cc/')?.category).toBe('插件与开发 / 插件与启动器');
+  });
+  it('retires rows left by older seeds while preserving an explicit owner restoration',async()=>{
+    const old=NAV_CATALOG_SEED[0]!,id=[...RETIRED_NAVIGATION_IDS][0]!;
+    try{
+    await env.DB.prepare('UPDATE nav_catalog_links SET id=? WHERE id=?').bind(id,old.id).run();
+    expect((await readCatalog({db:env.DB})).some(entry=>entry.id===id)).toBe(false);
+    const restored={...old,id};
+    await env.DB.prepare('INSERT INTO nav_catalog_edits(id,payload,canonical_url,hidden,revision,updated_at) VALUES(?,?,?,0,1,?)')
+      .bind(id,JSON.stringify(restored),old.url,Date.now()).run();
+    expect((await readCatalog({db:env.DB})).some(entry=>entry.id===id)).toBe(true);
+    }finally{
+      await env.DB.prepare('DELETE FROM nav_catalog_edits WHERE id=?').bind(id).run();
+      await env.DB.prepare('DELETE FROM nav_catalog_links WHERE id=?').bind(id).run();
+      await applyCatalogSeed({db:env.DB,now:Date.now()});
+    }
+  });
   it('returns only public catalogue entries, with a stable source revision',async()=>{
     const response=await SELF.fetch(BASE);
     expect(response.status).toBe(200);

@@ -81,7 +81,7 @@
   },
   {
     "id": "catalog.import.d1906d09a222b70c18e1",
-    "title": "LodeStone",
+    "title": "Lodestone 官方数据库（日文）",
     "category": "入门与资料 / 百科与数据库"
   },
   {
@@ -91,12 +91,12 @@
   },
   {
     "id": "catalog.import.45246960d0d358df4bab",
-    "title": "官方推特",
+    "title": "官方 X（日服）",
     "category": "官方与账号 / 官网与公告"
   },
   {
     "id": "catalog.import.c7fa72af16776676c86c",
-    "title": "道具商城",
+    "title": "国际服道具商城（日文）",
     "category": "官方与账号 / 充值与商城"
   },
   {
@@ -151,7 +151,7 @@
   },
   {
     "id": "catalog.import.6c4bc12da8ddace67ae2",
-    "title": "百度FF14贴吧",
+    "title": "FF14 百度贴吧",
     "category": "社区与创作 / 论坛与社区"
   },
   {
@@ -176,7 +176,7 @@
   },
   {
     "id": "catalog.import.6bef5c3b5616d5471d94",
-    "title": "MMW",
+    "title": "小光_女神候补",
     "category": "社区与创作 / 创作者与直播"
   },
   {
@@ -406,7 +406,7 @@
   },
   {
     "id": "catalog.import.151f45745e759855aed0",
-    "title": "susu采集时钟",
+    "title": "素素采集时钟",
     "category": "生产与采集 / 采集与天气"
   },
   {
@@ -491,8 +491,8 @@
   },
   {
     "id": "catalog.import.f1900d277fd8d4976b1f",
-    "title": "光之收藏家",
-    "category": "日常与收藏 / 成就与收藏"
+    "title": "光之收藏家（石之家幻化）",
+    "category": "幻化与摄影 / 幻化与染色"
   },
   {
     "id": "catalog.import.29517f52cb7118553794",
@@ -501,7 +501,7 @@
   },
   {
     "id": "catalog.import.911f3d110bbfb19f295c",
-    "title": "mirapi snap",
+    "title": "mirapri 幻化分享（日文）",
     "category": "幻化与摄影 / 幻化与染色"
   },
   {
@@ -566,7 +566,7 @@
   },
   {
     "id": "catalog.import.3ce91445819fd48c7e54",
-    "title": "咖啡ACT",
+    "title": "咖啡 ACT（国服）",
     "category": "插件与开发 / 插件与启动器"
   },
   {
@@ -576,13 +576,13 @@
   },
   {
     "id": "catalog.import.faf732f6a6222d56db4a",
-    "title": "XIVLauncher",
+    "title": "XIVLauncher（国服）",
     "category": "插件与开发 / 插件与启动器"
   },
   {
     "id": "catalog.import.21076af1ccc24983994b",
     "title": "零的库链",
-    "category": "入门与资料 / 综合工具"
+    "category": "插件与开发 / 插件与启动器"
   },
   {
     "id": "catalog.import.db1ed185f2561dd71486",
@@ -645,11 +645,6 @@
     "category": "官方与账号 / 官网与公告"
   },
   {
-    "id": "catalog.import.691bddb6cb7e96954eac",
-    "title": "FF14百度贴吧",
-    "category": "社区与创作 / 论坛与社区"
-  },
-  {
     "id": "catalog.import.cb190ca98a8183126efc",
     "title": "官方叨鱼圈子",
     "category": "官方与账号 / 官网与公告"
@@ -662,7 +657,7 @@
   {
     "id": "catalog.import.3c38e8a2b5fb1c0412b0",
     "title": "萨雷安の迦巴勒幻想大图书馆",
-    "category": "入门与资料 / 百科与数据库"
+    "category": "社区与创作 / 论坛与社区"
   },
   {
     "id": "catalog.import.096c15ab0e575b486df2",
@@ -686,7 +681,7 @@
   },
   {
     "id": "catalog.import.1f6cbbaa3502061a6d14",
-    "title": "eriones国际服数据库",
+    "title": "ERIONES 数据库（简体中文）",
     "category": "入门与资料 / 百科与数据库"
   },
   {
@@ -715,13 +710,8 @@
     "category": "插件与开发 / 插件与启动器"
   },
   {
-    "id": "catalog.import.61002995932b4c0d2cb6",
-    "title": "ACT.Cafe版",
-    "category": "插件与开发 / 插件与启动器"
-  },
-  {
     "id": "catalog.import.9f9386641203579f90c9",
-    "title": "FF14文本检索数据",
+    "title": "FF14 文本检索（旧版）",
     "category": "入门与资料 / 百科与数据库"
   },
   {
@@ -758,16 +748,6 @@
     "id": "catalog.import.6483ded3ef685009cd00",
     "title": "仙人仙彩计算器",
     "category": "日常与收藏 / 金碟与休闲"
-  },
-  {
-    "id": "catalog.import.10d57dc72b8fe356cdd2",
-    "title": "幻巧拼图计算器",
-    "category": "日常与收藏 / 金碟与休闲"
-  },
-  {
-    "id": "catalog.import.77d42262c9fbe396bca1",
-    "title": "陆行鸟染色计算器",
-    "category": "幻化与摄影 / 幻化与染色"
   },
   {
     "id": "catalog.import.13e016d5c24112bbcdf9",
@@ -825,11 +805,6 @@
     "category": "幻化与摄影 / 模型与摄影"
   },
   {
-    "id": "catalog.import.31d9ea239daec8c88aef",
-    "title": "宅爷自制弹琴达人",
-    "category": "社区与创作 / 音乐与作品"
-  },
-  {
     "id": "catalog.import.3fe918a96c44c6d3292e",
     "title": "无人岛动物时钟",
     "category": "住房与经营 / 无人岛"
@@ -858,11 +833,6 @@
     "id": "catalog.import.c2f47a756b6097356fdf",
     "title": "国际服房区数据共享",
     "category": "住房与经营 / 买房与装修"
-  },
-  {
-    "id": "catalog.import.2a19387f27f0283ca705",
-    "title": "光之收藏家",
-    "category": "日常与收藏 / 成就与收藏"
   },
   {
     "id": "catalog.import.15518a8b43830a4a4c86",
@@ -921,28 +891,23 @@
   },
   {
     "id": "catalog.import.01091aad2010fd6b4ae9",
-    "title": "Consolegameswiki",
+    "title": "FFXIV Online Wiki（英文）",
     "category": "入门与资料 / 百科与数据库"
   },
   {
     "id": "catalog.import.3dea6248ffbc318f1221",
-    "title": "Game8",
+    "title": "Game8 攻略（英文）",
     "category": "入门与资料 / 百科与数据库"
   },
   {
     "id": "catalog.import.89d70b46c1376ff63cdb",
-    "title": "Game8",
+    "title": "Game8 攻略（日文）",
     "category": "入门与资料 / 百科与数据库"
   },
   {
     "id": "catalog.import.01bc52ca24bb95306642",
-    "title": "FF14 Online Wiki",
+    "title": "FF14 Online Wiki（日文）",
     "category": "入门与资料 / 百科与数据库"
-  },
-  {
-    "id": "catalog.import.733dfca9348c9715353c",
-    "title": "石之家",
-    "category": "官方与账号 / 官网与公告"
   },
   {
     "id": "catalog.import.1b79577f844ac9383bdc",
@@ -951,23 +916,13 @@
   },
   {
     "id": "catalog.import.35e0e34da5592fe812fe",
-    "title": "XIVLauncher / 卫月",
+    "title": "XIVLauncher（国际服）",
     "category": "插件与开发 / 插件与启动器"
-  },
-  {
-    "id": "catalog.import.b208de208a99eab7a221",
-    "title": "XivStrat",
-    "category": "职业与副本 / 战术与招募"
   },
   {
     "id": "catalog.import.f220abfc16a77a8a1170",
     "title": "FFReplay",
     "category": "职业与副本 / 战斗日志"
-  },
-  {
-    "id": "catalog.import.81ce25d60e05754bc8db",
-    "title": "素素辣鸡排",
-    "category": "入门与资料 / 综合工具"
   },
   {
     "id": "catalog.import.678ba05e7d0e8cd94cbb",
@@ -981,7 +936,7 @@
   },
   {
     "id": "catalog.import.12fd1592e83eab55f439",
-    "title": "本站画廊",
-    "category": "社区与创作 / 音乐与作品"
+    "title": "FF14 Wiki 导航",
+    "category": "入门与资料 / 综合工具"
   }
 ]

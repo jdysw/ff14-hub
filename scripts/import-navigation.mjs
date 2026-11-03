@@ -23,6 +23,8 @@ import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import ts from 'typescript';
 import {cleanNavigationSourceText as clean} from './lib/navigation-source-text.mjs';
+import {applyNavigationReview} from './lib/navigation-review.mjs';
+const navigationReview=JSON.parse(await readFile('data/navigation/review.json','utf8'));
 
 const input=process.argv[2]??'.wrangler/navigation-sources';
 const reviewedCategories=new Map(JSON.parse(await readFile('data/navigation/classification.json','utf8')).map(entry=>[entry.id,entry.category]));
@@ -105,7 +107,7 @@ for(const row of raw){
   items.set(key,{id:'catalog.import.'+createHash('sha256').update(key).digest('hex').slice(0,20),title:row.title.slice(0,80),url,
     description:descriptions[row.title]??'',category:group,tags:[row.section.slice(0,24)],aliases:[],icon:'🔗',openMode:'new_tab',region:region(row),sources:[origin]});
 }
-const entries=[...items.values()].map((entry,index)=>({...entry,sortOrder:100+index,aliases:entry.aliases.slice(0,10)}));
+const entries=applyNavigationReview([...items.values()].map((entry,index)=>({...entry,sortOrder:100+index,aliases:entry.aliases.slice(0,10)})),navigationReview);
 const report={checkedAt:'2026-10-20',sources:sources.map(source=>({url:source.url,name:source.name,sha256:null})),rawCount:raw.length,importedCount:entries.length,mergedCount:raw.length-skipped.length-entries.length,skippedCount:skipped.length,categories:Object.fromEntries([...new Set(entries.map(x=>x.category))].map(group=>[group,entries.filter(x=>x.category===group).length])),skipped};
 await forEachSequential(report.sources,async (source)=>{const file=sources.find(x=>x.url===source.url).file;source.sha256=createHash('sha256').update(await readFile(`${input}/${file}`)).digest('hex');});
 await mkdir('data/navigation',{recursive:true});

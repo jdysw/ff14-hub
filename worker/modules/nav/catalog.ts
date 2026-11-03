@@ -6,6 +6,7 @@ import {
 } from '@ff14-hub/shared';
 import { readDirectoryRecords } from './directory-editor';
 import importedDirectory from '../../../data/navigation/catalog.json';
+import directoryReview from '../../../data/navigation/review.json';
 import { canonicalNavUrl } from '@ff14-hub/shared';
 
 /**
@@ -17,7 +18,10 @@ import { canonicalNavUrl } from '@ff14-hub/shared';
  * 从 2 开始，库内版本可以被改小到 1（合法）来做验证——这是把不变量变成可测行为的代价，
  * 而不是把版本号当成装饰。
  */
-export const NAV_CATALOG_SOURCE_VERSION = 4;
+export const NAV_CATALOG_SOURCE_VERSION = 5;
+
+export const RETIRED_NAVIGATION_IDS=new Set(directoryReview.entries.filter(entry=>entry.decision==='merge'||entry.decision==='remove').map(entry=>entry.id));
+const reviewedStatus=new Map(directoryReview.entries.map(entry=>[entry.id,entry.verificationStatus]));
 
 /**
  * 本阶段核对时间（UTC 毫秒，固定常量：核对时间必须可复现，不能在每次请求时取 `Date.now()`）。
@@ -102,14 +106,14 @@ const LEGACY_CATALOG_SEED: readonly NavCatalogEntry[] = [
     sourceVersion: NAV_CATALOG_SOURCE_VERSION,
     title: 'Universalis（市场板价格）',
     url: 'https://universalis.app/',
-    description: '社区维护的市场板价格查询服务（国际服）。',
+    description: '社区维护的市场板价格与交易记录查询。',
     category: '生产与采集 / 市场与物价',
     tags: ['市场板', '价格'],
     aliases: ['Universalis', '市场板价格'],
     icon: '📈',
     openMode: 'new_tab',
-    // 市场板数据源只覆盖国际服大区，因此是 global 而不是 both。
-    region: 'global',
+    // 官方 API 同时提供国服与国际服的数据中心。
+    region: 'both',
     sortOrder: 40,
     sourceUrl: 'https://universalis.app/',
     sourceName: 'Universalis 作者站点',
@@ -150,14 +154,14 @@ export const NAV_CATALOG_SEED: readonly NavCatalogEntry[] = (() => {
     if(!origin) throw new Error('目录导入缺少来源');
     entries.set(key,navCatalogEntrySchema.parse({
       id:old?.id??imported.id, sourceVersion:NAV_CATALOG_SOURCE_VERSION,
-      title:old?.title??imported.title,url:old?.url??imported.url,
-      description:old?.description??imported.description,category:imported.category,
+      title:imported.title,url:imported.url,
+      description:imported.description,category:imported.category,
       tags:[...new Set([...(old?.tags??[]),...imported.tags])].slice(0,20),
       aliases:[...new Set([...(old?.aliases??[]),...imported.aliases,...(old?[imported.title]:[])])].slice(0,10),
       icon:old?.icon??imported.icon,openMode:old?.openMode??imported.openMode,
-      region:old?.region??imported.region,sortOrder:old?.sortOrder??imported.sortOrder,
+      region:imported.region,sortOrder:old?.sortOrder??imported.sortOrder,
       sourceUrl:origin.url,sourceName:imported.sources.map(source=>source.name).filter((name,index,list)=>list.indexOf(name)===index).join(' / '),
-      verifiedAt:NAV_CATALOG_VERIFIED_AT,verificationStatus:'verified',updatedAt:NAV_CATALOG_VERIFIED_AT,
+      verifiedAt:Date.parse('2026-11-03T00:00:00Z'),verificationStatus:reviewedStatus.get(imported.id)??'unverified',updatedAt:Date.parse('2026-11-03T00:00:00Z'),
     }));
   }
   return [...entries.values()];
@@ -377,7 +381,7 @@ export async function readCatalog(input: {
   readonly category?: string;
 }): Promise<NavCatalogEntry[]> {
   const records = await readDirectoryRecords(input.db, await readBaseCatalog(input.db));
-  return records.filter(record => !record.hidden).map(record => record.entry).filter(entry =>
+  return records.filter(record => !record.hidden&&(!RETIRED_NAVIGATION_IDS.has(record.entry.id)||record.revision>0)).map(record => record.entry).filter(entry =>
     (input.category === undefined || entry.category === input.category) &&
     (input.region === undefined || entry.region === input.region || entry.region === 'both'));
 }
