@@ -35,7 +35,7 @@ return <header className="shell__header shell__header--unified">
 function DirectorySection({hasFilters,filteredLinks,allLinks,favorites,setFavorites,setSettingsTab,setView,clearFilters,category,setCategory,setSubcategory,groups,subgroups,subcategory,catalogError,reloadCatalog,catalogLoading,saveFavorite}:Readonly<{hasFilters:boolean;filteredLinks:BrowserLink[];allLinks:BrowserLink[];favorites:boolean;setFavorites:Dispatch<SetStateAction<boolean>>;setSettingsTab:Dispatch<SetStateAction<SettingsTab>>;setView:Dispatch<SetStateAction<LocalView>>;clearFilters:() => void;category:string;setCategory:Dispatch<SetStateAction<string>>;setSubcategory:Dispatch<SetStateAction<string>>;groups:string[];subgroups:string[];subcategory:string;catalogError:boolean;reloadCatalog:() => void;catalogLoading:boolean;saveFavorite:(link: ReturnType<typeof directoryLinks>[number]) => void}>){
 return <section id="local-navigation" className="local-directory" aria-label="导航站">
             <header className="local-dashboard__section-heading local-directory__heading">
-              <div className="local-directory__heading-title"><h2>导航站</h2><output aria-live="polite" aria-atomic="true">{hasFilters?`${filteredLinks.length} / ${allLinks.length}`:allLinks.length} 个网站</output></div>
+              <div className="local-directory__heading-title"><h2>导航站</h2><output aria-live="polite" aria-atomic="true">{filteredLinks.length!==allLinks.length?`${filteredLinks.length} / ${allLinks.length}`:allLinks.length} 个网站</output></div>
               <div className="local-directory__heading-actions">
                 <button type="button" className="local-dashboard__manage local-directory__favorites" aria-pressed={favorites} onClick={()=>{setFavorites(value=>!value);}}><UiIcon name={favorites?'starFill':'star'}/>{favorites?'已收藏':'收藏'}</button>
                 <button type="button" className="local-dashboard__manage" onClick={()=>{setSettingsTab('links');setView('settings');}}>管理 ↗</button>
@@ -44,15 +44,14 @@ return <section id="local-navigation" className="local-directory" aria-label="�
             {hasFilters?<div className="local-directory__toolbar"><button type="button" className="local-directory__reset" onClick={clearFilters}>清除筛选</button></div>:null}
             <div className="local-directory__category-row">
               <nav className="local-directory__filters" aria-label="网站分类">
-                <button type="button" aria-pressed={category==='all'} onClick={()=>{setCategory('all');setSubcategory('all');}}>全部</button>
                 {groups.map(group=><button type="button" key={group} aria-pressed={category===group} onClick={()=>{setCategory(group);setSubcategory('all');}}>{group}</button>)}
               </nav>
             </div>
             {subgroups.length>0&&<nav className="local-directory__subcategories" aria-label="网站子分类"><button type="button" aria-pressed={subcategory==='all'} onClick={()=>{setSubcategory('all');}}>全部{category}</button>{subgroups.map(sub=><button type="button" key={sub} aria-pressed={subcategory===sub} onClick={()=>{setSubcategory(sub);}}>{sub}</button>)}</nav>}
             {catalogError&&<output className="local-directory__notice" style={{display:'block'}}>公共目录暂时无法更新，本机网站和已加载内容仍可使用。 <button type="button" onClick={reloadCatalog}>重试</button></output>}
             {catalogLoading?<output className="local-directory__loading" style={{display:'block'}}>正在更新网站目录…</output>:null}
-            {filteredLinks.length===0?(!catalogLoading&&<div id="directory-results" className="local-directory__empty"><h3>{directoryEmptyHeading({hasFilters,catalogError})}</h3><p>{hasFilters?'试试取消收藏筛选，或选择其他分类。':'可以在设置中添加自己的常用网站。'}</p>{hasFilters?<button type="button" onClick={clearFilters}>查看全部网站</button>:<button type="button" onClick={()=>{setSettingsTab('links');setView('settings');}}>添加个人网站</button>}</div>):
-              <ul id="directory-results" className="local-directory__tiles">{filteredLinks.slice(0).map(link=><li key={link.id} className="local-directory__tile">
+            {filteredLinks.length===0?(!catalogLoading&&<div id="directory-results" className="local-directory__empty"><h3>{directoryEmptyHeading({hasFilters,catalogError})}</h3><p>{hasFilters?'试试取消收藏筛选，或选择其他分类。':'可以在设置中添加自己的常用网站。'}</p>{hasFilters?<button type="button" onClick={clearFilters}>清除筛选</button>:<button type="button" onClick={()=>{setSettingsTab('links');setView('settings');}}>添加个人网站</button>}</div>):
+              <ul id="directory-results" className="local-directory__tiles">{filteredLinks.map(link=><li key={link.id} className="local-directory__tile">
                 <a href={link.url} target="_blank" rel="noopener noreferrer" title={link.url}>
                   <SiteIcon key={link.url} url={link.url} title={link.title} faviconUrl={link.faviconUrl}/>
                   <span className="local-directory__link-content">
@@ -219,7 +218,7 @@ export function LocalApp(){
   useEffect(()=>startLocalNotifications(store),[store]);
   useEffect(()=>startFishcakeSync(store),[store]);
   useEffect(()=>startAutomaticSync(store),[store]);
-  const [category,setCategory]=useState('all');
+  const [selectedCategory,setCategory]=useState('');
   const [subcategory,setSubcategory]=useState('all');
   const siteSettings=useSiteSettings();
   const adminSession=useCalendarAdminSession();
@@ -252,10 +251,11 @@ export function LocalApp(){
   const links=useMemo(()=>allLinks.filter(link=>!favorites||link.favorite),[allLinks,favorites]);
   const taxonomy=siteSettings.presentation?.categories??DEFAULT_CATEGORIES;
   const groups=useMemo(()=>{const names=new Set(allLinks.map(link=>splitDirectoryCategory(link.category).main));return [...taxonomy.map(group=>group.name).filter(name=>names.delete(name)),...names];},[allLinks,taxonomy]);
-  const subgroups=useMemo(()=>category==='all'?[]:[...new Set(allLinks.filter(link=>splitDirectoryCategory(link.category).main===category).map(link=>splitDirectoryCategory(link.category).sub).filter(Boolean))].sort((a,b)=>{const order=taxonomy.find(g=>g.name===category)?.children??[];return (order.includes(a)?order.indexOf(a):100)-(order.includes(b)?order.indexOf(b):100);}),[category,allLinks,taxonomy]);
-  const filteredLinks=useMemo(()=>links.filter(link=>{const group=splitDirectoryCategory(link.category);return (category==='all'||group.main===category)&&(subcategory==='all'||group.sub===subcategory);}),[links,category,subcategory]);
-  const hasFilters=Boolean(favorites||category!=='all');
-  const clearFilters=()=>{setCategory('all');setSubcategory('all');setFavorites(false);};
+  const category=groups.includes(selectedCategory)?selectedCategory:groups[0]??'';
+  const subgroups=useMemo(()=>[...new Set(allLinks.filter(link=>splitDirectoryCategory(link.category).main===category).map(link=>splitDirectoryCategory(link.category).sub).filter(Boolean))].sort((a,b)=>{const order=taxonomy.find(g=>g.name===category)?.children??[];return (order.includes(a)?order.indexOf(a):100)-(order.includes(b)?order.indexOf(b):100);}),[category,allLinks,taxonomy]);
+  const filteredLinks=useMemo(()=>links.filter(link=>{const group=splitDirectoryCategory(link.category);return group.main===category&&(subcategory==='all'||group.sub===subcategory);}),[links,category,subcategory]);
+  const hasFilters=Boolean(favorites||subcategory!=='all');
+  const clearFilters=()=>{setSubcategory('all');setFavorites(false);};
   const sectionOrder=withHomeModules(data&&(data.configuration.orderCustomized||data.configuration.order.join(',')!=='events,fishing,pvp,notes')?data.configuration.order:siteSettings.presentation?.home.order??data?.configuration.order??[]);
   const enabledSections=sectionOrder.filter(section=>(data?.configuration.visible[section]??true)&&(siteSettings.presentation?.home.enabled[section]??true)&&(section!=='events'||siteSettings.homeCalendarEnabled));
   const saveFavorite=(link:typeof links[number])=>{
