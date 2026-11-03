@@ -122,10 +122,10 @@
       "title": "游戏充值(盛趣)",
       "url": "https://pay.sdo.com/item/GWPAY-100001900",
       "decision": "keep",
-      "verificationStatus": "verified",
+      "verificationStatus": "unverified",
       "httpStatus": 0,
       "pageTitle": "",
-      "reason": "接口探测未完成，浏览器已打开并核对公开功能。",
+      "reason": "接口异常或仅能打开登录页，保留待核实；未认定停运。",
       "browserTitle": "登录 - 盛趣游戏通行证"
     },
     {
@@ -1331,10 +1331,10 @@
       "title": "积分兑换平台",
       "url": "https://actff1.web.sdo.com/20180707jifen/index.html#/home",
       "decision": "keep",
-      "verificationStatus": "verified",
+      "verificationStatus": "unverified",
       "httpStatus": 500,
       "pageTitle": "",
-      "reason": "已检查页面标题与公开内容，保留该功能入口。",
+      "reason": "接口异常或仅能打开登录页，保留待核实；未认定停运。",
       "browserTitle": ""
     },
     {
