@@ -168,12 +168,6 @@
   width:30px;height:34px;color:#657386;background:transparent;border:0;
 }
 .local-directory__star[aria-pressed=true],.local-directory__star:hover{color:#76531f;background:#fbf4e9;}
-.local-directory__more{
-  display:block;width:100%;min-height:45px;
-  margin:10px 0 0;padding:9px 14px;border:1px solid #dbe5ef;
-  border-radius:8px;background:#fff;color:#315d95;font-size:13px;
-}
-.local-directory__more:hover{background:#edf3fa;}
 .local-detail{
   max-width:1200px;margin:0 auto;border:0;background:transparent;
   border-radius:0;box-shadow:none;padding:4px 0 42px;

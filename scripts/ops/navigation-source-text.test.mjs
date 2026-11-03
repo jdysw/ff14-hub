@@ -14,6 +14,7 @@ test('navigation review survives reimport and does not mutate or duplicate the r
  assert.equal(rebuilt.some(entry=>entry.id===decision.id),false);
  assert.equal(rebuilt.filter(entry=>entry.id===decision.mergedInto).length,1);
  assert.equal(original.id,decision.id);
+ assert.deepEqual(applyNavigationReview([{...catalog[0],id:'new-plugin',category:'插件与开发 / 开发与数据'}],review),[]);
 });
 
 test('navigation snapshot text preserves markup and entity decoding order',()=>{

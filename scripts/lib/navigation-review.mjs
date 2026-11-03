@@ -18,5 +18,5 @@ export function applyNavigationReview(entries,review){
   if(decision.decision==='remove'||decision.decision==='merge'){result.delete(entry.id);continue;}
   if(decision.patch)updateEntry(entry,decision.patch);
  }
- return [...result.values()];
+ return [...result.values()].filter(entry=>!entry.category.startsWith('插件与开发'));
 }

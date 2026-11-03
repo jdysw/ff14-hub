@@ -231,11 +231,6 @@
 .local-directory__empty h3 {margin:0 0 8px;font-size:17px;font-weight:600;color:var(--ui-ink);}
 .local-directory__empty p {margin:0 0 14px;font-size:14px;line-height:1.7;color:var(--ui-secondary);}
 .local-app .local-directory__empty button {min-height:44px;padding:9px 16px;font-size:14px;}
-.local-app .local-directory .local-directory__more {
-  margin-top:22px;min-height:48px;border:1px solid var(--ui-line);
-  background:#fff;font-size:14px;color:var(--ui-action);
-}
-.local-app .local-directory .local-directory__more:hover {background:var(--ui-selected);}
 .local-app .home-official__actions .text-button {min-height:44px;font-size:12px;}
 .local-app .local-dashboard__module .home-official-event__main h3 {font-size:14px;line-height:1.5;}
 .local-app .local-dashboard__module .home-official-event__main p {font-size:11px;color:var(--ui-muted);}

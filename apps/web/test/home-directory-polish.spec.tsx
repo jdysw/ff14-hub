@@ -26,6 +26,15 @@ beforeEach(()=>{
 afterEach(()=>{cleanup();vi.unstubAllGlobals();vi.clearAllMocks();});
 const directory=()=>within(screen.getByRole('region',{name:'导航站'}));
 
+it('renders more than 36 directory entries without a show-more gate',async()=>{
+ const many=Array.from({length:45},(_,index)=>({...entries[0]!,id:'entry-'+index,title:'工具 '+index,url:'https://entry'+index+'.example.org/'}));
+ vi.mocked(fetch).mockImplementation(()=>Promise.resolve(Response.json({entries:many,sourceVersion:3,updatedAt:1})));
+ render(<LocalApp/>);
+ await screen.findByText('工具 44');
+ expect(directory().getAllByRole('listitem')).toHaveLength(45);
+ expect(directory().queryByRole('button',{name:/显示更多/})).toBeNull();
+});
+
 it('shows the search icon inside the centered field without a redundant visible title',async()=>{
   render(<LocalApp/>);
   await screen.findByText('市场工具');

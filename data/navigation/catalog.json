@@ -2733,29 +2733,6 @@
     "sortOrder": 203
   },
   {
-    "id": "catalog.import.ab980ca86d46d1cb5669",
-    "title": "TexTools",
-    "url": "https://www.ffxiv-textools.net/",
-    "description": "客户端插件或相关工具资料",
-    "category": "插件与开发 / 插件与启动器",
-    "tags": [
-      "摄影幻化"
-    ],
-    "aliases": [],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "both",
-    "sources": [
-      {
-        "url": "https://www.ff14.cafe/",
-        "name": "背水咖啡厅",
-        "title": "TexTools",
-        "section": "摄影幻化"
-      }
-    ],
-    "sortOrder": 204
-  },
-  {
     "id": "catalog.import.aabe9c6248234bc34fbd",
     "title": "摄影工具 Anamnesis",
     "url": "https://github.com/imchillin/Anamnesis",
@@ -2777,37 +2754,6 @@
       }
     ],
     "sortOrder": 205
-  },
-  {
-    "id": "catalog.import.388a8e442f46e4015f2c",
-    "title": "XIV Mod Archive",
-    "url": "https://www.xivmodarchive.com/",
-    "description": "客户端插件或相关工具资料",
-    "category": "插件与开发 / 插件与启动器",
-    "tags": [
-      "摄影幻化"
-    ],
-    "aliases": [
-      "Mod网"
-    ],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "both",
-    "sources": [
-      {
-        "url": "https://www.ff14.cafe/",
-        "name": "背水咖啡厅",
-        "title": "XIV Mod Archive",
-        "section": "摄影幻化"
-      },
-      {
-        "url": "https://www.ff14.cafe/",
-        "name": "背水咖啡厅",
-        "title": "Mod网",
-        "section": "科技"
-      }
-    ],
-    "sortOrder": 206
   },
   {
     "id": "catalog.import.c646b67f067024af6f26",
@@ -2955,140 +2901,6 @@
     "sortOrder": 211
   },
   {
-    "id": "catalog.import.2ca05f2af2a1a94d9229",
-    "title": "呆萌ACT",
-    "url": "https://act.diemoe.net/",
-    "description": "客户端插件或相关工具资料",
-    "category": "插件与开发 / 插件与启动器",
-    "tags": [
-      "科技"
-    ],
-    "aliases": [
-      "DieMoe 呆萌"
-    ],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "both",
-    "sources": [
-      {
-        "url": "https://www.ff14.cafe/",
-        "name": "背水咖啡厅",
-        "title": "呆萌ACT",
-        "section": "科技"
-      },
-      {
-        "url": "https://ff14.wiki/",
-        "name": "FF14.wiki",
-        "title": "DieMoe 呆萌",
-        "section": "小开不算开 / waigua"
-      }
-    ],
-    "sortOrder": 212
-  },
-  {
-    "id": "catalog.import.3ce91445819fd48c7e54",
-    "title": "咖啡 ACT（国服）",
-    "url": "https://www.ffcafe.cn/act/",
-    "description": "肥肥咖啡维护的国服 ACT 整合与使用说明。",
-    "category": "插件与开发 / 插件与启动器",
-    "tags": [
-      "科技"
-    ],
-    "aliases": [
-      "ACT.Cafe版",
-      "咖啡ACT"
-    ],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "both",
-    "sources": [
-      {
-        "url": "https://www.ff14.cafe/",
-        "name": "背水咖啡厅",
-        "title": "咖啡ACT",
-        "section": "科技"
-      },
-      {
-        "url": "https://ff14nav.tianbianyu.com/",
-        "name": "光之导航站",
-        "title": "ACT.Cafe版",
-        "section": "工具插件"
-      }
-    ],
-    "sortOrder": 213
-  },
-  {
-    "id": "catalog.import.d432ef4cc05e69956e52",
-    "title": "NGA幻想科技",
-    "url": "https://bbs.nga.cn/thread.php?stid=20425950",
-    "description": "客户端插件或相关工具资料",
-    "category": "插件与开发 / 插件与启动器",
-    "tags": [
-      "科技"
-    ],
-    "aliases": [],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "cn",
-    "sources": [
-      {
-        "url": "https://www.ff14.cafe/",
-        "name": "背水咖啡厅",
-        "title": "NGA幻想科技",
-        "section": "科技"
-      }
-    ],
-    "sortOrder": 214
-  },
-  {
-    "id": "catalog.import.faf732f6a6222d56db4a",
-    "title": "XIVLauncher（国服）",
-    "url": "https://ottercorp.github.io/",
-    "description": "OtterCorp 维护的国服启动器与插件使用说明。",
-    "category": "插件与开发 / 插件与启动器",
-    "tags": [
-      "科技"
-    ],
-    "aliases": [
-      "XIVLauncher"
-    ],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "cn",
-    "sources": [
-      {
-        "url": "https://www.ff14.cafe/",
-        "name": "背水咖啡厅",
-        "title": "XIVLauncher",
-        "section": "科技"
-      }
-    ],
-    "sortOrder": 215
-  },
-  {
-    "id": "catalog.import.21076af1ccc24983994b",
-    "title": "零的库链",
-    "url": "https://wiki.ask0.cc/",
-    "description": "卫月、ACT 插件与相关工具索引。",
-    "category": "插件与开发 / 插件与启动器",
-    "tags": [
-      "科技"
-    ],
-    "aliases": [],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "both",
-    "sources": [
-      {
-        "url": "https://www.ff14.cafe/",
-        "name": "背水咖啡厅",
-        "title": "零的库链",
-        "section": "科技"
-      }
-    ],
-    "sortOrder": 216
-  },
-  {
     "id": "catalog.import.db1ed185f2561dd71486",
     "title": "ACT日志解析",
     "url": "https://parser.ffxiv.cyou/",
@@ -3141,29 +2953,6 @@
     "sortOrder": 218
   },
   {
-    "id": "catalog.import.f439845383ade39938c3",
-    "title": "PostNamazu",
-    "url": "https://github.com/Natsukage/PostNamazu",
-    "description": "客户端插件或相关工具资料",
-    "category": "插件与开发 / 插件与启动器",
-    "tags": [
-      "科技"
-    ],
-    "aliases": [],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "both",
-    "sources": [
-      {
-        "url": "https://www.ff14.cafe/",
-        "name": "背水咖啡厅",
-        "title": "PostNamazu",
-        "section": "科技"
-      }
-    ],
-    "sortOrder": 219
-  },
-  {
     "id": "catalog.import.ab8c6cec14e46a67ab3b",
     "title": "獭爹の工具箱",
     "url": "https://file.bluefissure.com/FFXIV/",
@@ -3185,75 +2974,6 @@
       }
     ],
     "sortOrder": 220
-  },
-  {
-    "id": "catalog.import.c6578981401d305a6009",
-    "title": "塔塔露国际服翻译插件",
-    "url": "https://bbs.nga.cn/read.php?tid=30399830",
-    "description": "客户端插件或相关工具资料",
-    "category": "插件与开发 / 插件与启动器",
-    "tags": [
-      "科技"
-    ],
-    "aliases": [],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "global",
-    "sources": [
-      {
-        "url": "https://www.ff14.cafe/",
-        "name": "背水咖啡厅",
-        "title": "塔塔露国际服翻译插件",
-        "section": "科技"
-      }
-    ],
-    "sortOrder": 221
-  },
-  {
-    "id": "catalog.import.da8d06dd7fb93e70a274",
-    "title": "Heliosphere",
-    "url": "https://heliosphere.app/",
-    "description": "客户端插件或相关工具资料",
-    "category": "插件与开发 / 插件与启动器",
-    "tags": [
-      "科技"
-    ],
-    "aliases": [],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "both",
-    "sources": [
-      {
-        "url": "https://www.ff14.cafe/",
-        "name": "背水咖啡厅",
-        "title": "Heliosphere",
-        "section": "科技"
-      }
-    ],
-    "sortOrder": 222
-  },
-  {
-    "id": "catalog.import.2d619f212f946753f63f",
-    "title": "宝宝椅",
-    "url": "https://www.123865.com/s/1xRXjv-n9qBH",
-    "description": "客户端插件或相关工具资料",
-    "category": "插件与开发 / 插件与启动器",
-    "tags": [
-      "科技"
-    ],
-    "aliases": [],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "both",
-    "sources": [
-      {
-        "url": "https://www.ff14.cafe/",
-        "name": "背水咖啡厅",
-        "title": "宝宝椅",
-        "section": "科技"
-      }
-    ],
-    "sortOrder": 223
   },
   {
     "id": "catalog.import.51a208fe7fa96739d94f",
@@ -3614,52 +3334,6 @@
       }
     ],
     "sortOrder": 240
-  },
-  {
-    "id": "catalog.import.9ee97975a62809ee67f1",
-    "title": "XIV API",
-    "url": "https://v2.xivapi.com/",
-    "description": "FF14 游戏数据 API v2 与开发文档。",
-    "category": "插件与开发 / 开发与数据",
-    "tags": [
-      "攻略数据"
-    ],
-    "aliases": [],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "both",
-    "sources": [
-      {
-        "url": "https://ff14nav.tianbianyu.com/",
-        "name": "光之导航站",
-        "title": "XIV API",
-        "section": "攻略数据"
-      }
-    ],
-    "sortOrder": 241
-  },
-  {
-    "id": "catalog.import.fed126b89038718b305e",
-    "title": "ACT.呆萌版",
-    "url": "https://bbs.nga.cn/read.php?tid=19019884",
-    "description": "客户端插件或相关工具资料",
-    "category": "插件与开发 / 插件与启动器",
-    "tags": [
-      "工具插件"
-    ],
-    "aliases": [],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "both",
-    "sources": [
-      {
-        "url": "https://ff14nav.tianbianyu.com/",
-        "name": "光之导航站",
-        "title": "ACT.呆萌版",
-        "section": "工具插件"
-      }
-    ],
-    "sortOrder": 242
   },
   {
     "id": "catalog.import.9f9386641203579f90c9",
@@ -4562,50 +4236,6 @@
       }
     ],
     "sortOrder": 287
-  },
-  {
-    "id": "catalog.import.1b79577f844ac9383bdc",
-    "title": "FFCafe 肥肥咖啡",
-    "url": "https://www.ffcafe.cn/",
-    "description": "客户端插件或相关工具资料",
-    "category": "插件与开发 / 插件与启动器",
-    "tags": [],
-    "aliases": [],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "both",
-    "sources": [
-      {
-        "url": "https://ff14.wiki/",
-        "name": "FF14.wiki",
-        "title": "FFCafe 肥肥咖啡",
-        "section": "小开不算开 / waigua"
-      }
-    ],
-    "sortOrder": 289
-  },
-  {
-    "id": "catalog.import.35e0e34da5592fe812fe",
-    "title": "XIVLauncher（国际服）",
-    "url": "https://goatcorp.github.io/",
-    "description": "Goatcorp 维护的国际服启动器与插件使用说明。",
-    "category": "插件与开发 / 插件与启动器",
-    "tags": [],
-    "aliases": [
-      "XIVLauncher / 卫月"
-    ],
-    "icon": "🔗",
-    "openMode": "new_tab",
-    "region": "global",
-    "sources": [
-      {
-        "url": "https://ff14.wiki/",
-        "name": "FF14.wiki",
-        "title": "XIVLauncher / 卫月",
-        "section": "小开不算开 / waigua"
-      }
-    ],
-    "sortOrder": 290
   },
   {
     "id": "catalog.import.f220abfc16a77a8a1170",

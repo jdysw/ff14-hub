@@ -11,7 +11,7 @@ describe('public navigation directory without legacy workspaces',()=>{
     const market=NAV_CATALOG_SEED.find(entry=>entry.id==='catalog.universalis');
     expect(market?.region).toBe('both');expect(market?.description).toContain('跨服务器');
     expect(NAV_CATALOG_SEED.some(entry=>RETIRED_NAVIGATION_IDS.has(entry.id))).toBe(false);
-    expect(NAV_CATALOG_SEED.find(entry=>entry.url==='https://wiki.ask0.cc/')?.category).toBe('插件与开发 / 插件与启动器');
+    expect(NAV_CATALOG_SEED.every(entry=>!entry.category.startsWith('插件与开发'))).toBe(true);
   });
   it('retires rows left by older seeds while preserving an explicit owner restoration',async()=>{
     const old=NAV_CATALOG_SEED[0]!,id=[...RETIRED_NAVIGATION_IDS][0]!;
