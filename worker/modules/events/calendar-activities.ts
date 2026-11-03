@@ -1,4 +1,7 @@
 import type {EventCalendarItem} from '@ff14-hub/shared';
+import review from '../../../data/official-calendar-review.json' with {type:'json'};
+
+const reviewedActivities=new Map(review.entries.map(entry=>['official:'+entry.id,entry]));
 
 // Verified against both official articles: 395032 extends 391233's CardBill campaign.
 // Explicit identities avoid merging unrelated editions merely because their titles look alike.
@@ -23,5 +26,10 @@ export function mergeOfficialActivityUpdates(events:EventCalendarItem[]):EventCa
       result.delete(updateId);
     }
   }
-  return [...result.values()];
+  return [...result.values()].flatMap(event=>{
+    const reviewed=reviewedActivities.get(event.id);
+    if(!reviewed)return [event];
+    if(reviewed.decision!=='active')return [];
+    return [{...event,startsAt:Date.parse(reviewed.startsAt!),endsAt:Date.parse(reviewed.endsAt!),allDay:reviewed.id===392085}];
+  });
 }

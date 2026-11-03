@@ -26,6 +26,29 @@ beforeEach(()=>{
 afterEach(()=>{cleanup();vi.unstubAllGlobals();vi.clearAllMocks();});
 const directory=()=>within(screen.getByRole('region',{name:'导航站'}));
 
+it('defaults to the first populated category without an all-categories button',async()=>{
+ const official={...entries[0]!,id:'official',title:'国服官网',url:'https://official.example.org/',category:'官方与账号 / 官网与公告'};
+ vi.mocked(fetch).mockImplementation(()=>Promise.resolve(Response.json({entries:[...entries,official],sourceVersion:3,updatedAt:1})));
+ render(<LocalApp/>);
+ await screen.findByText('国服官网');
+ const tabs=within(directory().getByRole('navigation',{name:'网站分类'}));
+ expect(tabs.queryByRole('button',{name:'全部'})).toBeNull();
+ expect(tabs.getByRole('button',{name:'官方与账号'}).getAttribute('aria-pressed')).toBe('true');
+ expect(directory().queryByText('市场工具')).toBeNull();
+ fireEvent.click(tabs.getByRole('button',{name:'生产与采集'}));
+ expect(directory().getByText('市场工具')).toBeDefined();
+ expect(directory().queryByText('国服官网')).toBeNull();
+});
+
+it('renders more than 36 directory entries without a show-more gate',async()=>{
+ const many=Array.from({length:45},(_,index)=>({...entries[0]!,id:'entry-'+index,title:'工具 '+index,url:'https://entry'+index+'.example.org/'}));
+ vi.mocked(fetch).mockImplementation(()=>Promise.resolve(Response.json({entries:many,sourceVersion:3,updatedAt:1})));
+ render(<LocalApp/>);
+ await screen.findByText('工具 44');
+ expect(directory().getAllByRole('listitem')).toHaveLength(45);
+ expect(directory().queryByRole('button',{name:/显示更多/})).toBeNull();
+});
+
 it('shows the search icon inside the centered field without a redundant visible title',async()=>{
   render(<LocalApp/>);
   await screen.findByText('市场工具');

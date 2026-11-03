@@ -32,27 +32,26 @@ return <header className="shell__header shell__header--unified">
     </header>;
 }
 
-function DirectorySection({hasFilters,filteredLinks,allLinks,favorites,setFavorites,setVisibleLimit,setSettingsTab,setView,clearFilters,category,setCategory,setSubcategory,groups,subgroups,subcategory,catalogError,reloadCatalog,catalogLoading,visibleLimit,saveFavorite}:Readonly<{hasFilters:boolean;filteredLinks:BrowserLink[];allLinks:BrowserLink[];favorites:boolean;setFavorites:Dispatch<SetStateAction<boolean>>;setVisibleLimit:Dispatch<SetStateAction<number>>;setSettingsTab:Dispatch<SetStateAction<SettingsTab>>;setView:Dispatch<SetStateAction<LocalView>>;clearFilters:() => void;category:string;setCategory:Dispatch<SetStateAction<string>>;setSubcategory:Dispatch<SetStateAction<string>>;groups:string[];subgroups:string[];subcategory:string;catalogError:boolean;reloadCatalog:() => void;catalogLoading:boolean;visibleLimit:number;saveFavorite:(link: ReturnType<typeof directoryLinks>[number]) => void}>){
+function DirectorySection({hasFilters,filteredLinks,allLinks,favorites,setFavorites,setSettingsTab,setView,clearFilters,category,setCategory,setSubcategory,groups,subgroups,subcategory,catalogError,reloadCatalog,catalogLoading,saveFavorite}:Readonly<{hasFilters:boolean;filteredLinks:BrowserLink[];allLinks:BrowserLink[];favorites:boolean;setFavorites:Dispatch<SetStateAction<boolean>>;setSettingsTab:Dispatch<SetStateAction<SettingsTab>>;setView:Dispatch<SetStateAction<LocalView>>;clearFilters:() => void;category:string;setCategory:Dispatch<SetStateAction<string>>;setSubcategory:Dispatch<SetStateAction<string>>;groups:string[];subgroups:string[];subcategory:string;catalogError:boolean;reloadCatalog:() => void;catalogLoading:boolean;saveFavorite:(link: ReturnType<typeof directoryLinks>[number]) => void}>){
 return <section id="local-navigation" className="local-directory" aria-label="导航站">
             <header className="local-dashboard__section-heading local-directory__heading">
-              <div className="local-directory__heading-title"><h2>导航站</h2><output aria-live="polite" aria-atomic="true">{hasFilters?`${filteredLinks.length} / ${allLinks.length}`:allLinks.length} 个网站</output></div>
+              <div className="local-directory__heading-title"><h2>导航站</h2><output aria-live="polite" aria-atomic="true">{filteredLinks.length!==allLinks.length?`${filteredLinks.length} / ${allLinks.length}`:allLinks.length} 个网站</output></div>
               <div className="local-directory__heading-actions">
-                <button type="button" className="local-dashboard__manage local-directory__favorites" aria-pressed={favorites} onClick={()=>{setFavorites(value=>!value);setVisibleLimit(36);}}><UiIcon name={favorites?'starFill':'star'}/>{favorites?'已收藏':'收藏'}</button>
+                <button type="button" className="local-dashboard__manage local-directory__favorites" aria-pressed={favorites} onClick={()=>{setFavorites(value=>!value);}}><UiIcon name={favorites?'starFill':'star'}/>{favorites?'已收藏':'收藏'}</button>
                 <button type="button" className="local-dashboard__manage" onClick={()=>{setSettingsTab('links');setView('settings');}}>管理 ↗</button>
               </div>
             </header>
             {hasFilters?<div className="local-directory__toolbar"><button type="button" className="local-directory__reset" onClick={clearFilters}>清除筛选</button></div>:null}
             <div className="local-directory__category-row">
               <nav className="local-directory__filters" aria-label="网站分类">
-                <button type="button" aria-pressed={category==='all'} onClick={()=>{setCategory('all');setSubcategory('all');setVisibleLimit(36);}}>全部</button>
-                {groups.map(group=><button type="button" key={group} aria-pressed={category===group} onClick={()=>{setCategory(group);setSubcategory('all');setVisibleLimit(36);}}>{group}</button>)}
+                {groups.map(group=><button type="button" key={group} aria-pressed={category===group} onClick={()=>{setCategory(group);setSubcategory('all');}}>{group}</button>)}
               </nav>
             </div>
-            {subgroups.length>0&&<nav className="local-directory__subcategories" aria-label="网站子分类"><button type="button" aria-pressed={subcategory==='all'} onClick={()=>{setSubcategory('all');setVisibleLimit(36);}}>全部{category}</button>{subgroups.map(sub=><button type="button" key={sub} aria-pressed={subcategory===sub} onClick={()=>{setSubcategory(sub);setVisibleLimit(36);}}>{sub}</button>)}</nav>}
+            {subgroups.length>0&&<nav className="local-directory__subcategories" aria-label="网站子分类"><button type="button" aria-pressed={subcategory==='all'} onClick={()=>{setSubcategory('all');}}>全部{category}</button>{subgroups.map(sub=><button type="button" key={sub} aria-pressed={subcategory===sub} onClick={()=>{setSubcategory(sub);}}>{sub}</button>)}</nav>}
             {catalogError&&<output className="local-directory__notice" style={{display:'block'}}>公共目录暂时无法更新，本机网站和已加载内容仍可使用。 <button type="button" onClick={reloadCatalog}>重试</button></output>}
             {catalogLoading?<output className="local-directory__loading" style={{display:'block'}}>正在更新网站目录…</output>:null}
-            {filteredLinks.length===0?(!catalogLoading&&<div id="directory-results" className="local-directory__empty"><h3>{directoryEmptyHeading({hasFilters,catalogError})}</h3><p>{hasFilters?'试试取消收藏筛选，或选择其他分类。':'可以在设置中添加自己的常用网站。'}</p>{hasFilters?<button type="button" onClick={clearFilters}>查看全部网站</button>:<button type="button" onClick={()=>{setSettingsTab('links');setView('settings');}}>添加个人网站</button>}</div>):
-              <ul id="directory-results" className="local-directory__tiles">{filteredLinks.slice(0,visibleLimit).map(link=><li key={link.id} className="local-directory__tile">
+            {filteredLinks.length===0?(!catalogLoading&&<div id="directory-results" className="local-directory__empty"><h3>{directoryEmptyHeading({hasFilters,catalogError})}</h3><p>{hasFilters?'试试取消收藏筛选，或选择其他分类。':'可以在设置中添加自己的常用网站。'}</p>{hasFilters?<button type="button" onClick={clearFilters}>清除筛选</button>:<button type="button" onClick={()=>{setSettingsTab('links');setView('settings');}}>添加个人网站</button>}</div>):
+              <ul id="directory-results" className="local-directory__tiles">{filteredLinks.map(link=><li key={link.id} className="local-directory__tile">
                 <a href={link.url} target="_blank" rel="noopener noreferrer" title={link.url}>
                   <SiteIcon key={link.url} url={link.url} title={link.title} faviconUrl={link.faviconUrl}/>
                   <span className="local-directory__link-content">
@@ -63,12 +62,11 @@ return <section id="local-navigation" className="local-directory" aria-label="�
                 </a>
                 <button type="button" className="local-directory__star" aria-label={(link.favorite?'取消收藏 ':'收藏 ')+link.title} aria-pressed={link.favorite} title={link.favorite?'取消收藏':'收藏网站'} onClick={()=>saveFavorite(link)}><UiIcon name={link.favorite?'starFill':'star'}/></button>
               </li>)}</ul>}
-            {filteredLinks.length>visibleLimit&&<button type="button" className="local-directory__more" onClick={()=>setVisibleLimit(v=>v+36)}>显示更多网站（剩余 {filteredLinks.length-visibleLimit}）</button>}
           </section>;
 }
 import type {Dispatch,SetStateAction,RefObject} from 'react';
 
-function LocalMainContent({view,setView,data,error,settingsTab,dataSection,store,openAdmin,adminSession,setSettingsTab,enabledSections,siteSettings,openModule,setError,fishingData,subscribeProgress,hasFilters,filteredLinks,allLinks,favorites,setFavorites,setVisibleLimit,clearFilters,category,setCategory,setSubcategory,groups,subgroups,subcategory,catalogError,reloadCatalog,catalogLoading,visibleLimit,saveFavorite}:Readonly<{view:LocalView;setView:Dispatch<SetStateAction<LocalView>>;data:LocalData | null;error:string | null;settingsTab:SettingsTab;dataSection:DataSection;store:ReturnType<typeof createLocalStore>;openAdmin:() => void;adminSession:ReturnType<typeof useCalendarAdminSession>;setSettingsTab:Dispatch<SetStateAction<SettingsTab>>;enabledSections:LocalData['configuration']['order'];siteSettings:ReturnType<typeof useSiteSettings>;openModule:OpenModule;setError:Dispatch<SetStateAction<string | null>>;fishingData:ReturnType<typeof localFishingData>;subscribeProgress:(listener: () => void) => () => void;hasFilters:boolean;filteredLinks:ReturnType<typeof directoryLinks>;allLinks:ReturnType<typeof directoryLinks>;favorites:boolean;setFavorites:Dispatch<SetStateAction<boolean>>;setVisibleLimit:Dispatch<SetStateAction<number>>;clearFilters:() => void;category:string;setCategory:Dispatch<SetStateAction<string>>;setSubcategory:Dispatch<SetStateAction<string>>;groups:string[];subgroups:string[];subcategory:string;catalogError:boolean;reloadCatalog:() => void;catalogLoading:boolean;visibleLimit:number;saveFavorite:(link: ReturnType<typeof directoryLinks>[number]) => void}>){
+function LocalMainContent({view,setView,data,error,settingsTab,dataSection,store,openAdmin,adminSession,setSettingsTab,enabledSections,siteSettings,openModule,fishingData,subscribeProgress,hasFilters,filteredLinks,allLinks,favorites,setFavorites,clearFilters,category,setCategory,setSubcategory,groups,subgroups,subcategory,catalogError,reloadCatalog,catalogLoading,saveFavorite}:Readonly<{view:LocalView;setView:Dispatch<SetStateAction<LocalView>>;data:LocalData | null;error:string | null;settingsTab:SettingsTab;dataSection:DataSection;store:ReturnType<typeof createLocalStore>;openAdmin:() => void;adminSession:ReturnType<typeof useCalendarAdminSession>;setSettingsTab:Dispatch<SetStateAction<SettingsTab>>;enabledSections:LocalData['configuration']['order'];siteSettings:ReturnType<typeof useSiteSettings>;openModule:OpenModule;fishingData:ReturnType<typeof localFishingData>;subscribeProgress:(listener: () => void) => () => void;hasFilters:boolean;filteredLinks:ReturnType<typeof directoryLinks>;allLinks:ReturnType<typeof directoryLinks>;favorites:boolean;setFavorites:Dispatch<SetStateAction<boolean>>;clearFilters:() => void;category:string;setCategory:Dispatch<SetStateAction<string>>;setSubcategory:Dispatch<SetStateAction<string>>;groups:string[];subgroups:string[];subcategory:string;catalogError:boolean;reloadCatalog:() => void;catalogLoading:boolean;saveFavorite:(link: ReturnType<typeof directoryLinks>[number]) => void}>){
 if(view==='admin'){return <Suspense fallback={<output style={{display:'block'}}>正在打开站点后台…</output>}><SiteAdminPage onClose={()=>setView('settings')}/></Suspense>;}
 if(!data){if(error){return <p role="alert">本机数据读取失败。<button type="button" onClick={()=>window.location.reload()}>重试</button></p>;}
 return <output style={{display:'block'}}>正在读取…</output>;}
@@ -83,12 +81,12 @@ return <div className="local-dashboard">
               {enabledSections.length===0?<p className="local-dashboard__empty">
                 <button type="button" onClick={()=>{setSettingsTab('home');setView('settings');}}>启用功能模块 ＋</button>
               </p>:enabledSections.map(section=><div className="local-dashboard__module" key={section} data-module={section}>
-                {<HomeModuleContent {...{section,openModule,store,setError,fishingData,subscribeProgress,data}}/>}
+                {<HomeModuleContent {...{section,openModule,store,fishingData,subscribeProgress,data}}/>}
               </div>)}
             </ModuleGrid>
           </section>
           <div className="field-divider" aria-hidden="true"/>
-          {<DirectorySection {...{hasFilters,filteredLinks,allLinks,favorites,setFavorites,setVisibleLimit,setSettingsTab,setView,clearFilters,category,setCategory,setSubcategory,groups,subgroups,subcategory,catalogError,reloadCatalog,catalogLoading,visibleLimit,saveFavorite}}/>}
+          {<DirectorySection {...{hasFilters,filteredLinks,allLinks,favorites,setFavorites,setSettingsTab,setView,clearFilters,category,setCategory,setSubcategory,groups,subgroups,subcategory,catalogError,reloadCatalog,catalogLoading,saveFavorite}}/>}
         </div>;
 }
 
@@ -111,9 +109,8 @@ if(catalogError){return '暂时无法读取公共目录';}
 return '还没有网站';
 }
 
-function HomeModuleContent({section,openModule,store,setError,fishingData,subscribeProgress,data}:Readonly<{section:HomeSection;openModule:OpenModule;store:ReturnType<typeof createLocalStore>;setError:Dispatch<SetStateAction<string | null>>;fishingData:ReturnType<typeof localFishingData>;subscribeProgress:(listener: () => void) => () => void;data:LocalData}>){
-if(section==='events'){return <HomeOfficialEvents onOpenCalendar={()=>openModule('events')}
-                  onHide={()=>{void store.change(document=>{document.data.configuration.visible.events=false;}).catch(()=>setError('设置未能保存到本机'));}}/>;}
+function HomeModuleContent({section,openModule,store,fishingData,subscribeProgress,data}:Readonly<{section:HomeSection;openModule:OpenModule;store:ReturnType<typeof createLocalStore>;fishingData:ReturnType<typeof localFishingData>;subscribeProgress:(listener: () => void) => () => void;data:LocalData}>){
+if(section==='events'){return <HomeOfficialEvents onOpenCalendar={()=>openModule('events')}/>;}
 if(section==='fishing'){return <FishingBoard data={fishingData} subscribeProgress={subscribeProgress} initialRegion={data.configuration.region} embedded onOpenDetail={selection=>openModule('fishing',selection)}/>;}
 if(section==='pvp'){return <PvpBoard onOpenDetail={()=>openModule('pvp')}/>;}
 if(section==='market'){return <MarketHome onOpenDetail={query=>openModule('market',undefined,undefined,query?{marketQuery:query}:undefined)}/>;}
@@ -221,14 +218,13 @@ export function LocalApp(){
   useEffect(()=>startLocalNotifications(store),[store]);
   useEffect(()=>startFishcakeSync(store),[store]);
   useEffect(()=>startAutomaticSync(store),[store]);
-  const [category,setCategory]=useState('all');
+  const [selectedCategory,setCategory]=useState('');
   const [subcategory,setSubcategory]=useState('all');
   const siteSettings=useSiteSettings();
   const adminSession=useCalendarAdminSession();
   const openAdmin=()=>setView('admin');
   useEffect(()=>{document.title=siteSettings.siteName;},[siteSettings.siteName]);
   const [favorites,setFavorites]=useState(false);
-  const [visibleLimit,setVisibleLimit]=useState(36);
   const showSearch=useCallback(()=>{
     setSearchOpen(true);
     requestAnimationFrame(()=>{const input=searchRef.current;if(!input?.isConnected||document.querySelector('dialog[open]')||document.activeElement?.closest('#global-search-results')){return;}input.focus({preventScroll:true});window.scrollTo({top:0,behavior:'auto'});});
@@ -255,10 +251,11 @@ export function LocalApp(){
   const links=useMemo(()=>allLinks.filter(link=>!favorites||link.favorite),[allLinks,favorites]);
   const taxonomy=siteSettings.presentation?.categories??DEFAULT_CATEGORIES;
   const groups=useMemo(()=>{const names=new Set(allLinks.map(link=>splitDirectoryCategory(link.category).main));return [...taxonomy.map(group=>group.name).filter(name=>names.delete(name)),...names];},[allLinks,taxonomy]);
-  const subgroups=useMemo(()=>category==='all'?[]:[...new Set(allLinks.filter(link=>splitDirectoryCategory(link.category).main===category).map(link=>splitDirectoryCategory(link.category).sub).filter(Boolean))].sort((a,b)=>{const order=taxonomy.find(g=>g.name===category)?.children??[];return (order.includes(a)?order.indexOf(a):100)-(order.includes(b)?order.indexOf(b):100);}),[category,allLinks,taxonomy]);
-  const filteredLinks=useMemo(()=>links.filter(link=>{const group=splitDirectoryCategory(link.category);return (category==='all'||group.main===category)&&(subcategory==='all'||group.sub===subcategory);}),[links,category,subcategory]);
-  const hasFilters=Boolean(favorites||category!=='all');
-  const clearFilters=()=>{setCategory('all');setSubcategory('all');setFavorites(false);setVisibleLimit(36);};
+  const category=groups.includes(selectedCategory)?selectedCategory:groups[0]??'';
+  const subgroups=useMemo(()=>[...new Set(allLinks.filter(link=>splitDirectoryCategory(link.category).main===category).map(link=>splitDirectoryCategory(link.category).sub).filter(Boolean))].sort((a,b)=>{const order=taxonomy.find(g=>g.name===category)?.children??[];return (order.includes(a)?order.indexOf(a):100)-(order.includes(b)?order.indexOf(b):100);}),[category,allLinks,taxonomy]);
+  const filteredLinks=useMemo(()=>links.filter(link=>{const group=splitDirectoryCategory(link.category);return group.main===category&&(subcategory==='all'||group.sub===subcategory);}),[links,category,subcategory]);
+  const hasFilters=Boolean(favorites||subcategory!=='all');
+  const clearFilters=()=>{setSubcategory('all');setFavorites(false);};
   const sectionOrder=withHomeModules(data&&(data.configuration.orderCustomized||data.configuration.order.join(',')!=='events,fishing,pvp,notes')?data.configuration.order:siteSettings.presentation?.home.order??data?.configuration.order??[]);
   const enabledSections=sectionOrder.filter(section=>(data?.configuration.visible[section]??true)&&(siteSettings.presentation?.home.enabled[section]??true)&&(section!=='events'||siteSettings.homeCalendarEnabled));
   const saveFavorite=(link:typeof links[number])=>{
@@ -277,7 +274,7 @@ export function LocalApp(){
       {data&&searchOpen?<GlobalSearch query={search} links={allLinks} linksLoading={catalogLoading} linksError={catalogError} onRetryLinks={reloadCatalog} initialRegion={data.configuration.region} onFish={openFish} onEvent={openEvent} onFeature={openFeature} onClose={closeSearch}/>:null}
       {siteSettings.announcementEnabled&&siteSettings.announcement.trim()?<aside className="site-public-announcement" aria-label="站点公告">{siteSettings.announcement}</aside>:null}
       {error?<p role="alert" className="notice notice--error">{error}</p>:null}
-      {<LocalMainContent {...{view,setView,data,error,settingsTab,dataSection,store,openAdmin,adminSession,setSettingsTab,enabledSections,siteSettings,openModule,setError,fishingData,subscribeProgress,hasFilters,filteredLinks,allLinks,favorites,setFavorites,setVisibleLimit,clearFilters,category,setCategory,setSubcategory,groups,subgroups,subcategory,catalogError,reloadCatalog,catalogLoading,visibleLimit,saveFavorite}}/>}
+      {<LocalMainContent {...{view,setView,data,error,settingsTab,dataSection,store,openAdmin,adminSession,setSettingsTab,enabledSections,siteSettings,openModule,fishingData,subscribeProgress,hasFilters,filteredLinks,allLinks,favorites,setFavorites,clearFilters,category,setCategory,setSubcategory,groups,subgroups,subcategory,catalogError,reloadCatalog,catalogLoading,saveFavorite}}/>}
     </main>
     {expanded&&data&&view!=='admin'?<LocalModuleOverlay
       key={expanded.kind+':'+String(expanded.fishFilters?.fishId??'')+':'+String(expanded.fishFilters?.windowStartsAt??'')+':'+String(expanded.eventId??'')}

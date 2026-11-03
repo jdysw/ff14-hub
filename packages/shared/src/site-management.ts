@@ -17,7 +17,6 @@ export const DEFAULT_CATEGORIES=[
   {name:'幻化与摄影',children:['幻化与染色','模型与摄影']},
   {name:'住房与经营',children:['买房与装修','无人岛','潜水艇与工坊','栽培']},
   {name:'社区与创作',children:['论坛与社区','创作者与直播','音乐与作品']},
-  {name:'插件与开发',children:['插件与启动器','开发与数据']},
 ];
 export function splitDirectoryCategory(value:string){const [main,...sub]=value.split(' / ');return {main:main||'个人网站',sub:sub.join(' / ')};}
 export const homeSectionSchema=z.enum(['events','fishing','pvp','notes','market','weather']);

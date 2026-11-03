@@ -41,7 +41,7 @@ type ViewState =
 const EVENT_PHASE_LABELS:Record<CalendarPhase,string>={
   ending:'即将结束',active:'进行中',upcoming:'即将开始',ended:'已结束',unscheduled:'待核实公告',
 };
-const EMPTY_PHASE_LABELS={active:'目前没有已确认时间的进行中活动，可切换“未来活动”查看。',upcoming:'目前没有已确认时间的未来活动。',unscheduled:'目前没有时间待确认的公告。'};
+const EMPTY_PHASE_LABELS={active:'目前没有已确认时间的进行中活动，可切换“未来活动”查看。',upcoming:'目前没有已确认时间的未来活动。'};
 function eventCountdownTarget(status:CalendarPhase,item:EventCalendarItem):number|null{
   if(status==='upcoming')return item.startsAt;
   if(status==='active'||status==='ending')return item.endsAt;
@@ -78,14 +78,13 @@ function OfficialEventSummary({ item, now }: { readonly item: EventCalendarItem;
   </li>;
 }
 
-export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
+export function HomeOfficialEvents({ onOpenCalendar }: {
   readonly onOpenCalendar: () => void;
-  readonly onHide: () => void;
 }) {
   const [state, setState] = useState<ViewState>({ kind: 'loading' });
   const [refresh, setRefresh] = useState(0);
   const [clock, setClock] = useState(Date.now);
-  const [phase,setPhase]=useState<'active'|'upcoming'|'unscheduled'>('active');
+  const [phase,setPhase]=useState<'active'|'upcoming'>('active');
 
   useEffect(() => {
     const update=()=>setClock(Date.now());
@@ -135,9 +134,8 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
     calendarOverview(state.kind === 'ready' ? state.value.events : [], now), [state, now]);
   // 不截断数据；4 项的可视窗口由列表样式控制。
   const allEvents = state.kind === 'ready' ? state.value.events : [];
-  const unknownCount = allEvents.filter(item => eventStatus(item,now)==='unscheduled').length;
   const highlights=homeEventHighlights(allEvents,now);
-  const important=phase==='unscheduled'?allEvents.filter(item=>eventStatus(item,now)==='unscheduled'):highlights.filter(item=>phase==='active'?item.startsAt!<=now:item.startsAt!>now);
+  const important=highlights.filter(item=>phase==='active'?item.startsAt!<=now:item.startsAt!>now);
   const reload = () => { setRefresh(value => value + 1); };
 
   return <section className="home-official" aria-label="国服官方活动">
@@ -146,14 +144,11 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
       <div className="home-official__actions">
         <button className="text-button" type="button" onClick={onOpenCalendar}>完整日历 ↗</button>
         <button className="text-button" type="button" onClick={reload} aria-label="刷新活动" title="刷新">↻</button>
-        <button className="text-button home-official__hide" type="button" onClick={onHide}
-          aria-label="从首页隐藏国服活动模块">隐藏</button>
       </div>
     </header>
     <fieldset className="home-status-tabs" style={{border:0,margin:0,padding:0,minWidth:0}} aria-label="首页活动切换">
       <button type="button" aria-pressed={phase==='active'} onClick={()=>setPhase('active')}>进行中活动</button>
       <button type="button" aria-pressed={phase==='upcoming'} onClick={()=>setPhase('upcoming')}>未来活动</button>
-      <button type="button" aria-pressed={phase==='unscheduled'} onClick={()=>setPhase('unscheduled')}>时间待确认（{unknownCount}）</button>
     </fieldset>
     {state.kind === 'loading' && <output className="home-state" style={{display:'block'}}>正在获取最新活动…</output>}
     {state.kind === 'error' && <div className="home-official__notice" role="alert">
@@ -167,7 +162,7 @@ export function HomeOfficialEvents({ onOpenCalendar, onHide }: {
         <button type="button" onClick={onOpenCalendar}><strong>{overview.upcoming.length}</strong><span>未来 7 天开始</span></button>
         <button type="button" onClick={onOpenCalendar}><strong>{overview.ending.length}</strong><span>24 小时内结束</span></button>
       </div>
-      {important.length === 0 && <p className="home-state">{EMPTY_PHASE_LABELS[phase]}{unknownCount > 0&&phase!=='unscheduled' ? '未定日期的公告可切换“时间待确认”查看。' : ''}</p>}
+      {important.length === 0 && <p className="home-state">{EMPTY_PHASE_LABELS[phase]}</p>}
       {important.length > 0 && <ul key={phase} className="home-official__list" tabIndex={0} aria-label="国服活动列表">
         {important.map(item => <OfficialEventSummary key={item.id} item={item} now={now}/>)}
       </ul>}
