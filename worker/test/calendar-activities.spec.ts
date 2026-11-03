@@ -1,6 +1,7 @@
 import {expect,it} from 'vitest';
 import type {EventCalendarItem} from '@ff14-hub/shared';
 import {mergeOfficialActivityUpdates} from '../modules/events/calendar-activities';
+import review from '../../data/official-calendar-review.json';
 
 const original:EventCalendarItem={
  id:'official:391233',region:'cn',title:'特惠专享 畅玩无忧！月卡启航计划现已开启！',
@@ -36,4 +37,13 @@ it('does not infer identity from similar titles, equal times, categories or manu
  const other={...extension,id:'official:another-edition'};
  const manual={...extension,id:'manual:sample'};
  expect(mergeOfficialActivityUpdates([original,other,manual])).toEqual([original,other,manual]);
+});
+it('accounts for all 25 reviewed records, removes notices and expired entries, and restores three verified activity schedules',()=>{
+ expect(review.entries).toHaveLength(25);
+ const events=review.entries.map(entry=>({...original,id:'official:'+entry.id,title:String(entry.id),startsAt:null,endsAt:null}));
+ const result=mergeOfficialActivityUpdates(events);
+ expect(result.map(event=>event.id).sort()).toEqual(['official:392085','official:395012','official:395015']);
+ expect(result.every(event=>event.startsAt!==null&&event.endsAt!==null&&event.endsAt>event.startsAt)).toBe(true);
+ expect(result.find(event=>event.id==='official:395012')?.endsAt).toBe(Date.UTC(2026,10,30,15,59));
+ expect(mergeOfficialActivityUpdates(result)).toEqual(result);
 });

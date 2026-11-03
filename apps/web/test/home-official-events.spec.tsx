@@ -29,7 +29,7 @@ describe('首页公开活动', () => {
       const now=Date.UTC(2026,9,28,8)-1000;vi.setSystemTime(now);
       const entry={...response.events[0],title:'魔光键影跨日回归',startsAt:now+1000,endsAt:null,description:'活动结束条件：8.0版本更新维护前'};
       const fetcher=vi.fn(()=>Promise.resolve(Response.json({...response,serverTimeMs:now,events:[entry]})));
-      vi.stubGlobal('fetch',fetcher);render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
+      vi.stubGlobal('fetch',fetcher);render(<HomeOfficialEvents onOpenCalendar={vi.fn()}/>);
       await act(async()=>{await Promise.resolve();});
       fireEvent.click(screen.getByRole('button',{name:'未来活动'}));expect(screen.getByText(entry.title)).toBeTruthy();
       await act(async()=>{await vi.advanceTimersByTimeAsync(1000);});
@@ -41,18 +41,19 @@ describe('首页公开活动', () => {
       expect(screen.getByText(entry.title)).toBeTruthy();expect(fetcher).toHaveBeenCalledTimes(1);
     }finally{vi.useRealTimers();}
   });
-  it('未确认日期的公告能从首页单独查看，且不会混入进行中列表',async()=>{
+  it('首页不提供未确认日期入口，也不将未定公告混入进行中或未来活动',async()=>{
     const entry={...response.events[0],title:'未定日期公告',startsAt:null,endsAt:null};
     vi.stubGlobal('fetch',vi.fn(()=>Promise.resolve(Response.json({...response,events:[entry]}))));
-    render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
-    await screen.findByRole('button',{name:'时间待确认（1）'});
+    render(<HomeOfficialEvents onOpenCalendar={vi.fn()}/>);
+    await screen.findByText('目前没有已确认时间的进行中活动，可切换“未来活动”查看。');
+    expect(screen.queryByRole('button',{name:/时间待确认/})).toBeNull();
     expect(screen.queryByText(entry.title)).toBeNull();
-    fireEvent.click(screen.getByRole('button',{name:'时间待确认（1）'}));expect(screen.getByText(entry.title)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button',{name:'未来活动'}));expect(screen.queryByText(entry.title)).toBeNull();
   });
   it('未来活动显示官方确认的开始倒计时，同时保留维护前结束的原始条件',async()=>{
     const now=Date.UTC(2026,9,24),entry={...response.events[0],id:'official:394486',title:'魔光键影',startsAt:Date.UTC(2026,9,28,8),endsAt:null,description:'活动结束条件：8.0版本更新维护前'};
     vi.stubGlobal('fetch',vi.fn(()=>Promise.resolve(Response.json({...response,serverTimeMs:now,events:[entry]}))));
-    render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
+    render(<HomeOfficialEvents onOpenCalendar={vi.fn()}/>);
     await screen.findByText('目前没有已确认时间的进行中活动，可切换“未来活动”查看。');
     fireEvent.click(screen.getByRole('button',{name:'未来活动'}));expect(screen.getByText('魔光键影')).toBeTruthy();
     expect(screen.getByText(/8.0版本更新维护前（结束日期待确认）/)).toBeTruthy();expect(screen.getByText('距开始')).toBeTruthy();expect(screen.queryByText('距结束')).toBeNull();
@@ -60,7 +61,7 @@ describe('首页公开活动', () => {
   });
   it('倒计时下显示北京时间结束日期，保留跨年份信息和机器可读时间',async()=>{
     vi.stubGlobal('fetch',vi.fn(()=>Promise.resolve(Response.json(response))));
-    render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
+    render(<HomeOfficialEvents onOpenCalendar={vi.fn()}/>);
     await screen.findByText('官方测试活动');
     const end=document.querySelector('.home-official-event__timer .home-official-event__end time');
     expect(end?.textContent).toBe('2030/10/20 13:00');expect(end?.getAttribute('dateTime')).toBe('2030-10-20T05:00:00.000Z');
@@ -73,7 +74,7 @@ describe('首页公开活动', () => {
         {...response.events[0],id:'ends-now',title:'已到结束',startsAt:now-60000,endsAt:now},
         {...response.events[0],id:'next',title:'下一秒开始',startsAt:now+1000,endsAt:now+120000}];
       const fetcher=vi.fn(()=>Promise.resolve(new Response(JSON.stringify({...response,serverTimeMs:now,events}),{status:200})));vi.stubGlobal('fetch',fetcher);
-      render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);await act(async()=>{await Promise.resolve();});
+      render(<HomeOfficialEvents onOpenCalendar={vi.fn()}/>);await act(async()=>{await Promise.resolve();});
       expect(screen.getByText('现在开始')).toBeTruthy();expect(screen.queryByText('已到结束')).toBeNull();expect(screen.queryByText('下一秒开始')).toBeNull();
       fireEvent.click(screen.getByRole('button',{name:'未来活动'}));expect(screen.getByText('下一秒开始')).toBeTruthy();
       await act(async()=>{await vi.advanceTimersByTimeAsync(1000);});expect(screen.queryByText('下一秒开始')).toBeNull();
@@ -85,7 +86,7 @@ describe('首页公开活动', () => {
       status: 200, headers: { 'Content-Type': 'application/json' },
     })));
     vi.stubGlobal('fetch', fetchSpy);
-    render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
+    render(<HomeOfficialEvents onOpenCalendar={vi.fn()}/>);
     expect(await screen.findByText('官方测试活动')).toBeTruthy();
     const [url, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('/api/v1/events/calendar');
@@ -103,7 +104,7 @@ describe('首页公开活动', () => {
   it('来源时间缺失时不伪造倒计时', async () => {
     const unknown = { ...response, events: [{ ...response.events[0], startsAt: null, endsAt: null }] };
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify(unknown), { status: 200 }))));
-    render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
+    render(<HomeOfficialEvents onOpenCalendar={vi.fn()}/>);
     expect(await screen.findByText(/目前没有已确认时间的进行中活动/)).toBeTruthy();
     expect(screen.queryByText('官方测试活动')).toBeNull();
     expect(screen.getByRole('button',{name:'完整日历 ↗'})).toBeTruthy();
@@ -129,7 +130,7 @@ describe('首页公开活动', () => {
       ...response,serverTimeMs:now,events,
     }),{status:200}))));
     const onOpenCalendar=vi.fn();
-    const {container}=render(<HomeOfficialEvents onOpenCalendar={onOpenCalendar} onHide={vi.fn()}/>);
+    const {container}=render(<HomeOfficialEvents onOpenCalendar={onOpenCalendar}/>);
     await screen.findByText('临期活动');
     await waitFor(()=>expect(container.querySelectorAll('.home-official-event')).toHaveLength(4));
     expect(screen.getByText('即将结束')).toBeTruthy();
@@ -151,7 +152,7 @@ describe('首页公开活动', () => {
   it('离线时显示上次校验过的公开活动缓存，并明确标记数据可能过期', async () => {
     saveCachedPublicCalendar(eventCalendarResponseSchema.parse(response));
     vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('network offline'))));
-    render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
+    render(<HomeOfficialEvents onOpenCalendar={vi.fn()}/>);
     expect(await screen.findByText('官方测试活动')).toBeTruthy();
     expect(screen.getByText(/当前展示缓存数据，官方活动可能已有变更/)).toBeTruthy();
     expect(screen.queryByText('活动暂时无法加载。')).toBeNull();
@@ -162,7 +163,7 @@ describe('首页公开活动', () => {
       .mockResolvedValueOnce(new Response('', { status: 503 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(response), { status: 200 }));
     vi.stubGlobal('fetch', fetchSpy);
-    render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
+    render(<HomeOfficialEvents onOpenCalendar={vi.fn()}/>);
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(screen.queryByText('目前还没有获取到官方活动公告。')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '重试' }));
@@ -180,7 +181,7 @@ describe('首页公开活动', () => {
         .mockResolvedValueOnce(new Response(JSON.stringify(updated),{status:200}))
         .mockRejectedValue(new Error('temporarily unavailable'));
       vi.stubGlobal('fetch',fetchSpy);
-      render(<HomeOfficialEvents onOpenCalendar={vi.fn()} onHide={vi.fn()}/>);
+      render(<HomeOfficialEvents onOpenCalendar={vi.fn()}/>);
       await act(async()=>{await Promise.resolve();});
       expect(screen.getByText('官方测试活动')).toBeTruthy();
       expect(HOME_CALENDAR_POLL_MS).toBe(900_000);

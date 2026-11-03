@@ -1,0 +1,31 @@
+{
+  "reviewedOn": "2026-11-03",
+  "sourceTemplate": "https://ff.web.sdo.com/web8/index.html#/newstab/newscont/{id}",
+  "entries": [
+    {"id":394978,"decision":"announcement","reason":"中奖名单与领奖地址登记通知，不是新的参与活动；登记截止2026-11-08。"},
+    {"id":395015,"decision":"active","reason":"正文明确即日起，按本公告发布时刻起算；截至2026-11-30。","startsAt":"2026-10-30T18:32:04+08:00","endsAt":"2026-11-30T23:59:00+08:00"},
+    {"id":395012,"decision":"active","reason":"正文明确即刻起，按本公告发布时刻起算；结果公布日期不是活动结束日期。","startsAt":"2026-10-30T17:08:49+08:00","endsAt":"2026-11-30T23:59:00+08:00"},
+    {"id":394622,"decision":"expired","reason":"纪念商品优惠截至2026-11-02 14:59。"},
+    {"id":394274,"decision":"announcement","reason":"门票抽选结束通知。"},
+    {"id":393963,"decision":"expired","reason":"第三站转播为2026-10-31 10:00至12:00，已结束。"},
+    {"id":392861,"decision":"expired","reason":"抖音第十四期截至2026-10-07 23:59，不能与第十五期混淆。"},
+    {"id":392519,"decision":"expired","reason":"报名截止2026-09-07；展会2026-10-02至10-05，均已结束。"},
+    {"id":392085,"decision":"active","reason":"正文明确联动日期2026-08-18至2026-12-31，按北京时间整日范围保留。","startsAt":"2026-08-18T00:00:00+08:00","endsAt":"2026-12-31T23:59:59+08:00"},
+    {"id":392084,"decision":"announcement","reason":"十二周年多活动汇总宣传，不是独立日程。"},
+    {"id":382404,"decision":"expired","reason":"正文结束日期为2025-01-17 23:59，原文年份与版本存在矛盾；无论哪种均非当前活动，不推测开始日期。"},
+    {"id":382403,"decision":"expired","reason":"旧版B站激励截至2026-01-27 23:59。"},
+    {"id":382293,"decision":"expired","reason":"免费72小时为2025-12-19至12-21。"},
+    {"id":380972,"decision":"expired","reason":"优惠券使用期2025-11-10至11-20，不是2026年双十一活动。"},
+    {"id":378910,"decision":"expired","reason":"礼包上架截至2025-09-23 14:00。"},
+    {"id":377971,"decision":"unverified","reason":"2025年11周年WeGame福利公告接口正文为空，无法核实有效参与期限，不作为公开活动。"},
+    {"id":377764,"decision":"announcement","reason":"2025年11周年活动汇总宣传，不是独立日程。"},
+    {"id":377560,"decision":"expired","reason":"2025年集结活动截至08-29，领奖截至09-05。"},
+    {"id":376993,"decision":"expired","reason":"季节活动为2025-07-25至08-08。"},
+    {"id":375853,"decision":"expired","reason":"B站创作狂欢节为2025-06-24至07-24。"},
+    {"id":375629,"decision":"expired","reason":"礼包上架截至2025-07-02 14:00。"},
+    {"id":372154,"decision":"expired","reason":"通行证第五期截至2025-04-23 23:59。"},
+    {"id":373716,"decision":"announcement","reason":"2025年月卡签到政策调整预告，没有独立参与日程。"},
+    {"id":372608,"decision":"expired","reason":"双重庆典为2025-03-27至04-10。"},
+    {"id":368703,"decision":"announcement","reason":"黄金试炼长期玩法介绍；当期挑战和登记已由官方专题配置独立提供，避免重复。"}
+  ]
+}
