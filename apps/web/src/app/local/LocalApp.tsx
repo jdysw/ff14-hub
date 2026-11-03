@@ -218,7 +218,7 @@ export function LocalApp(){
   useEffect(()=>startLocalNotifications(store),[store]);
   useEffect(()=>startFishcakeSync(store),[store]);
   useEffect(()=>startAutomaticSync(store),[store]);
-  const [selectedCategory,setCategory]=useState('');
+  const [selectedCategory,setSelectedCategory]=useState('');
   const [subcategory,setSubcategory]=useState('all');
   const siteSettings=useSiteSettings();
   const adminSession=useCalendarAdminSession();
@@ -274,7 +274,7 @@ export function LocalApp(){
       {data&&searchOpen?<GlobalSearch query={search} links={allLinks} linksLoading={catalogLoading} linksError={catalogError} onRetryLinks={reloadCatalog} initialRegion={data.configuration.region} onFish={openFish} onEvent={openEvent} onFeature={openFeature} onClose={closeSearch}/>:null}
       {siteSettings.announcementEnabled&&siteSettings.announcement.trim()?<aside className="site-public-announcement" aria-label="站点公告">{siteSettings.announcement}</aside>:null}
       {error?<p role="alert" className="notice notice--error">{error}</p>:null}
-      {<LocalMainContent {...{view,setView,data,error,settingsTab,dataSection,store,openAdmin,adminSession,setSettingsTab,enabledSections,siteSettings,openModule,fishingData,subscribeProgress,hasFilters,filteredLinks,allLinks,favorites,setFavorites,clearFilters,category,setCategory,setSubcategory,groups,subgroups,subcategory,catalogError,reloadCatalog,catalogLoading,saveFavorite}}/>}
+      {<LocalMainContent setCategory={setSelectedCategory} {...{view,setView,data,error,settingsTab,dataSection,store,openAdmin,adminSession,setSettingsTab,enabledSections,siteSettings,openModule,fishingData,subscribeProgress,hasFilters,filteredLinks,allLinks,favorites,setFavorites,clearFilters,category,setSubcategory,groups,subgroups,subcategory,catalogError,reloadCatalog,catalogLoading,saveFavorite}}/>}
     </main>
     {expanded&&data&&view!=='admin'?<LocalModuleOverlay
       key={expanded.kind+':'+String(expanded.fishFilters?.fishId??'')+':'+String(expanded.fishFilters?.windowStartsAt??'')+':'+String(expanded.eventId??'')}
