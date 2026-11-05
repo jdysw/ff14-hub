@@ -17,7 +17,7 @@ import {LocalNotificationPanel} from './LocalNotificationPanel';
 import {TodoBoard} from './TodoBoard';
 import {clearSavedHomeLayout} from './ModuleGrid';
 
-const labels:Record<HomeSection,string>={events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的待办',market:'市场行情',weather:'时间与天气'};
+const labels:Record<HomeSection,string>={events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的待办',market:'市场行情',weather:'时间与天气',housing:'房屋抽取'};
 export type SettingsTab='home'|'links'|'notes'|'data'|'notifications';
 export function LocalSettings({store,data,onSaved,onAdmin,adminAuthenticated=false,initialTab='home',initialDataSection='sync'}:Readonly<{store:LocalStore;data:LocalData;onSaved:()=>void;onAdmin?:()=>void;adminAuthenticated?:boolean;initialTab?:SettingsTab;initialDataSection?:DataSection}>){
   const [activeTab,setActiveTab]=useState<SettingsTab>(initialTab);

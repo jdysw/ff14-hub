@@ -19,17 +19,19 @@ export const DEFAULT_CATEGORIES=[
   {name:'社区与创作',children:['论坛与社区','创作者与直播','音乐与作品']},
 ];
 export function splitDirectoryCategory(value:string){const [main,...sub]=value.split(' / ');return {main:main||'个人网站',sub:sub.join(' / ')};}
-export const homeSectionSchema=z.enum(['events','fishing','pvp','notes','market','weather']);
+export const homeSectionSchema=z.enum(['events','fishing','pvp','notes','market','weather','housing']);
 const coreSections=['events','fishing','pvp','notes'] as const;
-export const homeOrderSchema=z.array(homeSectionSchema).min(4).max(6).refine(items=>new Set(items).size===items.length&&coreSections.every(key=>items.includes(key)));
+export const homeOrderSchema=z.array(homeSectionSchema).min(4).max(homeSectionSchema.options.length).refine(items=>new Set(items).size===items.length&&coreSections.every(key=>items.includes(key)));
 /** Older documents keep their chosen order; the new module is appended once. */
 export function withMarketModule(order:readonly z.infer<typeof homeSectionSchema>[]){return order.includes('market')?[...order]:[...order,'market' as const];}
-export function withHomeModules(order:readonly z.infer<typeof homeSectionSchema>[]){const modules=withMarketModule(order);return modules.includes('weather')?modules:[...modules,'weather' as const];}
+export function withHomeModules(order:readonly z.infer<typeof homeSectionSchema>[]){
+  return [...order,...(['market','weather','housing'] as const).filter(module=>!order.includes(module))];
+}
 export const managedHomeSchema=z.object({
-  enabled:z.object({events:z.boolean(),fishing:z.boolean(),pvp:z.boolean(),notes:z.boolean(),market:z.boolean().optional(),weather:z.boolean().optional()}).strict(),
+  enabled:z.object({events:z.boolean(),fishing:z.boolean(),pvp:z.boolean(),notes:z.boolean(),market:z.boolean().optional(),weather:z.boolean().optional(),housing:z.boolean().optional()}).strict(),
   layout:z.enum(['auto','balanced','rows']),
   order:homeOrderSchema.default(['events','fishing','pvp','notes']),
 }).strict();
-export const DEFAULT_HOME={enabled:{events:true,fishing:true,pvp:true,notes:true,market:true,weather:true},layout:'auto' as const,order:['events','fishing','pvp','notes','market','weather'] as z.infer<typeof homeSectionSchema>[]};
+export const DEFAULT_HOME={enabled:{events:true,fishing:true,pvp:true,notes:true,market:true,weather:true,housing:true},layout:'auto' as const,order:[...homeSectionSchema.options]};
 export const managedPresentationSchema=z.object({categories:z.array(categoryGroupSchema).max(30).refine(groups=>new Set(groups.map(g=>g.name)).size===groups.length,'主分类名称不能重复'),home:managedHomeSchema,categoryAliases:z.record(z.string().max(80),z.string().min(1).max(80)).default({})}).strict();
 export function resolveDirectoryCategory(value:string,aliases:Record<string,string>={}){const mappings:Record<string,string>={官方服务:'官方与账号',官方:'官方与账号',新手与百科:'入门与资料',数据工具:'入门与资料',副本与战斗:'职业与副本',生产采集与钓鱼:'生产与采集',市场与经济:'生产与采集 / 市场与物价',休闲与成就:'日常与收藏',幻化与外观:'幻化与摄影',住房装修:'住房与经营',开发与辅助工具:'插件与开发',...aliases};const seen=new Set<string>();let result=value;while(!seen.has(result)){seen.add(result);const {main,sub}=splitDirectoryCategory(result);const next=mappings[result]??(mappedDirectoryCategory({mappings,main,sub}));if(!next){break;}result=next;}return result;}

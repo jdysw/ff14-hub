@@ -35,8 +35,8 @@ const configurationSchema=z.preprocess(value=>{
   return {...record,order:[...order,'pvp'],visible:{...visible,pvp:true}};
 },z.object({
   order:homeOrderSchema,
-  fullWidth:z.array(sectionSchema).max(6).refine(items=>new Set(items).size===items.length).optional(),
-  visible:z.object({events:z.boolean(),fishing:z.boolean(),pvp:z.boolean(),notes:z.boolean(),market:z.boolean().optional(),weather:z.boolean().optional()}).strict(),
+  fullWidth:z.array(sectionSchema).max(sectionSchema.options.length).refine(items=>new Set(items).size===items.length).optional(),
+  visible:z.object({events:z.boolean(),fishing:z.boolean(),pvp:z.boolean(),notes:z.boolean(),market:z.boolean().optional(),weather:z.boolean().optional(),housing:z.boolean().optional()}).strict(),
   region:z.enum(['cn','global']),
   orderCustomized:z.boolean().optional(),
 }).strict());

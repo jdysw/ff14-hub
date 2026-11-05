@@ -1,5 +1,5 @@
 type LocalView='home'|'settings'|'admin';
-type LocalModuleKind='events'|'fishing'|'pvp'|'notes'|'plan'|'market'|'weather';
+type LocalModuleKind=HomeSection|'plan';
 type OpenModule=(kind:LocalModuleKind,fishFilters?:FishDetailSelection,eventId?:string,detail?:{marketQuery?:string;weatherZoneId?:number})=>void;
 
 function LocalHeader({setView,view,siteSettings,setSearchOpen,focusSearchResult,searchOpen,showSearch,searchRef,search,setSearch,closeSearch,data,openModule}:Readonly<{setView:Dispatch<SetStateAction<LocalView>>;view:LocalView;siteSettings:SiteSettings;setSearchOpen:Dispatch<SetStateAction<boolean>>;focusSearchResult:() => void;searchOpen:boolean;showSearch:() => void;searchRef:RefObject<HTMLInputElement | null>;search:string;setSearch:Dispatch<SetStateAction<string>>;closeSearch:() => void;data:LocalData|null;openModule:OpenModule}>){
@@ -100,6 +100,7 @@ if(expanded.kind==='fishing'){return <FishingBoard data={fishingData} subscribeP
 if(expanded.kind==='pvp'){return <PvpBoard expanded/>;}
 if(expanded.kind==='market'){return <Suspense fallback={<output style={{display:'block'}}>正在打开市场…</output>}><MarketBoard initialQuery={expanded.marketQuery??''}/></Suspense>;}
 if(expanded.kind==='weather'){return <Suspense fallback={<output style={{display:'block'}}>正在打开天气…</output>}><WeatherBoard {...(expanded.weatherZoneId?{initialZoneId:expanded.weatherZoneId}:{})}/></Suspense>;}
+if(expanded.kind==='housing'){return <Suspense fallback={<output>正在打开房屋抽取…</output>}><HousingBoard/></Suspense>;}
 return <TodoBoard data={data} store={store} expanded/>;
 }
 
@@ -115,6 +116,11 @@ if(section==='fishing'){return <FishingBoard data={fishingData} subscribeProgres
 if(section==='pvp'){return <PvpBoard onOpenDetail={()=>openModule('pvp')}/>;}
 if(section==='market'){return <MarketHome onOpenDetail={query=>openModule('market',undefined,undefined,query?{marketQuery:query}:undefined)}/>;}
 if(section==='weather'){return <WeatherHome onOpenDetail={zoneId=>openModule('weather',undefined,undefined,zoneId?{weatherZoneId:zoneId}:undefined)}/>;}
+if(section==='housing'){return <section className="market-home" aria-label="房屋抽取">
+  <header className="market-home__heading"><h2>房屋抽取</h2><button type="button" onClick={()=>openModule('housing')}>查询房源 ↗</button></header>
+  <p>查国服在售地块与抽签进度。</p>
+  <footer>艾欧泽亚售楼中心 <span>玩家上报数据</span></footer>
+</section>;}
 return <TodoBoard data={data} store={store} onExpand={()=>openModule('notes')}/>;
 }
 
@@ -157,6 +163,7 @@ import type {FeatureTarget,FishSearchTarget} from './site-search';
 const SiteAdminPage=lazy(()=>import('../admin/SiteAdminPage').then(module=>({default:module.SiteAdminPage})));
 const MarketBoard=lazy(()=>import('../market/MarketBoard').then(module=>({default:module.MarketBoard})));
 const WeatherBoard=lazy(()=>import('../weather/WeatherBoard').then(module=>({default:module.WeatherBoard})));
+const HousingBoard=lazy(()=>import('../housing/HousingBoard').then(module=>({default:module.HousingBoard})));
 
 function siteDomain(url:string):string{
   try{return new URL(url).hostname.replace(/^www\./,'');}
@@ -278,7 +285,7 @@ export function LocalApp(){
     </main>
     {expanded&&data&&view!=='admin'?<LocalModuleOverlay
       key={expanded.kind+':'+String(expanded.fishFilters?.fishId??'')+':'+String(expanded.fishFilters?.windowStartsAt??'')+':'+String(expanded.eventId??'')}
-      title={{events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的待办',plan:'我的待办',market:'市场行情',weather:'时间与天气'}[expanded.kind]}
+      title={{events:'国服活动',fishing:'钓鱼',pvp:'PVP 战场',notes:'我的待办',plan:'我的待办',market:'市场行情',weather:'时间与天气',housing:'房屋抽取'}[expanded.kind]}
       origin={expanded.origin}
       onClose={()=>setExpanded(null)}>
       {<ExpandedModuleContent {...{expanded,data,store,setExpanded,fishingData,subscribeProgress,setSettingsTab,setView,setDataSection}}/>}
