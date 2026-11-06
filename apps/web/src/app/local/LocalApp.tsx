@@ -116,11 +116,7 @@ if(section==='fishing'){return <FishingBoard data={fishingData} subscribeProgres
 if(section==='pvp'){return <PvpBoard onOpenDetail={()=>openModule('pvp')}/>;}
 if(section==='market'){return <MarketHome onOpenDetail={query=>openModule('market',undefined,undefined,query?{marketQuery:query}:undefined)}/>;}
 if(section==='weather'){return <WeatherHome onOpenDetail={zoneId=>openModule('weather',undefined,undefined,zoneId?{weatherZoneId:zoneId}:undefined)}/>;}
-if(section==='housing'){return <section className="market-home" aria-label="房屋抽取">
-  <header className="market-home__heading"><h2>房屋抽取</h2><button type="button" onClick={()=>openModule('housing')}>查询房源 ↗</button></header>
-  <p>查国服在售地块与抽签进度。</p>
-  <footer>艾欧泽亚售楼中心 <span>玩家上报数据</span></footer>
-</section>;}
+if(section==='housing'){return <HousingHome onOpen={()=>openModule('housing')}/>;}
 return <TodoBoard data={data} store={store} onExpand={()=>openModule('notes')}/>;
 }
 
@@ -139,6 +135,8 @@ import {parseFishLink} from '../fish/fish-link';
 import {PvpBoard} from '../pvp/PvpBoard';
 import {MarketHome} from '../market/MarketHome';
 import {WeatherHome} from '../weather/WeatherHome';
+import {HousingHome} from '../housing/HousingHome';
+import {HousingContext,useHousingState} from '../housing/housing-state';
 import {LocalModuleOverlay,type ModuleOrigin} from './LocalModuleOverlay';
 import {createLocalStore,type LocalData,type HomeSection} from './store';
 import {localFishingData} from './fish-port';
@@ -265,6 +263,7 @@ export function LocalApp(){
   const clearFilters=()=>{setSubcategory('all');setFavorites(false);};
   const sectionOrder=withHomeModules(data&&(data.configuration.orderCustomized||data.configuration.order.join(',')!=='events,fishing,pvp,notes')?data.configuration.order:siteSettings.presentation?.home.order??data?.configuration.order??[]);
   const enabledSections=sectionOrder.filter(section=>(data?.configuration.visible[section]??true)&&(siteSettings.presentation?.home.enabled[section]??true)&&(section!=='events'||siteSettings.homeCalendarEnabled));
+  const housing=useHousingState(data!==null&&view==='home'&&enabledSections.includes('housing'),expanded?.kind==='housing'&&view!=='admin');
   const saveFavorite=(link:typeof links[number])=>{
     void store.change(document=>{
       const old=document.data.links.find(item=>canonicalNavUrl(item.url)===canonicalNavUrl(link.url));
@@ -273,7 +272,7 @@ export function LocalApp(){
     }).catch((cause:unknown)=>setError(cause instanceof Error?cause.message:'本机保存失败'));
   };
 
-  return <div className="shell local-app">
+  return <HousingContext.Provider value={housing}><div className="shell local-app">
     <a className="skip-link" href="#main-content">跳转到主要内容</a>
     {<LocalHeader {...{setView,view,siteSettings,setSearchOpen,focusSearchResult,searchOpen,showSearch,searchRef,search,setSearch,closeSearch,data,openModule}}/>}
     <PwaStatusBar localMode/>
@@ -290,5 +289,5 @@ export function LocalApp(){
       onClose={()=>setExpanded(null)}>
       {<ExpandedModuleContent {...{expanded,data,store,setExpanded,fishingData,subscribeProgress,setSettingsTab,setView,setDataSection}}/>}
     </LocalModuleOverlay>:null}
-  </div>;
+  </div></HousingContext.Provider>;
 }
