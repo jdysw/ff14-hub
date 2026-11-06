@@ -15,7 +15,7 @@ import {createLocalStore,localDataSchema,localBackupSchema,type LocalData} from 
 const empty=():LocalData=>({version:1,revision:0,fish:{cn:[],global:[]},configuration:{order:['events','fishing','pvp','notes'],visible:{events:true,fishing:true,pvp:true,notes:false},region:'cn'},links:[],notes:[]});
 it('preserves old orders and explicit weather visibility while completing new home modules',()=>{
   const legacy=empty();
-  expect(withHomeModules(legacy.configuration.order)).toEqual(['events','fishing','pvp','notes','market','weather']);
+  expect(withHomeModules(legacy.configuration.order)).toEqual(['events','fishing','pvp','notes','market','weather','housing']);
   const config={...legacy.configuration,order:['weather','events','fishing','pvp','notes','market'],visible:{...legacy.configuration.visible,weather:false,market:false}};
   const value=localDataSchema.parse({...legacy,configuration:config});
   expect(withHomeModules(value.configuration.order)[0]).toBe('weather');

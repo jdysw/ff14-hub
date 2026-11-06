@@ -1,0 +1,19 @@
+.housing-home__scope { margin: 6px 0; font-size: 13px; }
+.housing-home__status { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; }
+.housing-home__plots {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 6px;
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+}
+.housing-home__plots li {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--field-line, #dbe6df);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.housing-home > a { font-size: 12px; }
