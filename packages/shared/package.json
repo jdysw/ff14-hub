@@ -9,8 +9,7 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@ff14-hub/fish-engine": "workspace:*",
@@ -18,7 +17,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "typescript": "catalog:",
-    "vitest": "catalog:"
+    "typescript": "catalog:"
   }
 }

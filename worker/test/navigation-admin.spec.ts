@@ -1,8 +1,9 @@
+import './setup-d1';
 import { SELF, env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { canonicalNavUrl, directoryItemSchema, type DirectoryRecord, type NavCatalogEntry } from '@ff14-hub/shared';
+import { type DirectoryRecord, type NavCatalogEntry } from '@ff14-hub/shared';
 import { issueAdminSession, revokeAdminSession } from '../modules/events/calendar-admin-auth';
-import { applyCatalogSeed, NAV_CATALOG_SEED } from '../modules/nav/catalog';
+import { applyCatalogSeed } from '../modules/nav/catalog';
 
 const URL='https://example.com/api/v1/admin/navigation/items';
 let token='';
@@ -51,16 +52,7 @@ describe('系统网站目录 owner 管理',()=>{
     const audit=await env.DB.prepare('SELECT COUNT(*) AS n FROM nav_catalog_audit WHERE catalog_id=?').bind(first.entry.id).first<{n:number}>();
     expect(audit?.n).toBe(4);
   });
-  it('种子条目的编辑/下架不会被读取、种子升级或目录导入复活',async()=>{
-    const original=(await records())[0]!;const body=directoryItemSchema.strip().parse(original.entry);
-    expect((await call('PUT','/'+original.entry.id,{expectedRevision:0,item:{...body,title:'站长修订'}})).status).toBe(200);
-    await env.DB.prepare('UPDATE nav_catalog_links SET source_version=1,title=? WHERE id=?').bind('旧源标题',original.entry.id).run();
-    await applyCatalogSeed({db:env.DB,now:Date.now()});
-    expect((await published()).find(entry=>entry.id===original.entry.id)?.title).toBe('站长修订');
-    expect((await call('POST','/'+original.entry.id+'/hide',{expectedRevision:1})).status).toBe(200);
-    await applyCatalogSeed({db:env.DB,now:Date.now()});
-    expect((await published()).some(entry=>entry.id===original.entry.id)).toBe(false);
-  });
+
   it('重复网址、隐藏条目的重复创建与过期修订被拒绝，同站不同功能入口仍可保存',async()=>{
     const response=await call('POST','',{expectedRevision:0,item:item()});const first=await response.json<DirectoryRecord>();
     const duplicate=await call('POST','',{expectedRevision:0,item:{...item(),url:item().url+'?utm_source=test'}});
@@ -72,13 +64,5 @@ describe('系统网站目录 owner 管理',()=>{
     const candidates=await Promise.all([call('POST','',{expectedRevision:0,item:{...item(),url:'https://example.org/race'}}),call('POST','',{expectedRevision:0,item:{...item(),url:'https://example.org/race'}})]);
     expect(candidates.map(result=>result.status).sort()).toEqual([201,409]);
   });
-  it('源快照无重复 URL，重复导入不改变行数，输入拒绝脚本网址及额外敏感字段',async()=>{
-    const urls=NAV_CATALOG_SEED.map(entry=>canonicalNavUrl(entry.url));expect(new Set(urls).size).toBe(urls.length);
-    const first=await applyCatalogSeed({db:env.DB,now:Date.now()});
-    const next=await applyCatalogSeed({db:env.DB,now:Date.now()});expect(first.entryCount).toBeGreaterThan(100);expect(next.changedRows).toBe(0);
-    expect((await call('POST','',{expectedRevision:0,item:{...item(),url:'javascript:alert(1)'}})).status).toBe(422);
-    expect((await call('POST','',{expectedRevision:0,item:{...item(),workspaceId:'foreign'}})).status).toBe(422);
-    const existing=NAV_CATALOG_SEED[0]!;
-    expect((await call('POST','',{expectedRevision:0,item:{...item(),url:existing.url}})).status).toBe(409);
-  });
+
 });

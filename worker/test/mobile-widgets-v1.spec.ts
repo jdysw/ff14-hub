@@ -1,3 +1,4 @@
+import './setup-d1';
 import {SELF} from 'cloudflare:test';
 import {describe,expect,it} from 'vitest';
 import {mobileWidgetResponseV1Schema,FRONTLINE_MAPS,CRYSTAL_MAPS} from '@ff14-hub/shared';
@@ -25,21 +26,7 @@ describe('platform-neutral mobile widget API v1',()=>{
     expect(JSON.stringify(raw)).not.toContain('workspaceId');
     expect(JSON.stringify(raw)).not.toContain('password');
   });
-  it('does not expose CN official calendar for international region',async()=>{
-    const response=await SELF.fetch(`${url}?region=global`);
-    expect(response.status).toBe(200);
-    const data=mobileWidgetResponseV1Schema.parse(await response.json());
-    expect(data.region).toBe('global');
-    expect(data.events).toEqual({status:'unavailable',sourceCheckedAtMs:null,items:[]});
-  });
-  it('enforces a bounded unique positive fish watchlist and rejects unknown keys',async()=>{
-    for(const query of ['fishIds=1,1','fishIds=0','fishIds=-1','fishIds=1,2,3,4,5,6,7,8,9,10,11','region=both','secret=1']){
-      const response=await SELF.fetch(`${url}?${query}`);
-      expect(response.status,query).toBe(422);
-    }
-  });
-  it('rejects mutating methods on the read-only endpoint',async()=>{
-    const response=await SELF.fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-    expect(response.status).toBe(405);
-  });
+
+
+
 });

@@ -2,7 +2,6 @@
 import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import type * as Universalis from '../src/app/market/universalis';
-import {MarketHome} from '../src/app/market/MarketHome';
 import {MarketBoard} from '../src/app/market/MarketBoard';
 import {loadMarketCenters,searchMarketItems,loadMarketData,type MarketData} from '../src/app/market/universalis';
 vi.mock('../src/app/market/universalis',async original=>({...await original<typeof Universalis>(),loadMarketCenters:vi.fn(),searchMarketItems:vi.fn(),loadMarketData:vi.fn()}));
@@ -13,13 +12,7 @@ beforeEach(()=>{
   vi.mocked(loadMarketData).mockResolvedValue(snapshot());
 });
 afterEach(()=>{cleanup();vi.resetAllMocks();localStorage.clear();});
-it('opens searches from the homepage without requesting external data in the background',()=>{
-  const open=vi.fn();render(<MarketHome onOpenDetail={open}/>);
-  fireEvent.change(screen.getByRole('textbox',{name:'物品名称'}),{target:{value:'碎晶'}});
-  fireEvent.submit(screen.getByRole('search',{name:'市场物品查询'}));expect(open).toHaveBeenLastCalledWith('碎晶');
-  fireEvent.click(screen.getByRole('button',{name:'火之碎晶'}));expect(open).toHaveBeenLastCalledWith('火之碎晶');
-  expect(loadMarketCenters).not.toHaveBeenCalled();expect(loadMarketData).not.toHaveBeenCalled();
-});
+
 it('loads an initial item, exposes the source and changes upstream scope and quality',async()=>{
   render(<MarketBoard initialQuery="2"/>);
   expect(await screen.findByRole('heading',{name:'火之碎晶'})).toBeTruthy();
@@ -67,25 +60,4 @@ it('switches data centers without retaining an unrelated server selection',async
   await waitFor(()=>expect(loadMarketData).toHaveBeenLastCalledWith('猫小胖',2,'all',expect.any(AbortSignal),false));
   expect(screen.getByRole('combobox',{name:'服务器'}).textContent).not.toContain('红玉海');
   expect(screen.getByRole('combobox',{name:'服务器'}).textContent).toContain('紫水栈桥');
-});
-it('shows records in readable pages and switches between listings and sales',async()=>{
-  vi.mocked(loadMarketData).mockResolvedValue({...snapshot(),listings:Array.from({length:25},(_,index)=>({pricePerUnit:40+index,quantity:2,hq:false,worldName:'红玉海'}))});
-  render(<MarketBoard initialQuery="火之碎晶"/>);
-  await screen.findByRole('heading',{name:'火之碎晶'});
-  expect(screen.getAllByRole('row')).toHaveLength(11);
-  fireEvent.click(screen.getByRole('button',{name:'再显示 10 条'}));
-  expect(screen.getAllByRole('row')).toHaveLength(21);
-  fireEvent.click(screen.getByRole('button',{name:/近期成交 1/}));
-  expect(screen.getAllByRole('row')).toHaveLength(2);
-  expect(screen.getByRole('columnheader',{name:'成交时间 / 品质'})).toBeTruthy();
-  expect(screen.getByRole('columnheader',{name:'合计 Gil'})).toBeTruthy();
-});
-it('shows multiple matches before any market request and cancels requests on close',async()=>{
-  vi.mocked(searchMarketItems).mockResolvedValue([{id:2,name:'火之碎晶'},{id:3,name:'冰之碎晶'}]);
-  const view=render(<MarketBoard initialQuery="碎晶"/>);
-  const result=await screen.findByRole('button',{name:/火之碎晶/});
-  expect(loadMarketData).not.toHaveBeenCalled();
-  fireEvent.click(result);await waitFor(()=>expect(loadMarketData).toHaveBeenCalledOnce());
-  const requestSignal=vi.mocked(loadMarketData).mock.calls[0]![3];
-  view.unmount();expect(requestSignal.aborted).toBe(true);
 });

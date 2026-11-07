@@ -1,5 +1,5 @@
 /**
- * 测试前置：把 migrations/*.sql 真正应用到测试用的 D1 实例。
+ * 数据库集成测试显式引入此文件，应用真实 D1 迁移。
  *
  * 说明：
  * - 使用官方 `applyD1Migrations`，它会在 D1 内维护 `d1_migrations` 记账表，

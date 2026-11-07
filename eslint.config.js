@@ -34,7 +34,10 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         // projectService 让文件自动归属到最近的 tsconfig，无需手工维护 project 列表。
-        projectService: true,
+        projectService: {
+          allowDefaultProject: ['packages/shared/src/sequential-tasks.mjs'],
+          defaultProject: 'tsconfig.base.json',
+        },
         tsconfigRootDir: import.meta.dirname,
       },
     },
