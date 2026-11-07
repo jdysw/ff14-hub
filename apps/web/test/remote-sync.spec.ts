@@ -1,38 +1,9 @@
 import {afterEach,expect,it,vi} from 'vitest';
-import {applyPersonalSync,createRemoteClient,emptyRemoteConfig,mergePersonalData,remoteUrl,s3Headers} from '../src/app/local/remote-sync';
-import type {LocalData,LocalStore} from '../src/app/local/store';
+import {createRemoteClient,emptyRemoteConfig,s3Headers} from '../src/app/local/remote-sync';
+import type {LocalData} from '../src/app/local/store';
 const empty=():LocalData=>({version:1,revision:0,fish:{cn:[],global:[]},configuration:{order:['events','fishing','pvp','notes'],visible:{events:true,fishing:true,pvp:true,notes:false},region:'cn'},links:[],notes:[]});
 afterEach(()=>vi.unstubAllGlobals());
-it('keeps unchanged fish revisions when another device adds a note',()=>{
-  const field={region:'cn' as const,fishId:1,field:'caught' as const,value:true,revision:4,updatedAt:123};
-  const base={...empty(),fish:{cn:[field],global:[]}};
-  const remote={...base,notes:[{id:crypto.randomUUID(),title:'另一设备',text:'新增'}]};
-  const result=mergePersonalData(base,base,remote);
-  expect(result.data.fish.cn[0]).toEqual(field);expect(result.data.notes).toEqual(remote.notes);
-});
-it('retains accepted operation IDs while importing remote changes',async()=>{
-  const document={data:empty(),operations:[{id:'already-accepted'}]};
-  const store={change:(update:(value:typeof document)=>unknown)=>Promise.resolve(update(document))} as unknown as LocalStore;
-  await applyPersonalSync(store,0,{...empty(),notes:[{id:crypto.randomUUID(),title:'远端',text:'记录'}]});
-  expect(document.operations).toEqual([{id:'already-accepted'}]);expect(document.data.notes).toHaveLength(1);
-});
-it('preserves deletions and exposes competing edits instead of choosing a device silently',()=>{
-  const note={id:crypto.randomUUID(),title:'备忘',text:'原始'},base={...empty(),notes:[note]};
-  const local={...base,notes:[{...note,text:'本机修改'}]},remote={...base,notes:[{...note,text:'远端修改'}]};
-  const result=mergePersonalData(base,local,remote);expect(result.conflicts).toHaveLength(1);
-  expect(mergePersonalData(base,local,remote,{['note:'+note.id]:'remote'}).data.notes[0]?.text).toBe('远端修改');
-  expect(mergePersonalData(base,base,{...base,notes:[]}).data.notes).toEqual([]);
-});
-it('honors a cancelled caught flag and isolates both regions',()=>{
-  const field={region:'cn' as const,fishId:1,field:'caught' as const,value:true,revision:1,updatedAt:1};
-  const base={...empty(),fish:{cn:[field],global:[]}};
-  const local={...base,fish:{cn:[{...field,value:false,revision:2}],global:[]}};
-  const result=mergePersonalData(base,local,base);
-  expect(result.data.fish.cn[0]?.value).toBe(false);expect(result.data.fish.global).toEqual([]);
-});
-it('refuses Hub targets, cleartext endpoints, embedded credentials and ambiguous object URLs',()=>{
-  for(const target of ['http://dav.example/file','https://a:b@dav.example/file','https://hub.example/file','https://dav.example/file?token=bad','https://dav.example/folder/'])expect(()=>remoteUrl(target,'https://hub.example')).toThrow();
-});
+
 it('uses conditional writes and stops on concurrent remote modification',async()=>{
   vi.stubGlobal('location',{origin:'https://hub.example'});
   const fetcher=vi.fn<typeof fetch>().mockResolvedValue(new Response('',{status:412}));

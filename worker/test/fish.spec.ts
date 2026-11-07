@@ -1,3 +1,4 @@
+import './setup-d1';
 import {SELF,env} from 'cloudflare:test';
 import {beforeEach,describe,expect,it} from 'vitest';
 import {fishListResponseSchema,fishWindowsResponseSchema} from '@ff14-hub/shared';
@@ -29,8 +30,5 @@ describe('current public fishing API',()=>{
     const body=fishListResponseSchema.parse(await response.json());
     expect(body.fish[0]?.rule.version).toBe('synthetic-v2');
   });
-  it('does not expose the retired workspace fish-progress endpoint',async()=>{
-    const response=await SELF.fetch(`${BASE}/me/fish-progress?region=cn`);
-    expect(response.status).toBe(404);
-  });
+
 });

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import {cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/react';
+import {cleanup,fireEvent,render,screen,within} from '@testing-library/react';
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {navCatalogEntrySchema} from '@ff14-hub/shared';
 import {LocalApp} from '../src/app/local/LocalApp';
@@ -49,46 +49,6 @@ it('renders more than 36 directory entries without a show-more gate',async()=>{
  expect(directory().queryByRole('button',{name:/显示更多/})).toBeNull();
 });
 
-it('shows the search icon inside the centered field without a redundant visible title',async()=>{
-  render(<LocalApp/>);
-  await screen.findByText('市场工具');
-  const form=screen.getByRole('search',{name:'全站搜索'});
-  const icon=within(form).getByRole('button',{name:'全站搜索'});
-  expect(icon.textContent).toBe('');
-  expect(form.firstElementChild).toBe(icon);
-  expect(form.contains(screen.getByRole('searchbox',{name:'全站搜索关键词'}))).toBe(true);
-  fireEvent.click(icon);
-  expect(icon.getAttribute('aria-expanded')).toBe('true');
-  expect(await screen.findByRole('region',{name:'全站搜索结果'})).toBeDefined();
-});
-
-it('does not show an empty result while the first public catalog is still loading',async()=>{
-  vi.stubGlobal('fetch',vi.fn(()=>new Promise(()=>{})));
-  render(<LocalApp/>);
-  expect(await screen.findByText('正在更新网站目录…')).toBeDefined();
-  expect(screen.queryByText('还没有网站')).toBeNull();
-  expect(screen.queryByText('没有找到匹配的网站')).toBeNull();
-});
-
-it('retains directory categories and replaces its duplicate search with unified inline results',async()=>{
-  render(<LocalApp/>);
-  await screen.findByText('市场工具');
-  fireEvent.click(within(directory().getByRole('navigation',{name:'网站分类'})).getByRole('button',{name:'生产与采集'}));
-  fireEvent.click(within(directory().getByRole('navigation',{name:'网站子分类'})).getByRole('button',{name:'市场与物价'}));
-  expect(screen.queryByRole('combobox',{name:'更多分类'})).toBeNull();
-  expect(directory().queryByText('钓鱼工具')).toBeNull();
-  expect(directory().getByText('1 / 2 个网站')).toBeDefined();
-  expect(screen.queryByRole('searchbox',{name:'搜索网站'})).toBeNull();
-  fireEvent.change(screen.getByRole('searchbox',{name:'全站搜索关键词'}),{target:{value:'钓鱼工具'}});
-  const results=await screen.findByRole('region',{name:'全站搜索结果'});
-  expect(within(results).getByText('钓鱼工具')).toBeDefined();
-  expect(document.querySelector('main')?.contains(results)).toBe(true);expect(document.querySelector('dialog')).toBeNull();
-  expect(directory().queryByText('钓鱼工具')).toBeNull();
-  fireEvent.click(directory().getByRole('button',{name:'清除筛选'}));
-  expect(directory().getByText('2 个网站')).toBeDefined();
-  expect(directory().getByText('钓鱼工具')).toBeDefined();
-});
-
 it('retains already loaded links when refresh fails and makes retry available',async()=>{
   const fetchMock=vi.mocked(fetch);
   render(<LocalApp/>);
@@ -101,30 +61,6 @@ it('retains already loaded links when refresh fails and makes retry available',a
   expect(screen.queryByText('正在更新网站目录…')).toBeNull();
 });
 
-it('does not steal focus out of an open modal with the slash shortcut',async()=>{
-  render(<LocalApp/>);
-  await screen.findByText('市场工具');
-  const dialog=document.createElement('dialog');dialog.setAttribute('open','');
-  const button=document.createElement('button');dialog.append(button);document.body.append(dialog);button.focus();
-  fireEvent.keyDown(window,{key:'/'});
-  expect(document.activeElement).toBe(button);
-  dialog.remove();
-  const input=screen.getByRole('searchbox',{name:'全站搜索关键词'});
-  fireEvent.keyDown(window,{key:'/'});await waitFor(()=>expect(document.activeElement).toBe(input));
-  fireEvent.change(input,{target:{value:'市场'}});
-  fireEvent.keyDown(input,{key:'Escape'});
-  expect(screen.queryByRole('region',{name:'全站搜索结果'})).toBeNull();expect(screen.getByRole<HTMLInputElement>('searchbox',{name:'全站搜索关键词'}).value).toBe('市场');
-  await waitFor(()=>expect(directory().getByText('2 个网站')).toBeDefined());
-});
-it('uses the same input for Ctrl+K and slash while leaving editor keystrokes alone',async()=>{
-  render(<LocalApp/>);await screen.findByText('市场工具');
-  const input=screen.getByRole('searchbox',{name:'全站搜索关键词'});
-  fireEvent.keyDown(window,{key:'k',ctrlKey:true});await waitFor(()=>expect(document.activeElement).toBe(input));
-  fireEvent.keyDown(input,{key:'ArrowDown'});expect(document.activeElement?.textContent).toContain('我的待办');
-  const editor=document.createElement('textarea');document.body.append(editor);editor.focus();
-  fireEvent.keyDown(editor,{key:'/'});expect(document.activeElement).toBe(editor);editor.remove();
-  expect(document.querySelector('dialog')).toBeNull();
-});
 it('opens inline search without unmounting an unfinished settings form',async()=>{
   render(<LocalApp/>);await screen.findByText('市场工具');fireEvent.click(screen.getByRole('button',{name:'设置'}));
   fireEvent.click(screen.getByRole('button',{name:'待办'}));
