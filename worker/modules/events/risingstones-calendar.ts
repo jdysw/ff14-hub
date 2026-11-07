@@ -84,7 +84,7 @@ async function monthEvents(month: string, signal?: AbortSignal) {
 }
 
 export async function withRisingstonesCalendar(calendar: EventCalendarResponse, now = Date.now(), signal?: AbortSignal, force = false): Promise<EventCalendarResponse> {
-  const date = new Date(now + 8 * 3600_000);
+  const date = new Date(now + 8 * 3_600_000);
   const months = [0,1].map(offset => new Date(Date.UTC(date.getUTCFullYear(),date.getUTCMonth()+offset,1)).toISOString().slice(0,7));
   const period = months[0]!;
   let stale = false;
