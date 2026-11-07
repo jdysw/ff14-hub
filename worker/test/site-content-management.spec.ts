@@ -1,3 +1,4 @@
+import './setup-d1';
 import {env,SELF} from 'cloudflare:test';
 import {beforeEach,expect,it} from 'vitest';
 import {issueAdminSession} from '../modules/events/calendar-admin-auth';

@@ -1,3 +1,4 @@
+import './setup-d1';
 import {SELF} from 'cloudflare:test';
 import {describe,it,expect} from 'vitest';
 import {TEST_BASE_URL} from './helpers';

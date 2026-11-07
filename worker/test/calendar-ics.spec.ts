@@ -1,3 +1,4 @@
+import './setup-d1';
 import { describe, expect, it } from 'vitest';
 import { SELF, env } from 'cloudflare:test';
 import { createOfficialCalendarIcs, foldIcsLine } from '../modules/events/calendar-ics';

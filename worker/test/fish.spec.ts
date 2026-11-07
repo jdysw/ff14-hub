@@ -1,3 +1,4 @@
+import './setup-d1';
 import {SELF,env} from 'cloudflare:test';
 import {beforeEach,describe,expect,it} from 'vitest';
 import {fishListResponseSchema,fishWindowsResponseSchema} from '@ff14-hub/shared';

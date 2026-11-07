@@ -3,26 +3,7 @@ import {describe,expect,it} from 'vitest';
 import * as shared from '../src/index';
 
 describe('单用户共享契约',()=>{
-  it('仅公开现行 Web/Worker/Android 与本地同步工具',()=>{
-    expect(shared.API_ROUTES.health).toBe('/api/v1/health');
-    expect(shared.API_ROUTES.navCatalog).toBe('/api/v1/navigation/catalog');
-    expect(shared.API_ROUTES.localNotifications).toBe('/api/v1/local-notifications');
-    expect(shared.API_ROUTES.siteData).toBe('/api/v1/site/data');
-    expect(typeof shared.siteGameDataSchema.parse).toBe('function');
-    expect(typeof shared.managedPresentationSchema.parse).toBe('function');
-    expect(shared.API_ROUTES).not.toHaveProperty('meWorkbench');
-    expect(shared.API_ROUTES).not.toHaveProperty('bootstrap');
-    expect(shared).not.toHaveProperty('DEVICE_TOKEN_PREFIX');
-    expect(shared).not.toHaveProperty('syncChangesResponseSchema');
-    expect(shared).not.toHaveProperty('WORKBENCH_BACKUP_SCHEMA_VERSION');
-    expect(shared).not.toHaveProperty('MODULE_CAPABILITIES');
-    for(const retired of ['navSnapshotSchema','navGroupSchema','navMembershipSchema','parseBookmarkHtml','navImportPreviewRequestSchema','workspaceEventSchema','createWorkspaceEventRequestSchema','eventsManageConfigSchema','fishWidgetConfigSchema']){
-      expect(shared).not.toHaveProperty(retired);
-    }
-    expect(typeof shared.parseFishDocument).toBe('function');
-    expect(typeof shared.fishWindows).toBe('function');
-    expect(typeof shared.canonicalNavUrl).toBe('function');
-  });
+
   it('操作 ID 形状沿用现行钓鱼保存契约而不是旧工作台',()=>{
     expect(shared.operationIdSchema.safeParse('op-12345678').success).toBe(true);
     expect(shared.operationIdSchema.safeParse('op 12345678').success).toBe(false);

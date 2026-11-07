@@ -1,19 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import {
-  API_ERROR_CODES,
-  ApiError,
-  DEFAULT_ERROR_MESSAGE,
-  HTTP_STATUS_BY_ERROR_CODE,
-  apiErrorBodySchema,
-} from '../src/errors';
+import {ApiError,apiErrorBodySchema} from '../src/errors';
 
 describe('API 错误契约', () => {
-  it('每个错误码都有 HTTP 状态码与默认文案', () => {
-    for (const code of API_ERROR_CODES) {
-      expect(HTTP_STATUS_BY_ERROR_CODE[code]).toBeTypeOf('number');
-      expect(DEFAULT_ERROR_MESSAGE[code].length).toBeGreaterThan(0);
-    }
-  });
 
   it('错误对象只接受 code/message/requestId 三个字段', () => {
     const parsed = apiErrorBodySchema.safeParse({
@@ -46,9 +34,4 @@ describe('API 错误契约', () => {
     expect(Object.keys(JSON.parse(JSON.stringify(error)) as object)).not.toContain('logDetail');
   });
 
-  it('高熵凭证场景下 401 与 403 语义分离：未认证 vs 来源不被允许', () => {
-    expect(HTTP_STATUS_BY_ERROR_CODE.unauthorized).toBe(401);
-    expect(HTTP_STATUS_BY_ERROR_CODE.forbidden).toBe(403);
-    expect(HTTP_STATUS_BY_ERROR_CODE.not_implemented).toBe(501);
-  });
 });

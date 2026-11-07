@@ -1,3 +1,4 @@
+import './setup-d1';
 import { SELF, env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ADMIN_PBKDF2_ITERATIONS, issueAdminSession, startAdminSetup, totpForTests, validateAdminCredentials } from '../modules/events/calendar-admin-auth';

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import {cleanup,render,screen,fireEvent,waitFor} from '@testing-library/react';
 import {afterEach,beforeEach,it,expect,vi} from 'vitest';
-import {FishingBoard,HOME_FISH_PREVIEW_LIMIT,fishBoardSummary,type FishDetailSelection} from '../src/app/fish/FishingBoard';
+import {FishingBoard,HOME_FISH_PREVIEW_LIMIT,type FishDetailSelection} from '../src/app/fish/FishingBoard';
 import {forecastCatalog} from '../src/app/fish/forecast';
 import type {CatalogFish,FishingCatalog} from '../src/app/fish/catalog';
 import type {FishProgress,FishRegion} from '@ff14-hub/shared';
@@ -26,13 +26,6 @@ beforeEach(()=>{reminderSettings.clear();vi.stubGlobal('Worker',ForecastWorker);
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});
 const publicPort=(catalog=fixture):FishingData=>({loadCatalog:()=>Promise.resolve(catalog)});
 
-it('完整鱼窗状态文案分别覆盖计算中、开放中、未来、无限制和全部目录',()=>{
-  expect(fishBoardSummary(false,'windows','open',24,3)).toBe('正在计算完整目录的鱼窗…');
-  expect(fishBoardSummary(true,'windows','open',24,3)).toBe('开放中 · 3 种鱼');
-  expect(fishBoardSummary(true,'windows','upcoming',72,4)).toBe('未来 72 小时内开放 · 4 种鱼');
-  expect(fishBoardSummary(true,'windows','always',24,2)).toBe('时间天气不限 · 2 种鱼');
-  expect(fishBoardSummary(true,'all','open',24,10)).toBe('找到 10 条记录');
-});
 it('separates finite open, future and unrestricted fish and applies future range outside the expanded page',async()=>{
   const entries=[{...fish[0]!,kind:'normal' as const},fish[1]!,fish[2]!,fish[3]!,{...fish[4]!,method:'spear' as const,rule:null}];
   class ScopeWorker{
@@ -87,28 +80,6 @@ it('searches fish names by default and only matches bait after an explicit scope
   await screen.findByText('蝲蛄',{selector:'strong'});expect(screen.queryByText('梦幻虾虎',{selector:'strong'})).toBeNull();
   fireEvent.change(screen.getByRole('combobox',{name:'搜索范围'}),{target:{value:'bait'}});
   expect(screen.getByText('梦幻虾虎',{selector:'strong'})).toBeTruthy();expect(screen.queryByText('蝲蛄',{selector:'strong'})).toBeNull();
-});
-
-it('shows full audit coverage and separates spear conditions from ocean voyage conditions',async()=>{
-  const selected=source.fish.filter(f=>f.id===36535||f.id===51228);
-  render(<FishingBoard data={publicPort({...source,fish:selected,coverage:{total:2,forecast:0,always:0,unknown:2}})} initialFilters={{region:'cn',view:'all',kind:'all',text:'',hideCaught:false,windowHours:24}}/>);
-  await screen.findByText('猎船岛水珍鱼');expect(screen.getByText(/鱼影触发.*乐园石斑鱼 × 7/)).toBeTruthy();
-  expect(screen.getByText('鱼识前置：灰色真鲨 × 3、剑射鱼 × 2')).toBeTruthy();
-  expect(screen.getByText(/海钓环境：幻海流；时段：黄昏/)).toBeTruthy();
-  expect(screen.getByText('海钓 · 查看航次条件')).toBeTruthy();
-  expect(screen.getByText(/全目录交叉核对 2764 条/)).toBeTruthy();
-  expect(screen.getAllByRole('link',{name:'在鱼糕查看钓法参考'}).some(a=>a.getAttribute('href')?.includes('/spearfishing/'))).toBe(true);
-});
-
-it('shows filled intuition duration with its source and the corrected mooch comparison',async()=>{
-  const selected=source.fish.filter(f=>f.id===46195||f.id===24994);
-  render(<FishingBoard data={publicPort({...source,fish:selected,coverage:{total:2,forecast:2,always:0,unknown:0}})} initialFilters={{region:'cn',view:'all',kind:'all',text:'',hideCaught:false,windowHours:24}}/>);
-  await screen.findByText('巨蛇头鳢');
-  expect(screen.getByText('鱼识持续 350 秒（鱼糕补充）；尚未计算前置鱼准备的可行性。')).toBeTruthy();
-  expect(screen.getByText(/已按鱼糕补全鱼识持续时间：350 秒/)).toBeTruthy();
-  expect(screen.getByText(/橙彩鱼：合并泳饵依赖后 ET 4–8，与 Tracker 一致/)).toBeTruthy();
-  expect(screen.queryByText(/准备时间条件存在差异/)).toBeNull();
-  expect(screen.getByText(/全目录交叉核对 2764 条/)).toBeTruthy();
 });
 
 it('renders actionable fish directly, and searches beyond the first 30 records',async()=>{

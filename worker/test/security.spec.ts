@@ -1,3 +1,4 @@
+import './setup-d1';
 /**
  * 安全头 / CSP / 请求体积 / Content-Type / Origin 边界测试。
  *

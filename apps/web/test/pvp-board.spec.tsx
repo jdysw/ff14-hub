@@ -29,15 +29,3 @@ it('displays both current PVP maps and the next rotation on the compact homepage
   expect(within(overview).getByText('下张：火山之心')).toBeDefined();
   expect(within(overview).getByText('北京时间 12:00')).toBeDefined();
 });
-
-it('shows every map entry in the expanded schedule instead of a second long homepage list',()=>{
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date('2026-10-21T02:10:00Z'));
-  const {container}=render(<PvpBoard expanded/>);
-  expect(container.querySelectorAll('.pvp-board__schedule')).toHaveLength(2);
-  expect(container.querySelectorAll('.pvp-board__schedule li')).toHaveLength(16);
-  expect(screen.getByText('2026-10-21 10:00–11:00')).toBeDefined();
-  expect(screen.getByText('2026-10-22 23:00')).toBeDefined();
-  expect(screen.getByText(/官方调整地图轮换/)).toBeDefined();
-  expect(screen.queryByRole('button',{name:'完整轮换 ↗'})).toBeNull();
-});

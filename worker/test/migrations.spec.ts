@@ -1,3 +1,4 @@
+import './setup-d1';
 /**
  * 单用户 D1 初始基线回归。真实 workerd/D1；从空数据库应用 migrations/0001_core.sql。
  * 不再要求旧设备、工作空间、服务器端工作台和旧通知表存在。

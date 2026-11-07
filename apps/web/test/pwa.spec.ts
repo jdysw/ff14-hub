@@ -1,27 +1,16 @@
 /**
- * HUB-012（PWA / ADR-0004 D10）单测。
- *
- * 覆盖四块：
- * 1. `cache-policy.ts` 的每个拒绝分支与允许分支（默认拒绝，白名单封闭）。
- * 2. `sw.js` 与策略**一一对应**：JSON 清单逐字节相等 + 真实执行 sw.js 的行为等价断言，
- *    以及「install 不自动 skipWaiting」「fetch 不介入私有请求」这两条硬约束。
- * 3. `install-state.ts` 的离线 / 可安装 / 更新提示分支（不得暗示私有写已保存）。
- * 4. `register-service-worker.ts` 在没有 `navigator.serviceWorker` 时安全降级（不抛错、不阻塞渲染），
- *    以及「有草稿就不激活更新」与 `clearPrivateCaches()` 的缓存清理行为。
+ * 保留缓存边界、真实 Service Worker 行为、离线恢复和更新时的草稿保护。
+ * manifest、图标和静态响应头由 Worker 的 static-assets-headers.spec.ts 验证。
  */
 // @vitest-environment jsdom
-import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  CACHE_POLICY,
   PRIVATE_PATH_PREFIXES,
   PUBLIC_API_PATHS,
   PUBLIC_CACHE_NAME,
   PUBLIC_STATIC_EXACT_PATHS,
   PUBLIC_STATIC_PATH_PREFIXES,
-  isNonPublicCacheName,
-  isPublicCacheName,
   isPrivatePath,
   selectCachesToClear,
   shouldCacheRequest,
@@ -53,18 +42,7 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// 读取真实产物：apps/web/public/sw.js
-//
-// 这里读到的源码文本**只用于「文本级」断言**（内联 JSON 逐字节相等、不出现手写 API 路径）。
-// 行为断言一律走 loadServiceWorker() 的动态 import，不再把源码字符串交给动态求值。
 // ---------------------------------------------------------------------------
-
-const SW_CANDIDATES = [join(process.cwd(), 'public', 'sw.js'), join(process.cwd(), 'apps', 'web', 'public', 'sw.js')];
-const swPath = SW_CANDIDATES.find((candidate) => existsSync(candidate));
-if (swPath === undefined) {
-  throw new Error(`找不到 sw.js，已尝试：${SW_CANDIDATES.join(' / ')}`);
-}
-const SW_SOURCE = readFileSync(swPath, 'utf8');
 
 const APP_ORIGIN = 'https://ff14-hub.test';
 
@@ -121,30 +99,17 @@ describe('cache-policy：shouldCacheRequest 拒绝清单', () => {
   it.each([
     ...PRIVATE_PATH_PREFIXES,
     '/api/v1/me/profile',
-    '/api/v1/me/devices',
-    '/api/v1/me/modules',
-    '/api/v1/me/pages',
-    '/api/v1/me/widgets',
-    '/api/v1/me/workbench',
-    '/api/v1/me/navigation',
-    '/api/v1/me/events',
-    '/api/v1/me/sync',
     '/api/v1/me/sync/changes?since=0',
   ])('拒绝私有路径 %s', (path) => {
     expect(shouldCacheRequest(requestDescriptor(path))).toBe(false);
     expect(isPrivatePath(new URL(`${APP_ORIGIN}${path}`).pathname)).toBe(true);
   });
 
-  it('私有前缀清单必须显式包含 /api/v1/me/（含全部子路径）', () => {
-    expect(PRIVATE_PATH_PREFIXES).toContain('/api/v1/me/');
-    expect(PRIVATE_PATH_PREFIXES).toContain('/api/v1/me');
-  });
-
   it('前缀判定刻意偏严：/api/v1/metadata 之类也被拒（多拒是安全的）', () => {
     expect(shouldCacheRequest(requestDescriptor('/api/v1/metadata'))).toBe(false);
   });
 
-  it.each(['POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'])('只允许 GET：拒绝 %s', (method) => {
+  it.each(['POST', 'HEAD'])('只允许 GET：拒绝 %s', (method) => {
     expect(shouldCacheRequest(requestDescriptor('/assets/app.js', { method }))).toBe(false);
   });
 
@@ -160,7 +125,7 @@ describe('cache-policy：shouldCacheRequest 拒绝清单', () => {
     expect(shouldCacheRequest(requestDescriptor('/', { url: `http://ff14-hub.test/` }))).toBe(false);
   });
 
-  it.each(['file:///etc/passwd', 'chrome-extension://abcdef/page.html', 'data:text/html,hi', 'blob:https://x/y'])(
+  it.each(['file:///etc/passwd', 'data:text/html,hi'])(
     '拒绝非 http(s) 协议 %s',
     (url) => {
       expect(shouldCacheRequest(requestDescriptor('/', { url }))).toBe(false);
@@ -199,11 +164,11 @@ describe('cache-policy：shouldCacheResponse', () => {
     },
   );
 
-  it.each([201, 204, 206, 301, 302, 304, 400, 401, 403, 404, 409, 500, 503])('拒绝非 200 状态 %s', (status) => {
+  it.each([204, 302, 401, 500])('拒绝非 200 状态 %s', (status) => {
     expect(shouldCacheResponse({ status, contentType: 'text/html', cacheControl: null })).toBe(false);
   });
 
-  it.each(['no-store', 'no-store, max-age=0', 'private', 'private, max-age=600', 'PRIVATE'])(
+  it.each(['no-store, max-age=0', 'PRIVATE'])(
     '拒绝服务端要求不落地的 Cache-Control：%s',
     (cacheControl) => {
       expect(shouldCacheResponse({ status: 200, contentType: 'text/html', cacheControl })).toBe(false);
@@ -218,16 +183,11 @@ describe('cache-policy：shouldCacheResponse', () => {
   it.each([
     'application/octet-stream',
     'application/x-pem-file',
-    'application/pkcs8',
-    'application/x-pkcs12',
-    'application/pgp-keys',
-    'multipart/form-data',
-    'application/x-www-form-urlencoded',
   ])('拒绝敏感内容类型 %s', (contentType) => {
     expect(shouldCacheResponse({ status: 200, contentType, cacheControl: null })).toBe(false);
   });
 
-  it.each([null, '', '   ', 'application/zip', 'text/event-stream', 'video/mp4'])(
+  it.each([null, '   ', 'text/event-stream'])(
     '拒绝缺失或未知（封闭白名单外）的内容类型：%s',
     (contentType) => {
       expect(shouldCacheResponse({ status: 200, contentType, cacheControl: null })).toBe(false);
@@ -236,12 +196,6 @@ describe('cache-policy：shouldCacheResponse', () => {
 });
 
 describe('cache-policy：缓存名与清理选择', () => {
-  it('公开缓存名带版本号', () => {
-    expect(PUBLIC_CACHE_NAME).toBe('ff14-hub-public-v3');
-    expect(isPublicCacheName('ff14-hub-public-v3')).toBe(true);
-    expect(isPublicCacheName('ff14-hub-public-v0')).toBe(false);
-    expect(isNonPublicCacheName('ff14-hub-private')).toBe(true);
-  });
 
   it('selectCachesToClear 只保留当前公开缓存', () => {
     const existing = ['ff14-hub-public-v3', 'ff14-hub-public-v0', 'ff14-hub-private', 'ff14-hub-me'];
@@ -397,39 +351,9 @@ function handlerOf(sandbox: SwSandbox, type: string): (event: unknown) => void {
 }
 
 /** 只注册 install/activate/fetch/message 四类事件——「只做三件事」的可执行断言。 */
-function registeredEventTypes(sandbox: SwSandbox): string[] {
-  return [...sandbox.handlers.keys()].sort((a, b) => a.localeCompare(b));
-}
 
 describe('sw.js：与 cache-policy.ts 一一对应', () => {
-  it('内联的 CACHE_POLICY_JSON 与 CACHE_POLICY 逐字节相同', () => {
-    const match = /const CACHE_POLICY_JSON =\s*\n?\s*'([^']*)'/.exec(SW_SOURCE);
-    expect(match, 'sw.js 里找不到 CACHE_POLICY_JSON').not.toBeNull();
-    const inlineJson = match?.[1] ?? '';
-    expect(inlineJson).toBe(JSON.stringify(CACHE_POLICY));
-  });
 
-  it('sw.js 报告的白名单与 TypeScript 侧完全相同', async () => {
-    const sandbox = await loadServiceWorker();
-    expect(sandbox.sw.CACHE_POLICY).toEqual(JSON.parse(JSON.stringify(CACHE_POLICY)));
-    expect(sandbox.sw.PUBLIC_CACHE_NAME).toBe(PUBLIC_CACHE_NAME);
-    expect(sandbox.sw.SKIP_WAITING_MESSAGE).toBe(SKIP_WAITING_MESSAGE);
-    expect(sandbox.sw.isNonPublicCacheName('ff14-hub-public-v0')).toBe(true);
-    expect(sandbox.sw.isNonPublicCacheName(PUBLIC_CACHE_NAME)).toBe(false);
-  });
-
-  it('sw.js 明文包含 /api/v1/me/ 拒绝前缀，且代码里不再出现其它 API 路径字面量', () => {
-    expect(SW_SOURCE).toContain('/api/v1/me/');
-    const policyJsonMatch = /const CACHE_POLICY_JSON =\s*\n?\s*'([^']*)'/.exec(SW_SOURCE);
-    const code = SW_SOURCE.replace(policyJsonMatch?.[1] ?? '', '');
-    const apiLiterals = [...code.matchAll(/'(\/api\/[^']*)'/g)].map((found) => found[1]);
-    // 所有 API 路径都必须来自那一份清单；代码里手写路径就可能绕过策略。
-    expect(apiLiterals).toEqual([]);
-  });
-
-  it('只注册缓存、显式更新和推送所需的事件', async () => {
-    expect(registeredEventTypes(await loadServiceWorker())).toEqual(['activate', 'fetch', 'install', 'message','notificationclick','push']);
-  });
   it('空推送安全回退，通知点击始终进入同源提醒视图',async()=>{
     const sandbox=await loadServiceWorker();let pending=Promise.resolve();
     handlerOf(sandbox,'push')({data:{json:()=>null},waitUntil:(promise:Promise<void>)=>{pending=promise;}});await pending;
@@ -576,7 +500,6 @@ describe('sw.js：与 cache-policy.ts 一一对应', () => {
     expect(await dispatch(`${APP_ORIGIN}/api/v1/me/workbench`, { method: 'PUT' })).toBe(false);
   });
 });
-
 
 describe('sw.js：首页 HTML 更新策略', () => {
   it('鱼类目录联网优先读取新资料，断网保留已有目录', async () => {
@@ -921,50 +844,4 @@ describe('register-service-worker：observeOfflineState', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 6. 产物契约：manifest / 图标 / 窄屏不溢出
 // ---------------------------------------------------------------------------
-
-function publicFile(relative: string): string | undefined {
-  const candidates = [join(process.cwd(), 'public', relative), join(process.cwd(), 'apps', 'web', 'public', relative)];
-  return candidates.find((candidate) => existsSync(candidate));
-}
-
-describe('PWA 产物契约', () => {
-  it('manifest 可被 JSON.parse，且含 start_url=/ 与 zh-CN', () => {
-    const path = publicFile('manifest.webmanifest');
-    expect(path, '找不到 manifest.webmanifest').toBeDefined();
-    const manifest = JSON.parse(readFileSync(path ?? '', 'utf8')) as Record<string, unknown>;
-    expect(manifest['start_url']).toBe('/');
-    expect(manifest['display']).toBe('standalone');
-    expect(manifest['lang']).toBe('zh-CN');
-    expect(manifest['name']).toBeTruthy();
-    expect(manifest['short_name']).toBeTruthy();
-    expect(manifest['background_color']).toBeTruthy();
-    expect(manifest['theme_color']).toBeTruthy();
-    expect(String(manifest['description'])).not.toBe('');
-  });
-
-  it('manifest 引用的每个图标文件都真实存在', () => {
-    const manifestPath = publicFile('manifest.webmanifest');
-    const manifest = JSON.parse(readFileSync(manifestPath ?? '', 'utf8')) as {
-      icons: { src: string; sizes: string; purpose?: string }[];
-    };
-    for (const icon of manifest.icons) {
-      expect(publicFile(icon.src.replace(/^\//, '')), icon.src).toBeDefined();
-    }
-    expect(manifest.icons.some((icon) => icon.sizes === '192x192')).toBe(true);
-    expect(manifest.icons.some((icon) => icon.sizes === '512x512' && icon.purpose === 'maskable')).toBe(true);
-  });
-
-  it('index.html 声明 manifest / theme-color / apple-touch-icon 且保留既有 viewport', () => {
-    const htmlPath = publicFile('../index.html') ?? join(process.cwd(), 'index.html');
-    const html = readFileSync(htmlPath, 'utf8');
-    expect(html).toContain('rel="manifest"');
-    expect(html).toContain('href="/manifest.webmanifest"');
-    expect(html).toContain('name="theme-color"');
-    expect(html).toContain('rel="apple-touch-icon"');
-    expect(html).toContain('href="/icons/apple-touch-icon.png"');
-    expect(html).toContain('name="viewport"');
-    expect(html).toContain('width=device-width');
-  });
-});

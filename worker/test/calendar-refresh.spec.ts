@@ -1,3 +1,4 @@
+import './setup-d1';
 import {env} from 'cloudflare:test';
 import {beforeEach,expect,it,vi} from 'vitest';
 import type {EventCalendarResponse} from '@ff14-hub/shared';

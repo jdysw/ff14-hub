@@ -1,3 +1,4 @@
+import './setup-d1';
 import {SELF} from 'cloudflare:test';
 import {describe,expect,it} from 'vitest';
 import {mobileWidgetResponseV1Schema,FRONTLINE_MAPS,CRYSTAL_MAPS} from '@ff14-hub/shared';

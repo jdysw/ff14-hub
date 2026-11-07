@@ -1,3 +1,4 @@
+import './setup-d1';
 import {env,SELF} from 'cloudflare:test';
 import {beforeEach,expect,it,vi} from 'vitest';
 import {encryptChannel,decryptChannel} from '../modules/reminders/notification-channel';

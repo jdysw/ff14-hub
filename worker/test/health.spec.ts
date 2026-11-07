@@ -1,3 +1,4 @@
+import './setup-d1';
 /**
  * 健康检查与请求 ID 集成测试（在真实 workerd + D1 中执行）。
  */
