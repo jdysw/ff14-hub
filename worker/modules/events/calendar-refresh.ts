@@ -1,6 +1,7 @@
 import {eventCalendarResponseSchema,type EventCalendarResponse} from '@ff14-hub/shared';
 import {consumeRateLimit} from '../../lib/rate-limit';
-import {CN_CALENDAR_CACHE_MS,readCnCalendar} from './calendar-feed';
+import {CN_CALENDAR_CACHE_MS,type readCnCalendar} from './calendar-feed';
+import {readCombinedCnCalendar} from './risingstones-calendar';
 
 /** Only replace a public snapshot with a complete, recent response from the fixed official source. */
 export async function storeOfficialCalendarSnapshot(db:D1Database,value:EventCalendarResponse,nowMs=Date.now()):Promise<boolean>{
@@ -17,7 +18,7 @@ export async function storeOfficialCalendarSnapshot(db:D1Database,value:EventCal
 }
 
 /** Request-driven refresh. A shared D1 quota prevents every edge/client from fetching the origin. */
-export async function refreshOfficialCalendarSnapshot(db:D1Database,nowMs=Date.now(),load=readCnCalendar,force=false):Promise<boolean>{
+export async function refreshOfficialCalendarSnapshot(db:D1Database,nowMs=Date.now(),load:typeof readCnCalendar=readCombinedCnCalendar,force=false):Promise<boolean>{
   let stage:'quota'|'origin'|'snapshot'='quota';
   try{
     // Force is only used by the authenticated, separately throttled owner endpoint.

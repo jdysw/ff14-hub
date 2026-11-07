@@ -9,7 +9,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { readCnCalendar } from '../../worker/modules/events/calendar-feed.ts';
+import { readCombinedCnCalendar as readCnCalendar } from '../../worker/modules/events/risingstones-calendar.ts';
 
 /** 仅向本项目固定的临时目录写入安全文件名，不允许绝对路径与 ../ 逃逸。 */
 export function snapshotOutputPath(name) {
