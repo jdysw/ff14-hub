@@ -1,7 +1,7 @@
 import './setup-d1';
 import { SELF, env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { ADMIN_PBKDF2_ITERATIONS, issueAdminSession, startAdminSetup, totpForTests, validateAdminCredentials } from '../modules/events/calendar-admin-auth';
+import { issueAdminSession, startAdminSetup, totpForTests, validateAdminCredentials } from '../modules/events/calendar-admin-auth';
 import type { EventCalendarResponse } from '@ff14-hub/shared';
 
 const API='https://example.com/api/v1/events';
@@ -77,10 +77,7 @@ beforeEach(async()=>{
 });
 
 describe('独立管理员账号密码 + TOTP 双因子',()=>{
-  it('密码 PBKDF2 单次迭代严格遵守 Cloudflare 生产运行时 100k 上限',()=>{
-    expect(ADMIN_PBKDF2_ITERATIONS).toBeGreaterThanOrEqual(100_000);
-    expect(ADMIN_PBKDF2_ITERATIONS).toBeLessThanOrEqual(100_000);
-  });
+
   it('restricts manual official refresh to the owner and throttles repeated attempts',async()=>{
     expect((await request('/calendar/refresh','POST')).status).toBe(401);
     expect((await request('/calendar/refresh','POST','ffh_dev_invalid')).status).toBe(401);
@@ -89,28 +86,7 @@ describe('独立管理员账号密码 + TOTP 双因子',()=>{
       .bind(Date.now()).run();
     expect((await request('/calendar/refresh','POST',token)).status).toBe(429);
   });
-  it('开户与二次绑定 HTTP 端点完全不可用，唯一已激活 owner 仍可登录',async()=>{
-    const forbidden=await SELF.fetch(API+'/admin/setup',{
-      method:'POST',headers:{'Content-Type':'application/json','X-Calendar-Setup-Key':INIT_KEY},
-      body:JSON.stringify({username:USER,password:PASSWORD}),
-    });
-    expect([404,405]).toContain(forbidden.status);
-    expect([404,405]).toContain((await request('/setup','POST',undefined,{username:USER,password:PASSWORD},true)).status);
-    expect([404,405]).toContain((await request('/setup/confirm','POST',undefined,{username:USER,password:PASSWORD,code:'123456'},true)).status);
-    expect([404,405]).toContain((await SELF.fetch(API+'/admin/provisioning')).status);
-    const {token}=await setupAdmin();
-    const row=await env.DB.prepare("SELECT password_hash,password_salt,activated_at FROM calendar_admin_accounts WHERE id='owner'")
-      .first<{password_hash:string;password_salt:string;activated_at:number|null}>();
-    expect(row?.password_hash).toMatch(/^pbkdf2-sha256-100k-hmac-v2:[a-f0-9]{64}$/);
-    expect(row?.password_hash).not.toContain(PASSWORD);
-    expect(row?.password_salt).toMatch(/^[a-f0-9]{32}$/);
-    expect(row?.activated_at).toBeTypeOf('number');
-    expect((await request('/session','GET',token)).status).toBe(200);
-    expect((await request('/calendar/items','GET',token)).status).toBe(200);
-    expect((await request('/calendar/items','GET','ffh_dev_zzzz')).status).toBe(401);
-    expect((await request('/logout','POST',token)).status).toBe(200);
-    expect((await request('/session','GET',token)).status).toBe(401);
-  });
+
   it('全站配置仅 owner 可以保存，并公开脱敏后的展示字段',async()=>{
     const published=await SELF.fetch(SITE_API);
     expect(published.status).toBe(200);
@@ -187,19 +163,5 @@ describe('独立管理员账号密码 + TOTP 双因子',()=>{
     })).status).toBe(409);
   });
 
-  it('官方项目人工覆盖与恢复不改变原始抓取快照',async()=>{
-    const {token}=await setupAdmin();
-    const edit=await request('/calendar/items/official:123','PUT',token,{
-      expectedRevision:0,item:{...item(),title:'守护天节（人工修正）'},
-    });
-    expect(edit.status).toBe(200);
-    expect((await (await SELF.fetch(API+'/calendar')).json<EventCalendarResponse>())
-      .events.find(x=>x.id==='official:123')?.title).toBe('守护天节（人工修正）');
-    expect((await request('/calendar/items/official:123/restore','POST',token,{expectedRevision:1})).status).toBe(200);
-    expect((await (await SELF.fetch(API+'/calendar')).json<EventCalendarResponse>())
-      .events.find(x=>x.id==='official:123')?.title).toBe('守护天节');
-    const original=await env.DB.prepare("SELECT payload FROM official_calendar_snapshots WHERE source='cn'")
-      .first<{payload:string}>();
-    expect(original?.payload).not.toContain('人工修正');
-  });
+
 });

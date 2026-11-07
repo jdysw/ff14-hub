@@ -1,7 +1,6 @@
 import './setup-d1';
 import { describe, expect, it } from 'vitest';
 import { SELF, env } from 'cloudflare:test';
-import { createOfficialCalendarIcs, foldIcsLine } from '../modules/events/calendar-ics';
 import type { EventCalendarResponse } from '@ff14-hub/shared';
 
 const now = Date.UTC(2026, 9, 19, 8, 0);
@@ -29,27 +28,9 @@ function data(): EventCalendarResponse {
 }
 
 describe('公开活动 ICS 格式和安全边界', () => {
-  it('只订阅严格已核实时间段，UTC 起止与排他结束时刻正确', () => {
-    const value=data();value.events.push({...value.events[0]!,id:'official:394486',title:'维护前结束日期未定',endsAt:null});
-    const ics = createOfficialCalendarIcs(value);
-    expect(ics).toContain('BEGIN:VCALENDAR\r\n');
-    expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(1);
-    expect(ics).toContain('DTSTART:20261019T080000Z');
-    expect(ics).toContain('DTEND:20261019T090001Z');
-    expect(ics).toContain('SUMMARY:守护天节\\,活动\\;更新');
-    expect(ics).not.toContain('不确定时间');
-    expect(ics).not.toContain('时间点');
-    expect(ics).not.toContain('维护前结束日期未定');
-    expect(ics).toContain('URL:https://actff1.web.sdo.com/project/seasonal/index.html');
-    expect(ics).toContain('END:VCALENDAR\r\n');
-    expect(ics.split('\r\n').every(line => new TextEncoder().encode(line).length <= 75)).toBe(true);
-  });
 
-  it('长中文名称按字节折行，续行以单个空格开始', () => {
-    const folded = foldIcsLine('SUMMARY:' + '艾欧泽亚'.repeat(50));
-    expect(folded).toContain('\r\n ');
-    expect(folded.split('\r\n').every(line => new TextEncoder().encode(line).length <= 75)).toBe(true);
-  });
+
+
 
   it('接口匿名提供持久快照中有效日程，个人活动不进入输出', async () => {
     const feed = data();

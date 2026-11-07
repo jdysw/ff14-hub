@@ -188,9 +188,6 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.12(@types/node@26.6.5)(jsdom@28.1.0(supports-color@10.0.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2))
 
   packages/shared:
     dependencies:
@@ -207,9 +204,6 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.12(@types/node@26.6.5)(jsdom@28.1.0(supports-color@10.0.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2))
 
   worker:
     dependencies:

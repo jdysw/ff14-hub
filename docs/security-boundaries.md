@@ -29,6 +29,6 @@ Worker 为 API、静态资源和错误响应统一加安全头。脚本、字体
 ## 回归入口
 
 - `worker/test/security.spec.ts`、`error-privacy.spec.ts`、`calendar-admin.spec.ts`。
-- `worker/test/retired-legacy-api.spec.ts`、`local-notifications.spec.ts`。
-- `apps/web/test/remote-sync.spec.ts`、`fishcake-sync.spec.ts`、`pwa-asset-cache.spec.ts`。
+- `worker/test/local-notifications.spec.ts`、`navigation-admin.spec.ts`。
+- `apps/web/test/automatic-sync.spec.ts`、`remote-sync.spec.ts`、`fishcake-sync.spec.ts`、`pwa.spec.ts`。
 - `scripts/ops/release-worker.test.mjs`、`fishcake-runtime.test.mjs`。
