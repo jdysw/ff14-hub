@@ -13,7 +13,7 @@ import type { AppBindings, AppMiddleware } from '../../types';
 import { issueAdminSession, revokeAdminSession, throttleAdmin, validateAdminCredentials, validateAdminSession } from '../../modules/events/calendar-admin-auth';
 import { siteSettingsMutationSchema, readSiteSettings, updateSiteSettings } from '../../modules/admin/site-settings';
 import { readOfficialCalendarSnapshot } from '../../modules/events/calendar-snapshot';
-import { readCnCalendar } from '../../modules/events/calendar-feed';
+import { readCombinedCnCalendar as readCnCalendar } from '../../modules/events/risingstones-calendar';
 import { refreshOfficialCalendarSnapshot } from '../../modules/events/calendar-refresh';
 import { calendarMutationSchema, calendarToggleSchema, listEditorEntries, saveCalendarEdit } from '../../modules/events/calendar-editor';
 import { registerAdminNavigation } from './admin-navigation';

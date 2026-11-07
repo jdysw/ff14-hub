@@ -19,6 +19,7 @@ import { createOfficialCalendarIcs } from '../../modules/events/calendar-ics';
 import { readOfficialCalendarSnapshot } from '../../modules/events/calendar-snapshot';
 import { applyCalendarEdits } from '../../modules/events/calendar-editor';
 import {withGoldTrial} from '../../modules/events/gold-trial';
+import {withRisingstonesCalendar} from '../../modules/events/risingstones-calendar';
 import { refreshOfficialCalendarSnapshot } from '../../modules/events/calendar-refresh';
 import type { AppBindings } from '../../types';
 
@@ -91,7 +92,7 @@ async function readCalendarForPublic(db: D1Database) {
 
 async function calendarForPublic(db:D1Database){
   const calendar=await readCalendarForPublic(db);
-  return applyCalendarEdits(db,await withGoldTrial(calendar));
+  return applyCalendarEdits(db,await withGoldTrial(await withRisingstonesCalendar(calendar)));
 }
 
 /** Public official calendar, with durable fallback and bounded revalidation. */
